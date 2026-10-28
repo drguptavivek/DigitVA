@@ -1,14 +1,16 @@
 const { withAppBuildGradle, withGradleProperties } = require("@expo/config-plugins");
 
 const { plusBuildRequested } = require("./with-android-collect-plus");
-const { releaseBuildRequested } = require("./with-android-release-signing");
+const { playDistributionRequested, releaseBuildRequested } = require("./with-android-release-signing");
 
 /**
  * Release builds ship one APK per ARM ABI (no universal APK), so a phone
  * downloads only its own native libraries. Each APK's versionCode is
  * `base * 10 + ABI digit` (armeabi-v7a 1, arm64-v8a 2): distinct per ABI and
  * still increasing with the base from app.config.js. Debug prebuilds are left
- * unchanged (one app-debug.apk).
+ * unchanged (one app-debug.apk). The Google Play build (DIGITVA_DISTRIBUTION=play)
+ * stands aside too: one universal AAB, which Play splits per device itself, with
+ * versionCode base * 10 + 3 set by app.config.js.
  */
 const RELEASE_ABIS = ["armeabi-v7a", "arm64-v8a"];
 const ABIS_PLUS = ["arm64-v8a"];
@@ -49,6 +51,7 @@ function patchAndroidAbiSplits(contents, abis = RELEASE_ABIS) {
 }
 
 module.exports = function withAndroidAbiSplits(config) {
+  if (playDistributionRequested()) return config;
   const plus = plusBuildRequested();
   if (!releaseBuildRequested() && !plus) return config;
   const abis = plus ? ABIS_PLUS : RELEASE_ABIS;

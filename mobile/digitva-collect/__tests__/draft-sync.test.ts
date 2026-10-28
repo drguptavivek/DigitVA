@@ -1,11 +1,12 @@
 import { DatabaseSync } from "node:sqlite";
 import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
+import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 
 import { ApiError } from "../src/api";
 import { authedRequest } from "../src/auth";
 import { saveDraftConsent } from "../src/consentStore";
 import { createDraftStore, getDraftRow, markCompleted, migrate, stripDraftCovered, unfinishedDraftsForSync, type Db, type DraftSyncItem } from "../src/drafts";
-import { reconcileCaseDraft, syncDraftSnapshot, type FetchedServerDraft } from "../src/draftSync";
+import { reconcileCaseDraft, recordCodingTimeline, recordDraftTimeline, syncDraftSnapshot, type FetchedServerDraft } from "../src/draftSync";
 import type { CaseDetail } from "../src/cases";
 
 jest.mock("../src/auth", () => ({ authedRequest: jest.fn() }));
@@ -174,6 +175,49 @@ describe("native draft sync", () => {
     });
   });
 
+  it("persists coding milestones separately from interview metadata without changing answers", async () => {
+    const item = await saveLocal();
+    const originalAnswers = JSON.parse(item.envelope).data;
+    const answersHashBefore = await digestStringAsync(CryptoDigestAlgorithm.SHA256, JSON.stringify(originalAnswers));
+    expect(await recordDraftTimeline(db, LOCAL_ID, "identity_saved", "2026-10-01T10:05:00+05:30")).toBe(true);
+    const openedAt = "2026-10-01T10:10:00+05:30";
+    const processedAt = "2026-10-01T10:20:00+05:30";
+    expect(await recordCodingTimeline(db, LOCAL_ID, "coding_opened", openedAt)).toBe(true);
+    expect(await recordCodingTimeline(db, LOCAL_ID, "doris_processed", processedAt, 1250)).toBe(true);
+    expect(await recordCodingTimeline(db, LOCAL_ID, "coding_opened", "2026-10-01T11:00:00Z")).toBe(true);
+    await expect(recordCodingTimeline(db, LOCAL_ID, "final_saved")).rejects.toThrow("invalid_workflow_timeline");
+    const timelineEnvelope = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
+    const persistedAnswers = JSON.parse(timelineEnvelope!.envelope).data;
+    const answersHashAfter = await digestStringAsync(CryptoDigestAlgorithm.SHA256, JSON.stringify(persistedAnswers));
+    expect(answersHashAfter).toBe(answersHashBefore);
+
+    let payload: Record<string, unknown> | undefined;
+    request.mockImplementationOnce(async (_userId: string, _path: string, init: { bodyFactory: () => unknown }) => {
+      payload = init.bodyFactory() as Record<string, unknown>;
+      return { status: 200, body: syncReply("incoming") };
+    });
+    await syncDraftSnapshot("user-1", db, { ...item, envelope: (await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]))!.envelope });
+    expect(payload?.answers_json).toBe(JSON.stringify({ Id10007: "local" }));
+    expect(payload?.answers_sha256).toBe(answersHashBefore);
+    expect(payload?.draft).toMatchObject({
+      workflowTimelineV1: [{ event: "identity_saved", at: "2026-10-01T10:05:00+05:30" }],
+      codingTimelineV1: [
+      { event: "coding_opened", at: openedAt },
+      { event: "doris_processed", at: processedAt, elapsed_ms: 1250 },
+      ],
+    });
+
+    await markCompleted(db, LOCAL_ID, { valid: true, issues: [] });
+    expect(await recordCodingTimeline(db, LOCAL_ID, "initial_saved", "2026-10-01T10:30:00+05:30")).toBe(true);
+    const retained = await db.getFirstAsync<{ envelope: string; completed: number }>("SELECT envelope, completed FROM drafts WHERE id = ?", [LOCAL_ID]);
+    expect(retained?.completed).toBe(1);
+    expect(JSON.parse(retained!.envelope)).toMatchObject({ data: { Id10007: "local" }, codingTimelineV1: [
+      { event: "coding_opened", at: openedAt },
+      { event: "doris_processed", at: processedAt, elapsed_ms: 1250 },
+      { event: "initial_saved", at: "2026-10-01T10:30:00+05:30" },
+    ] });
+  });
+
   it("uploads a draft saved before the reduction with the national ID reduced", async () => {
     const item = await saveLocal();
     const legacy = { ...JSON.parse(item.envelope), data: { Id10007: "local", Id10073: "123456789012" } };
@@ -229,6 +273,7 @@ describe("native draft sync", () => {
     const reply = syncReply("server");
     (reply as { envelope?: Record<string, unknown> }).envelope = {
       ...serverEnvelope(), instrumentVersion: "historic-v1", definitionSha256: "b".repeat(64), definitionExtensions: ["medical_records"],
+      codingTimelineV1: [{ event: "coding_opened", at: "2026-10-01T10:00:00+05:30" }],
     };
     request.mockResolvedValueOnce({ status: 200, body: reply });
 
@@ -238,6 +283,7 @@ describe("native draft sync", () => {
     expect(winner).toMatchObject({
       id: LOCAL_ID, startedAt: original.startedAt, currentSection: "s2", instrumentVersion: "historic-v1",
       definitionSha256: "b".repeat(64), definitionExtensions: ["medical_records"], data: { Id10007: "server" },
+      codingTimelineV1: [{ event: "coding_opened", at: "2026-10-01T10:00:00+05:30" }],
     });
     expect(await getDraftRow(db, LOCAL_ID)).toMatchObject({ updated_at: NEW_TIME, base_updated_at: NEW_TIME, draft_sync_dirty: 0 });
   });

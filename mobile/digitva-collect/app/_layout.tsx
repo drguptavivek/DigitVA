@@ -5,7 +5,6 @@ import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
-import { isPlusVariant } from "../src/appVariant";
 import { applyScreenCaptureBlock } from "../src/screenCapture";
 import { useTheme } from "../src/theme";
 import { useWhoWebTheme } from "../src/whoWebTheme";
@@ -16,6 +15,7 @@ import NativeCollectionGate from "../src/NativeCollectionGate";
 import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
 import { ClockWarning } from "../src/nativeShell/ClockNotice";
 import { useDemoDocumentTitle } from "../src/DemoBadge";
+import { installPerformanceTelemetryLifecycle } from "../src/performanceTelemetry";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 
@@ -76,11 +76,7 @@ export default function RootLayout() {
   useEffect(() => {
     applyScreenCaptureBlock();
   }, []);
-  // Collect Plus: load the offline engine in the background (its own process) while the coder signs in and browses.
-  useEffect(() => {
-    if (Platform.OS !== "android" || !isPlusVariant()) return undefined;
-    return (require("../src/offlineEngine") as typeof import("../src/offlineEngine")).scheduleEngineWarmUp();
-  }, []);
+  useEffect(() => installPerformanceTelemetryLifecycle(), []);
   return (
     <SafeAreaProvider>
       <AppStateProvider>

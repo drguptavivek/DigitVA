@@ -10,11 +10,19 @@ import { canStartDeathInterview } from "./deathWorkflow";
 import { consentFor, loadConsents, withoutCovered } from "./consentStore";
 import { draftForCase, getDraftPrefill, getDraftRow, localDateTimeWithOffset, type Db, type DeviceTimedDraft, type DraftRow, type DraftSyncItem } from "./drafts";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
+import {
+  appendWorkflowEvent,
+  workflowTimeline,
+  type WorkflowTimelineEvent,
+} from "./workflowTimeline";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LOCALE_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 const SYNC_MESSAGE = "This interview was also edited on another device; the newer version was kept.";
 const LOCAL_CHANGE_MESSAGE = "This interview changed on this device while it was syncing; the local version was kept.";
+const CODING_TIMELINE_EVENTS = new Set(["coding_opened", "doris_processed", "initial_saved", "final_saved"]);
+const CODING_TIMELINE_CLIENT_EVENTS = new Set(["coding_opened", "doris_processed", "initial_saved"]);
+const CODING_TIMELINE_MAX = 6;
 
 export interface DraftSyncDefaults {
   instrumentId: string;
@@ -79,6 +87,16 @@ function isOffsetTimestamp(value: unknown): value is string {
     !Number.isNaN(Date.parse(value));
 }
 
+/** Validate the separately bounded coding timeline carried beside the interview timeline. */
+function codingTimeline(value: unknown, allowFinalSaved = true): WorkflowTimelineEvent[] {
+  const events = workflowTimeline(value);
+  if (events.length > CODING_TIMELINE_MAX || events.some((item) =>
+    !CODING_TIMELINE_EVENTS.has(item.event) || (!allowFinalSaved && item.event === "final_saved"))) {
+    throw new Error("invalid_workflow_timeline");
+  }
+  return events;
+}
+
 function requiredString(value: Record<string, unknown>, key: string): string {
   const field = value[key];
   if (typeof field !== "string" || !field.trim()) throw new Error("invalid_server_draft");
@@ -126,6 +144,7 @@ function serverEnvelope(value: unknown, draftId: string): ServerDraftEnvelope {
     throw new Error("invalid_server_draft");
   }
   readDefinitionPin(value);
+  if (value.codingTimelineV1 !== undefined) codingTimeline(value.codingTimelineV1);
   return {
     ...value,
     schemaVersion: 1,
@@ -193,11 +212,20 @@ function parseLocalEnvelope(item: DraftSyncItem): DeviceTimedDraft {
     ...(typeof host.translation_version === "number" && Number.isInteger(host.translation_version) && host.translation_version >= 0
       ? { translation_version: host.translation_version }
       : {}),
+    ...(host.workflowTimelineV1 !== undefined
+      ? { workflowTimelineV1: workflowTimeline(host.workflowTimelineV1) }
+      : {}),
+    ...(host.codingTimelineV1 !== undefined
+      ? { codingTimelineV1: codingTimeline(host.codingTimelineV1) }
+      : {}),
     ...definitionPinFields(host),
   };
 }
 
 function metadataForSync(draft: DeviceTimedDraft): Record<string, unknown> {
+  const timeline = (draft as DeviceTimedDraft & { workflowTimelineV1?: WorkflowTimelineEvent[] }).workflowTimelineV1;
+  const coding = (draft as DeviceTimedDraft & { codingTimelineV1?: WorkflowTimelineEvent[] }).codingTimelineV1;
+  const clientCoding = coding === undefined ? undefined : codingTimeline(coding).filter((item) => item.event !== "final_saved");
   return {
     schemaVersion: draft.schemaVersion,
     formVersion: draft.formVersion,
@@ -210,6 +238,8 @@ function metadataForSync(draft: DeviceTimedDraft): Record<string, unknown> {
     ...(draft.completedAt ? { completedAt: draft.completedAt } : {}),
     ...(draft.locale ? { locale: draft.locale } : {}),
     ...(draft.translation_version !== undefined ? { translation_version: draft.translation_version } : {}),
+    ...(timeline !== undefined ? { workflowTimelineV1: workflowTimeline(timeline) } : {}),
+    ...(clientCoding !== undefined ? { codingTimelineV1: clientCoding } : {}),
     ...definitionPinFields(draft),
   };
 }
@@ -272,8 +302,113 @@ function normalizedEnvelope(
     ...(typeof envelope.translation_version === "number" && Number.isInteger(envelope.translation_version) && envelope.translation_version >= 0
       ? { translation_version: envelope.translation_version }
       : {}),
+    ...(envelope.workflowTimelineV1 !== undefined
+      ? { workflowTimelineV1: workflowTimeline(envelope.workflowTimelineV1) }
+      : {}),
+    ...(envelope.codingTimelineV1 !== undefined
+      ? { codingTimelineV1: codingTimeline(envelope.codingTimelineV1) }
+      : {}),
     ...definitionPinFields(envelope),
   };
+}
+
+/** Add a local-only workflow milestone without touching answers or their hash. */
+export async function recordDraftTimeline(
+  db: Db,
+  draftId: string,
+  event: string,
+  at?: string,
+  elapsedMs?: number,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const row = await db.getFirstAsync<{ envelope: string }>(
+      "SELECT envelope FROM drafts WHERE id = ? AND completed = 0",
+      [draftId],
+    );
+    if (!row) return false;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(row.envelope) as unknown;
+      const current = workflowTimeline(isRecord(raw) ? raw.workflowTimelineV1 : undefined);
+      const next = appendWorkflowEvent(current, event, at ?? localDateTimeWithOffset(), elapsedMs);
+      if (JSON.stringify(next) === JSON.stringify(current)) return true;
+      const updated = isRecord(raw) ? { ...raw, workflowTimelineV1: next } : raw;
+      const result = await db.runAsync(
+        "UPDATE drafts SET envelope = ? WHERE id = ? AND envelope = ? AND completed = 0",
+        [JSON.stringify(updated), draftId, row.envelope],
+      );
+      if (resultChanges(result)) return true;
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error("invalid_local_draft");
+      throw error;
+    }
+  }
+  return false;
+}
+
+/** Persist a fixed coding milestone with an envelope compare-and-set, including completed interview drafts. */
+export async function recordCodingTimeline(
+  db: Db,
+  draftId: string,
+  event: string,
+  at?: string,
+  elapsedMs?: number,
+): Promise<boolean> {
+  if (!CODING_TIMELINE_CLIENT_EVENTS.has(event)) throw new Error("invalid_workflow_timeline");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const row = await db.getFirstAsync<{ envelope: string }>(
+      "SELECT envelope FROM drafts WHERE id = ?",
+      [draftId],
+    );
+    if (!row) return false;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(row.envelope) as unknown;
+      if (!isRecord(raw)) throw new Error("invalid_local_draft");
+      const current = codingTimeline(raw.codingTimelineV1);
+      const next = codingTimeline(appendWorkflowEvent(current, event, at ?? localDateTimeWithOffset(), elapsedMs), false);
+      if (JSON.stringify(next) === JSON.stringify(current)) return true;
+      const result = await db.runAsync(
+        "UPDATE drafts SET envelope = ? WHERE id = ? AND envelope = ?",
+        [JSON.stringify({ ...raw, codingTimelineV1: next }), draftId, row.envelope],
+      );
+      if (resultChanges(result)) return true;
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error("invalid_local_draft");
+      throw error;
+    }
+  }
+  return false;
+}
+
+/** Infer the small set of navigation milestones from the saved envelope. */
+export async function recordDraftMilestones(
+  db: Db,
+  draftId: string,
+  sectionNames: readonly string[],
+): Promise<void> {
+  const row = await db.getFirstAsync<{ envelope: string }>(
+    "SELECT envelope FROM drafts WHERE id = ? AND completed = 0",
+    [draftId],
+  );
+  if (!row) return;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(row.envelope) as unknown;
+  } catch {
+    throw new Error("invalid_local_draft");
+  }
+  const record = isRecord(raw) ? raw : {};
+  const data = isRecord(record.data) ? record.data : {};
+  const events: string[] = ["interview_started"];
+  if (["deceased_name", "date_of_death", "Id10019"].some((key) => typeof data[key] === "string" && data[key].trim())) {
+    events.push("identity_saved");
+  }
+  const section = typeof record.currentSection === "string" ? record.currentSection : "";
+  const index = sectionNames.indexOf(section);
+  if (index >= Math.ceil(sectionNames.length / 2)) events.push("questionnaire_midpoint");
+  if (section.toLowerCase().includes("review")) events.push("review_opened");
+  for (const event of events) await recordDraftTimeline(db, draftId, event);
 }
 
 /** The fields a recorded refusal (the draft's own or its registration's) keeps off the server and out of the stored copy. */

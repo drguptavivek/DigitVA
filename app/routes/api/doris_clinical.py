@@ -12,7 +12,7 @@ from flask_login import current_user
 
 from app import db, limiter
 from app.decorators.role_required import role_required
-from app.models import VaAllocation, VaAllocations, VaStatuses, VaSubmissions
+from app.models import VaAllocation, VaAllocations, VaStatuses, VaSubmissions, VaSubmissionsAuditlog
 from app.services import public_demo_service, training_scope
 from app.services.authz import Action, can
 from app.services.coding_service import get_project_for_submission
@@ -73,6 +73,36 @@ class ClinicalDorisAccessError(ValueError):
         self.code = code
         self.message = message
         self.status_code = status_code
+
+
+def _record_doris_processed(va_sid: str, context: ClinicalDorisContext) -> None:
+    """Keep one successful coding-process timestamp per active allocation."""
+    action = "DORIS processing completed"
+    db.session.scalar(
+        sa.select(VaAllocations.va_allocation_id)
+        .where(VaAllocations.va_allocation_id == context.allocation_id)
+        .with_for_update()
+    )
+    exists = db.session.scalar(
+        sa.select(VaSubmissionsAuditlog.va_audit_entityid)
+        .where(
+            VaSubmissionsAuditlog.va_sid == va_sid,
+            VaSubmissionsAuditlog.va_audit_action == action,
+            VaSubmissionsAuditlog.va_audit_entityid == context.allocation_id,
+        )
+        .limit(1)
+    )
+    if exists is not None:
+        return
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=va_sid,
+        va_audit_byrole="vacoder",
+        va_audit_by=current_user.user_id,
+        va_audit_operation="c",
+        va_audit_action=action,
+        va_audit_entityid=context.allocation_id,
+    ))
+    db.session.commit()
 
 
 def _error(code: str, message: str, status_code: int, fields: list[dict] | None = None):
@@ -433,4 +463,6 @@ def clinical_process(va_sid: str):
         icd_release=result["icd_release"],
         who_image_digest=who_image_digest,
     )
+    if context.role == "coder" and result.get("doris", {}).get("status") == "completed":
+        _record_doris_processed(va_sid, context)
     return jsonify(result)

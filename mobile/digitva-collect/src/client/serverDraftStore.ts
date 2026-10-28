@@ -2,6 +2,11 @@ import type { SubmissionData, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/
 
 import { ClientApiError, isSignedOutError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "../formDefinitionRuntime";
+import {
+  appendWorkflowEvent,
+  workflowTimeline,
+  type WorkflowTimelineEvent,
+} from "../workflowTimeline";
 
 type SectionMap = Record<string, Record<string, unknown>>;
 type BaselineMap = Record<string, string>;
@@ -68,10 +73,13 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private baselineLocale: string | undefined;
   private baselineTranslationVersion: number | undefined;
   private baselineDefinitionPin: DefinitionPin | null = null;
+  private workflowTimeline: WorkflowTimelineEvent[] = [];
+  private baselineWorkflowTimeline: WorkflowTimelineEvent[] = [];
   private serverUpdatedAt: string | undefined;
   private draftId: string | undefined;
   private lastSection: string | undefined;
   private pending: WhoVaDraft | undefined;
+  private latestDraft: WhoVaDraft | undefined;
   private waiters: Array<{ resolve: () => void; reject: (error: unknown) => void }> = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
   private writing: Promise<void> = Promise.resolve();
@@ -117,6 +125,18 @@ export class ServerDraftStore implements WhoVaDraftStore {
       throw new ClientApiError(200, "malformed_response");
     }
     const envelope = response.envelope;
+    try {
+      const envelopeRecord = envelope as unknown as Record<string, unknown>;
+      const storedTimeline = envelopeRecord.workflowTimelineV1;
+      const fallbackTimeline = storedTimeline === undefined && typeof envelope.createdAt === "string"
+        && !Number.isNaN(Date.parse(envelope.createdAt))
+        ? [{ event: "interview_started", at: envelope.createdAt }]
+        : storedTimeline;
+      this.workflowTimeline = workflowTimeline(fallbackTimeline);
+    } catch {
+      throw new ClientApiError(200, "malformed_response");
+    }
+    this.baselineWorkflowTimeline = this.workflowTimeline;
     const savedPin = readDefinitionPin(envelope);
     if (savedPin && this.definitionPin && !sameDefinitionPin(savedPin, this.definitionPin)) {
       throw new ClientApiError(200, "definition_pin_mismatch");
@@ -171,6 +191,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
 
   save(draft: WhoVaDraft): Promise<void> {
     if (!this.loaded) return Promise.reject(new Error("Draft must load before it can be saved."));
+    this.latestDraft = draft;
+    this.noteWorkflowMilestones(draft);
     this.pending = draft;
     if (this.signedOut) {
       keepDraft(draft);
@@ -184,6 +206,14 @@ export class ServerDraftStore implements WhoVaDraftStore {
       void this.flush().catch(() => undefined);
     }, immediate ? 0 : 600);
     return settled;
+  }
+
+  /** Record a submit/transition milestone and flush it through the existing coalesced writer. */
+  async recordTimelineEvent(event: string, at?: string, elapsedMs?: number): Promise<void> {
+    this.workflowTimeline = appendWorkflowEvent(this.workflowTimeline, event, at, elapsedMs);
+    if (!this.latestDraft) return;
+    this.pending = this.latestDraft;
+    await this.flush();
   }
 
   async flush(): Promise<void> {
@@ -249,7 +279,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
     }
     const metadataChanged = this.locale !== this.baselineLocale ||
       this.translationVersion !== this.baselineTranslationVersion ||
-      !sameOptionalDefinitionPin(this.definitionPin, this.baselineDefinitionPin);
+      !sameOptionalDefinitionPin(this.definitionPin, this.baselineDefinitionPin) ||
+      serialise(this.workflowTimeline) !== serialise(this.baselineWorkflowTimeline);
     if (Object.keys(changed).length === 0 && draft.currentSection === this.lastSection && !metadataChanged) return;
     const acknowledgement = await requestClientJson<{
       saved_sections: number;
@@ -273,7 +304,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
             definitionExtensions: [...this.definitionPin.definitionExtensions],
           } : {}),
           ...(this.locale ? { locale: this.locale } : {}),
-          ...(this.translationVersion !== undefined ? { translation_version: this.translationVersion } : {})
+          ...(this.translationVersion !== undefined ? { translation_version: this.translationVersion } : {}),
+          workflowTimelineV1: this.workflowTimeline,
         }
       }
     });
@@ -295,12 +327,30 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.baselineLocale = this.locale;
     this.baselineTranslationVersion = this.translationVersion;
     this.baselineDefinitionPin = this.definitionPin;
+    this.baselineWorkflowTimeline = this.workflowTimeline;
     if (!options?.isPinOnly) {
       const savedSections =
         acknowledgement.saved_sections > 0
           ? acknowledgement.saved_sections
           : Object.values(this.baseline).filter((value) => value !== "{}").length;
       this.onSaveAcknowledged?.({ savedSections, updatedAt: this.serverUpdatedAt });
+    }
+  }
+
+  private noteWorkflowMilestones(draft: WhoVaDraft): void {
+    this.workflowTimeline = appendWorkflowEvent(this.workflowTimeline, "interview_started");
+    const data = draft.data as Record<string, unknown>;
+    const identityKeys = ["deceased_name", "date_of_death", "Id10019"];
+    if (identityKeys.some((key) => typeof data[key] === "string" && data[key].trim())) {
+      this.workflowTimeline = appendWorkflowEvent(this.workflowTimeline, "identity_saved");
+    }
+    const sections = [...new Set(this.sectionOf.values())];
+    const index = sections.indexOf(draft.currentSection);
+    if (index >= Math.ceil(sections.length / 2)) {
+      this.workflowTimeline = appendWorkflowEvent(this.workflowTimeline, "questionnaire_midpoint");
+    }
+    if (draft.currentSection.toLowerCase().includes("review")) {
+      this.workflowTimeline = appendWorkflowEvent(this.workflowTimeline, "review_opened");
     }
   }
 }

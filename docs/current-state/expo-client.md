@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Expo Client Hosting And Access
@@ -712,3 +712,18 @@ the device while unenrolled.
   `icd11.init` (whole init), `icd11.copy` (data copy into `filesDir`), and per
   call `icd11.search`, `icd11.codeinfo`, `icd11.doris`, `icd11.codedit`. Names
   never carry user input or certificate text.
+
+
+## Unified phone coding access (`digitva-6rxf`)
+
+Owner 2026-10-28: onboarded, standalone and demo are contexts of the same
+workflow, keeping their existing separate stores and identities. Both APK
+variants use the existing native online coding queue/workspace for enrolled
+users with coding access. Server authorization remains authoritative. Plus
+local ICD-11/MMS/DORIS tools additionally require self-coding and coder access
+in the same project (standalone keeps its local self-coding flow). The direct
+interview setting is not a coding permission. Capability changes preserve
+unsent work; the engine starts only on an eligible offline coding route.
+Startup and later local profile editing share one form and storage schema.
+The lighter package still excludes offline engine assets; a single-package
+on-demand distribution strategy is a separate release/licensing decision.

@@ -27,13 +27,26 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
-import { accessCapabilities, ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
+import {
+  accessCapabilities,
+  ApiError,
+  AUTH_API,
+  parseAccessSummary,
+  requestJson,
+  requestRaw,
+  type AccountDevice,
+  type AccessSummary,
+  type DeviceDecommissionResponse,
+  type RawApiResponse,
+} from "./api";
 import { accountServerChanged, lacksServer, UNKNOWN_SERVER } from "./accountServer";
 import { AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import type { UnlockResult } from "./interviewerDb";
 import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
 import { attachmentMediaKind } from "./workspace/media/path";
+import { offlineCodingProjectIds } from "./codingCapabilities";
+import { flushPerformanceTelemetry } from "./performanceTelemetry";
 
 export { AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 
@@ -56,6 +69,8 @@ export interface Account {
   registered_deaths_access?: boolean;
   /** Explicit active workflow grants, refreshed from /me/access. */
   coding_access?: boolean;
+  /** Project ids where self-coding and an active coder grant permit local coding. */
+  offline_coding_access?: string[];
   reviewing_access?: boolean;
   /** The server refused the refresh token without revoking: sign in again, data kept. */
   needs_sign_in?: boolean;
@@ -218,6 +233,30 @@ async function deviceFor(userId: string): Promise<{ slot: Slot; device: Device; 
   return { slot, device, account };
 }
 
+/** List this signed-in account's live phone sessions; the server never returns credentials. */
+export async function listMyDevices(userId: string): Promise<AccountDevice[]> {
+  const { body } = await authedRequest<{ devices: AccountDevice[] }>(userId, "/api/v1/me/devices");
+  if (!body || !Array.isArray(body.devices)) throw new ApiError(200, "malformed_response");
+  return body.devices;
+}
+
+/** End one phone's sessions. A current-phone removal keeps its encrypted data and only requires sign-in again. */
+export async function decommissionMyDevice(userId: string, deviceId: string): Promise<DeviceDecommissionResponse> {
+  const { body } = await authedRequest<DeviceDecommissionResponse>(
+    userId,
+    `/api/v1/me/devices/${encodeURIComponent(deviceId)}`,
+    { method: "DELETE" },
+  );
+  if (!body || body.decommissioned !== true || !Number.isInteger(body.sessions_ended) || typeof body.current !== "boolean") {
+    throw new ApiError(200, "malformed_response");
+  }
+  if (body.current) {
+    await markSignInRequired(userId);
+    for (const listener of accountListeners) listener();
+  }
+  return body;
+}
+
 /** Refresh the grant summary through the authenticated token-rotation path. */
 export function refreshAccessSummary(userId: string): Promise<AccessSummary | undefined> {
   const existing = accessRefreshes.get(userId);
@@ -229,13 +268,20 @@ export function refreshAccessSummary(userId: string): Promise<AccessSummary | un
   return pending;
 }
 
+function schedulePerformanceTelemetryFlush(userId: string): void {
+  void flushPerformanceTelemetry(userId, (path, init) => authedRequest(userId, path, init)).catch(() => undefined);
+}
+
 async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary | undefined> {
   const device = await loadDevice();
   const tokens = await readJson<Tokens>(tokensKey(userId));
   if (!device || !tokens) return undefined;
   try {
     const { body } = await authedRequest<unknown>(userId, "/api/v1/me/access");
-    return await publishAccessSummary(userId, body);
+    const access = await publishAccessSummary(userId, body);
+    // Performance batches are optional and rate-limited; never delay access refresh or surface a telemetry error.
+    schedulePerformanceTelemetryFlush(userId);
+    return access;
   } catch (error) {
     // An access refresh is auxiliary to sign-in/refresh. Preserve the session
     // when the device is offline or the terms gate is still open; the next
@@ -261,7 +307,9 @@ export async function refreshAccessSummaryForAction(userId: string): Promise<Acc
   const tokens = await readJson<Tokens>(tokensKey(userId));
   if (!device || !tokens) throw new ApiError(401, "unauthorized");
   const { body } = await authedRequest<unknown>(userId, "/api/v1/me/access");
-  return publishAccessSummary(userId, body);
+  const access = await publishAccessSummary(userId, body);
+  schedulePerformanceTelemetryFlush(userId);
+  return access;
 }
 
 async function publishAccessSummary(userId: string, value: unknown): Promise<AccessSummary> {
@@ -269,7 +317,7 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
   try {
     access = parseAccessSummary(value);
   } catch (error) {
-    await setAccountAccess(userId, false, false, false, false, false);
+    await setAccountAccess(userId, false, false, false, false, false, []);
     throw error;
   }
   await setAccessBlocked(userId, undefined);
@@ -281,6 +329,7 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
     capabilities.registeredDeaths,
     access.roles.some((role) => role === "coder" || role === "coding_tester"),
     access.roles.includes("reviewer"),
+    offlineCodingProjectIds(access),
   );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
@@ -293,18 +342,19 @@ async function setAccountAccess(
   registeredDeaths: boolean,
   coding: boolean,
   reviewing: boolean,
+  offlineCoding: string[],
 ): Promise<void> {
   const changed = await updateAccountsOf(userId, (accounts) => {
     if (!accounts.some((account) => account.user_id === userId &&
         (account.collection_access !== collection || account.registration_access !== registration ||
           account.registered_deaths_access !== registeredDeaths || account.coding_access !== coding ||
-          account.reviewing_access !== reviewing))) return undefined;
-    return accounts.map((account) =>
-      account.user_id === userId
-        ? { ...account, collection_access: collection, registration_access: registration,
-          registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing }
-        : account,
-    );
+          account.reviewing_access !== reviewing ||
+          JSON.stringify(account.offline_coding_access ?? []) !== JSON.stringify(offlineCoding)))) return undefined;
+    return accounts.map((account) => account.user_id === userId
+      ? { ...account, collection_access: collection, registration_access: registration,
+        registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing,
+        offline_coding_access: offlineCoding }
+      : account);
   });
   if (!changed) return;
   for (const listener of accountListeners) listener();
@@ -410,6 +460,7 @@ export async function enrolDemoDevice(
       device_name: deviceName,
       platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
+      ...(await clientDeviceUuid()),
     },
   });
   return storeEnrolment("demo", server, body);
@@ -623,6 +674,28 @@ export async function signOut(userId: string): Promise<void> {
     accounts.map((a) => (a.user_id === userId ? { ...a, needs_sign_in: true, signed_out: true } : a)),
   );
   for (const listener of accountListeners) listener();
+}
+
+/**
+ * Delete my account, public demo (docs/policy/public-demo.md section 9a): the server checks `password` and
+ * deletes the account at once, then this phone wipes that profile (store, unsent work included, tokens, entry).
+ * The server also deleted the devices only this account used, so a Demo slot left with no accounts forgets its
+ * device (back to Active). The caller locks the stores first (AppState lockNow), as for any slot change.
+ * Throws ApiError (`wrong_password`, `deletion_refused` with `payload.reason`) and deletes nothing locally then.
+ */
+export async function deleteDemoAccount(userId: string, password: string): Promise<void> {
+  await authedRequest(userId, "/api/v1/me/account/delete", { method: "POST", body: { password } });
+  await wipeInterviewer(userId);
+  if ((await loadAccounts("demo")).length === 0 && (await loadDevice("demo"))) await forgetDevice("demo");
+  for (const listener of accountListeners) listener();
+}
+
+/**
+ * Delete my account, staff: ask the programme team (docs/policy/public-privacy-and-data-requests.md section 8).
+ * The session identifies the account; a repeat while one is pending is a no-op on the server. Nothing changes here.
+ */
+export async function requestAccountDeletion(userId: string): Promise<void> {
+  await authedRequest(userId, "/api/v1/me/deletion-request", { method: "POST", body: {} });
 }
 
 /**

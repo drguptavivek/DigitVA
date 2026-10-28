@@ -396,6 +396,31 @@ def send_contact_message(*, to: str, reply_to: str, name: str, topic_label: str,
     )
 
 
+def send_account_deletion_request_notice(*, to: str, name: str, email: str | None) -> None:
+    """Queue the notice that a signed-in staff account asked to be deleted
+    (docs/policy/public-privacy-and-data-requests.md section 8), to the
+    programme mailbox *to*, through the contact form's template. Reply-To is
+    the account's email when it has one. Fixed text, nothing user-supplied
+    but the account's own name."""
+    _dispatch_email.delay(
+        to=to,
+        subject="DigitVA account deletion request",
+        template_name="emails/contact_message",
+        context={
+            "intro": "A signed-in DigitVA account asked for its deletion from the app or the website.",
+            "name": name,
+            "email": email or "none on the account",
+            "topic_label": "Account deletion request",
+            "message": (
+                "Review the request on the admin Users page, confirm it with the person, then delete or "
+                "deactivate the account by hand and mark the request handled. The account's audit history "
+                "is kept."
+            ),
+        },
+        reply_to=email,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Celery task
 # ---------------------------------------------------------------------------

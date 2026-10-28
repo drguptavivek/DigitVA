@@ -10,7 +10,9 @@ import { usePhoneClock } from "./phoneClock";
 import { isUnlocked, openInterviewerDb, unsentWorkCount } from "./interviewerDb";
 import { uploadQueuedWork } from "./sync";
 import { isPlusVariant } from "./appVariant";
+import { canUseOfflineCoding, canUseOnlineCoding } from "./codingCapabilities";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
+import { CodingCaseChips } from "./ui/CodingCaseChips";
 
 const COLLECTION_ROUTES = new Set([
   "/case",
@@ -21,8 +23,15 @@ const COLLECTION_ROUTES = new Set([
 ]);
 const REGISTRATION_ROUTES = new Set(["/death-registration", "/register"]);
 const WORKLIST_ROUTE = "/worklist";
+const CODING_ROUTE = "/coding";
+const REVIEWING_ROUTE = "/reviewing";
+const WORKSPACE_ROUTE = "/workspace";
+const OFFLINE_CODING_ROUTE = "/offline-coding";
+const ENGINE_CHECK_ROUTE = "/engine-check";
 /** Data entry: blocked while the phone clock is more than 4 hours off. Viewing and sending are not. */
 const ENTRY_ROUTES = new Set(["/death-registration", "/register", "/form", "/interview", "/revision"]);
+
+const firstParam = (value: string | string[] | undefined): string | undefined => Array.isArray(value) ? value[0] : value;
 
 /**
  * Keep account controls available while collection is disabled. Unsent work
@@ -32,7 +41,7 @@ const ENTRY_ROUTES = new Set(["/death-registration", "/register", "/form", "/int
  */
 function NativePendingWorkspace({ userId }: { userId: string }) {
   const router = useRouter();
-  const { accounts, reload } = useAppState();
+  const { accounts, reload, offline } = useAppState();
   const styles = useUiStyles();
   const [message, setMessage] = useState<string>();
   const [unsent, setUnsent] = useState<number>();
@@ -81,12 +90,8 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       ) : unlocked && unsent ? (
         <Button label={t("sendUnsent")} loading={sending} disabled={sending} onPress={() => void sendUnsent()} />
       ) : null}
-      {/* Collect Plus codes on the phone; the plain app collects only, and coding and review are on the web. */}
-      {isPlusVariant() && account?.coding_access && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
-        <>
-          <Button label="Coding queue" onPress={() => router.push({ pathname: "/coding", params: { userId } })} />
-          <Button kind="secondary" label="Offline coding" onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })} />
-        </>
+      {account && canUseOnlineCoding(account) && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
+        <CodingCaseChips userId={userId} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={offline} />
       ) : (
         <Text style={styles.text}>{t(account?.coding_access || account?.reviewing_access ? "codingOnWeb" : "codingReviewPending")}</Text>
       )}
@@ -105,7 +110,7 @@ export default function NativeCollectionGate({
   const pathname = routeName === undefined
     ? currentPathname
     : `/${routeName.split("/").filter(Boolean).at(-1) ?? ""}`;
-  const params = useGlobalSearchParams<{ userId?: string | string[] }>();
+  const params = useGlobalSearchParams<{ userId?: string | string[]; mode?: string | string[] }>();
   const router = useRouter();
   const state = useAppState();
   const styles = useUiStyles();
@@ -127,6 +132,12 @@ export default function NativeCollectionGate({
   const registrationAccess = account?.registration_access;
   const codingAccess = account?.coding_access;
   const reviewingAccess = account?.reviewing_access;
+  const routeMode = typeof (routeParams as { mode?: unknown } | undefined)?.mode === "string"
+    ? (routeParams as { mode: string }).mode
+    : firstParam(params.mode);
+  const needsCoding = pathname === CODING_ROUTE || (pathname === WORKSPACE_ROUTE && routeMode !== "reviewing");
+  const needsReviewing = pathname === REVIEWING_ROUTE || (pathname === WORKSPACE_ROUTE && routeMode === "reviewing");
+  const offlineCapability = account ? canUseOfflineCoding(account) : false;
 
   const checkAccess = useCallback(async () => {
     if (!userId) return;
@@ -150,7 +161,8 @@ export default function NativeCollectionGate({
     const needsWorkspace = pathname === WORKLIST_ROUTE;
     if (hasAccount && ((needsCollection && collectionAccess === undefined) ||
         (needsRegistration && registrationAccess === undefined) ||
-        (needsWorkspace && (codingAccess === undefined || reviewingAccess === undefined)))) {
+        (needsWorkspace && (codingAccess === undefined || reviewingAccess === undefined)) ||
+        (needsCoding && codingAccess === undefined) || (needsReviewing && reviewingAccess === undefined))) {
       void checkAccess();
     }
   }, [checkAccess, codingAccess, collectionAccess, hasAccount, pathname, registrationAccess, reviewingAccess]);
@@ -158,9 +170,21 @@ export default function NativeCollectionGate({
   const guarded = (screen: ReactNode) => level === "block" && ENTRY_ROUTES.has(pathname)
     ? <View style={{ flex: 1 }}>{screen}<ClockBlock /></View>
     : screen;
-  if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE) return children;
+  if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE &&
+      pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && !needsCoding && !needsReviewing) return children;
   if (!state.ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!userId || !account) return <Redirect href="/" />;
+  if (pathname === OFFLINE_CODING_ROUTE || pathname === ENGINE_CHECK_ROUTE) {
+    if (!isPlusVariant() || !offlineCapability) return <Redirect href="/" />;
+    if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
+    return children;
+  }
+  if (needsCoding || needsReviewing) {
+    if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
+    if (needsCoding && canUseOnlineCoding(account)) return children;
+    if (needsReviewing && account.reviewing_access === true) return children;
+    return <Redirect href="/" />;
+  }
   if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
   if (pathname === WORKLIST_ROUTE && (account.coding_access || account.reviewing_access) &&
       account.collection_access !== true && account.registration_access !== true) return <NativePendingWorkspace userId={userId} />;

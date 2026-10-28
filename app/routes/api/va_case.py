@@ -35,6 +35,7 @@ from app.models import (
     VaProjectMaster,
     VaStatuses,
     VaSubmissions,
+    VaSubmissionsAuditlog,
 )
 from app.routes.api.request_helpers import error as api_error
 from app.services import smartva_service
@@ -99,6 +100,12 @@ from app.services.workflow.definition import (
     CODING_BUCKET_CODED,
     CODING_BUCKET_NOT_CODEABLE,
     coding_bucket,
+)
+from app.services.workflow_timeline_service import (
+    CODING_TIMELINE_EVENTS,
+    WorkflowTimelineError,
+    parse_timeline,
+    server_event,
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.utils import va_get_form_type_code_for_form
@@ -323,6 +330,66 @@ def _iso(moment):
     return moment.isoformat()
 
 
+def _coding_timeline(
+    va_sid: str, user_id, initial_row, final_row, *, active_allocation: bool
+) -> list[dict]:
+    """Return bounded saved coding milestones for the coder's latest run.
+
+    The allocation timestamp is the durable coding start; an online editor
+    open is not persisted. Only allocation-linked DORIS audit and assessment
+    rows contribute the remaining server-recorded milestones.
+    """
+    coder_id = user_id
+    if final_row is not None:
+        coder_id = final_row.va_finassess_by
+    elif initial_row is not None:
+        coder_id = initial_row.va_iniassess_by
+
+    allocation_query = sa.select(VaAllocations).where(
+        VaAllocations.va_sid == va_sid,
+        VaAllocations.va_allocated_to == coder_id,
+        VaAllocations.va_allocation_for == VaAllocation.coding,
+    )
+    if active_allocation:
+        allocation_query = allocation_query.where(
+            VaAllocations.va_allocation_status == VaStatuses.active
+        )
+    allocation = db.session.scalar(
+        allocation_query.order_by(VaAllocations.va_allocation_createdat.desc()).limit(1)
+    )
+    if allocation is None:
+        return []
+
+    def stored_event(event: str, moment):
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=UTC)
+        return server_event(event, at=moment)
+
+    try:
+        events = [stored_event("coding_allocated", allocation.va_allocation_createdat)]
+        processed_at = db.session.scalar(
+            sa.select(VaSubmissionsAuditlog.va_audit_createdat)
+            .where(
+                VaSubmissionsAuditlog.va_sid == va_sid,
+                VaSubmissionsAuditlog.va_audit_action == "DORIS processing completed",
+                VaSubmissionsAuditlog.va_audit_entityid == allocation.va_allocation_id,
+            )
+            .order_by(VaSubmissionsAuditlog.va_audit_createdat)
+            .limit(1)
+        )
+        if processed_at is not None:
+            events.append(stored_event("doris_processed", processed_at))
+        if initial_row is not None and initial_row.va_iniassess_by == coder_id:
+            events.append(stored_event("initial_saved", initial_row.va_iniassess_createdat))
+        if final_row is not None and final_row.va_finassess_by == coder_id:
+            events.append(stored_event("final_saved", final_row.va_finassess_createdat))
+        return parse_timeline(events, CODING_TIMELINE_EVENTS)
+    except WorkflowTimelineError:
+        # A malformed historical timestamp must not break an authorized workspace.
+        current_app.logger.warning("invalid stored coding timeline")
+        return []
+
+
 def _initial_json(row) -> dict | None:
     if row is None:
         return None
@@ -461,8 +528,11 @@ def workspace(va_sid):
 
     200 ``{case, categories, default_category, step, blocked_by,
     assessments, smartva, smartva_status, smartva_can_run,
-    other_conditions_options, narrative_qa,
-    social_autopsy, doris}``; ``step`` is ``initial | final | done``, or
+    other_conditions_options, narrative_qa, social_autopsy, doris,
+    codingTimelineV1}``; ``codingTimelineV1`` is additive and contains the
+    caller-visible coder's bounded allocation, DORIS and assessment times;
+    allocation is the durable start marker, not an editor-open timestamp.
+    ``step`` is ``initial | final | done``, or
     ``view`` for a read-only view: ``blocked_by`` is empty, ``doris``,
     ``narrative_qa``, ``social_autopsy``, ``other_conditions_options`` and
     ``assessments.initial|initial_prefill`` are ``None`` (``case``'s two
@@ -577,6 +647,21 @@ def workspace(va_sid):
             has_initial=artifacts.va_reviewer_initial_assess is not None,
             has_final=artifacts.va_reviewer_final_assess is not None,
         )
+    timeline_initial = own if case.mode == "coding" else artifacts.va_initial_assess
+    timeline_final = coder_final
+    if case.mode == "coding" and timeline_final is not None and timeline_final.va_finassess_by != uid:
+        timeline_final = None
+    coding_timeline = (
+        []
+        if case.intake_only or (view and not show_reference)
+        else _coding_timeline(
+            va_sid,
+            uid,
+            timeline_initial,
+            timeline_final,
+            active_allocation=case.mode == "coding",
+        )
+    )
     # SmartVA completes asynchronously, so it is read live, and a masked
     # project keeps it from Step 1 as the web does: shown once the caller
     # has their own Step 1.
@@ -655,6 +740,7 @@ def workspace(va_sid):
             visible_category_codes=case.visible_category_codes,
         ),
         "assessments": assessments,
+        "codingTimelineV1": coding_timeline,
         "smartva": smartva,
         "smartva_status": smartva_panel["status"],
         "smartva_can_run": bool(smartva_panel["can_run"]) and not view,

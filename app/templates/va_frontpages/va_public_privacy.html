@@ -56,12 +56,16 @@
     <ul>
       <li>Traffic between the apps and the server uses HTTPS.</li>
       <li>Interviews on the phone are held in an encrypted database, one store per interviewer, locked by a PIN. Repeated wrong PINs wipe only that store.</li>
-      <li>Once the server confirms an interview and its attachments have arrived, the copy on the phone is deleted. A phone that is revoked, for example if lost, is wiped when it next connects.</li>
+      <li>Once the server confirms an interview and its attachments have arrived, the copy on the phone is deleted. Decommissioning a sign-in ends access on that device. Encrypted unsent work is preserved for safe recovery rather than silently wiped.</li>
       <li>Personal fields on the server are encrypted at rest, and Android backup of app data is turned off.</li>
     </ul>
 
     <h2 class="h4">How long we keep it</h2>
     <p>Verbal autopsy records are kept for the period the programme requires and applicable law allows, after which they are deleted or de-identified. Audit records are kept for the programme's audit period. Backups expire in the normal backup cycle. Contact us for the period that applies to you.</p>
+
+    <h2 class="h4">Optional app performance diagnostics</h2>
+    <p>The app sends minimal daily performance counters to this DigitVA server: approximate foreground use, launches and sanitized crash/error counts, with app version and coarse device type, RAM/core and manufacturer categories. No interview answers, case identifiers, names, contacts, recordings, certificates, raw error logs or stable device identifiers are included. No third-party analytics service is used, and no GPS permission is requested. Coarse country context may come from an existing project setting.</p>
+    <p>Diagnostics are enabled and can be switched off in Settings. Switching off clears pending local diagnostics and stops future collection; counters already combined into aggregates cannot be removed individually. Aggregate diagnostics and random retry keys expire after 90 days. Performance reports suppress small groups. Interview and coding phase timelines remain part of the internal submission record under the programme's normal access and retention rules; they are not diagnostic uploads.</p>
 
     <h2 class="h4">Your rights and deletion</h2>
     <p>You can ask to see, correct or erase the details we hold about you, withdraw your agreement, or ask that your answers be left out of reports and research. Data already shared for research in de-identified form cannot be taken back. To delete an app account and its data, see <a href="{{ url_for('public_pages.data_requests') }}">consent and data requests</a>. You can complain to {% if org.grievance_officer %}the grievance officer named above{% else %}us{% endif %} and then to the Data Protection Board of India.</p>

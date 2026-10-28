@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # API v1 Reference
@@ -172,6 +172,8 @@ The pages beside them (not JSON): `/public-demo/cases`, `/public-demo/cases/<va_
 | `GET /me/home` | The Home page's one block per role the caller holds, counts only, below. 120/min. |
 | `GET /me/notifications?after=<id>` | The caller's own notifications, below. Either credential. 120/min. |
 | `POST /me/terms` | Below. Also `POST /profile/terms` (the same view). |
+| `POST /me/account/delete` | Delete my account, public demo only (policy: public-demo.md section 9a). Either credential; a cookie request needs `X-CSRFToken` and is signed out after. Body `{password}`, checked with `check_password`, never logged or stored. 5/min and 20/hour per account. 200 `{deleted: true}` after `public_demo_purge_service.delete_own_account` (the purge's deletion, every per-account guard, no idle rule, no kept mark, no `PUBLIC_DEMO_PURGE_ENABLED`; audited `public_demo_self_delete` with row counts, no username). 400 `wrong_password` (not 401/403, which the phone reads as sign-in or access changes); 403 `not_demo_account` for any other account; 409 `deletion_refused` with `reason` (`shared_case`, `grant_outside_demo`, `not_demo_project`, `main_database`, `not_enabled`) and nothing deleted. |
+| `POST /me/deletion-request` | Delete my account, staff (policy: public-privacy-and-data-requests.md section 8). Either credential; cookie needs `X-CSRFToken`. No body: the session names the account. 201 `{status: "pending", created: true}` files a row in `auth_account_deletion_requests` (`requested_via` `app` or `web`), audits `account_deletion_requested` (`{via}`) and, after commit, notifies `PUBLIC_CONTACT_EMAIL` when set and mail goes out (`email_service.send_account_deletion_request_notice`, the contact form's template). 200 with `created: false` while one is pending: nothing changes. 403 `demo_account` for a public-demo account. 10/hour per account. Deletion stays manual. |
 | `GET /organization/<project>/units?role=interviewer` | The unit picker: `web_intake_service.reachable_unit_ids` (grant-based; a project grant or any site grant of the project reaches the whole tree). 403 when nothing is reachable. `role=death_reporter` is the same rule over a death reporter's own unit grants (the Register death picker for a reporter). Other `role` values and none are the browsing views. |
 | `GET /organization/<project>/form-options` | `form_options_payload`: `config_version`, `enabled_extensions`, `form_types`, `intake_note`, `default_locale`, `available_locales`, `translation_versions`, `narration_languages`, `show_guidance`, `web_intake_mode` (which capture paths are open), `instrument_version` (the composed form version, `served_form_service.composed_version`), `definition_sha256` (the project's definition fingerprint). Any grant reaching the project. |
 | `GET /intake/projects/<project>/prefill-policy` | `web_intake_service.prefill_policy`; the project must be one of the caller's interviewer projects (403 `project_forbidden`). |
@@ -182,6 +184,15 @@ The pages beside them (not JSON): `/public-demo/cases`, `/public-demo/cases/<va_
 A client starts from `GET /me/access` (or the sign-in reply's `access`), then
 reads `form-options` and `prefill-policy` per interviewer project it works in
 and the `units` picker per project that has a tree.
+
+Admin review of deletion requests (cookie, admin only, `X-CSRFToken` on the
+POST; `app/routes/admin.py`): `GET /admin/api/deletion-requests` returns the
+pending ones oldest first, at most 100, `{requests: [{id, user_id, name,
+email, phone, requested_via, requested_at}], total}`, shown on the admin
+Users panel; `POST /admin/api/deletion-requests/<id>/handled` sets
+`handled_at` / `handled_by` and audits `account_deletion_request_handled`
+(`{request_id}`), 404 when no such request is pending. Neither deletes
+anything.
 
 ## Intake (`/api/v1/intake`, `app/routes/api/intake.py`)
 

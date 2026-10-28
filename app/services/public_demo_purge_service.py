@@ -4,7 +4,10 @@ created. Policy: docs/policy/public-demo.md sections 8 (eviction) and 9.
 Two callers share ``delete_account``: the daily purge (accounts idle for
 ``PUBLIC_DEMO_PURGE_IDLE_DAYS``, one transaction each) and the eviction at the
 account cap (``evict_one``, inside the sign-up transaction under its lock,
-accounts idle for ``PUBLIC_DEMO_EVICT_IDLE_DAYS``).
+accounts idle for ``PUBLIC_DEMO_EVICT_IDLE_DAYS``). A third,
+``delete_own_account``, is the user's own request (policy section 9a): the
+same deletion without the idle rule, the kept mark or the purge switch, every
+per-account guard kept.
 
 Idle means no sign-in and no activity since the cutoff: the latest of
 ``va_users.last_signed_in_at`` (web and device sign-in, and a remember-me
@@ -73,6 +76,7 @@ log = logging.getLogger(__name__)
 
 PURGE_EVENT = "public_demo_purge"
 EVICT_EVENT = "public_demo_evict"
+SELF_DELETE_EVENT = "public_demo_self_delete"
 #: Upper bounds on the candidates one run looks at, so accounts the guards
 #: refuse (they stay idle and are reselected every night) cannot starve the
 #: batch, and a bad table cannot make a run unbounded.
@@ -136,6 +140,7 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("va_submissions", "va_sid IN :sids"),
     ("va_bundle_ingests", "uploader_user_id = :u OR device_id IN :devices"),
     ("auth_device_sessions", "user_id = :u"),
+    ("auth_account_deletion_requests", "user_id = :u"),
     ("auth_device_signing_keys", "device_id IN :devices"),
     ("auth_sign_in_tokens", "user_id = :u OR redeemed_device_id IN :devices"),
     ("auth_devices", "device_id IN :devices"),
@@ -196,9 +201,9 @@ class PurgeRefused(RuntimeError):
 
 
 def refusal(*, apply: bool = True) -> str | None:
-    """Why deletion cannot run on this deployment, or None. A dry run needs
-    only the flag and the main-database guard; applying also needs
-    ``PUBLIC_DEMO_PURGE_ENABLED``."""
+    """Why deletion cannot run on this deployment, or None. A dry run and a
+    self-delete need only the flag and the main-database guard; applying the
+    purge or an eviction also needs ``PUBLIC_DEMO_PURGE_ENABLED``."""
     if not demo.enabled():
         return "not_enabled"
     if apply and not current_app.config.get("PUBLIC_DEMO_PURGE_ENABLED"):
@@ -392,10 +397,17 @@ def _delete_rows(user_id, idle_days: int, *, apply: bool, now: datetime | None):
     reason = refusal(apply=apply)
     if reason:
         raise PurgeRefused(reason)
+    return _delete_locked(user_id, _eligible(idle_days, now or datetime.now(UTC)), skip_locked=True)
+
+
+def _delete_locked(user_id, eligible, *, skip_locked: bool):
+    """Lock the account row under *eligible* (filters on ``VaUsers``), run the
+    per-account guards and delete; ``(counts, files)``. ``not_eligible`` when
+    the row does not match or (*skip_locked*) another transaction holds it."""
     locked = db.session.scalar(
         sa.select(VaUsers.user_id)
-        .where(VaUsers.user_id == user_id, *_eligible(idle_days, now or datetime.now(UTC)))
-        .with_for_update(skip_locked=True, of=VaUsers)
+        .where(VaUsers.user_id == user_id, *eligible)
+        .with_for_update(skip_locked=skip_locked, of=VaUsers)
     )
     if locked is None:
         raise PurgeRefused("not_eligible")
@@ -450,6 +462,29 @@ def delete_account(user_id, idle_days: int, *, apply: bool = True, now: datetime
     """
     counts, files = _delete_rows(user_id, idle_days, apply=apply, now=now)
     _queue_files(files)
+    return counts
+
+
+def delete_own_account(user_id) -> dict[str, int]:
+    """The account's own request to be deleted (policy section 9a): a
+    public-demo account, kept or not, however recently used, with the purge
+    switch on or off. In the caller's transaction, inside a savepoint, so a
+    refusal deletes nothing; the caller commits, which removes the files.
+    Audited as ``public_demo_self_delete`` with the row counts, never the
+    username. Waits for the row lock rather than skipping it.
+
+    Raises PurgeRefused: ``not_enabled`` / ``main_database``, ``not_eligible``
+    (not a public-demo account), ``not_demo_project`` / ``shared_case`` /
+    ``grant_outside_demo``.
+    """
+    reason = refusal(apply=False)
+    if reason:
+        raise PurgeRefused(reason)
+    with db.session.begin_nested():
+        counts, files = _delete_locked(user_id, (VaUsers.is_public_demo.is_(True),), skip_locked=False)
+        record_security_event(user_id=None, event_type=SELF_DELETE_EVENT, detail={"rows": counts})
+    _queue_files(files)
+    log.info("public demo account deleted at its own request | rows=%d", sum(counts.values()))
     return counts
 
 

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Current Data Model
@@ -812,6 +812,21 @@ access. `last_signed_in_at` (timezone-aware) is set by
 opening. The `web_sign_in` event in `auth_security_events` now also carries
 the client IP in `detail.ip` (no schema change; stored only when it parses as an address; the daily
 `wipe_sign_in_ips_task` removes it from events older than 210 days).
+
+### `auth_account_deletion_requests`
+
+Migration `b4e7c2a9d6f3` (digitva-et16; policy
+[public-privacy-and-data-requests.md](../policy/public-privacy-and-data-requests.md)
+section 8; model `AuthAccountDeletionRequest` in `app/models/auth_factors.py`).
+A staff account's own deletion request, for an admin to review: `id`,
+`user_id` (FK `va_users`, CASCADE), `requested_via` (`app` or `web`),
+`requested_at`, `handled_at`, `handled_by` (FK `va_users`, SET NULL). One
+pending request per account: partial unique index on `user_id` where
+`handled_at IS NULL`; the admin list reads the partial index on
+`requested_at` where `handled_at IS NULL`. Deleting the account deletes its
+requests (the security events `account_deletion_requested` /
+`account_deletion_request_handled` stay). The demo purge lists it in `PLAN`;
+demo accounts never file one. Downgrade drops the table.
 
 ## Death Registration Identifiers
 

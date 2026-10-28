@@ -4,6 +4,7 @@ Policy: docs/policy/public-demo.md section 10. Uses the public-demo fixtures of
 tests/test_public_demo.py.
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from unittest import mock
 
@@ -90,43 +91,47 @@ class DemoEnrolTests(PublicDemoBase):
         self.assertEqual(self._enrol(device_name="").status_code, 400)
         self.assertEqual(self._devices(), [])
 
-    def test_at_the_cap_the_least_recently_used_device_is_revoked_to_make_room(self):
-        first, second, third = (self._enrol().get_json() for _ in range(3))
-        now = datetime.now(UTC)
-        # Session activity decides, not enrolment order: the first device was used last.
-        for body, days in ((first, 0), (second, 5), (third, 2)):
-            db.session.add(AuthDeviceSession(
-                device_id=body["device_id"], user_id=self.user.user_id, access_hash=body["device_id"] + "a",
-                refresh_hash=body["device_id"] + "r", access_expires_at=now, refresh_expires_at=now,
-                created_at=now - timedelta(days=days), last_seen_at=now - timedelta(days=days),
-            ))
-        db.session.commit()
-        fourth = self._enrol()
-        self.assertEqual(fourth.status_code, 201, fourth.get_json())
-        live = {str(d.device_id) for d in self._devices() if d.revoked_at is None}
-        self.assertEqual(live, {first["device_id"], third["device_id"], fourth.get_json()["device_id"]})
-        victim = db.session.get(AuthDevice, second["device_id"])
-        self.assertIsNotNone(victim.revoked_at)
-        self.assertIsNone(db.session.scalar(sa.select(AuthDeviceSession.revoked_at.is_(None).label("open")).where(
-            AuthDeviceSession.device_id == victim.device_id).where(AuthDeviceSession.revoked_at.is_(None))))
-        event = db.session.scalars(sa.select(AuthSecurityEvent).where(
+    def test_demo_enrolment_stores_optional_client_device_uuid(self):
+        client_uuid = uuid.uuid4()
+        response = self._enrol(client_device_uuid=str(client_uuid).upper())
+        self.assertEqual(response.status_code, 201, response.get_json())
+        device = db.session.get(AuthDevice, response.get_json()["device_id"])
+        self.assertEqual(device.client_device_uuid, client_uuid)
+
+    def test_demo_enrolment_rejects_malformed_client_device_uuid_before_writing(self):
+        response = self._enrol(client_device_uuid="not-a-uuid")
+        self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"))
+        self.assertEqual(self._devices(), [])
+
+    def test_at_the_cap_demo_enrolment_is_refused_without_lru_eviction(self):
+        bodies = [self._enrol().get_json() for _ in range(3)]
+        for body in bodies:
+            signed_in = self.client.post("/api/v1/auth/sessions", json={
+                "device_id": body["device_id"], "device_secret": body["device_secret"],
+                "email": self.user.username, "password": PASSWORD,
+            })
+            self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+
+        fourth = self.client.post(URL, json={
+            "username": self.user.username, "password": PASSWORD,
+            "device_name": "Phone", "platform": "android", "app_version": "0.3.0",
+        })
+        self.assertEqual((fourth.status_code, fourth.get_json()["code"]), (409, "device_limit"))
+        self.assertEqual(len([d for d in self._devices() if d.revoked_at is None]), 3)
+        self.assertEqual(db.session.scalars(sa.select(AuthSecurityEvent).where(
             AuthSecurityEvent.event_type == "device_revoked",
-            AuthSecurityEvent.actor_user_id == self.user.user_id)).one()
-        self.assertEqual((event.detail["device_id"], event.detail["reason"], event.detail["sessions_ended"]),
-                         (second["device_id"], "demo_device_replaced", 1))
+            AuthSecurityEvent.actor_user_id == self.user.user_id,
+        )).all(), [])
         # Another account's devices are never touched.
         other = self._account("demo.enrol2")
         self.assertEqual(self._enrol(username="demo.enrol2").status_code, 201)
         self.assertEqual(len([d for d in self._devices(other) if d.revoked_at is None]), 1)
 
-    def test_a_device_that_never_signed_in_is_replaced_by_enrolment_age(self):
+    def test_unopened_demo_devices_do_not_consume_active_slots(self):
         bodies = [self._enrol().get_json() for _ in range(3)]
         self.assertEqual(self._enrol().status_code, 201)
-        self.assertIsNotNone(db.session.get(AuthDevice, bodies[0]["device_id"]).revoked_at)
-        self.assertEqual(len([d for d in self._devices() if d.revoked_at is None]), 3)
-        with mock.patch.dict(self.app.config, PUBLIC_DEMO_DEVICES_PER_ACCOUNT=1):
-            self.assertEqual(self._enrol().status_code, 201)
-        self.assertEqual(len([d for d in self._devices() if d.revoked_at is None]), 1)
+        self.assertTrue(all(db.session.get(AuthDevice, body["device_id"]).revoked_at is None for body in bodies))
+        self.assertEqual(len([d for d in self._devices() if d.revoked_at is None]), 4)
 
     def test_flag_off_is_404_and_enrols_nothing(self):
         with mock.patch.dict(self.app.config, PUBLIC_DEMO_ENABLED=False):

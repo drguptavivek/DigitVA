@@ -3,7 +3,7 @@ title: AI Analytics Questions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # AI Analytics Questions
@@ -57,7 +57,19 @@ state. Chart.js is the vendored `app/static/vendor/chartjs`.
   `gemini` (Vertex AI or API key, thinking level minimal, low on retry).
 - `app/services/ai_analytics_planner.py`: the system instruction and plan
   schema, quota, turn cap, retry with the redacted error, audit, saved
-  queries, built-in and catalog runs.
+  queries, built-in and catalog runs. Each model call's input carries,
+  beside the question, `ai_analytics_tables.scope_places`: the caller's
+  projects (`project_id`, name, nickname; `_scope_projects`, as
+  `ai_org_levels`) and, up to `MAX_SCOPE_SITES` (50), the sites of their
+  project and site grants (`project_id`, `site_id`, name; the pairs
+  `_mv_scope_filter` admits). Unit grants list their project but no sites.
+  `sites` is absent when empty. A system-instruction rule makes the model match
+  the question's wording against these and filter on the exact value, so
+  "KEM" becomes `KEM001` rather than a guessed `project_id = 'KEM'`
+  (`digitva-g72d`). The lists go
+  in the user message, not the system instruction, so the provider's cached
+  system prompt stays cached. `project_code` is not sent: it differs from
+  `project_id` (ICMR01 is I1800).
 - `app/services/ai_analytics_tables.py`: the temp tables a run may read,
   each built only when the SQL names it, with the reader granted `SELECT` on
   exactly those:

@@ -13,3 +13,12 @@ export function isPlusVariant(
 ): boolean {
   return extra?.appVariant === "plus" || hasEngineModule();
 }
+
+/**
+ * Whether this is the Google Play build (DIGITVA_DISTRIBUTION=play, app.config.js). Play forbids an app updating
+ * itself outside Play, so this build never checks for or links to the hosted APK; Google Play updates it. The Play
+ * workflow sets the flag for the Gradle run too, so the embedded config carries it (see isPlusVariant above).
+ */
+export function isPlayDistribution(extra: Record<string, unknown> | undefined = Constants.expoConfig?.extra): boolean {
+  return extra?.digitvaDistribution === "play";
+}

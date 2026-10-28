@@ -801,6 +801,10 @@ export default function InterviewScreen() {
         if (currentDraft.draft.status !== "submitted") throw error;
       }
       if (!isCurrent()) return;
+      if (store instanceof ServerDraftStore && typeof store.recordTimelineEvent === "function") {
+        await store.recordTimelineEvent("submit_started");
+      }
+      if (!isCurrent()) return;
       if (store instanceof RevisionMemoryStore) {
         let snapshot = pendingRevisionRef.current;
         if (!snapshot) {

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { useAppState } from "../AppState";
+import { decommissionUserDevice, listUserDevices } from "../api";
 import { t, type StringKey } from "../i18n";
 import type { OrgProject } from "../organization/api";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { RoleChip, RoleChips, RoleSentence } from "../ui/RoleChip";
 import {
   activeFilterCount, DEFAULT_FILTERS, emailEnrolmentCode, enrolmentProjects, filtersFromSearch, filtersToSearch, getUserActivity,
@@ -258,6 +260,88 @@ function UserPlacement({ request, user }: { request: JsonRequester; user: Pick<D
   );
 }
 
+type ManagedDevice = {
+  device_id: string;
+  name: string | null;
+  platform: string | null;
+  app_version: string | null;
+  enrolled_at: string;
+  last_seen_at: string | null;
+  current: boolean;
+};
+
+function UserDevicesPanel({ user, canManage }: { user: Pick<DirectoryUser, "user_id" | "name">; canManage: boolean }) {
+  const styles = useUiStyles();
+  const [devices, setDevices] = useState<ManagedDevice[]>();
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string>();
+  const [confirming, setConfirming] = useState<ManagedDevice>();
+
+  const load = useCallback(async () => {
+    if (!canManage) return;
+    try {
+      const body = await listUserDevices(user.user_id) as { devices?: ManagedDevice[] };
+      setDevices(Array.isArray(body.devices) ? body.devices : []);
+      setError("");
+    } catch (caught) {
+      setError(browserErrorText(caught));
+    }
+  }, [canManage, user.user_id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const decommission = async (device: ManagedDevice) => {
+    setBusy(device.device_id);
+    setError("");
+    try {
+      await decommissionUserDevice(user.user_id, device.device_id);
+      await load();
+    } catch (caught) {
+      setError(browserErrorText(caught));
+    } finally {
+      setBusy(undefined);
+    }
+  };
+
+  if (!canManage) return null;
+  return (
+    <>
+      {confirming ? <ConfirmDialog
+        destructive
+        title={t("devicesTitle")}
+        message={t("deviceDecommissionConfirm")}
+        confirmLabel={t("deviceDecommission")}
+        onCancel={() => setConfirming(undefined)}
+        onConfirm={() => {
+          const device = confirming;
+          setConfirming(undefined);
+          void decommission(device);
+        }}
+      /> : null}
+      <View testID="user-devices" style={{ gap: spacing.xs }}>
+        <Text style={styles.headline} accessibilityRole="header">{t("devicesTitle")}</Text>
+        {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+        {!devices && !error ? <Text style={styles.muted}>{t("loading")}</Text> : null}
+        {devices && !devices.length ? <Text style={styles.muted}>{t("usersDevices", { count: 0 })}</Text> : null}
+        {devices?.map((device) => (
+          <View key={device.device_id} style={styles.card}>
+            <Text style={styles.text}>{device.name || device.platform || "Device"}{device.current ? ` · ${t("deviceCurrent")}` : ""}</Text>
+            <Text style={styles.muted}>{[device.platform, device.app_version].filter(Boolean).join(" · ")}</Text>
+            <Button
+              size="sm"
+              kind="secondary"
+              label={t("deviceDecommission")}
+              loading={busy === device.device_id}
+              disabled={busy !== undefined}
+              onPress={() => setConfirming(device)}
+            />
+          </View>
+        ))}
+      </View>
+    </>
+  );
+}
+
 export default function UsersScreen() {
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
@@ -284,6 +368,7 @@ export default function UsersScreen() {
   const [issuing, setIssuing] = useState<DirectoryUser>();
   const [view, setView] = useState<UsersView>("list");
   const isAdmin = bootstrap?.access.roles.includes("admin") ?? false;
+  const canManageDevices = isAdmin || (bootstrap?.access.roles.includes("data_manager") ?? false);
   const generation = useRef(0);
 
   // The search box applies after a pause in typing.
@@ -383,6 +468,7 @@ export default function UsersScreen() {
             <UserPlacement request={request} user={selected} />
           </View>
         </View>
+        <UserDevicesPanel user={selected} canManage={canManageDevices} />
         {dialogs}
       </WebShell>
     );

@@ -139,6 +139,58 @@
     </div>
   </div>
 
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div id="devices-card" class="card shadow-sm w-100 border-0">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-primary"><i class="fa fa-mobile-screen me-2"></i>Signed-in devices</h5>
+          <p class="text-muted small">Your active app devices. Decommissioning ends your sessions on that device but keeps its local data and shared phone access for other accounts.</p>
+        </div>
+        <div class="card-body">
+          <div id="devices-list" class="list-group list-group-flush mb-2"></div>
+          <div id="devices-msg" class="small" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Public-demo accounts delete themselves (docs/policy/public-demo.md section 9a). #}
+  {% if current_user.is_public_demo %}
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div id="delete-account-card" class="card shadow-sm w-100 border-0">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-danger"><i class="fa fa-user-xmark me-2"></i>Delete my account</h5>
+          <p class="text-muted small">Deletes this demo account and everything it created, at once. This cannot be undone. The account's security and sign-in audit records are kept, without its name. See <a href="{{ url_for('public_pages.data_requests') }}">consent and data requests</a> and the <a href="{{ url_for('public_pages.privacy') }}">privacy policy</a>.</p>
+        </div>
+        <div class="card-body">
+          <div style="max-width: 24rem;">
+            <label class="form-label small" for="delete-account-password">Enter your password to confirm</label>
+            <input type="password" id="delete-account-password" class="form-control form-control-sm mb-2" autocomplete="current-password">
+            <button id="delete-account-btn" class="btn btn-danger btn-sm">Delete my account</button>
+            <div id="delete-account-msg" class="small mt-2" role="status"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <div id="request-deletion-card" class="card shadow-sm w-100 border-0">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-danger"><i class="fa fa-user-xmark me-2"></i>Request account deletion</h5>
+          <p class="text-muted small">The team will confirm your request before acting. Your security and sign-in audit history is kept.</p>
+        </div>
+        <div class="card-body">
+          <button id="request-deletion-btn" class="btn btn-danger btn-sm">Request account deletion</button>
+          <div id="request-deletion-msg" class="small mt-2" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
 <script src="{{ url_for('static', filename='js/webauthn_base64.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
@@ -219,6 +271,87 @@ $(document).ready(async function () {
     });
     showMsg('interviewer-msg', data.message || data.error, ok);
   });
+
+  // ── Delete my account (demo accounts only) ───────────────────────────
+  const deleteBtn = document.getElementById('delete-account-btn');
+  if (deleteBtn) deleteBtn.addEventListener('click', async () => {
+    const password = document.getElementById('delete-account-password').value;
+    if (!password) { showMsg('delete-account-msg', 'Enter your password.', false); return; }
+    if (!confirm('Delete this demo account and everything it created? This cannot be undone. The account\'s security and sign-in audit records are kept, without its name.')) return;
+    deleteBtn.disabled = true;
+    try {
+      const { ok, data } = await apiFetch('/api/v1/me/account/delete', 'POST', { password });
+      if (ok) { window.location.assign('/'); return; }
+      showMsg('delete-account-msg', data.error || 'Something went wrong. Try again.', false);
+    } catch {
+      showMsg('delete-account-msg', 'Network error. Try again.', false);
+    } finally {
+      deleteBtn.disabled = false;
+    }
+  });
+
+  // ── Request account deletion (staff accounts only) ────────────────────
+  const requestDeletionBtn = document.getElementById('request-deletion-btn');
+  if (requestDeletionBtn) requestDeletionBtn.addEventListener('click', async () => {
+    if (!confirm('Send an account deletion request to the team? They will confirm with you before acting, and your security and sign-in audit history will be kept.')) return;
+    requestDeletionBtn.disabled = true;
+    try {
+      const { ok, data } = await apiFetch('/api/v1/me/deletion-request', 'POST');
+      if (ok) {
+        showMsg('request-deletion-msg', 'Request sent.', true);
+        requestDeletionBtn.disabled = true;
+        return;
+      }
+      showMsg('request-deletion-msg', data.error || 'Something went wrong. Try again.', false);
+    } catch {
+      showMsg('request-deletion-msg', 'Network error. Try again.', false);
+    }
+    requestDeletionBtn.disabled = false;
+  });
+
+  // ── Signed-in devices ────────────────────────────────────────────────
+  const devicesList = document.getElementById('devices-list');
+  const renderDevices = (devices) => {
+    devicesList.replaceChildren();
+    if (!devices.length) {
+      const empty = document.createElement('div');
+      empty.className = 'small text-muted';
+      empty.textContent = 'No active app devices.';
+      devicesList.appendChild(empty);
+      return;
+    }
+    devices.forEach(device => {
+      const row = document.createElement('div');
+      row.className = 'list-group-item px-0 d-flex flex-wrap gap-2 align-items-center justify-content-between';
+      const details = document.createElement('div');
+      details.className = 'small';
+      const current = device.current ? ' · Current device' : '';
+      details.textContent = `${device.name || 'Unnamed device'} · ${device.platform || 'unknown'}${device.app_version ? ` · ${device.app_version}` : ''}${current}`;
+      const button = document.createElement('button');
+      button.className = 'btn btn-outline-danger btn-sm';
+      button.textContent = 'Decommission';
+      button.addEventListener('click', async () => {
+        if (!confirm('End your session on this device? Its local data will remain.')) return;
+        button.disabled = true;
+        const { ok, data } = await apiFetch(`/api/v1/me/devices/${encodeURIComponent(device.device_id)}`, 'DELETE');
+        if (ok) {
+          showMsg('devices-msg', data.current ? 'This session has ended. Sign in again to continue.' : 'Device decommissioned.', true);
+          await loadDevices();
+        } else {
+          showMsg('devices-msg', data.error || 'Unable to decommission this device.', false);
+          button.disabled = false;
+        }
+      });
+      row.append(details, button);
+      devicesList.appendChild(row);
+    });
+  };
+  const loadDevices = async () => {
+    const { ok, data } = await apiFetch('/api/v1/me/devices');
+    if (ok && Array.isArray(data.devices)) renderDevices(data.devices);
+    else showMsg('devices-msg', data.error || 'Unable to load devices.', false);
+  };
+  await loadDevices();
 
   // ── Timezone ──────────────────────────────────────────────────────────
   document.getElementById('tz-btn').addEventListener('click', async () => {

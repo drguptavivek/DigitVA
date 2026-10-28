@@ -1,5 +1,7 @@
-"""Collect Plus standalone push: the ``standalone`` and ``offline_coding``
-objects of ``POST /api/v1/intake/submissions`` (Path C).
+"""Import the ``offline_coding`` object of ``POST /api/v1/intake/submissions``.
+
+The object may accompany either a Collect Plus ``standalone`` push (Path C) or
+an ordinary enrolled intake; both use the same held-row/apply path.
 
 Contract: docs/policy/offline-api-contract.md section 17. Policy:
 docs/policy/doris-cod-workflow.md "Collect Plus offline parity",
@@ -62,6 +64,13 @@ from app.services.icd_coding_policy import coding_context_for_submission, policy
 from app.services.icd_coding_value import extract_icd11_code_expression, extract_icd_code
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE
+from app.services.workflow_timeline_service import (
+    CODING_TIMELINE_EVENTS,
+    WorkflowTimelineError,
+    merge_timeline,
+    parse_timeline,
+    server_event,
+)
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     coder_actor,
@@ -186,8 +195,10 @@ def _confirmation(value) -> dict | None:
 
 def _provenance(value) -> dict:
     """``{allowability: {rules, release}, antecedent: {code, primary_stem,
-    release, causing_condition_unknown?, age_restriction_confirmation?}}``."""
-    if not isinstance(value, dict) or set(value) != {"allowability", "antecedent"}:
+    release, causing_condition_unknown?, age_restriction_confirmation?, timeline?}``."""
+    timeline_keys = {"workflowTimelineV1", "codingTimelineV1"}
+    allowed_keys = {"allowability", "antecedent"} | timeline_keys
+    if not isinstance(value, dict) or not {"allowability", "antecedent"} <= set(value) <= allowed_keys:
         _bad("offline_coding.provenance must be {allowability, antecedent}.")
     allowability, antecedent = value["allowability"], value["antecedent"]
     if (not isinstance(allowability, dict) or set(allowability) != {"rules", "release"}
@@ -206,7 +217,7 @@ def _provenance(value) -> dict:
     unknown = antecedent.get("causing_condition_unknown", False)
     if not isinstance(unknown, bool):
         _bad("provenance.antecedent.causing_condition_unknown must be true or false.")
-    return {
+    result = {
         "allowability": dict(allowability),
         "antecedent": {
             "code": code, "primary_stem": stem.upper(), "release": antecedent["release"],
@@ -214,6 +225,22 @@ def _provenance(value) -> dict:
             "age_restriction_confirmation": _confirmation(antecedent.get("age_restriction_confirmation")),
         },
     }
+    timeline = []
+    for key in ("workflowTimelineV1", "codingTimelineV1"):
+        if key not in value:
+            continue
+        try:
+            incoming = parse_timeline(value[key], CODING_TIMELINE_EVENTS - {"final_saved", "coding_allocated"})
+            timeline = merge_timeline(timeline, incoming, CODING_TIMELINE_EVENTS)
+        except WorkflowTimelineError:
+            _bad(f"offline_coding.provenance.{key} is invalid.")
+        if len(timeline) > 6:
+            _bad(f"offline_coding.provenance.{key} is too long.")
+    if "workflowTimelineV1" in value:
+        result["workflowTimelineV1"] = timeline
+    if "codingTimelineV1" in value:
+        result["codingTimelineV1"] = timeline
+    return result
 
 
 def _pack_versions(value) -> dict:
@@ -327,10 +354,13 @@ def has_coding_grant(user: VaUsers, project_id: str) -> bool:
                for g in resolved.of({VaAccessRoles.coder}, virtual=False))
 
 
-def _push_refusal(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, coding: dict) -> str | None:
+def _push_refusal(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, coding: dict,
+                  *, enrolled_context: bool = False) -> str | None:
     """Why this coding is not taken (the interview is, either way), or None."""
     if draft.va_sid is None or draft.status != "submitted":
         return "not_available"
+    if enrolled_context and not project.self_coding_enabled:
+        return "self_coding_required"
     if not has_coding_grant(user, project.project_id):
         return "coding_grant_required"
     if project_mode(project) != "unmasked_doris" or project.icd_classification != "icd11":
@@ -348,7 +378,7 @@ def _audit(va_sid: str, user_id, action: str, entity_id=None) -> None:
 
 
 def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, coding: dict,
-         profile_snapshot: dict) -> dict:
+         profile_snapshot: dict, *, enrolled_context: bool = False) -> dict:
     """Keep *coding* for the applier, or record why it is refused (a held row
     ``rejected`` with the code, so a resend reports the same). Returns the
     reply's ``offline_coding`` object. Idempotent on the upload's
@@ -361,15 +391,15 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
     digest = hashlib.sha256(json.dumps(coding, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     if held is not None:
         if held.status == "pending" and held.result["coding"]["coded_answers_sha256"] != draft.answers_sha256:
-            refusal = _push_refusal(user, project, draft, coding)
+            refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
             if refusal is None:
-                held.result = {**held.result, "coding": coding}
+                held.result = {**held.result, "coding": coding, "enrolled_context": enrolled_context}
                 held.content_sha256 = digest
             else:
                 held.status, held.code, held.resolved_at = "rejected", refusal, datetime.now(UTC)
                 _audit(draft.va_sid, user.user_id, f"offline coding refused ({refusal})", draft.draft_id)
         return status_of(held)
-    refusal = _push_refusal(user, project, draft, coding)
+    refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
     if draft.va_sid is None:
         # A superseded copy: no case of its own to hold the coding against.
         return {"status": "refused", "code": refusal}
@@ -377,7 +407,7 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
         client_id=draft.client_draft_id, bundle_ids=[], project_id=project.project_id, va_sid=draft.va_sid,
         death_id=draft.death_id, actor_user_id=user.user_id, content_sha256=digest,
         result={"origin": ORIGIN, "client_draft_id": str(draft.client_draft_id), "coding": coding,
-                "profile_snapshot": profile_snapshot},
+                "profile_snapshot": profile_snapshot, "enrolled_context": enrolled_context},
         status="rejected" if refusal else "pending", code=refusal or "not_ready",
         resolved_at=datetime.now(UTC) if refusal else None,
     )
@@ -417,11 +447,12 @@ def _finish(held: VaBundlePendingCoding, status: str, code: str | None) -> str:
 
 
 def apply_held(held: VaBundlePendingCoding) -> str:
-    """Apply one held standalone coding whose case left the attachment and
+    """Apply one held offline coding whose case left the attachment and
     SmartVA states; returns ``applied``, ``rejected`` or ``pending``.
-    Re-checks what the push checked (the account's coding grant, the
-    project's mode, the coded answers), takes the coder's allocation and
-    saves the imported final. Commits."""
+    Re-checks what the push checked (for enrolled intake, self-coding and the
+    account's live coding grant; for every upload, the project's mode and the
+    coded answers), takes the coder's allocation and saves the imported final.
+    Commits."""
     record = held.result
     coding = record["coding"]
     actor = db.session.get(VaUsers, held.actor_user_id)
@@ -430,7 +461,8 @@ def apply_held(held: VaBundlePendingCoding) -> str:
     project = db.session.get(VaProjectMaster, held.project_id)
     if actor is None or actor.user_status != VaStatuses.active or draft is None:
         return _finish(held, "rejected", "not_available")
-    refusal = _push_refusal(actor, project, draft, coding)
+    refusal = _push_refusal(actor, project, draft, coding,
+                            enrolled_context=bool(record.get("enrolled_context")))
     if refusal is not None:
         return _finish(held, "rejected", refusal)
     try:
@@ -558,7 +590,13 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
         "pack_versions": coding["pack_versions"], "allowability": coding["provenance"]["allowability"],
         "certificate_digest": coding["certificate_digest"], "result_digest": coding["result_digest"],
         "profile_snapshot": profile_snapshot,
+        "workflowTimelineV1": merge_timeline(
+            coding["provenance"].get("codingTimelineV1", coding["provenance"].get("workflowTimelineV1")),
+            [server_event("final_saved")],
+            CODING_TIMELINE_EVENTS,
+        ),
     })
+    snapshot["offline"]["codingTimelineV1"] = snapshot["offline"]["workflowTimelineV1"]
     final = VaFinalAssessments(
         va_finassess_id=uuid.uuid4(), va_sid=va_sid, payload_version_id=payload.payload_version_id,
         va_finassess_by=actor.user_id, va_conclusive_cod=coding["conclusive_cod"],

@@ -3,7 +3,7 @@ title: Privacy Policy, Contact Us, and Consent and Data Requests Pages
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Privacy policy, contact us, and consent and data requests pages
@@ -26,9 +26,10 @@ contact form (section 7), a normal POST with CSRF.
 | `/data-requests` | Consent and data requests: how a respondent withdraws or changes consent, how a user asks for deletion of their account and data, what is deleted, what is kept and for how long |
 | `/contact` | Contact us: contact email, grievance officer, postal address, and the contact form (section 7) |
 
-Footer links to all three appear on the front page and the login page. The
-in-app link (DigitVA Collect and Collect Plus) is a later change; store
-listings use the production host, for example
+Footer links to all three appear on the front page and the login page. In
+DigitVA Collect and Collect Plus, Settings (Account) links to `/privacy` and
+`/data-requests` on the enrolled server (section 8); store listings use the
+production host, for example
 `https://causeofdeathindia.com/privacy` (demo: `demodigitva.causeofdeathindia.com`).
 
 ## 2. Where the content comes from
@@ -68,13 +69,27 @@ From `mobile/digitva-collect/app.json` and its Expo plugins:
 
 ## 4. Deletion and retention wording
 
-Accounts are created and managed by administrators, so deletion is requested by
-email to the contact address or through the project administrator.
+Staff accounts are created and managed by administrators, so deletion is
+requested, then confirmed by the programme team before anything is deleted:
+from the app or the website when signed in (section 8), by email to the
+contact address, or through the project administrator. Public demo accounts
+(username sign-in, [public-demo.md](public-demo.md)) are self-service: the
+signed-in user deletes the account at once (section 8).
 
 Deleted on request: the account, sign-in credentials, device sessions and the
 profile (name, contact details). Where policy has a fixed rule it is stated on
-the page: unsent work on a phone is encrypted and removed when the server
-confirms receipt, or when the device is revoked.
+the page: work on a phone is held encrypted, sent work is removed from the
+phone when the server confirms receipt, and unsent work stays on the phone,
+encrypted, after a sign-out or a revoked device until it can be sent
+([field-data-collection.md](field-data-collection.md) "Sign-out keeps the
+data", "Unsent work is never purged automatically").
+
+**Audit history is preserved.** Every deletion message, in the apps and on
+`/data-requests`, says the account's audit history is kept: the security
+audit trail (`auth_security_events`: sign-ins, account and access changes,
+the deletion itself) stays, with the user reference cleared when the account
+row goes. A demo account's own cases go with it, their per-case logs
+included (public-demo.md section 9).
 
 Kept: verbal autopsy records of deceased persons, held for the programme under
 the respondent's consent, and audit records of who did what. These are
@@ -181,3 +196,40 @@ a send was attempted, so the form does not reveal anything about an address.
 **No personal data in URLs or logs.** URLs carry only the confirmation token
 and the topic code. The event log line records the event, the topic and a
 keyed hash of the sender's address; never the name, address or message.
+
+## 8. Deleting an account from the app or the website
+
+Owner decision 2026-10-27 (`digitva-et16`). Google Play requires an in-app
+deletion route; this is it. Settings in DigitVA Collect (and Collect Plus)
+has an Account section with **Delete my account** and the two links
+(`/privacy`, `/data-requests` on the enrolled server). Old app versions are
+unaffected: the endpoints are new, nothing existing changes.
+
+**Demo accounts: delete at once.** On the phone's Demo slot, Delete my
+account asks for the password again and, after a confirmation that says the
+deletion is final, unsent work on this phone goes too and the audit history
+is kept, calls `POST /api/v1/me/account/delete`. The server checks the
+password (rate-limited like sign-in: 5 per minute and 20 per hour per
+account; never logged or stored) and deletes the account through the demo
+purge's own deletion with every per-account guard (public-demo.md section
+9a). A refusal names its reason and deletes nothing. On success the phone
+removes that profile, its encrypted store and its tokens, then reloads. A
+signed-in demo user on the website gets the same on the profile page, with
+the same password re-check; the browser is then signed out.
+
+**Staff accounts: request and confirm.** Any other account gets a
+confirmation (the team confirms before acting; audit history is kept) and
+then `POST /api/v1/me/deletion-request`. The request is identified by the
+signed-in session, so no email address and no password are sent. The server
+stores one pending request per account (a repeat while one is pending
+changes nothing) in `auth_account_deletion_requests`, records a security
+event, and, when `PUBLIC_CONTACT_EMAIL` is set and mail really goes out,
+notifies that mailbox through the contact form's mail path (fixed text: the
+account's name, its email as Reply-To when it has one, and where to review
+it). The app and signed-in website profile show "Request sent".
+
+**Admin review.** Pending requests appear on the admin Users page (admin
+only), oldest first in batches of up to 100, with a **Mark handled** action;
+marking is audited. Handling requests makes room for the next pending ones. **Deletion itself stays manual for now**: the team confirms with
+the person, then deactivates or removes the account by the existing admin
+tools, and marks the request handled.

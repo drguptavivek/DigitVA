@@ -71,6 +71,7 @@ jest.mock("../src/client/serverDraftStore", () => ({
     Object.assign(this, {
       load: jest.fn(async () => ({})),
       flush: mockServerFlush,
+      recordTimelineEvent: jest.fn(async () => undefined),
       getLocaleMetadata: () => ({}),
       getServerUpdatedAt: () => "revision-1",
       isSignedOut: () => false,

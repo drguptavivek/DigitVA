@@ -450,7 +450,7 @@ class DeviceApiTests(BaseTestCase):
             email = f"device.{role.value}.only@test.local"
             self._worker(email, role)
             _device, tokens = self._session(device, email=email)
-            access = self._sign_in(device, email=email).get_json()["access"]
+            access = tokens["access"]
             granted = [g["role"] for p in access["projects"] for g in p["grants"]]
             self.assertEqual(granted, [role.value])
             refreshed = self._refresh(tokens["refresh_token"])
@@ -806,11 +806,14 @@ class DeviceApiTests(BaseTestCase):
             self.assertEqual(getattr(self.client, method)(path, headers=bearer).status_code, 404, path)
 
     def test_device_responses_set_no_cookie(self):
-        device, tokens = self._session()
+        device = self._enrol()
+        signed_in = self._sign_in(device)
+        self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+        tokens = signed_in.get_json()
         responses = [
             self.client.get(ME_ACCESS, headers=self._bearer(tokens)),
-            self._refresh(tokens["refresh_token"]),
-            self._sign_in(device),
+            self._refresh(tokens["refresh_token"], device=device),
+            signed_in,
         ]
         responses.append(self._upload(responses[1].get_json()))
         for response in responses:
@@ -2192,8 +2195,10 @@ class DeviceApiTests(BaseTestCase):
         self._withdraw(self.PROJECT_ID)
         response = self._refresh(tokens["refresh_token"])
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(self._sign_in(device).status_code, 201)
-        bearer = self._bearer(response.get_json())
+        signed_in = self._sign_in(device)
+        self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+        tokens = signed_in.get_json()
+        bearer = self._bearer(tokens)
         body = self._bootstrap(bearer)
         self.assertEqual([p["project_id"] for p in body["projects"]], [self.OTHER_PROJECT_ID])
         self.assertIsNotNone(body["projects"][0]["form_options"])
@@ -2205,7 +2210,7 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual((enrolment.status_code, enrolment.get_json()["code"]), (403, "forbidden"))
         # The last grant goes: revoked, and no new sign-in.
         self._withdraw(self.OTHER_PROJECT_ID)
-        gone = self._refresh(response.get_json()["refresh_token"])
+        gone = self._refresh(tokens["refresh_token"], device=device)
         self.assertEqual((gone.status_code, gone.get_json()["code"]), (401, "session_revoked"))
         refused = self._sign_in(device)
         self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "no_interviewer_grant"))
@@ -2221,10 +2226,12 @@ class DeviceApiTests(BaseTestCase):
         self._set_project_status(self.PROJECT_ID, VaStatuses.deactive)
         response = self._refresh(tokens["refresh_token"])
         self.assertEqual(response.status_code, 200, response.get_json())
-        self.assertEqual(self._sign_in(device).status_code, 201)
+        signed_in = self._sign_in(device)
+        self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+        tokens = signed_in.get_json()
         # No active project left: revoked (the app wipes), not kept.
         self._set_project_status(self.OTHER_PROJECT_ID, VaStatuses.deactive)
-        gone = self._refresh(response.get_json()["refresh_token"])
+        gone = self._refresh(tokens["refresh_token"], device=device)
         self.assertEqual((gone.status_code, gone.get_json()["code"]), (401, "session_revoked"))
 
     # ── owner access rules (digitva-p6fs.24 follow-up) ─────────────────────

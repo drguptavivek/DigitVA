@@ -2,11 +2,13 @@
 
 docs/policy/ai-analytics-questions.md. What leaves DigitVA is only the fixed
 ``SYSTEM_INSTRUCTION``, the question (with, on a follow-up, the previous SQL
-and up to five earlier questions) and, on the one retry, the SQLSTATE and
-primary message of the database error for the model's own SQL with every
-quoted value redacted. No result row is ever sent to the model. The provider
-(Claude or Gemini, app/services/ai_analytics_providers.py) is the user's
-choice among the enabled ones.
+and up to five earlier questions), the ids and names of the projects and
+sites in the caller's scope (``ai_analytics_tables.scope_places``) and, on the
+one retry, the SQLSTATE and primary message of the database error for
+the model's own SQL with every quoted value redacted. No result row is ever
+sent to the model. The provider (Claude or Gemini,
+app/services/ai_analytics_providers.py) is the user's choice among the
+enabled ones.
 
 Every model call writes one ``ai_llm`` audit row with its provider, model
 and token usage; those rows since the start of the ISO week are the user's
@@ -39,6 +41,7 @@ from app.models.va_ai_analytics import (
 from app.services import ai_analytics_catalog as catalog
 from app.services import ai_analytics_providers as providers
 from app.services import ai_analytics_sandbox as sandbox
+from app.services import ai_analytics_tables as tables
 from app.services import ai_search_service
 
 log = logging.getLogger(__name__)
@@ -58,8 +61,8 @@ SYSTEM_INSTRUCTION = """You write one PostgreSQL query that answers a question a
 You can read four tables. Every table holds aggregates already limited to what the user may see.
 
 Table ai_cube: each row is a count of VA cases (deaths) sharing the same values of every dimension column.
-- project_id varchar: project code.
-- site_id varchar: site code.
+- project_id varchar: project code, one of the input's projects.
+- site_id varchar: site code, one of the input's sites when it lists them.
 - submission_month date: first day of the month the interview was submitted.
 - sex varchar: 'male', 'female', 'undetermined', 'unknown' (case varies: compare with lower(sex)).
 - analytics_age_band text: 'neonate', 'child', '15_49y', '50_64y', '65_plus', 'unknown'.
@@ -103,6 +106,7 @@ NOT AVAILABLE HERE: stored in DigitVA but not in these tables: time spent in eac
 If the question needs any of these, set answerable to false, set not_captured to "This data is not captured in DigitVA: " (or, for the second list, "This data is not available to AI questions: ") followed by what is missing, and set sql to an empty string. Otherwise answerable is true and not_captured is null. If only part of the question needs missing data, answer the rest and name what is missing in not_captured.
 
 Rules:
+- The input lists the user's projects (project_id, name, nickname), and when few enough their sites (project_id, site_id, name). When the question names a project or site by any part of its code, nickname or name, match it against those lists and filter on the exact project_id or site_id value from the list. Never guess, shorten or LIKE-match a code or name.
 - Write a single SELECT (a WITH ... SELECT is allowed, not WITH RECURSIVE). No semicolon, no comments.
 - Read only ai_cube, ai_org_levels, ai_staff and ai_coder. Do not reference any other table, view, schema, system catalog or function in FROM. At most 4 table references in FROM in total, counting WITH names and subqueries.
 - Use only these functions: count, sum, avg, min, max, bool_and, bool_or, percentile_cont and percentile_disc (WITHIN GROUP), round, abs, coalesce, nullif, greatest, least, date_trunc, extract, date_part, to_char (with a constant format), lower, upper, and the window functions rank, dense_rank, row_number, lag, lead, ntile. Use CASE, FILTER, OVER, CURRENT_DATE and interval arithmetic freely.
@@ -385,7 +389,7 @@ def ask(user, question, *, provider=None, previous_sql=None, earlier_questions=(
     if left is not None and left <= 0:
         raise AiQuestionsError("quota", "You have used this week's AI questions. Saved queries still run.")
 
-    payload = {"question": question}
+    payload = {"question": question, **tables.scope_places(user)}
     if turn > 1 and isinstance(previous_sql, str) and previous_sql.strip():
         payload["previous_sql"] = previous_sql.strip()[: sandbox.MAX_SQL_LENGTH]
         payload["earlier_questions"] = [

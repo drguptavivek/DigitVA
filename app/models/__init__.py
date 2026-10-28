@@ -6,6 +6,7 @@ from app.models.auth_devices import (
     AuthSignInToken,
 )
 from app.models.auth_factors import (
+    AuthAccountDeletionRequest,
     AuthMobileCode,
     AuthRecoveryCode,
     AuthSecurityEvent,
@@ -169,6 +170,7 @@ __all__ = [
     "AuthSignInToken",
     "AuthRecoveryCode",
     "AuthSecurityEvent",
+    "AuthAccountDeletionRequest",
     "VaStatuses",
     "VaResearchProjects",
     "VaProjectMaster",

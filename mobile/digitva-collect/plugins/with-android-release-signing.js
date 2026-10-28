@@ -14,6 +14,18 @@ function releaseBuildRequested(env = process.env) {
   return env.DIGITVA_ANDROID_RELEASE_BUILD === "1";
 }
 
+/**
+ * DIGITVA_DISTRIBUTION=play builds the Google Play bundle: one universal AAB (no ABI splits), versionCode
+ * base * 10 + 3, and no in-app update check (app.config.js, src/appVariant.ts). Unset is the sideloaded APK build;
+ * any other value is refused so a typo cannot ship a Play build that offers APK downloads.
+ */
+function playDistributionRequested(env = process.env) {
+  const value = env.DIGITVA_DISTRIBUTION;
+  if (value === undefined || value === "") return false;
+  if (value === "play") return true;
+  throw new Error("DIGITVA_DISTRIBUTION must be unset or \"play\"");
+}
+
 function validateReleaseSigningEnv(env = process.env) {
   if (!releaseBuildRequested(env)) return;
   const missing = RELEASE_ENV_KEYS.filter((key) => !String(env[key] || "").trim());
@@ -128,4 +140,5 @@ module.exports = function withAndroidReleaseSigning(config) {
 module.exports.patchAndroidReleaseSigning = patchAndroidReleaseSigning;
 module.exports.validateReleaseSigningEnv = validateReleaseSigningEnv;
 module.exports.releaseBuildRequested = releaseBuildRequested;
+module.exports.playDistributionRequested = playDistributionRequested;
 module.exports.releaseSigningRequested = releaseSigningRequested;

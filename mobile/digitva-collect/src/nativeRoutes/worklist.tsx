@@ -17,7 +17,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState } from "react-native";
 
 import { useAppState } from "../AppState";
+import { isPlusVariant } from "../appVariant";
 import { SessionRevokedError, SignInRequiredError } from "../auth";
+import { canUseOfflineCoding } from "../codingCapabilities";
 import {
   listActions,
   listCases,
@@ -54,6 +56,7 @@ import {
 } from "../sync";
 import { useToast } from "../toast";
 import { Button, errorText, Screen } from "../ui";
+import { CodingCaseChips } from "../ui/CodingCaseChips";
 import { buildInterviewItems, interviewCounts, type InterviewAction, type InterviewItem } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
@@ -793,6 +796,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const canRegister = Boolean(selectedProject && registersDeaths(selectedProject.project) && account.registration_access);
   const loaded = Boolean(db && referenceData);
   const isOffline = Boolean(offline);
+  const codingChips = account.coding_access ? (
+    <CodingCaseChips userId={account.user_id} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={isOffline} />
+  ) : null;
 
   function startInterview(target: PickerTarget) {
     setPicking(false);
@@ -944,7 +950,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           onSend={() => void send()}
           onLoadMore={() => void loadOnlineMore()}
           header={projectLine}
-          footer={notices}
+          footer={<>{codingChips}{notices}</>}
         />
         {sheets}
       </Screen>
@@ -974,6 +980,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
             onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })}
           />
         ) : null}
+        {codingChips}
         {notices}
       </HomeView>
       {sheets}

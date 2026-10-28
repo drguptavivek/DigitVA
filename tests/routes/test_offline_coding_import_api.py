@@ -1,6 +1,7 @@
-"""Collect Plus standalone push (offline-api-contract.md section 17, S5a and the server half of S7).
+"""Collect Plus standalone and enrolled offline coding pushes.
 
-``POST /api/v1/intake/submissions`` with ``standalone`` and ``offline_coding``:
+``POST /api/v1/intake/submissions`` with ``standalone`` or enrolled
+``offline_coding``:
 idempotent duplicate push, routing by org code or to the unrouted queue, the
 standalone consent snapshot (stored, sha mismatch refused), the device UUID
 bound to the bearer session, offline coding held and imported as the coder's
@@ -86,7 +87,8 @@ class StandalonePushTests(BaseTestCase):
         db.session.add(VaProjectMaster(
             project_id=PROJECT, project_code=PROJECT, project_name="Standalone push", project_nickname=PROJECT,
             project_status=VaStatuses.active, project_registered_at=now, project_updated_at=now,
-            web_intake_mode="both", masked_cod_required=False, cod_entry_mode="doris", icd_classification="icd11",
+            web_intake_mode="both", self_coding_enabled=True, masked_cod_required=False,
+            cod_entry_mode="doris", icd_classification="icd11",
         ))
         db.session.add(VaSiteMaster(site_id=SITE, site_name="Standalone site", site_abbr=SITE,
                                     site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now))
@@ -202,6 +204,24 @@ class StandalonePushTests(BaseTestCase):
             body["offline_coding"] = self._coding(client_uuid, answers_sha, code, confirmation=confirmation)
         return self.client.post(INTAKE, json=body, headers=headers), client_draft_id
 
+    def _push_enrolled(self, headers, client_uuid, *, client_draft_id=None, answers=None, coding=True,
+                       code=AGREEING_CODE, project_id=PROJECT, site_id=SITE, org_unit_id=None, **extra):
+        client_draft_id = client_draft_id or uuid.uuid4()
+        answers_json, answers_sha = self._answers_json(answers)
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        body = {
+            "client_draft_id": str(client_draft_id), "project_id": project_id, "site_id": site_id,
+            "org_unit_id": str(org_unit_id or self.unit.org_unit_id),
+            "draft": {"instrumentVersion": "2023072701", "startedAt": now, "completedAt": now,
+                      "interviewOutcome": "completed"},
+            "completion": {"valid": True, "issues": []},
+            "answers_json": answers_json, "answers_sha256": answers_sha,
+            **extra,
+        }
+        if coding:
+            body["offline_coding"] = self._coding(client_uuid, answers_sha, code)
+        return self.client.post(INTAKE, json=body, headers=headers), client_draft_id
+
     @staticmethod
     def _draft(client_draft_id):
         return db.session.scalar(sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.client_draft_id == client_draft_id))
@@ -298,14 +318,122 @@ class StandalonePushTests(BaseTestCase):
         self.assertEqual((response.status_code, response.get_json()["code"]), (409, "training_scope"))
         self.assertIsNone(self._draft(draft_id))
 
-    def test_offline_coding_without_standalone_is_refused(self):
+    def test_enrolled_offline_coding_is_held_without_standalone_provenance(self):
         client_uuid, headers = self._device(self.coder)
-        answers_json, sha = self._answers_json()
+        response, draft_id = self._push_enrolled(headers, client_uuid)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertNotIn("standalone", self._draft(draft_id).meta)
+        held = db.session.get(VaBundlePendingCoding, draft_id)
+        self.assertEqual((held.result["enrolled_context"], held.result["profile_snapshot"]), (True, {}))
+
+    def test_enrolled_coding_device_mismatch_is_refused_before_the_interview(self):
+        _client_uuid, headers = self._device(self.coder)
+        answers_json, answers_sha = self._answers_json()
+        bad = self._coding(str(uuid.uuid4()), answers_sha)
         response = self.client.post(INTAKE, headers=headers, json={
-            "client_draft_id": str(uuid.uuid4()), "project_id": PROJECT, "site_id": SITE, "draft": {},
-            "answers_json": answers_json, "answers_sha256": sha, "offline_coding": self._coding(client_uuid, sha),
+            "client_draft_id": str(uuid.uuid4()), "project_id": PROJECT, "site_id": SITE,
+            "org_unit_id": str(self.unit.org_unit_id),
+            "draft": {"instrumentVersion": "2023072701"}, "completion": {"valid": True, "issues": []},
+            "answers_json": answers_json, "answers_sha256": answers_sha, "offline_coding": bad,
         })
-        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "offline_coding_invalid"))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "device_mismatch"))
+
+    def test_same_hash_retry_can_add_enrolled_coding_and_is_idempotent(self):
+        client_uuid, headers = self._device(self.coder)
+        first, draft_id = self._push_enrolled(headers, client_uuid, coding=False)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        second, _ = self._push_enrolled(headers, client_uuid, client_draft_id=draft_id)
+        self.assertEqual(second.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        count = db.session.scalar(sa.select(sa.func.count()).select_from(VaBundlePendingCoding))
+        again, _ = self._push_enrolled(headers, client_uuid, client_draft_id=draft_id)
+        self.assertEqual(again.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaBundlePendingCoding)), count)
+
+    def test_same_hash_retry_rejects_a_cross_project_substitution(self):
+        other_project, other_site = "SAP02", "SA02"
+        now = datetime.now(UTC)
+        db.session.add_all([
+            VaProjectMaster(
+                project_id=other_project, project_code=other_project, project_name="Other push",
+                project_nickname=other_project, project_status=VaStatuses.active,
+                project_registered_at=now, project_updated_at=now, web_intake_mode="both",
+                self_coding_enabled=True, masked_cod_required=False, cod_entry_mode="doris",
+                icd_classification="icd11",
+            ),
+            VaSiteMaster(site_id=other_site, site_name="Other site", site_abbr=other_site,
+                         site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now),
+        ])
+        db.session.flush()
+        db.session.add(VaProjectSites(project_id=other_project, site_id=other_site,
+                                      project_site_status=VaStatuses.active,
+                                      project_site_registered_at=now, project_site_updated_at=now))
+        _ensure_legacy_project_site_rows(other_project, other_site)
+        db.session.add(VaForms(
+            form_id=f"{other_project}{other_site}01", project_id=other_project, site_id=other_site,
+            odk_form_id="ODK_SAP02", odk_project_id="8", form_type="WHO VA 2022", form_source="odk",
+            form_status=VaStatuses.active, form_registered_at=now, form_updated_at=now,
+        ))
+        db.session.add(VaUserAccessGrants(
+            user_id=self.coder.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.project,
+            project_id=other_project, notes="cross-project retry test", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+
+        client_uuid, headers = self._device(self.coder)
+        first, draft_id = self._push_enrolled(headers, client_uuid, coding=False)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        response, _ = self._push_enrolled(
+            headers, client_uuid, client_draft_id=draft_id, project_id=other_project, site_id=other_site,
+        )
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "conflict"))
+        self.assertIsNone(db.session.get(VaBundlePendingCoding, draft_id))
+
+    def test_enrolled_coding_requires_self_coding_at_push(self):
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.self_coding_enabled = False
+        db.session.commit()
+        try:
+            client_uuid, headers = self._device(self.coder)
+            response, draft_id = self._push_enrolled(headers, client_uuid)
+            self.assertEqual(response.get_json()["offline_coding"], {"status": "refused", "code": "self_coding_required"})
+            self.assertTrue(db.session.get(VaBundlePendingCoding, draft_id).result["enrolled_context"])
+        finally:
+            project.self_coding_enabled = True
+            db.session.commit()
+
+    def test_enrolled_coding_is_refused_if_grant_is_revoked_before_apply(self):
+        client_uuid, headers = self._device(self.coder)
+        response, draft_id = self._push_enrolled(headers, client_uuid)
+        self.assertEqual(response.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == self.coder.user_id,
+            VaUserAccessGrants.project_id == PROJECT,
+            VaUserAccessGrants.role == VaAccessRoles.coder,
+        ))
+        grant.grant_status = VaStatuses.deactive
+        db.session.commit()
+        try:
+            va_sid = response.get_json()["va_sid"]
+            self.assertEqual(self._apply(va_sid)["applied"], 0)
+            held = db.session.get(VaBundlePendingCoding, draft_id)
+            self.assertEqual((held.status, held.code), ("rejected", "coding_grant_required"))
+        finally:
+            grant.grant_status = VaStatuses.active
+            db.session.commit()
+
+    def test_enrolled_coding_in_masked_project_is_refused_with_explicit_receipt(self):
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.masked_cod_required = True
+        db.session.commit()
+        try:
+            client_uuid, headers = self._device(self.coder)
+            response, draft_id = self._push_enrolled(headers, client_uuid)
+            self.assertEqual(response.get_json()["offline_coding"], {"status": "refused", "code": "coding_mode_mismatch"})
+            self.assertEqual(db.session.get(VaBundlePendingCoding, draft_id).code, "coding_mode_mismatch")
+        finally:
+            project.masked_cod_required = False
+            db.session.commit()
 
     # ── consent ────────────────────────────────────────────────────────────
 
@@ -376,6 +504,31 @@ class StandalonePushTests(BaseTestCase):
         self.assertEqual(self._audits(va_sid, "offline coding allowability disagreement"), [])
         again, _ = self._push(headers, client_uuid, client_draft_id=draft_id)
         self.assertEqual(again.get_json()["offline_coding"], {"status": "applied", "code": None})
+
+    def test_coding_timeline_survives_the_pending_import_and_uses_server_final_save_time(self):
+        client_uuid, headers = self._device(self.coder)
+        answers_json, answers_sha = self._answers_json()
+        coding = self._coding(client_uuid, answers_sha)
+        coding["provenance"]["workflowTimelineV1"] = [
+            {"event": "coding_opened", "at": "2026-10-28T09:00:00+05:30"},
+            {"event": "doris_processed", "at": "2026-10-28T09:04:00+05:30", "elapsed_ms": 2000},
+            {"event": "initial_saved", "at": "2026-10-28T09:05:00+05:30"},
+        ]
+        response, draft_id = self._push(
+            headers, client_uuid, coding=False, offline_coding=coding,
+            answers=json.loads(answers_json),
+        )
+        va_sid = response.get_json()["va_sid"]
+        held = db.session.get(VaBundlePendingCoding, draft_id)
+        self.assertEqual(
+            held.result["coding"]["provenance"]["workflowTimelineV1"],
+            coding["provenance"]["workflowTimelineV1"],
+        )
+
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        timeline = self._final(va_sid).cod_entry_mode_snapshot["offline"]["workflowTimelineV1"]
+        self.assertEqual(timeline[:-1], coding["provenance"]["workflowTimelineV1"])
+        self.assertEqual(timeline[-1]["event"], "final_saved")
 
     def test_disagreement_is_flagged_and_sent_to_reviewers_at_once(self):
         client_uuid, headers = self._device(self.coder)

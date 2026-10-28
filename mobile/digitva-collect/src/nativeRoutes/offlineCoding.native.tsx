@@ -6,15 +6,18 @@
  * is shown: the local id, dates, org unit and coding status — names and answers stay in the form.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
 import { isPlusVariant } from "../appVariant";
+import { canUseOfflineCoding } from "../codingCapabilities";
+import type { Account } from "../auth";
 import {
   getOfflineCoding,
   getOfflineCodingCase,
+  listDrafts,
   listOfflineCodingCases,
   saveOfflineCoding,
   type Db,
@@ -30,11 +33,15 @@ import allowabilityPack from "../../assets/icd11-allowability-2026-01.json";
 import { codingContextFromInterview, createAllowabilityIndex, type AllowabilityPack } from "../coding/icd11Allowability";
 import { errorText, Button, Screen, useUiStyles } from "../ui";
 import { createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
-import type { WorkspaceApi } from "../workspace/api";
+import type { JsonRequester, WorkspaceApi } from "../workspace/api";
 import type { CodingWriteReply, DorisProcessReply, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
 import { offlineEngine } from "../offlineEngine";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { draftAnswersSha256 } from "../sync";
+import { recordCodingTimeline } from "../draftSync";
+import { acquireLocalCodingEditor } from "../localCodingLeases";
+import { localDateTimeWithOffset } from "../client/localDateTime";
+import { appendWorkflowEvent, workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
 
 type Params = { userId?: string | string[]; caseId?: string | string[] };
 
@@ -60,12 +67,34 @@ function datePart(iso: string | null | undefined): string {
   return typeof iso === "string" && iso.length >= 10 ? iso.slice(0, 10) : "";
 }
 
-/** The drafts.ts accessors, seen through the editor's store interface. */
-function offlineCodingStore(db: Db): OfflineCodingStore {
+/** The drafts.ts accessors, seen through the editor's store interface; recheck access at the write boundary. */
+function offlineCodingStore(db: Db, assertAllowed: () => Promise<void>): OfflineCodingStore {
   return {
-    save: (row) => saveOfflineCoding(db, row),
+    save: async (row) => { await assertAllowed(); return saveOfflineCoding(db, row); },
     get: (clientDraftId) => getOfflineCoding(db, clientDraftId),
   };
+}
+
+/** Keep DorisPanel's in-memory request state tied to its open local store across account refreshes. */
+const requesters = new WeakMap<Db, JsonRequester>();
+const CODING_EVENTS = new Set(["coding_opened", "doris_processed", "initial_saved", "final_saved"]);
+const CODING_CLIENT_EVENTS = ["coding_opened", "doris_processed", "initial_saved"] as const;
+
+function codingTimeline(value: unknown): WorkflowTimelineEvent[] {
+  const events = workflowTimeline(value);
+  if (events.length > 6 || events.some((event) => !CODING_EVENTS.has(event.event))) {
+    throw new Error("offline_timeline_invalid");
+  }
+  return events;
+}
+
+function offlineRequester(db: Db): JsonRequester {
+  let request = requesters.get(db);
+  if (!request) {
+    request = async () => { throw new Error("offline_server_unavailable"); };
+    requesters.set(db, request);
+  }
+  return request;
 }
 
 /** Device + coder-profile references a save records for a future sync's provenance (never the profile itself). */
@@ -83,10 +112,13 @@ async function resolveOfflineSaveContext(): Promise<{ deviceUuid: string; coderP
  * server-only call refuses, so an offline screen can never half-talk to a server.
  */
 function offlineWorkspaceApi(
+  db: Db,
   editor: OfflineDorisEditor,
   reply: { current: DorisProcessReply | null },
+  timeline: { current: WorkflowTimelineEvent[] },
   vaSid: string,
   answersHash: (draftId: string) => Promise<string | null>,
+  assertAllowed: () => Promise<void>,
 ): WorkspaceApi {
   const unavailable = (_name: string): never => { throw new Error("offline_server_unavailable"); };
   return {
@@ -125,15 +157,47 @@ function offlineWorkspaceApi(
     checkDorisSelection: (_vaSid, code, uri) => editor.onSelectionCheck(code, uri),
     getVaDefinitionForIcd: async () => null,
     async processDoris(_vaSid, _role, clientRevision, certificate) {
+      await assertAllowed();
       const processed = await editor.onProcess(clientRevision, certificate);
       reply.current = processed;
+      if (processed.doris.status === "completed") {
+        const at = localDateTimeWithOffset();
+        await assertAllowed();
+        if (!await recordCodingTimeline(db, vaSid, "doris_processed", at)) throw new Error("offline_timeline_save_failed");
+        timeline.current = codingTimeline(appendWorkflowEvent(timeline.current, "doris_processed", at));
+      }
       return processed;
     },
     async saveInitial(_vaSid, body): Promise<CodingWriteReply> {
+      await assertAllowed();
       const { deviceUuid, coderProfileUpdatedAt } = await resolveOfflineSaveContext();
       try {
         const answersSha256 = await answersHash(vaSid);
-        await editor.save({ clientDraftId: vaSid, body, reply: reply.current, deviceUuid, coderProfileUpdatedAt, answersSha256 });
+        await assertAllowed();
+        const saved = await editor.save({
+          clientDraftId: vaSid, body, reply: reply.current, deviceUuid, coderProfileUpdatedAt, answersSha256,
+          workflowTimelineV1: timeline.current,
+          codingTimelineV1: timeline.current,
+        });
+        await assertAllowed();
+        if (!await recordCodingTimeline(db, vaSid, "initial_saved", saved.updated_at)) {
+          throw new Error("offline_timeline_save_failed");
+        }
+        const local = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [vaSid]);
+        if (!local) throw new Error("offline_case_missing");
+        const localEnvelope = JSON.parse(local.envelope) as Record<string, unknown>;
+        const persistedTimeline = codingTimeline(localEnvelope.codingTimelineV1);
+        timeline.current = persistedTimeline;
+        const coding = await getOfflineCoding(db, vaSid);
+        if (coding) {
+          const provenance: unknown = coding.provenance ? JSON.parse(coding.provenance) : {};
+          if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new Error("offline_save_invalid");
+          await assertAllowed();
+          await saveOfflineCoding(db, {
+            ...coding,
+            provenance: JSON.stringify({ ...(provenance as Record<string, unknown>), codingTimelineV1: persistedTimeline }),
+          });
+        }
       } catch (error) {
         // The shapes DorisPanel handles for the server's 400 invalid_cod and 422 age confirmation.
         if (!(error instanceof OfflineAllowabilityError)) throw error;
@@ -152,30 +216,98 @@ let allowabilityIndex: ReturnType<typeof createAllowabilityIndex> | undefined;
 const packIndex = () => (allowabilityIndex ??= createAllowabilityIndex(allowabilityPack as AllowabilityPack));
 
 /** The editor's one case: minimal header (no PII beyond what this coder collected) plus the offline editor. */
-function OfflineCase({ db, userId, clientDraftId, onDone }: { db: Db; userId: string; clientDraftId: string; onDone: () => Promise<void> }) {
+function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; userId: string; clientDraftId: string; account: Account; onDone: () => Promise<void> }) {
   const styles = useUiStyles();
   const engine = offlineEngine();
-  const [loaded, setLoaded] = useState<{ row: OfflineCodingCase; draft: DeviceTimedDraft; coding: OfflineCodingRow | null } | undefined>();
+  const [loaded, setLoaded] = useState<{ row: OfflineCodingCase; draft: DeviceTimedDraft; coding: OfflineCodingRow | null; projectId: string } | undefined>();
   const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [engineReady, setEngineReady] = useState(false);
+  const [retry, setRetry] = useState(0);
   const lastReply = useRef<DorisProcessReply | null>(null);
-
-  // The engine takes ~18 s to start; begin now so the first Process does not wait for a cold start.
-  useEffect(() => { void engine.init(); }, [engine]);
+  const timeline = useRef<WorkflowTimelineEvent[]>([]);
+  const accountRef = useRef(account);
+  accountRef.current = account;
+  const releaseLease = useRef<(() => void) | null>(null);
+  const initStarted = useRef(false);
+  const allowed = !!loaded && canUseOfflineCoding(account, loaded.projectId);
+  const assertAllowed = useCallback(async () => {
+    const draft = await db.getFirstAsync<{ project_id: string | null }>("SELECT project_id FROM drafts WHERE id = ?", [clientDraftId]);
+    if (!draft?.project_id || !canUseOfflineCoding(accountRef.current, draft.project_id)) throw new Error("offline_case_access_revoked");
+  }, [db, clientDraftId]);
 
   useEffect(() => {
     let live = true;
     (async () => {
       try {
+        if (releaseLease.current) return;
+        const draft = await db.getFirstAsync<{ project_id: string | null }>("SELECT project_id FROM drafts WHERE id = ?", [clientDraftId]);
+        if (!draft?.project_id || !canUseOfflineCoding(accountRef.current, draft.project_id)) {
+          if (live) setFailed("offline_case_access_revoked");
+          return;
+        }
+        const release = acquireLocalCodingEditor(userId, clientDraftId);
+        if (!release) {
+          if (live) setBusy(true);
+          return;
+        }
+        if (!live) { release(); return; }
+        releaseLease.current = release;
+        setBusy(false);
+        setFailed("");
         const row = await getOfflineCodingCase(db, clientDraftId);
         if (!row) throw new Error("offline_case_missing");
         const coding = await getOfflineCoding(db, clientDraftId);
-        if (live) setLoaded({ row, draft: JSON.parse(row.envelope) as DeviceTimedDraft, coding });
+        if (live) {
+          const provenance: unknown = coding?.provenance ? JSON.parse(coding.provenance) : undefined;
+          const storedTimeline = provenance && typeof provenance === "object" && !Array.isArray(provenance)
+            ? codingTimeline((provenance as Record<string, unknown>).codingTimelineV1 ?? (provenance as Record<string, unknown>).workflowTimelineV1)
+            : [];
+          const envelope = JSON.parse(row.envelope) as DeviceTimedDraft & { codingTimelineV1?: WorkflowTimelineEvent[] };
+          const envelopeTimeline = codingTimeline(envelope.codingTimelineV1);
+          timeline.current = codingTimeline([...envelopeTimeline, ...storedTimeline, ...timeline.current]);
+          for (const event of CODING_CLIENT_EVENTS) {
+            const legacy = storedTimeline.find((item) => item.event === event);
+            const persistedEvent = envelopeTimeline.find((item) => item.event === event);
+            if (legacy && !persistedEvent && !await recordCodingTimeline(db, clientDraftId, event, legacy.at, legacy.elapsed_ms)) {
+              throw new Error("offline_timeline_save_failed");
+            }
+          }
+          const openedAt = localDateTimeWithOffset();
+          if (!await recordCodingTimeline(db, clientDraftId, "coding_opened", openedAt)) throw new Error("offline_timeline_save_failed");
+          timeline.current = codingTimeline(appendWorkflowEvent(timeline.current, "coding_opened", openedAt));
+          const persisted = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [clientDraftId]);
+          if (!persisted) throw new Error("offline_case_missing");
+          envelope.codingTimelineV1 = codingTimeline((JSON.parse(persisted.envelope) as Record<string, unknown>).codingTimelineV1);
+          timeline.current = envelope.codingTimelineV1;
+          setLoaded({ row, draft: envelope, coding, projectId: draft.project_id });
+        }
       } catch (error) {
+        releaseLease.current?.();
+        releaseLease.current = null;
         if (live) setFailed(errorText(error));
       }
     })();
     return () => { live = false; };
-  }, [db, clientDraftId]);
+  }, [db, clientDraftId, retry, userId]);
+
+  useEffect(() => () => { releaseLease.current?.(); releaseLease.current = null; }, []);
+
+  // Start only after the selected draft passes its project check and holds the editor lease.
+  useEffect(() => {
+    if (!loaded || !allowed || busy || initStarted.current) return;
+    initStarted.current = true;
+    void assertAllowed().then(async () => {
+      const result = await engine.init();
+      if (!result.ok) throw new Error(result.error);
+      setEngineReady(true);
+    }).catch((error) => {
+      initStarted.current = false;
+      releaseLease.current?.();
+      releaseLease.current = null;
+      setFailed(errorText(error));
+    });
+  }, [allowed, assertAllowed, busy, engine, loaded]);
 
   const workspace: WorkspacePayload | undefined = useMemo(() => {
     if (!loaded) return undefined;
@@ -207,21 +339,27 @@ function OfflineCase({ db, userId, clientDraftId, onDone }: { db: Db; userId: st
   const editor = useMemo(
     () => createOfflineDorisEditor(
       engine,
-      offlineCodingStore(db),
+      offlineCodingStore(db, assertAllowed),
       loaded ? { index: packIndex(), context: codingContextFromInterview(loaded.draft.data ?? {}), confirmedBy: userId } : undefined,
     ),
-    [engine, db, loaded, userId],
+    [engine, db, loaded, userId, assertAllowed],
   );
   const api = useMemo(
-    () => offlineWorkspaceApi(editor, lastReply, clientDraftId, (draftId) => draftAnswersSha256(db, draftId)),
-    [editor, clientDraftId, db],
+    () => offlineWorkspaceApi(db, editor, lastReply, timeline, clientDraftId, (draftId) => draftAnswersSha256(db, draftId), assertAllowed),
+    [editor, clientDraftId, db, assertAllowed],
   );
-  const request = useMemo(() => async () => { throw new Error("offline_server_unavailable"); }, []);
+  const request = offlineRequester(db);
 
   if (failed) {
     return (
       <Screen title="Offline coding">
         <Text accessibilityRole="alert" style={styles.error}>{failed}</Text>
+        <Button kind="secondary" label="Retry" onPress={() => {
+          setFailed("");
+          setLoaded(undefined);
+          setEngineReady(false);
+          setRetry((value) => value + 1);
+        }} />
         <Button kind="secondary" label="Back to the list" onPress={onDone} />
       </Screen>
     );
@@ -229,7 +367,10 @@ function OfflineCase({ db, userId, clientDraftId, onDone }: { db: Db; userId: st
   if (!loaded || !workspace) {
     return (
       <Screen title="Offline coding">
-        <Text style={styles.muted}>Opening the case…</Text>
+        {busy ? <>
+          <Text style={styles.muted}>This case is being sent.</Text>
+          <Button kind="secondary" label="Retry" onPress={() => setRetry((value) => value + 1)} />
+        </> : <Text style={styles.muted}>{failed ? "This case is not available for offline coding." : "Opening the case…"}</Text>}
       </Screen>
     );
   }
@@ -244,32 +385,42 @@ function OfflineCase({ db, userId, clientDraftId, onDone }: { db: Db; userId: st
         <Text style={styles.muted}>Instrument: {loaded.draft.instrumentId} {loaded.draft.instrumentVersion}</Text>
         <Text style={styles.muted}>Coding: {coding ? `${statusLabel(coding.status)}${coding.ucod_code ? ` — ${coding.ucod_code}` : ""}` : statusLabel(null)}</Text>
       </View>
-      <DorisPanel
-        workspace={workspace}
-        identity={identity}
-        api={api}
-        request={request}
-        onSaved={onDone}
-        onDone={onDone}
-      />
+      <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
+        <DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={onDone} onDone={onDone} />
+      </View>
+      {!allowed && <Text accessibilityRole="alert" style={styles.error}>Offline coding access for this project is unavailable.</Text>}
       <Button kind="secondary" label="Back to the list" onPress={onDone} />
     </Screen>
   );
 }
 
 /** The list of completed-but-unsent interviews; opening one starts the offline editor. */
-function OfflineCaseList({ db, onOpen }: { db: Db; onOpen: (clientDraftId: string) => void }) {
+function OfflineCaseList({ db, onOpen, account }: { db: Db; onOpen: (clientDraftId: string) => void; account: Account }) {
   const styles = useUiStyles();
   const [rows, setRows] = useState<OfflineCodingCaseRow[] | undefined>(undefined);
   const [failed, setFailed] = useState("");
 
   useEffect(() => {
     let live = true;
-    listOfflineCodingCases(db)
-      .then((cases) => { if (live) setRows(cases); })
+    Promise.all([
+      listOfflineCodingCases(db),
+      typeof listDrafts === "function" ? listDrafts(db) : Promise.resolve([]),
+    ])
+      .then(([cases, drafts]) => {
+        if (!live) return;
+        if (account.standalone) {
+          setRows(cases);
+          return;
+        }
+        const projectByDraft = new Map(drafts.map((draft) => [draft.id, draft.project_id]));
+        setRows(cases.filter((row) => {
+          const projectId = projectByDraft.get(row.client_draft_id);
+          return typeof projectId === "string" && canUseOfflineCoding(account, projectId);
+        }));
+      })
       .catch((error) => { if (live) setFailed(errorText(error)); });
     return () => { live = false; };
-  }, [db]);
+  }, [account, db]);
 
   if (failed) return <Text accessibilityRole="alert" style={styles.error}>{failed}</Text>;
   if (!rows) return <Text style={styles.muted}>Loading…</Text>;
@@ -292,7 +443,10 @@ export default function OfflineCoding() {
   const router = useRouter();
   const styles = useUiStyles();
   const { caseId } = useLocalSearchParams<Params>();
+  const { accounts } = useAppState();
   const userId = useOfflineUserId();
+  const account = accounts.find((item) => item.user_id === userId);
+  const canOpenOffline = account ? canUseOfflineCoding(account) : false;
   // A deep link (?caseId=) opens the case directly; otherwise the coder picks one from the list.
   const [selected, setSelected] = useState<string | null>(() => first(caseId) ?? null);
   const [db, setDb] = useState<Db | undefined>(undefined);
@@ -301,9 +455,8 @@ export default function OfflineCoding() {
 
   useEffect(() => {
     // The gate above still mounts these hooks (they run before its return), so the store is only ever opened on Plus.
-    if (!isPlusVariant() || !userId) return;
+    if (!isPlusVariant() || !userId || !account || (!canOpenOffline && !selected) || db) return;
     let live = true;
-    setDb(undefined);
     setStoreMissing(false);
     openInterviewerDb(userId)
       .then((opened) => { if (live) setDb(opened); })
@@ -314,10 +467,10 @@ export default function OfflineCoding() {
         else setStoreMissing(true);
       });
     return () => { live = false; };
-  }, [userId, reloadTick, router]);
+  }, [account, canOpenOffline, db, reloadTick, router, selected, userId]);
 
   if (!isPlusVariant()) return <Redirect href="/" />;
-  if (!userId) return <Redirect href="/" />;
+  if (!userId || !account || (!canOpenOffline && !selected)) return <Redirect href="/" />;
   if (storeMissing) {
     return (
       <Screen title="Offline coding">
@@ -341,9 +494,9 @@ export default function OfflineCoding() {
   return (
     <Screen title="Offline coding">
       {selected ? (
-        <OfflineCase key={selected} db={db} userId={userId} clientDraftId={selected} onDone={closeCase} />
+        <OfflineCase key={selected} db={db} userId={userId} clientDraftId={selected} account={account} onDone={closeCase} />
       ) : (
-        <OfflineCaseList key={reloadTick} db={db} onOpen={setSelected} />
+        <OfflineCaseList key={reloadTick} db={db} account={account} onOpen={setSelected} />
       )}
     </Screen>
   );

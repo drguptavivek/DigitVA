@@ -4,8 +4,16 @@ describe("Expo release configuration", () => {
   const originalApi = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalIntent = process.env.DIGITVA_ANDROID_RELEASE_BUILD;
   const originalVersionCode = process.env.DIGITVA_ANDROID_VERSION_CODE;
+  const originalDistribution = process.env.DIGITVA_DISTRIBUTION;
+
+  // Every case starts as the sideloaded build unless it sets the Play flag itself.
+  beforeEach(() => {
+    delete process.env.DIGITVA_DISTRIBUTION;
+  });
 
   afterEach(() => {
+    if (originalDistribution === undefined) delete process.env.DIGITVA_DISTRIBUTION;
+    else process.env.DIGITVA_DISTRIBUTION = originalDistribution;
     if (originalApi === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
     else process.env.EXPO_PUBLIC_API_BASE_URL = originalApi;
     if (originalIntent === undefined) delete process.env.DIGITVA_ANDROID_RELEASE_BUILD;
@@ -67,6 +75,44 @@ describe("Expo release configuration", () => {
     expect(() => appConfig({ config: require("../app.json").expo })).toThrow(
       "between 1 and 209999999"
     );
+  });
+
+  describe("Google Play distribution", () => {
+    const resolve = () => appConfig({ config: require("../app.json").expo });
+    const releaseEnv = () => {
+      process.env.DIGITVA_ANDROID_RELEASE_BUILD = "1";
+      process.env.EXPO_PUBLIC_API_BASE_URL = "https://digitvav3.causeofdeathindia.com";
+      process.env.DIGITVA_ANDROID_VERSION_CODE = "311";
+    };
+
+    it("marks the Play build and puts its versionCode above both per-ABI APKs", () => {
+      releaseEnv();
+      process.env.DIGITVA_DISTRIBUTION = "play";
+      const resolved = resolve();
+      expect(resolved.extra.digitvaDistribution).toBe("play");
+      expect(resolved.android.versionCode).toBe(3113);
+      expect(resolved.android.package).toBe("com.causeofdeathindia.digitvacollect");
+    });
+
+    it("keeps the highest base within Android's versionCode limit", () => {
+      releaseEnv();
+      process.env.DIGITVA_DISTRIBUTION = "play";
+      process.env.DIGITVA_ANDROID_VERSION_CODE = "209999999";
+      expect(resolve().android.versionCode).toBe(2_099_999_993);
+    });
+
+    it("leaves the sideloaded build unchanged without the flag", () => {
+      releaseEnv();
+      const resolved = resolve();
+      expect(resolved.extra.digitvaDistribution).toBe("sideload");
+      expect(resolved.android.versionCode).toBe(311);
+    });
+
+    it("refuses an unknown distribution value", () => {
+      releaseEnv();
+      process.env.DIGITVA_DISTRIBUTION = "Play";
+      expect(resolve).toThrow("DIGITVA_DISTRIBUTION");
+    });
   });
 
   describe("Collect Plus variant", () => {

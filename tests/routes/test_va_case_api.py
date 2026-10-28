@@ -35,6 +35,7 @@ from app.models import (
     VaSmartvaResults,
     VaSocialAutopsyAnalysis,
     VaSocialAutopsyAnalysisOption,
+    VaSubmissionsAuditlog,
     VaStatuses,
     VaSubmissions,
     VaSubmissionWorkflow,
@@ -340,6 +341,55 @@ class VaCaseApiTests(BaseTestCase):
         self.assertIsInstance(body["other_conditions_options"], list)
         self.assertTrue(body["other_conditions_options"])
         self.assertEqual(response.headers["Cache-Control"], "private, no-store, max-age=0")
+
+    def test_authorized_workspace_exposes_allocation_linked_coding_timestamps(self):
+        sid = self._coding_case()
+        allocation = db.session.scalar(sa.select(VaAllocations).where(
+            VaAllocations.va_sid == sid,
+            VaAllocations.va_allocated_to == self.base_coder_user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        ))
+        self.assertIsNotNone(allocation)
+        allocation.va_allocation_createdat = datetime(2026, 10, 28, 9, 0)
+        initial = self._initial(sid, va_iniassess_createdat=datetime(2026, 10, 28, 9, 20))
+        version = get_active_payload_version(sid).payload_version_id
+        final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            payload_version_id=version,
+            va_conclusive_cod="A16 final result",
+            va_finassess_status=VaStatuses.active,
+            va_finassess_createdat=datetime(2026, 10, 28, 10, 0),
+        )
+        db.session.add_all([
+            final,
+            VaSubmissionsAuditlog(
+                va_sid=sid,
+                va_audit_byrole="vacoder",
+                va_audit_by=self.base_coder_user.user_id,
+                va_audit_operation="c",
+                va_audit_action="DORIS processing completed",
+                va_audit_entityid=allocation.va_allocation_id,
+                va_audit_createdat=datetime(2026, 10, 28, 9, 15),
+            ),
+        ])
+        db.session.commit()
+
+        timeline = self._workspace(sid)["codingTimelineV1"]
+        self.assertEqual(
+            timeline,
+            [
+                {"event": "coding_allocated", "at": "2026-10-28T09:00:00+00:00"},
+                {"event": "doris_processed", "at": "2026-10-28T09:15:00+00:00"},
+                {"event": "initial_saved", "at": "2026-10-28T09:20:00+00:00"},
+                {"event": "final_saved", "at": "2026-10-28T10:00:00+00:00"},
+            ],
+        )
+        self.assertNotIn("telemetry", self._workspace(sid))
+        stranger = self._make_user(f"xl43p2.timeline.{uuid.uuid4().hex[:6]}@test.local", "Other123")
+        denied = self._get(sid, "workspace", user=str(stranger.user_id))
+        self.assertEqual(denied.status_code, 403)
 
     def test_masked_step_one_then_final_after_a_saved_step_one(self):
         self._mode(masked=True)

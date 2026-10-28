@@ -3,22 +3,23 @@ title: Android Release Builds
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Android release builds
 
-DigitVA Collect is the **collection-only** Android app (owner, 2026-10-22,
-`digitva-cpx5`): enrolment, sign-in, PIN, consent, death registration,
-interviews, drafts, attachments, sync and settings. Coding and review stay in
-the web app built from the same Expo project; on the phone the `/coding`,
-`/reviewing` and `/workspace` routes show "Coding and review are done in the
-DigitVA web app" (`docs/policy/field-data-collection.md`).
+DigitVA Collect supports enrolment, sign-in, PIN, consent, death registration,
+interviews, drafts, attachments, sync, settings and online coding through the
+shared native workspace (`digitva-6rxf`). Collect Plus additionally carries the
+experimental offline engine. Online cases require the caller's coding access;
+local coding requires a standalone account or a self-coding project with coder
+access in that same project. Plain builds exclude offline engine assets.
+Review keeps its existing variant and permission checks.
 
 | Item | Value |
 | --- | --- |
 | Android package | `com.causeofdeathindia.digitvacollect` (was `org.digitva.collect` for the 0.1.0 test build; a different app to Android, so 0.1.0 must be uninstalled) |
-| Future coding app | `com.causeofdeathindia.digitvacoder` (not built) |
+| Coding app | Shared workflow in this app; no package migration |
 | Release server | `https://digitvav3.causeofdeathindia.com`, staging (`EXPO_PUBLIC_API_BASE_URL`; owner 2026-10-27, `digitva-0d6l`; phones already enrolled keep their server); the QR rule still enrols on any https host under `causeofdeathindia.com` |
 | APKs | one per ABI, `arm64-v8a` (most phones) and `armeabi-v7a` (older 32-bit phones); no universal APK |
 | versionCode | base `major*10000 + minor*100 + patch` (0.2.0 -> `200`), each APK `base*10 + ABI digit`: `armeabi-v7a` 1, `arm64-v8a` 2 |
@@ -117,6 +118,42 @@ artifact. With `publish: true` and tag `android-v<version>` (it must match
 `app.json`), the publish job alone has `contents: write` and creates the
 release with those four assets. Rebuilding the same version reproduces the
 same versionCodes, so bump `app.json` before every published release.
+
+## Google Play bundle - primary release path
+
+Google Play is the primary release path (owner, 2026-10-28, `digitva-a770`);
+CI builds a signed AAB for owner review/upload. Downloadable APK releases remain supported alongside the store bundle. Native HMR/debug builds may run
+locally for emulator testing; release builds remain on CI. This supersedes the
+earlier blanket restriction on local debug builds.
+The build flag `DIGITVA_DISTRIBUTION=play` (unset means the sideloaded APK
+build; any other value fails the config) changes three things:
+
+- `app.config.js` sets `extra.digitvaDistribution` to `play` (otherwise
+  `sideload`). The app reads it through `isPlayDistribution()` in
+  `src/appVariant.ts`: Settings > About shows "App updates come from Google
+  Play." in place of the update check and Download button, and the start-up
+  update check does not run, so no screen offers the hosted APK (Play's Device
+  and Network Abuse policy forbids self-update).
+- `plugins/with-android-abi-splits.js` stands aside: one universal AAB, which
+  Play splits per device itself.
+- The versionCode is `base * 10 + 3`, with `base = major*10000 + minor*100 +
+  patch`, so the bundle sits above the same version's per-ABI APKs (`+1`
+  armeabi-v7a, `+2` arm64-v8a).
+
+From the Actions tab, select `main` and run **Android Google Play bundle**
+(`.github/workflows/android-play-bundle.yml`). It uses the `android-release`
+environment, the same signing secrets, API origin and screenshot setting as
+the APK workflow, builds the vendored WHO package, runs `npm ci`, the
+typecheck and tests, then prebuilds and runs `./gradlew bundleRelease` with
+the flag set on both steps (the JS bundle reads the config again at Gradle
+time). After prebuild it checks `android/app/build.gradle` has no ABI splits
+and carries the `+3` versionCode. It verifies the AAB with `jarsigner -verify`,
+rejects debug signing, compares the `keytool -printcert -jarfile` SHA-256 with
+`ANDROID_RELEASE_CERT_SHA256`, and applies the same embedded-JavaScript origin
+checks as the APK script. It uploads `digitva-collect-<version>-play.aab` and
+its `.sha256` as a 14-day run artifact only: no GitHub release and no Play
+upload. The bundle is signed with the existing release key for now; which key
+becomes the Play App Signing upload key is the owner's decision.
 
 ## Verification boundary
 

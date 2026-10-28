@@ -23,12 +23,18 @@ jest.mock("../src/interviewerDb", () => ({
   deleteInterviewerDb: (id: string) => mockDeleteDb(id),
   unsentWorkCount: (id: string) => mockUnsent(id),
 }));
+jest.mock("../src/offlineIdentity", () => ({
+  getOrCreatePlusDeviceIdentity: jest.fn(async () => ({ uuid: "plus-install-uuid" })),
+}));
 
 import {
   acceptDeviceTerms,
   authedRawRequest,
   authedRequest,
+  decommissionMyDevice,
+  enrolDemoDevice,
   getAuthenticatedAttachmentSource,
+  listMyDevices,
   loadAccounts,
   redeemSignInQr,
   refreshAccessSummary,
@@ -41,6 +47,7 @@ import {
 } from "../src/auth";
 import { APP_VERSION } from "../src/appVersion";
 import { recordNotificationPoll } from "../src/notificationState";
+import { parseAccessSummary } from "../src/api";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -147,6 +154,12 @@ it("preserves data and tokens through the pending terms gate and accepts through
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
 
+it("binds demo enrolment to the Collect Plus install UUID", async () => {
+  mockServer(() => json(201, { device_id: "demo-device", device_secret: "secret", project: { project_id: "PUB01", name: "Demo" } }));
+  await enrolDemoDevice(SERVER, "demo.user", "pw", "Pixel", APP_VERSION);
+  expect(JSON.parse(calls[0].body!)).toMatchObject({ client_device_uuid: "plus-install-uuid" });
+});
+
 it("keeps the local store when the session has ended", async () => {
   seed({ access: "a", refresh: "r1" });
   mockServer(() => json(401, { code: "session_ended" }));
@@ -155,6 +168,39 @@ it("keeps the local store when the session has ended", async () => {
   ).rejects.toBeInstanceOf(SignInRequiredError);
   expect(mockDeleteDb).not.toHaveBeenCalled();
   expect((await loadAccounts())[0].needs_sign_in).toBe(true);
+});
+
+it("lists devices and decommissions the current phone by keeping its local data", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockServer((call) => call.url.endsWith("/me/devices/11111111-1111-4111-8111-111111111111")
+    ? json(200, { decommissioned: true, sessions_ended: 1, current: true })
+    : call.url.endsWith("/me/devices")
+      ? json(200, { devices: [{ device_id: "d1", name: "Phone", platform: "android", app_version: "0.3.11", enrolled_at: "2026-10-20T00:00:00Z", last_seen_at: null, current: true }] })
+      : json(200, {}));
+  await expect(listMyDevices(USER)).resolves.toHaveLength(1);
+  await expect(decommissionMyDevice(USER, "11111111-1111-4111-8111-111111111111")).resolves.toMatchObject({ current: true });
+  expect(mockSecure.has(`tokens.${USER}`)).toBe(false);
+  expect((await loadAccounts()).find((account) => account.user_id === USER)).toMatchObject({ needs_sign_in: true });
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+});
+
+it("decommissions another phone without changing this phone's session", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockServer((call) => call.url.endsWith("/me/devices/other")
+    ? json(200, { decommissioned: true, sessions_ended: 1, current: false })
+    : json(200, {}));
+  await expect(decommissionMyDevice(USER, "other")).resolves.toMatchObject({ current: false });
+  expect(mockSecure.has(`tokens.${USER}`)).toBe(true);
+  expect((await loadAccounts()).find((account) => account.user_id === USER)).not.toHaveProperty("needs_sign_in");
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+});
+
+it("keeps a fourth-phone refusal retryable for device management", async () => {
+  mockSecure.set("device_secret", "dev-secret");
+  mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
+  mockServer(() => json(409, { code: "device_limit" }));
+  await expect(signIn("a@example.org", "pw")).rejects.toMatchObject({ status: 409, code: "device_limit" });
+  expect(mockSecure.has("device")).toBe(true);
 });
 
 it("retains the terms flag returned at sign-in", async () => {
@@ -255,6 +301,31 @@ it("single-flights access refresh and publishes the authoritative summary", asyn
   expect(calls.filter((call) => call.url.endsWith("/me/access"))).toHaveLength(1);
   expect(listener).toHaveBeenCalledWith(USER, ACCESS);
   unsubscribe();
+});
+
+it("validates self-coding settings and persists only same-project offline access", async () => {
+  seed({ access: "a", refresh: "r1" });
+  const access = {
+    ...ACCESS,
+    roles: ["coder"],
+    projects: [
+      { ...interviewAccess().projects[0], project_id: "SELF", self_coding: { enabled: true }, grants: [{ role: "coder", scope: "project", active: true, source: "assigned", codes: true }] },
+      { ...interviewAccess().projects[0], project_id: "OTHER", self_coding: { enabled: false }, grants: [{ role: "coder", scope: "project", active: true, source: "assigned", codes: true }] },
+    ],
+  };
+  mockServer(() => json(200, access));
+  await refreshAccessSummary(USER);
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)).toMatchObject({
+    coding_access: true,
+    offline_coding_access: ["SELF"],
+  });
+});
+
+it("rejects malformed self-coding capability fields at the access boundary", () => {
+  expect(() => parseAccessSummary({
+    ...ACCESS,
+    projects: [{ ...interviewAccess().projects[0], self_coding: { enabled: "yes" } }],
+  })).toThrow("malformed_response");
 });
 
 it("rotates an expired access token while refreshing collection access", async () => {
@@ -652,6 +723,7 @@ it("clears the sign-in-again flag when the interviewer signs in again", async ()
     registered_deaths_access: false,
     coding_access: false,
     reviewing_access: false,
+    offline_coding_access: [],
   });
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
@@ -679,7 +751,7 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   const account = await signIn("+919876543210", "pw");
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
   expect(account).toEqual({ user_id: USER, name: "A", server: SERVER });
-  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false }]);
+  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false, offline_coding_access: [] }]);
 });
 
 it("persists only explicit coder and reviewer roles, never admin demo coding", async () => {
@@ -706,6 +778,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
     registered_deaths_access: false,
     coding_access: true,
     reviewing_access: true,
+    offline_coding_access: [],
   }]);
 
   mockServer((call) => call.url.endsWith("/me/access")
@@ -721,6 +794,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
     registered_deaths_access: false,
     coding_access: false,
     reviewing_access: false,
+    offline_coding_access: [],
   }]);
 });
 

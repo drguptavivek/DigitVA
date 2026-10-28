@@ -22,9 +22,9 @@ export { default as Revision } from "./nativeRoutes/revision";
 export { default as Settings } from "./nativeRoutes/settings";
 
 /**
- * The Android app collects data only (docs/policy/field-data-collection.md).
- * Coding, review and the case workspace stay in the web app, so an old link
- * or a coder-only account lands here instead of on a coding screen.
+ * The native app shares the server-backed coding workspace in both APK
+ * variants. Review remains Plus-only; local ICD-11 tools stay separately
+ * gated by the offline capability helper.
  */
 export function CodingOnWeb() {
   const router = useRouter();
@@ -35,8 +35,8 @@ export function CodingOnWeb() {
   </Screen>;
 }
 
-// Collect Plus (experimental, adb-only) runs the real coding screens; the plain build keeps the notice.
+// Online coding is the same server-backed workspace in plain and Plus builds.
+export const Coding = PlusCoding;
 const plus = isPlusVariant();
-export const Coding = plus ? PlusCoding : CodingOnWeb;
 export const Reviewing = plus ? PlusReviewing : CodingOnWeb;
-export const Workspace = plus ? PlusWorkspace : CodingOnWeb;
+export const Workspace = PlusWorkspace;

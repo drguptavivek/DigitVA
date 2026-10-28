@@ -17,7 +17,7 @@ import uuid
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
-from app import limiter
+from app import db, limiter
 from app.decorators import role_required
 from app.routes.api.request_helpers import browser_session_only, error, parse_body
 from app.services import sign_in_qr_service as sign_in_qr
@@ -41,6 +41,35 @@ def _no_store(body, status=200):
 
 def _refused(exc: service.UserDirectoryError):
     return error(str(exc), exc.code, exc.status)
+
+
+@bp.get("/<user_id>/devices")
+@role_required("admin", "data_manager")
+@limiter.limit("60 per minute")
+def user_devices(user_id):
+    """Live native-device pairs for a fully in-scope managed account."""
+    try:
+        return _no_store({"devices": service.list_user_devices(current_user, user_id)})
+    except service.UserDirectoryError as exc:
+        return _refused(exc)
+
+
+@bp.delete("/<user_id>/devices/<uuid:device_id>")
+@role_required("admin", "data_manager")
+@limiter.limit("10 per minute")
+def decommission_user_device(user_id, device_id):
+    """End only this account's sessions on one device pair."""
+    try:
+        ended = service.decommission_user_device(
+            current_user,
+            user_id,
+            device_id,
+            actor=current_user._get_current_object(),
+        )
+    except service.UserDirectoryError as exc:
+        return _refused(exc)
+    db.session.commit()
+    return _no_store({"decommissioned": True, "sessions_ended": ended, "current": False})
 
 
 @bp.get("")

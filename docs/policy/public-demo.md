@@ -3,7 +3,7 @@ title: Public Demo
 doc_type: policy
 status: approved baseline
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Public demo
@@ -151,7 +151,7 @@ Defaults, all configurable:
 | Death registrations per account | 5 per day, 25 in total |
 | ICD-11 lookups | 300 per hour per account; 2000 per hour across all demo accounts |
 | Downloads | 10 per hour |
-| Devices per account (Android) | 3 active; enrolling a 4th (after the password is checked) revokes the account's least recently used phone |
+| Devices per account (Android) | 3 active user-device logins; a fourth returns `409 device_limit` until one is decommissioned |
 
 **Eviction at the cap (owner 2026-10-22).** When 500 accounts exist and someone
 signs up, the account with the oldest last sign-in (or creation, if never
@@ -223,6 +223,34 @@ An account an admin marked kept (section 8) is never purged, however long it
 is idle, until an admin clears the mark; every change of the mark is audited.
 SmartVA run folders on the demo project still expire by age (they are kept
 per form, not per account); the results stay.
+
+## 9a. Self-delete (owner decision 2026-10-27, `digitva-et16`)
+
+A signed-in public-demo user may delete their own account at once, from the
+app's Settings (Demo slot) or the website's profile page, after re-entering
+the password. The server checks the password (rate-limited like sign-in;
+never logged or stored) and deletes exactly what the 30-day purge deletes
+(section 9), through the same deletion code.
+
+- **Not blocked by the purge switches.** The idle rule and
+  `PUBLIC_DEMO_PURGE_ENABLED` do not apply: the person asked. It still runs
+  only with `PUBLIC_DEMO_ENABLED`, only for the caller's own account and only
+  for a public-demo account.
+- **Every per-account guard stays:** the main-database guard, and the
+  account's drafts, registrations, submissions, grants and devices all on the
+  demo project with no case shared with another account (`not_demo_project`,
+  `grant_outside_demo`, `shared_case`). A refusal shows its reason and deletes
+  nothing.
+- **A kept account (section 8) can self-delete too.** The kept mark stops the
+  purge and the eviction, not the account's own request; the Play review
+  account deleted this way is gone and must be signed up again.
+- **Audit.** One security event `public_demo_self_delete` with the row counts,
+  never the username. The account's earlier security events are kept with the
+  user reference cleared, as the purge keeps them: the account's audit
+  history is preserved. Its own cases and their per-case logs go with it.
+- **On the phone** the profile, its encrypted store (unsent work included,
+  which the confirmation says) and its tokens are removed, then the app
+  reloads. On the website the browser is signed out.
 
 ## 10. Android
 
@@ -297,3 +325,30 @@ App Settings has a switch between them; the phone uses one at a time.
 
 The WHO ICD-11 API terms for anonymous public use must be checked by the
 owner before launch. Not decided.
+
+
+## Account device limit and decommissioning (`digitva-65m5`)
+
+Owner 2026-10-28: one account may be signed in on at most **three distinct
+active devices**. Active means at least one unrevoked device session whose
+refresh expiry has not passed, on an unrevoked device. Web sessions do not
+consume app-device slots. Re-login on an existing phone replaces its old
+sessions without using another slot; refresh does not create a slot. The
+issuer locks the account while checking and adding a device session. A fourth
+phone receives an explicit `409 device_limit`; no device is silently evicted.
+This applies to password, sign-in QR and demo entry. A refused QR remains
+retryable and no unused device is created by the refusal.
+
+Users can list and decommission their own devices from Profile or an already
+signed-in app. A user blocked on phone four can use a normal web login to
+free a slot. Do not add a pre-authenticated device-management credential flow.
+Admins can manage any account. A data manager may act only when their existing
+writer scope covers all the target account's active native-device-role grants;
+partial shared-project access does not confer global device authority. Project
+PI alone is not sufficient for these management actions.
+
+Decommissioning ends that user's sessions on the selected device. It does not
+revoke the shared physical device, another person's sessions, server cases or
+interviews. The app receives a keep-data session-ended reason: encrypted local
+work remains available for safe sign-in/recovery and is never silently wiped.
+Every management action is audited without credentials or clinical payloads.

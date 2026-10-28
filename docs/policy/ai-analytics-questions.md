@@ -3,7 +3,7 @@ title: AI Analytics Questions Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # AI Analytics Questions Policy
@@ -32,7 +32,13 @@ Only three things are sent to the model provider:
    may be included in it, so the model can say which KPI a question maps to.
    That is definition text (a name, a question, a formula in words), not data.
 2. The user's question, plus on a follow-up the previous SQL and up to five
-   earlier questions.
+   earlier questions. With it go the id, name and nickname of each project
+   in the user's AI table scope; when there are at most 50, the id and name
+   of each site under their project and site grants (not under org unit
+   grants). The model then uses exact project and site codes and names rather
+   than guessing them (`digitva-g72d`). Project and site codes and names are
+   not personal data; nothing else about them (address, phone, coordinates)
+   is sent.
 3. On a retry, the error for the SQL the model wrote: the SQLSTATE and
    PostgreSQL's primary message with every quoted value replaced by
    `<value>`, or the SQL check's own refusal text. The user may see the full

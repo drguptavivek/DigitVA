@@ -85,7 +85,7 @@ import {
   type ProjectSettings,
   type ReferenceData,
 } from "../sync";
-import { reconcileCaseDraft } from "../draftSync";
+import { recordDraftMilestones, recordDraftTimeline, reconcileCaseDraft } from "../draftSync";
 import { applyTranslations } from "../translations";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { useLeaveGuard } from "../leaveGuard";
@@ -1144,6 +1144,11 @@ export default function Form() {
     }
     try {
       await controller.current?.saveDraft();
+      try {
+        await recordDraftTimeline(loaded.db, draftId, "submit_started");
+      } catch {
+        // The answer save is already durable; a concurrent milestone write must not strand it.
+      }
       await markCompleted(loaded.db, draftId, completion);
       await clearSendError(loaded.db, draftId);
     } catch (error) {
@@ -1268,7 +1273,16 @@ export default function Form() {
             setSaveState("unsaved");
             setMessage(t("errGeneric"));
           }}
-          onDraftSaved={() => setSaveState("saved")}
+          onDraftSaved={() => {
+            setSaveState("saved");
+            if (typeof recordDraftMilestones === "function") {
+              void recordDraftMilestones(
+                loaded.db,
+                draftId,
+                loaded.definition.instrument.sections.map((section) => section.name),
+              ).catch(() => undefined);
+            }
+          }}
           onComplete={(result) => void complete(result)}
         />
       </View>

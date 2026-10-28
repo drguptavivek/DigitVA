@@ -1,0 +1,207 @@
+name: Android Google Play bundle
+
+# Builds the signed Google Play app bundle (digitva-6o4b). It is a run artifact
+# only: no GitHub release and no Play upload; the owner uploads it to Play.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPO_PUBLIC_API_BASE_URL: https://digitvav3.causeofdeathindia.com
+  DIGITVA_ANDROID_RELEASE_BUILD: "1"
+  # Field testing: screenshots allowed until this instant, then blocked again (owner 2026-10-23; remove with digitva-om65).
+  EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL: "2026-10-30T00:00:00+05:30"
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    environment: android-release
+    runs-on: ubuntu-24.04
+    env:
+      # Owner decision pending: with Play App Signing, Google holds the app
+      # signing key and this key becomes the upload key. Until the owner
+      # chooses an upload key, the bundle is signed with the existing release
+      # secrets, the same key as the sideloaded APKs.
+      ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+      ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+      ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+      ANDROID_RELEASE_CERT_SHA256: ${{ vars.ANDROID_RELEASE_CERT_SHA256 }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/digitva-collect/package-lock.json
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Decode signing keystore
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_RELEASE_STORE_FILE="$RUNNER_TEMP/digitva-release.keystore"
+          printf 'ANDROID_RELEASE_STORE_FILE=%s\n' "$ANDROID_RELEASE_STORE_FILE" >> "$GITHUB_ENV"
+          : "${KEYSTORE_BASE64:?ANDROID_RELEASE_KEYSTORE_BASE64 is not configured}"
+          : "${ANDROID_RELEASE_KEYSTORE_PASSWORD:?ANDROID_RELEASE_KEYSTORE_PASSWORD is not configured}"
+          : "${ANDROID_RELEASE_KEY_ALIAS:?ANDROID_RELEASE_KEY_ALIAS is not configured}"
+          : "${ANDROID_RELEASE_KEY_PASSWORD:?ANDROID_RELEASE_KEY_PASSWORD is not configured}"
+          : "${ANDROID_RELEASE_CERT_SHA256:?Repository variable ANDROID_RELEASE_CERT_SHA256 is not configured}"
+          if [[ ! "$ANDROID_RELEASE_CERT_SHA256" =~ ^([[:xdigit:]]{2}:?){32}$ ]]; then
+            echo "ANDROID_RELEASE_CERT_SHA256 must contain a SHA-256 certificate fingerprint" >&2
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$ANDROID_RELEASE_STORE_FILE"
+          test -s "$ANDROID_RELEASE_STORE_FILE"
+          keytool -list -keystore "$ANDROID_RELEASE_STORE_FILE" \
+            -storepass:env ANDROID_RELEASE_KEYSTORE_PASSWORD >/dev/null
+
+      - name: Set up pnpm 11.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+
+      - name: Build the vendored WHO package
+        run: |
+          pnpm --dir vendor/who-va-2022 install --frozen-lockfile
+          pnpm --dir vendor/who-va-2022 run build
+
+      - name: Install mobile dependencies from the lockfile
+        working-directory: mobile/digitva-collect
+        run: npm ci
+
+      - name: Run mobile typecheck
+        working-directory: mobile/digitva-collect
+        run: npm run typecheck
+
+      # DIGITVA_DISTRIBUTION is set on the prebuild and Gradle steps only, so
+      # the tests run as they do for the sideloaded build.
+      - name: Run mobile tests
+        working-directory: mobile/digitva-collect
+        run: npm test -- --runInBand
+
+      - name: Read Expo app version
+        id: app_version
+        working-directory: mobile/digitva-collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_version="$(node -p "require('./app.json').expo.version")"
+          [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Expo app version must be numeric semver: $app_version" >&2
+            exit 1
+          }
+          printf 'version=%s\n' "$app_version" >> "$GITHUB_OUTPUT"
+          # Base versionCode from the version (0.2.0 -> 200); the Play bundle
+          # gets base * 10 + 3 (app.config.js), above the same version's
+          # per-ABI APKs (+1 and +2).
+          IFS=. read -r major minor patch <<<"$app_version"
+          (( minor < 100 && patch < 100 )) || { echo "minor and patch must be below 100" >&2; exit 1; }
+          printf 'DIGITVA_ANDROID_VERSION_CODE=%s\n' "$((major * 10000 + minor * 100 + patch))" >> "$GITHUB_ENV"
+
+      - name: Generate the native Android project for Google Play
+        working-directory: mobile/digitva-collect
+        env:
+          DIGITVA_DISTRIBUTION: play
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --clean --non-interactive
+          # The ABI splits plugin stands aside and the versionCode carries the +3.
+          if grep -Fq "DigitVA release ABI splits" android/app/build.gradle; then
+            echo "Play build must not split per ABI" >&2
+            exit 1
+          fi
+          grep -Eq "^[[:space:]]*versionCode[[:space:]]+$((DIGITVA_ANDROID_VERSION_CODE * 10 + 3))[[:space:]]*$" android/app/build.gradle || {
+            echo "android/app/build.gradle does not carry versionCode $((DIGITVA_ANDROID_VERSION_CODE * 10 + 3))" >&2
+            exit 1
+          }
+
+      # The JS bundle reads app.config.js again here, so the flag must be set
+      # for Gradle too (src/appVariant.ts).
+      - name: Build the signed release app bundle
+        working-directory: mobile/digitva-collect/android
+        env:
+          DIGITVA_DISTRIBUTION: play
+        run: ./gradlew --no-daemon clean bundleRelease
+
+      - name: Verify and checksum the app bundle
+        env:
+          APP_VERSION: ${{ steps.app_version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          aab=mobile/digitva-collect/android/app/build/outputs/bundle/release/app-release.aab
+          test -s "$aab"
+          verify_output=$(jarsigner -verify "$aab")
+          grep -Fq "jar verified." <<<"$verify_output" || {
+            echo "app bundle signature does not verify" >&2
+            exit 1
+          }
+          cert_output=$(keytool -printcert -jarfile "$aab")
+          if grep -Fqi 'CN=Android Debug' <<<"$cert_output"; then
+            echo "app bundle is signed with the Android debug certificate" >&2
+            exit 1
+          fi
+          normalise_digest() { tr -d '[:space:]:\r' | tr '[:lower:]' '[:upper:]'; }
+          actual_cert=$(sed -n 's/^[[:space:]]*SHA256: //p' <<<"$cert_output" | head -n 1 | normalise_digest)
+          expected_cert=$(printf '%s' "$ANDROID_RELEASE_CERT_SHA256" | normalise_digest)
+          [[ -n "$actual_cert" ]] || { echo "app bundle certificate digest was not reported" >&2; exit 1; }
+          if [[ "$actual_cert" != "$expected_cert" ]]; then
+            echo "app bundle certificate fingerprint does not match ANDROID_RELEASE_CERT_SHA256" >&2
+            exit 1
+          fi
+          # Same JavaScript checks as scripts/verify-android-release.sh.
+          bundle_file="$RUNNER_TEMP/index.android.bundle"
+          unzip -p "$aab" base/assets/index.android.bundle > "$bundle_file"
+          test -s "$bundle_file"
+          grep -Fq "$EXPO_PUBLIC_API_BASE_URL" "$bundle_file" || {
+            echo "embedded JavaScript does not contain the configured HTTPS API origin" >&2
+            exit 1
+          }
+          for dev_origin in 'http://localhost:8051' 'http://10.0.2.2:8051'; do
+            if grep -Fq "$dev_origin" "$bundle_file"; then
+              echo "embedded JavaScript contains a development API origin: $dev_origin" >&2
+              exit 1
+            fi
+          done
+          rm -f -- "$bundle_file"
+          # The app reads the flag from the embedded config (isPlayDistribution, fail-open): without it
+          # this bundle would still offer in-app APK updates, which Play forbids.
+          unzip -p "$aab" base/assets/app.config | grep -Eq '"digitvaDistribution"[[:space:]]*:[[:space:]]*"play"' || {
+            echo "embedded app config does not mark a Play build (digitvaDistribution)" >&2
+            exit 1
+          }
+          name="digitva-collect-${APP_VERSION}-play.aab"
+          mkdir -p "$RUNNER_TEMP/play-bundle"
+          cp "$aab" "$RUNNER_TEMP/play-bundle/$name"
+          (cd "$RUNNER_TEMP/play-bundle" && sha256sum "$name" > "$name.sha256")
+          echo "verified signed app bundle: versionCode=$((DIGITVA_ANDROID_VERSION_CODE * 10 + 3)) cert=$actual_cert"
+
+      - name: Upload signed app bundle artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digitva-collect-android-play-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: ${{ runner.temp }}/play-bundle/
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: rm -f -- "$ANDROID_RELEASE_STORE_FILE"

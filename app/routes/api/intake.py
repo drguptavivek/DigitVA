@@ -1091,6 +1091,7 @@ def submit_interview():
     if refusal is not None:
         return refusal
     standalone = coding = standalone_device = None
+    enrolled_context = False
     if p.get("standalone") is not None:
         standalone = offline_import.parse_standalone(p["standalone"])
         if p.get("offline_coding") is not None:
@@ -1100,7 +1101,10 @@ def submit_interview():
         standalone_device = offline_import.require_session_device(
             g.get("device_session"), standalone["client_device_uuid"], coding)
     elif p.get("offline_coding") is not None:
-        return error("offline_coding is sent with standalone only.", "offline_coding_invalid", 422)
+        coding = offline_import.parse_offline_coding(p["offline_coding"])
+        enrolled_context = True
+        standalone_device = offline_import.require_session_device(
+            g.get("device_session"), uuid.UUID(coding["device_uuid"]), coding)
     try:
         intake_svc.check_device_times(envelope)
     except intake_svc.WebIntakeError as exc:
@@ -1119,20 +1123,33 @@ def submit_interview():
     def _hold_coding(draft):
         if coding is None:
             return None
-        return offline_import.hold(current_user, db.session.get(VaProjectMaster, project_id), draft, coding,
-                                   standalone["profile_snapshot"])
+        project = db.session.get(VaProjectMaster, draft.project_id)
+        profile_snapshot = standalone["profile_snapshot"] if standalone is not None else {}
+        return offline_import.hold(
+            current_user, project, draft, coding, profile_snapshot, enrolled_context=enrolled_context
+        )
 
     def resend(existing):
         # The same hash is the first result again; other answers are a later
         # version of the interview.
+        if existing.project_id != project_id:
+            return error("This client draft belongs to another project.", "conflict", 409)
         if standalone_device is not None and (existing.meta or {}).get("deviceId") != str(standalone_device.device_id):
             # A backup restored on a second phone: never a new case.
             return error("This interview was sent from another device.", "conflict", 409)
         if existing.answers_sha256 == answers_sha256:
             closed = existing.status == "superseded"
+            timeline_meta = intake_svc.merge_incoming_timeline_meta(
+                existing, envelope, allow_server_receipts=True
+            )
+            if timeline_meta:
+                existing.meta = {**(existing.meta or {}), **timeline_meta}
+            held = _hold_coding(existing) if coding is not None else None
+            if coding is not None or timeline_meta:
+                db.session.commit()
             return _upload_reply(
                 existing, kept="server" if closed else "incoming", received_sha256=answers_sha256, locked=closed,
-                status=200, offline_coding=offline_import.coding_status(client_draft_id) if coding else None,
+                status=200, offline_coding=held,
             )
         kept, locked = intake_svc.resubmit_device_interview(
             current_user, existing, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,

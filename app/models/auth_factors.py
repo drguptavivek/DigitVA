@@ -200,3 +200,54 @@ class AuthSecurityEvent(db.Model):
 
     def __repr__(self) -> str:
         return f"<AuthSecurityEvent {self.event_type} user_id={self.user_id}>"
+
+
+class AuthAccountDeletionRequest(db.Model):
+    """A staff account's own request to be deleted, for an admin to review
+    (docs/policy/public-privacy-and-data-requests.md section 8). Deletion
+    itself is manual; ``handled_at`` marks the request done. At most one
+    pending (unhandled) request per account, enforced by a partial unique
+    index. Demo accounts never file one: they delete themselves."""
+
+    __tablename__ = "auth_account_deletion_requests"
+    __table_args__ = (
+        sa.Index(
+            "uq_auth_account_deletion_requests_pending_user",
+            "user_id",
+            unique=True,
+            postgresql_where=sa.text("handled_at IS NULL"),
+        ),
+        # The admin list: pending first, oldest first.
+        sa.Index(
+            "ix_auth_account_deletion_requests_pending",
+            "requested_at",
+            postgresql_where=sa.text("handled_at IS NULL"),
+        ),
+    )
+
+    id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_users.user_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    #: ``app`` (bearer) or ``web`` (cookie session).
+    requested_via: so.Mapped[str] = so.mapped_column(sa.String(8), nullable=False)
+    requested_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    handled_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    handled_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_users.user_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<AuthAccountDeletionRequest {self.id} user_id={self.user_id}>"

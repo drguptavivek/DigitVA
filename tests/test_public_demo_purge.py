@@ -298,10 +298,12 @@ class PurgeBase(PublicDemoBase):
         return token, device
 
     #: Covered by the purge but not seeded: a bundle ingest needs an offline
-    #: station configuration, which a demo account never has.
+    #: station configuration, which a demo account never has; nor does it
+    #: file a staff deletion request (it deletes itself).
     UNSEEDED = {"va_bundle_ingests", "map_bundle_records", "va_bundle_pending_coding", "mas_org_unit_worker",
                 "map_mentor_institute_user", "map_training_participants", "auth_mobile_codes",
-                "auth_recovery_codes", "auth_totp", "auth_webauthn_credentials"}
+                "auth_recovery_codes", "auth_totp", "auth_webauthn_credentials",
+                "auth_account_deletion_requests"}
 
 
 class PurgeTests(PurgeBase):

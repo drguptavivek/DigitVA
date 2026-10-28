@@ -4,7 +4,7 @@
 
 {% block email_body %}
 <p style="margin: 0 0 16px 0; color: #495057; font-size: 14px; line-height: 1.6;">
-  A message from the DigitVA public contact form. The sender confirmed it from their email address; reply to this email to answer them.
+  {% if intro %}{{ intro }}{% else %}A message from the DigitVA public contact form. The sender confirmed it from their email address; reply to this email to answer them.{% endif %}
 </p>
 <p style="margin: 0 0 16px 0; color: #212529; font-size: 14px; line-height: 1.6;">
   <strong>Name:</strong> {{ name }}<br>

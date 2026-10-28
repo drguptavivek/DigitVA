@@ -1,4 +1,4 @@
-A message from the DigitVA public contact form. The sender confirmed it from their email address; reply to this email to answer them.
+{% if intro %}{{ intro }}{% else %}A message from the DigitVA public contact form. The sender confirmed it from their email address; reply to this email to answer them.{% endif %}
 
 Name: {{ name }}
 Email: {{ email }}

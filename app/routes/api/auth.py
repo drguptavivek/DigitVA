@@ -234,13 +234,14 @@ def demo_enroll():
     if not public_demo_service.enabled():
         abort(404)
     p = _body()
+    client_uuid = devices.parse_client_device_uuid(p.get("client_device_uuid"))
     try:
         public_demo_service.require_demo_database()
     except public_demo_service.PublicDemoError as exc:
         return _error(exc.message, exc.code, exc.status_code)
     device, secret = devices.enrol_demo_device(
         username=p.get("username"), password=p.get("password"), device_name=p.get("device_name"),
-        platform=p.get("platform"), app_version=p.get("app_version"),
+        platform=p.get("platform"), app_version=p.get("app_version"), client_device_uuid=client_uuid,
     )
     project = db.session.get(VaProjectMaster, device.project_id)
     db.session.commit()

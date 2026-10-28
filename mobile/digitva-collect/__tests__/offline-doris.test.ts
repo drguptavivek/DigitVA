@@ -335,6 +335,40 @@ describe("save (offline_coding row)", () => {
       coderProfileUpdatedAt: null,
     })).rejects.toThrow("offline_save_invalid");
   });
+
+  it("stores source-clock coding milestones with the confirmed local save and keeps the first event on retry", async () => {
+    const store = memoryStore();
+    const editor = createOfflineDorisEditor(engineWithKnownCode(), store);
+    const first = await editor.save({
+      clientDraftId: "draft-timeline",
+      body: saveBody(),
+      reply: await completedReply(editor),
+      deviceUuid: "device-1",
+      coderProfileUpdatedAt: null,
+      workflowTimelineV1: [
+        { event: "coding_opened", at: "2026-10-28T09:00:00+05:30" },
+        { event: "doris_processed", at: "2026-10-28T09:04:00+05:30", elapsed_ms: 2000 },
+      ],
+    });
+    const savedTimeline = JSON.parse(first.provenance!).workflowTimelineV1;
+
+    expect(savedTimeline).toEqual([
+      { event: "coding_opened", at: "2026-10-28T09:00:00+05:30" },
+      { event: "doris_processed", at: "2026-10-28T09:04:00+05:30", elapsed_ms: 2000 },
+      { event: "initial_saved", at: first.updated_at },
+    ]);
+
+    const retry = await editor.save({
+      clientDraftId: "draft-timeline",
+      body: saveBody(),
+      reply: await completedReply(editor),
+      deviceUuid: "device-1",
+      coderProfileUpdatedAt: null,
+      workflowTimelineV1: [{ event: "coding_opened", at: "2026-10-28T10:00:00+05:30" }],
+    });
+
+    expect(JSON.parse(retry.provenance!).workflowTimelineV1).toEqual(savedTimeline);
+  });
 });
 
 describe("certificateSeedFromInterview", () => {

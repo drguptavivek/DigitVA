@@ -3,6 +3,8 @@
  * consumed by the Expo screens are parsed here; unrelated additive fields are
  * ignored. Opaque certificates and engine results are validated as JSON trees.
  */
+import { workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
+
 export type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject;
 export interface JsonObject { [key: string]: JsonValue }
 
@@ -245,6 +247,8 @@ export interface WorkspacePayload {
   };
   narrative_qa: NarrativeQuality | null;
   social_autopsy: SocialAutopsy | null;
+  /** Additive, first-party workflow times; absent on older servers. */
+  codingTimelineV1?: WorkflowTimelineEvent[];
 }
 
 export interface CategoryPayload {
@@ -600,6 +604,15 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
   const smartvaStatusValue = source.smartva_status === undefined ? undefined : smartvaStatus(source.smartva_status, "workspace.smartva_status");
   const smartvaCanRun = source.smartva_can_run === undefined ? undefined : boolean(source.smartva_can_run, "workspace.smartva_can_run");
   const assessmentsSource = record(source.assessments, "workspace.assessments");
+  const codingTimeline = source.codingTimelineV1 === undefined
+    ? undefined
+    : workflowTimeline(source.codingTimelineV1);
+  const codingEvents = new Set<string>([
+    "coding_allocated", "coding_opened", "doris_processed", "initial_saved", "final_saved",
+  ]);
+  if (codingTimeline?.some(({ event }) => !codingEvents.has(event))) {
+    throw new WorkspaceContractError("workspace.codingTimelineV1");
+  }
   const dorisSource = source.doris === null ? null : record(source.doris, "workspace.doris");
   const doris = dorisSource === null ? null : {
     initial_certificate: object(dorisSource.initial_certificate, "workspace.doris.initial_certificate"),
@@ -667,6 +680,7 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
     doris,
     narrative_qa: narrative(source.narrative_qa),
     social_autopsy: socialAutopsy(source.social_autopsy),
+    ...(codingTimeline !== undefined ? { codingTimelineV1: codingTimeline } : {}),
   };
   if (mode === "view") {
     if (result.step !== "view" || blockedBy.length || result.doris !== null || result.narrative_qa !== null || result.social_autopsy !== null || result.other_conditions_options !== null || caseSource.narrative_qa_enabled !== false || caseSource.social_autopsy_enabled !== false || result.assessments.initial !== null || result.assessments.initial_prefill !== null) throw new WorkspaceContractError("workspace.view");

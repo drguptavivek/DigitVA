@@ -5,6 +5,7 @@ let mockPathname = "/case";
 let mockParams: Record<string, string> = { userId: "worker" };
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
 const mockUnsentCount = jest.fn<Promise<number | undefined>, [string]>(async () => 0);
+let mockUnlocked = true;
 const mockUpload = jest.fn(async () => ({ sent: 2, failed: 0, supersededUniqueIds: [], serverKeptUploads: [], canCodeNowUniqueIds: [] }));
 const mockRefreshAccess = jest.fn<Promise<unknown>, [string]>(async () => undefined);
 const mockReload = jest.fn(async () => undefined);
@@ -16,6 +17,7 @@ const mockState = {
   accounts: [{ user_id: "worker", name: "Worker", collection_access: false as boolean | undefined, registration_access: false as boolean | undefined } as Record<string, unknown>],
   reload: mockReload,
   lockNow: jest.fn(async () => undefined),
+  offline: false,
 };
 
 jest.mock("expo-router", () => ({
@@ -34,7 +36,7 @@ jest.mock("../src/auth", () => ({
   signOut: (userId: string) => mockSignOut(userId),
 }));
 jest.mock("../src/interviewerDb", () => ({
-  isUnlocked: () => true,
+  isUnlocked: () => mockUnlocked,
   openInterviewerDb: async () => ({}),
   unsentWorkCount: (userId: string) => mockUnsentCount(userId),
 }));
@@ -83,10 +85,13 @@ import WorkspaceScreen from "../src/web/WorkspaceScreen";
 
 beforeEach(() => {
   mockPlus = false;
+  mockUnlocked = true;
+  mockState.ready = true;
   mockPathname = "/case";
   mockParams = { userId: "worker" };
   mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false }];
   mockState.bootstrap = { user: { user_id: "worker", name: "Worker" }, csrf: "csrf", access: { roles: [] }, capabilities: { intake: false, registerDeath: false, registeredDeaths: false } };
+  mockState.offline = false;
   jest.clearAllMocks();
 });
 
@@ -109,32 +114,85 @@ it("keeps mixed-role native collection routes available", async () => {
   await act(async () => tree.unmount());
 });
 
-it("tells a coder-only account on the phone to code in the web app", async () => {
+it("allows direct online coding for a plain enrolled account with coding access", async () => {
+  mockPathname = "/coding";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", coding_access: true }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>coding workspace</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("coding workspace");
+  await act(async () => tree.unmount());
+});
+
+it("blocks direct online coding when coding access is absent", async () => {
+  mockPathname = "/coding";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", coding_access: false }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>coding workspace</NativeCollectionGate>); });
+  expect(tree.toJSON()).toMatchObject({ type: "redirect", props: { href: "/" } });
+  await act(async () => tree.unmount());
+});
+
+it("waits for accounts before deciding a direct offline route", async () => {
+  mockPathname = "/offline-coding";
+  mockPlus = true;
+  mockState.ready = false;
+  mockState.accounts = [];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>offline coding</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("ActivityIndicator");
+  await act(async () => tree.unmount());
+});
+
+it("sends a locked offline route to unlock without starting the engine", async () => {
+  mockPathname = "/offline-coding";
+  mockPlus = true;
+  mockUnlocked = false;
+  mockState.accounts = [{ user_id: "worker", name: "Worker", offline_coding_access: ["SELF"] }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>offline coding</NativeCollectionGate>); });
+  expect(tree.toJSON()).toMatchObject({ type: "redirect", props: { href: { pathname: "/unlock", params: { userId: "worker" } } } });
+  await act(async () => tree.unmount());
+});
+
+it("shows both local and online case sources for a coder-only account", async () => {
   mockPathname = "/worklist";
-  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: true }];
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: true, offline_coding_access: ["SELF"] }];
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
   const output = JSON.stringify(tree.toJSON());
-  expect(output).toContain("codingOnWeb");
+  expect(output).toContain("localCases");
+  expect(output).toContain("onlineCases");
   expect(output).not.toContain("worklist");
-  expect(tree.root.findAllByProps({ label: "navCoding" })).toHaveLength(0);
-  expect(tree.root.findAllByProps({ label: "navReview" })).toHaveLength(0);
+  expect(tree.root.findAllByType("button").filter((node) => node.props.label === "localCases")).toHaveLength(1);
+  expect(tree.root.findAllByType("button").filter((node) => node.props.label === "onlineCases")).toHaveLength(1);
   await act(async () => tree.unmount());
 });
 
 it("sends a QR-signed-in coder on Collect Plus to the coding screens, not the interviewer worklist", async () => {
   mockPlus = true;
   mockPathname = "/worklist";
-  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: false }];
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: false, offline_coding_access: ["SELF"] }];
   let tree!: ReactTestRenderer;
   await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
   const output = JSON.stringify(tree.toJSON());
   expect(output).not.toContain("codingOnWeb");
   expect(output).not.toContain("worklist");
-  await act(async () => tree.root.findByProps({ label: "Coding queue" }).props.onPress());
+  await act(async () => tree.root.findByProps({ label: "onlineCases" }).props.onPress());
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/coding", params: { userId: "worker" } });
-  await act(async () => tree.root.findByProps({ label: "Offline coding" }).props.onPress());
+  await act(async () => tree.root.findByProps({ label: "localCases" }).props.onPress());
   expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/offline-coding", params: { userId: "worker" } });
+  await act(async () => tree.unmount());
+});
+
+it("disables online cases while offline but leaves local cases available", async () => {
+  mockPlus = true;
+  mockPathname = "/worklist";
+  mockState.offline = true;
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, offline_coding_access: ["SELF"] }];
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+  expect(tree.root.findByProps({ label: "onlineCases" }).props.disabled).toBe(true);
+  expect(tree.root.findByProps({ label: "localCases" }).props.disabled).toBe(false);
   await act(async () => tree.unmount());
 });
 

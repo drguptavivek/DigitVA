@@ -736,10 +736,35 @@ export async function deleteDraft(db: Db, id: string): Promise<void> {
  * Delete only the exact envelope sent, preserving edits made during upload. Its offline coding goes with it, and
  * only here (after the server acknowledged the interview), so a coding row never outlives or predeceases its draft.
  */
-export async function deleteDraftSnapshot(db: Db, id: string, envelope: string): Promise<boolean> {
-  const result = await db.runAsync("DELETE FROM drafts WHERE id = ? AND envelope = ?", [id, envelope]);
-  const deleted = !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
-  if (deleted) await deleteDraftCompanions(db, id);
+export interface OfflineCodingSnapshot {
+  updated_at: string;
+}
+
+/**
+ * Delete only the exact envelope and, when supplied, the exact coding version sent with it.
+ * The optional argument keeps older callers compatible while preventing an in-flight coding edit from being
+ * deleted with an acknowledged interview.
+ */
+export async function deleteDraftSnapshot(
+  db: Db,
+  id: string,
+  envelope: string,
+  codingSnapshot?: OfflineCodingSnapshot | null,
+): Promise<boolean> {
+  let deleted = false;
+  await runInTransaction(db, async (tx) => {
+    const codingWhere = codingSnapshot === undefined
+      ? ""
+      : codingSnapshot === null
+        ? " AND NOT EXISTS (SELECT 1 FROM offline_coding WHERE client_draft_id = ?)"
+        : " AND EXISTS (SELECT 1 FROM offline_coding WHERE client_draft_id = ? AND updated_at = ?)";
+    const params: Bind[] = [id, envelope];
+    if (codingSnapshot === null) params.push(id);
+    if (codingSnapshot && codingSnapshot !== null) params.push(id, codingSnapshot.updated_at);
+    const result = await tx.runAsync(`DELETE FROM drafts WHERE id = ? AND envelope = ?${codingWhere}`, params);
+    deleted = !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
+    if (deleted) await deleteDraftCompanions(tx, id);
+  });
   return deleted;
 }
 

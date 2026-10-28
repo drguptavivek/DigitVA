@@ -86,10 +86,15 @@ REFRESH_RETRY_GRACE = timedelta(seconds=60)
 #: every other reason answers session_revoked, on which the app wipes.
 _REUSE_REASONS = frozenset({"refresh_reuse", "refresh_retry_race"})
 #: Revocations that end the session but must not destroy unsent interviews:
-#: a password or factor reset or a deactivated account. They answer
+#: an account change, device decommission or same-phone re-login. They answer
 #: session_ended (sign in again, keep data). A revoked device, a worker left
 #: with no active project, or a sign-out answers session_revoked (wipe).
-_KEEP_DATA_REASONS = frozenset({"account_changed"})
+_KEEP_DATA_REASONS = frozenset({"account_changed", "device_decommissioned", "signed_in_again"})
+MAX_ACTIVE_USER_DEVICES = 3
+DEVICE_LIMIT_MESSAGE = (
+    "This account is already active on 3 phones. Open Profile to decommission one, "
+    "or use another signed-in phone."
+)
 #: Hosts an http:// DEVICE_PUBLIC_URL may name outside debug/testing.
 _PLAIN_HTTP_HOSTS = frozenset({"localhost", "127.0.0.1", "10.0.2.2"})
 ENROLMENT_DEFAULT_MINUTES = 60
@@ -394,7 +399,9 @@ def _demo_code_hash(user: VaUsers) -> str:
     return hash_token(f"public_demo:{user.user_id}")
 
 
-def enrol_demo_device(*, username, password, device_name, platform, app_version) -> tuple[AuthDevice, str]:
+def enrol_demo_device(
+    *, username, password, device_name, platform, app_version, client_device_uuid=None
+) -> tuple[AuthDevice, str]:
     """Enrol a device on the public demo project for a public-demo account,
     without an enrolment code (docs/policy/public-demo.md section 10). The
     username and password are checked exactly as device sign-in checks them
@@ -405,11 +412,8 @@ def enrol_demo_device(*, username, password, device_name, platform, app_version)
     Devices carry no user column, so each demo account owns one hidden,
     already-revoked ``auth_device_enrolment_codes`` row (``created_by`` the
     account, a hash no one can present) that its devices name in
-    ``enrolled_via``: the cap (``PUBLIC_DEMO_DEVICES_PER_ACCOUNT``) counts the
-    live devices on it, under the account lock, and the purge finds them
-    through it. At the cap the least recently used live device (newest
-    session activity, else its enrolment) and its sessions are revoked
-    (audited ``device_revoked``, reason ``demo_device_replaced``) to make room.
+    ``enrolled_via``. The account's three-device limit is checked before a
+    device row is created; no older device is silently evicted.
     Raises DeviceAuthError; a refused credential is audited and committed.
     Caller commits a success."""
     from app.services import public_demo_service as demo
@@ -428,6 +432,7 @@ def enrol_demo_device(*, username, password, device_name, platform, app_version)
     if not _project_active(project_id):
         raise DeviceAuthError(demo.WRONG_DATABASE_MESSAGE, "project_missing", 503)
     demo._lock_account(user)
+    check_device_slot(user)
     digest = _demo_code_hash(user)
     code_id = db.session.scalar(
         sa.select(AuthDeviceEnrolmentCode.id).where(AuthDeviceEnrolmentCode.code_hash == digest)
@@ -441,21 +446,7 @@ def enrol_demo_device(*, username, password, device_name, platform, app_version)
         db.session.add(row)
         db.session.flush()
         code_id = row.id
-    cap = max(1, int(current_app.config.get("PUBLIC_DEMO_DEVICES_PER_ACCOUNT", 3)))
-    last_session = (
-        sa.select(sa.func.max(sa.func.greatest(
-            AuthDeviceSession.created_at, AuthDeviceSession.last_seen_at, AuthDeviceSession.refreshed_at)))
-        .where(AuthDeviceSession.device_id == AuthDevice.device_id)
-        .correlate(AuthDevice).scalar_subquery()
-    )
-    live = db.session.scalars(
-        sa.select(AuthDevice)
-        .where(AuthDevice.enrolled_via == code_id, AuthDevice.revoked_at.is_(None))
-        .order_by(sa.func.greatest(last_session, AuthDevice.last_seen_at, AuthDevice.enrolled_at), AuthDevice.device_id)
-    ).all()
-    for device in live[: max(0, len(live) - cap + 1)]:
-        revoke_device(device, actor=user, reason="demo_device_replaced")
-    return _add_device(project_id, name, platform, version, code_id)
+    return _add_device(project_id, name, platform, version, code_id, client_device_uuid)
 
 
 def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = False, reason: str | None = None) -> int:
@@ -531,6 +522,62 @@ def _refuse(device: AuthDevice, user: VaUsers, message: str, code: str, status_c
     return DeviceAuthError(message, code, status_code)
 
 
+def check_device_slot(user: VaUsers, device_id=None) -> None:
+    """Lock *user* and refuse a new live device pair at the account cap.
+
+    A device already holding a live session for this user is a re-login and
+    does not consume another slot. Only native device sessions are counted;
+    browser sessions have no ``AuthDeviceSession`` row.
+    """
+    db.session.execute(
+        sa.select(VaUsers.user_id).where(VaUsers.user_id == user.user_id).with_for_update()
+    )
+    now = _now()
+    live = sa.and_(
+        AuthDeviceSession.user_id == user.user_id,
+        AuthDeviceSession.revoked_at.is_(None),
+        AuthDeviceSession.refresh_expires_at > now,
+        AuthDevice.revoked_at.is_(None),
+    )
+    if device_id is not None:
+        try:
+            device_id = uuid.UUID(str(device_id))
+        except (ValueError, TypeError, AttributeError):
+            device_id = None
+    if device_id is not None:
+        existing = db.session.scalar(
+            sa.select(AuthDevice.device_id)
+            .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
+            .where(live, AuthDevice.device_id == device_id)
+            .limit(1)
+        )
+        if existing is not None:
+            return
+    count = db.session.scalar(
+        sa.select(sa.func.count(sa.distinct(AuthDevice.device_id)))
+        .select_from(AuthDeviceSession)
+        .join(AuthDevice, AuthDevice.device_id == AuthDeviceSession.device_id)
+        .where(live)
+    ) or 0
+    if count >= MAX_ACTIVE_USER_DEVICES:
+        raise DeviceAuthError(DEVICE_LIMIT_MESSAGE, "device_limit", 409)
+
+
+def _end_existing_pair_sessions(device: AuthDevice, user: VaUsers) -> None:
+    """End older sessions for this user/device, retaining encrypted work."""
+    sessions = db.session.scalars(
+        sa.select(AuthDeviceSession)
+        .where(
+            AuthDeviceSession.device_id == device.device_id,
+            AuthDeviceSession.user_id == user.user_id,
+            AuthDeviceSession.revoked_at.is_(None),
+        )
+        .with_for_update()
+    ).all()
+    for session in sessions:
+        _revoke(session, "signed_in_again")
+
+
 def _issue(session: AuthDeviceSession) -> IssuedTokens:
     access, refresh = _new_secret(), _new_secret()
     now = _now()
@@ -571,6 +618,8 @@ def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedT
     if not has_device_access(user):
         _sign_in_failed(device, user, "no_interviewer_grant")
         raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
+    check_device_slot(user, device.device_id)
+    _end_existing_pair_sessions(device, user)
     session = AuthDeviceSession(
         device_id=device.device_id,
         user_id=user.user_id,
@@ -590,6 +639,75 @@ def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedT
         device.device_id, session.session_id, user.user_id,
     )
     return issued, user
+
+
+def list_account_devices(user_id, current_device_id=None) -> list[dict]:
+    """List this account's live native device pairs, newest activity first."""
+    now = _now()
+    rows = db.session.execute(
+        sa.select(AuthDevice, AuthDeviceSession.last_seen_at)
+        .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
+        .where(
+            AuthDeviceSession.user_id == user_id,
+            AuthDeviceSession.revoked_at.is_(None),
+            AuthDeviceSession.refresh_expires_at > now,
+            AuthDevice.revoked_at.is_(None),
+        )
+    ).all()
+    latest: dict[uuid.UUID, tuple[AuthDevice, datetime | None]] = {}
+    for device, last_seen in rows:
+        previous = latest.get(device.device_id)
+        if previous is None or (last_seen or datetime.min.replace(tzinfo=UTC)) > (
+            previous[1] or datetime.min.replace(tzinfo=UTC)
+        ):
+            latest[device.device_id] = (device, last_seen)
+    devices = sorted(
+        latest.values(),
+        key=lambda pair: (pair[1] or pair[0].enrolled_at, pair[0].enrolled_at),
+        reverse=True,
+    )
+    current = str(current_device_id) if current_device_id is not None else None
+    return [
+        {
+            "device_id": str(device.device_id),
+            "name": device.name,
+            "platform": device.platform,
+            "app_version": device.app_version,
+            "enrolled_at": device.enrolled_at.isoformat(),
+            "last_seen_at": last_seen.isoformat() if last_seen else None,
+            "current": str(device.device_id) == current,
+        }
+        for device, last_seen in devices
+    ]
+
+
+def decommission_account_device(user_id, device_id, actor: VaUsers) -> int:
+    """End only *user_id*'s sessions on *device_id*, retaining all data."""
+    try:
+        parsed_device_id = uuid.UUID(str(device_id))
+    except (ValueError, TypeError, AttributeError):
+        return 0
+    db.session.execute(
+        sa.select(VaUsers.user_id).where(VaUsers.user_id == user_id).with_for_update()
+    )
+    sessions = db.session.scalars(
+        sa.select(AuthDeviceSession)
+        .where(
+            AuthDeviceSession.user_id == user_id,
+            AuthDeviceSession.device_id == parsed_device_id,
+            AuthDeviceSession.revoked_at.is_(None),
+        )
+        .with_for_update()
+    ).all()
+    for session in sessions:
+        _revoke(session, "device_decommissioned")
+    record_security_event(
+        user_id=user_id,
+        actor_user_id=actor.user_id,
+        event_type="device_decommissioned",
+        detail={"device_id": str(parsed_device_id), "sessions_ended": len(sessions)},
+    )
+    return len(sessions)
 
 
 def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTokens, VaUsers]:

@@ -114,6 +114,14 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
 )
 from app.services.workflow.state_store import get_submission_workflow_state
+from app.services.workflow_timeline_service import (
+    CODING_TIMELINE_EVENTS,
+    INTERVIEW_TIMELINE_EVENTS,
+    WorkflowTimelineError,
+    merge_timeline,
+    parse_timeline,
+    server_event,
+)
 from app.services.workflow.transitions import (
     INTERVIEW_CHOSEN_REASON,
     WorkflowTransitionError,
@@ -1751,6 +1759,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             actor=user,
         )
     now = _utcnow().isoformat()
+    started_event = server_event("interview_started", at=datetime.fromisoformat(now))
     draft = VaWebIntakeDraft(
         project_id=project_id,
         site_id=site_id,
@@ -1767,6 +1776,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             "instrumentId": INSTRUMENT_ID,
             "locale": DEFAULT_LOCALE,
             "translation_version": 0,
+            _TIMELINE_META_KEY: [started_event],
         },
         prefill=prefill,
     )
@@ -1837,6 +1847,14 @@ def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
         "updatedAt": meta.get("updatedAt", draft.updated_at.isoformat()),
         # Only when recorded: a browser draft (bundled form) has no slice identity.
         **{k: meta[k] for k in _DEFINITION_IDENTITY_KEYS if k in meta},
+        **(
+            {_TIMELINE_META_KEY: parse_timeline(meta[_TIMELINE_META_KEY], INTERVIEW_TIMELINE_EVENTS)}
+            if _TIMELINE_META_KEY in meta else {}
+        ),
+        **(
+            {_CODING_TIMELINE_META_KEY: _parse_coding_timeline(meta[_CODING_TIMELINE_META_KEY])}
+            if _CODING_TIMELINE_META_KEY in meta else {}
+        ),
         "data": data,
     }
 
@@ -1862,6 +1880,56 @@ def _clean_locale_meta(meta: dict) -> dict:
             raise WebIntakeError("Invalid translation version.")
         out["translation_version"] = version
     return out
+
+
+def _parse_coding_timeline(value: object, allowed_events=CODING_TIMELINE_EVENTS) -> list[dict]:
+    """Validate the fixed, separately bounded coding event stream."""
+    timeline = parse_timeline(value, allowed_events)
+    if len(timeline) > _CODING_TIMELINE_MAX:
+        raise WorkflowTimelineError("Invalid workflow timeline.")
+    return timeline
+
+
+def merge_incoming_timeline_meta(
+    draft: VaWebIntakeDraft,
+    incoming: dict | None,
+    *,
+    allow_server_receipts: bool = False,
+) -> dict:
+    """Merge client timeline metadata without replacing server-owned receipts.
+
+    This is shared by ordinary saves, revisions and idempotent upload resends.
+    ``submitted`` and ``final_saved`` are server receipts: a client may echo
+    them, but can never add or replace their stored timestamps.
+    """
+    if not isinstance(incoming, dict):
+        return {}
+    updates: dict = {}
+    try:
+        if _TIMELINE_META_KEY in incoming:
+            current = parse_timeline((draft.meta or {}).get(_TIMELINE_META_KEY), INTERVIEW_TIMELINE_EVENTS)
+            received = parse_timeline(incoming[_TIMELINE_META_KEY], INTERVIEW_TIMELINE_EVENTS)
+            received = [event for event in received if event["event"] != "submitted"]
+            updates[_TIMELINE_META_KEY] = merge_timeline(current, received, INTERVIEW_TIMELINE_EVENTS)
+        if _CODING_TIMELINE_META_KEY in incoming:
+            current = _parse_coding_timeline((draft.meta or {}).get(_CODING_TIMELINE_META_KEY), CODING_TIMELINE_EVENTS)
+            received = _parse_coding_timeline(
+                incoming[_CODING_TIMELINE_META_KEY],
+                CODING_TIMELINE_EVENTS if allow_server_receipts else _CODING_TIMELINE_CLIENT_EVENTS,
+            )
+            received = [event for event in received if event["event"] not in {"final_saved", "coding_allocated"}]
+            updates[_CODING_TIMELINE_META_KEY] = _parse_coding_timeline(
+                merge_timeline(current, received, CODING_TIMELINE_EVENTS)
+            )
+    except WorkflowTimelineError as exc:
+        # Keep the existing coding-specific API error for callers that send
+        # only the coding stream.  The combined helper is also used by
+        # revisions and upload resends, where the distinction is useful to
+        # clients without changing validation semantics.
+        if _CODING_TIMELINE_META_KEY in incoming and _TIMELINE_META_KEY not in incoming:
+            raise WebIntakeError("Invalid coding timeline.", 400, "invalid_coding_timeline") from exc
+        raise WebIntakeError("Invalid workflow timeline.", 400, "invalid_workflow_timeline") from exc
+    return updates
 
 
 def _identity_from_answers(data: dict) -> dict:
@@ -2015,8 +2083,15 @@ _DEFINITION_IDENTITY_KEYS = ("definitionSha256", "definitionExtensions")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _EXTENSION_NAME_RE = re.compile(r"[a-z][a-z0-9_]{0,31}")
 _MAX_DEFINITION_EXTENSIONS = 16
+_TIMELINE_META_KEY = "workflowTimelineV1"
+_CODING_TIMELINE_META_KEY = "codingTimelineV1"
+_CODING_TIMELINE_CLIENT_EVENTS = CODING_TIMELINE_EVENTS - {"final_saved", "coding_allocated"}
+_CODING_TIMELINE_MAX = 6
 #: Draft meta keys a client (browser save or device envelope) may set.
-_ENVELOPE_META_KEYS = ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt", *_DEFINITION_IDENTITY_KEYS)
+_ENVELOPE_META_KEYS = (
+    "schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt",
+    *_DEFINITION_IDENTITY_KEYS, _TIMELINE_META_KEY, _CODING_TIMELINE_META_KEY,
+)
 #: The device's interview start and completion times (ISO 8601 with offset),
 #: taken from the checked device envelope only: a browser save cannot set
 #: them, so it cannot choose the date ``today()`` is evaluated at.
@@ -2059,11 +2134,12 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     """
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
-    # Validated before anything is written, so a bad locale cannot leave the
-    # answers saved and the meta refused.
+    # Validate metadata before writing answers so an invalid pin, locale, or
+    # timeline cannot leave the answers saved while its metadata is refused.
     locale_meta = _clean_locale_meta(meta) if meta else {}
     if meta:
         check_definition_identity(meta)
+    timeline_meta = merge_incoming_timeline_meta(draft, meta)
     existing = {row.section_name: row for row in draft.sections}
     # docs/policy/web-intake.md "Locked prefill": a tampered or dropped locked
     # answer is put back, not refused (see submit_draft).
@@ -2101,6 +2177,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     if meta:
         keep = {k: meta[k] for k in _ENVELOPE_META_KEYS if k in meta}
         keep.update(locale_meta)
+        keep.update(timeline_meta)
         draft.meta = {**(draft.meta or {}), **keep}
     if current_section is not None:
         if not _SECTION_NAME_RE.match(str(current_section)):
@@ -2557,6 +2634,14 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
             )
 
     submitted_at = _utcnow()
+    try:
+        submitted_timeline = merge_timeline(
+            (draft.meta or {}).get(_TIMELINE_META_KEY),
+            [server_event("submitted", at=submitted_at)],
+            INTERVIEW_TIMELINE_EVENTS,
+        )
+    except WorkflowTimelineError as exc:
+        raise WebIntakeError("Invalid workflow timeline.", 400, "invalid_workflow_timeline") from exc
     # The device's completion time in its own offset, else the submit time in
     # the interviewer's timezone (docs/policy/field-data-collection.md).
     expression_now = _device_time((draft.meta or {}).get("completedAt")) or _expression_now(user, submitted_at)
@@ -2657,6 +2742,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     draft.meta = {
         **(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome,
         "effectiveSavedAt": (completed_at or submitted_at).isoformat(),
+        _TIMELINE_META_KEY: submitted_timeline,
     }
     if visit_note:
         draft.meta = {**draft.meta, "visitNote": visit_note}
@@ -2935,6 +3021,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         **{k: envelope[k] for k in (*_DEVICE_TIME_KEYS, *_DEFINITION_IDENTITY_KEYS) if k in envelope},
         **_clock_meta(envelope, _utcnow()),
     }
+    # Revisions and idempotent device resends rebuild the envelope from the
+    # stored draft.  Merge the small client timeline streams before that
+    # rebuild, retaining server-owned submitted/final_saved receipts.
+    meta.update(merge_incoming_timeline_meta(draft, envelope, allow_server_receipts=True))
     # The original submit time and source: SubmissionDate, the masked id and
     # the default end time stay as they were, so they never read as a change.
     submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else draft.submitted_at
@@ -2951,8 +3041,11 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         if answers_sha256 != draft.answers_sha256:
             _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=active.payload_version_id)
         reply = _revision_reply(draft, active, False, outcome)
+        draft.meta = {
+            **meta,
+            **({"effectiveSavedAt": completed_at.isoformat()} if resubmit else {}),
+        }
         if resubmit:
-            draft.meta = {**(draft.meta or {}), "effectiveSavedAt": completed_at.isoformat()}
             reply.update(kept="incoming", locked=False)
         return reply
 

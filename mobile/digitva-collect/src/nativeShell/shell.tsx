@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Keyboard, Linking } from "react-native";
 
 import { useAppState } from "../AppState";
+import { isPlayDistribution } from "../appVariant";
 import { installErrorLog } from "../errorLogDb";
 import { flushErrors, setErrorRoute } from "../errorLog";
 import { t } from "../i18n";
@@ -55,10 +56,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const unlocked = userId ? isUnlocked(userId) : false;
 
   // Once per app start (and at most once a day, src/updateCheck.ts): tell, never install. Silent when nothing is known.
+  // The Google Play build never checks: Play updates it and forbids offering the hosted APK.
   const server = device?.server;
   const updateAsked = useRef(false);
   useEffect(() => {
-    if (!server || updateAsked.current) return;
+    if (!server || updateAsked.current || isPlayDistribution()) return;
     updateAsked.current = true;
     void checkForUpdateDaily(server).then((result) => {
       if (result?.status !== "available") return;

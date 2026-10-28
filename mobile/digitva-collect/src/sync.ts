@@ -77,8 +77,11 @@ import {
   type CompletedDraft,
   type Completion,
   type Db,
-  type OfflineCodingRow
+  type OfflineCodingRow,
+  type OfflineCodingSnapshot
 } from "./drafts";
+import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
+import { acquireDraftUpload } from "./localCodingLeases";
 import { getStandaloneConsent } from "./standaloneConsentStore";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
@@ -360,8 +363,9 @@ export interface UploadResult {
   supersededUniqueIds: string[];
   serverKeptUploads: { uniqueId: string; locked: boolean }[];
   canCodeNowUniqueIds: string[];
-  /** Standalone push only: the server's verdict on each coding sent, and the drafts whose coding was stale. */
-  codingOutcomes?: OfflineCodingOutcome[];
+  /** The server's verdict on each offline coding sent, for enrolled and standalone pushes alike. */
+  codingOutcomes: OfflineCodingOutcome[];
+  /** Standalone push only: the drafts whose coding was stale and therefore was not sent. */
   staleCodingDraftIds?: string[];
 }
 
@@ -389,11 +393,23 @@ export async function uploadQueuedWork(
   const { onSuperseded, onServerKept, onCanCodeNow, standalone } = callbacks;
   const codingOutcomes: OfflineCodingOutcome[] = [];
   const staleCodingDraftIds: string[] = [];
+  let enrolledDeviceUuid: string | null | undefined;
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
   const serverKeptUploads: { uniqueId: string; locked: boolean }[] = [];
   const canCodeNowUniqueIds: string[] = [];
+
+  async function currentEnrolledDeviceUuid(): Promise<string | null> {
+    if (enrolledDeviceUuid === undefined) {
+      try {
+        enrolledDeviceUuid = (await getOrCreatePlusDeviceIdentity())?.uuid ?? null;
+      } catch {
+        enrolledDeviceUuid = null;
+      }
+    }
+    return enrolledDeviceUuid;
+  }
 
   for (const reg of await listRegistrations(db)) {
     if (reg.state !== "pending") continue;
@@ -464,15 +480,18 @@ export async function uploadQueuedWork(
   const consents = await loadConsents(db);
   draftLoop: for (const item of await completedDrafts(db)) {
     if (!item.project_id) continue;
+    const releaseUpload = acquireDraftUpload(userId, item.id);
+    if (!releaseUpload) continue;
     try {
-      readDefinitionPin(item.draft);
-    } catch (error) {
-      if (!(error instanceof PinnedDefinitionError)) throw error;
-      await setDraftUploadIssue(db, item.id, "invalid_definition_pin");
-      await noteSendError(db, item.id, "invalid_definition_pin");
-      failed += 1;
-      continue draftLoop;
-    }
+      try {
+        readDefinitionPin(item.draft);
+      } catch (error) {
+        if (!(error instanceof PinnedDefinitionError)) throw error;
+        await setDraftUploadIssue(db, item.id, "invalid_definition_pin");
+        await noteSendError(db, item.id, "invalid_definition_pin");
+        failed += 1;
+        continue draftLoop;
+      }
     if (!isUploadable(item.draft.data, item.completion)) {
       // Stays on the phone; the Sync sheet lists it as needing attention rather than leaving it silent.
       await noteSendError(db, item.id, "not_ready");
@@ -488,8 +507,26 @@ export async function uploadQueuedWork(
     const target = standalone ? { ...item, project_id: standalone.projectId, site_id: standalone.siteId, org_unit_id: null } : item;
     let standaloneFields: Record<string, unknown> = {};
     let codingSent = false;
+    let codingSnapshot: OfflineCodingSnapshot | null = null;
+    const row = await getOfflineCoding(db, item.id);
+    if (row) codingSnapshot = { updated_at: row.updated_at };
+    let coding: ReturnType<typeof offlineCodingBody> = null;
+    if (!standalone && row) {
+      const deviceUuid = await currentEnrolledDeviceUuid();
+      try {
+        coding = deviceUuid ? offlineCodingBody(row, sentHash, deviceUuid) : null;
+      } catch {
+        coding = null;
+      }
+      if (!coding) {
+        await noteSendError(db, item.id, "offline_coding_not_sendable");
+        failed += 1;
+        continue draftLoop;
+      }
+      codingSent = true;
+      standaloneFields = { offline_coding: coding };
+    }
     if (standalone) {
-      const row = await getOfflineCoding(db, item.id);
       const coding = row ? offlineCodingBody(row, sentHash, standalone.clientDeviceUuid) : null;
       if (row?.status === "coded" && isCodingStale(row, sentHash)) staleCodingDraftIds.push(item.id);
       codingSent = coding !== null;
@@ -601,7 +638,7 @@ export async function uploadQueuedWork(
       }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
       // Edited during the send: the draft stays, and files its answers no longer name go.
-      if (!(await deleteDraftSnapshot(db, item.id, item.envelope))) await pruneDraftAttachments(db, item.id);
+      if (!(await deleteDraftSnapshot(db, item.id, item.envelope, codingSnapshot))) await pruneDraftAttachments(db, item.id);
       await clearSendError(db, item.id);
       sent += 1;
     } catch (error) {
@@ -634,11 +671,15 @@ export async function uploadQueuedWork(
       if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
       failed += 1;
     }
+    } finally {
+      releaseUpload();
+    }
   }
 
   return {
     sent, failed, supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds,
-    ...(standalone ? { codingOutcomes, staleCodingDraftIds } : {}),
+    codingOutcomes,
+    ...(standalone ? { staleCodingDraftIds } : {}),
   };
 }
 

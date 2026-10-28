@@ -280,6 +280,38 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         web = self.client.get(USERS, headers={"Authorization": f"Bearer {body['access_token']}"})
         self.assertIn(web.status_code, (401, 403))
 
+    def test_redeem_at_device_limit_is_retryable_and_creates_no_orphan(self):
+        user = self.users["interviewer_p1"]
+        for index in range(3):
+            device, _secret = devices._add_device(
+                "AZTA01", f"Existing {index}", "android", "1.2.3", None
+            )
+            devices._open_authorized_session(device, user)
+        db.session.flush()
+
+        token = self._token()
+        res = self._redeem(token)
+
+        self.assertEqual((res.status_code, res.get_json()["code"]), (409, "device_limit"))
+        row = self._row()
+        self.assertIsNone(row.redeemed_at)
+        self.assertIsNone(row.revoked_at)
+        self.assertEqual(
+            db.session.scalar(sa.select(sa.func.count()).select_from(AuthDevice).where(
+                AuthDevice.enrolled_via_sign_in_token == row.id
+            )),
+            0,
+        )
+        # The same QR can be redeemed after one existing pair is ended.
+        existing = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == user.user_id,
+            AuthDeviceSession.revoked_at.is_(None),
+        ))
+        existing.revoked_at = datetime.now(UTC)
+        existing.revoked_reason = "device_decommissioned"
+        db.session.commit()
+        self.assertEqual(self._redeem(token).status_code, 201)
+
     def test_single_use(self):
         token = self._token()
         self.assertEqual(self._redeem(token).status_code, 201)

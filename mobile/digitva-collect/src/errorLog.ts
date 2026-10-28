@@ -30,6 +30,7 @@ const DUPLICATE_MS = 60_000;
 const TOAST_ECHO_MS = 2_000;
 
 type Writer = (entries: ErrorEntry[]) => Promise<boolean>;
+type Counter = () => void;
 
 let route = "";
 let writer: Writer | undefined;
@@ -37,6 +38,8 @@ let flushing = false;
 let lastRecordedAt = 0;
 /** The network spell a "network" failure was last filed in: one entry per spell, not per attempt. */
 let networkLoggedSpell = -1;
+let performanceErrorCounter: Counter | undefined;
+let performanceCrashCounter: Counter | undefined;
 const buffer: ErrorEntry[] = [];
 const lastSeen = new Map<string, number>();
 
@@ -50,6 +53,25 @@ export function setErrorWriter(next: Writer | undefined): void {
   writer = next;
 }
 
+/** Optional aggregate-only hook. The callback receives no error text or other diagnostic data. */
+export function setPerformanceErrorCounter(next: Counter | undefined): void {
+  performanceErrorCounter = next;
+}
+
+/** Optional aggregate-only hook for the app's fatal-error handler. */
+export function setPerformanceCrashCounter(next: Counter | undefined): void {
+  performanceCrashCounter = next;
+}
+
+/** Record one sanitized fatal event without retaining its message, stack, route or payload. */
+export function recordPerformanceCrash(): void {
+  try {
+    performanceCrashCounter?.();
+  } catch {
+    // Diagnostics must never throw into the fatal-error path.
+  }
+}
+
 /** Entries not stored yet (the store is locked); the export includes them. */
 export const pendingErrors = (): ErrorEntry[] => [...buffer];
 
@@ -61,6 +83,8 @@ export function resetErrorLog(): void {
   networkLoggedSpell = -1;
   route = "";
   flushing = false;
+  performanceErrorCounter = undefined;
+  performanceCrashCounter = undefined;
 }
 
 /**
@@ -105,6 +129,11 @@ export function recordError(what: string): void {
     networkLoggedSpell = networkSpell();
   }
   if (duplicate) return;
+  try {
+    performanceErrorCounter?.();
+  } catch {
+    // Diagnostics must never throw into the error path.
+  }
   if (lastSeen.size > 100) lastSeen.clear();
   lastSeen.set(key, now);
   buffer.push({ at, appVersion: APP_VERSION, route, what: what.slice(0, 200), ...deviceInfo() });

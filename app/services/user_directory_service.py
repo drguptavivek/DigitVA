@@ -67,6 +67,7 @@ DELIVERIES = ("show", "email")
 _ROLE_VALUES = frozenset(r.value for r in VaAccessRoles)
 
 _G = VaUserAccessGrants
+_P = VaAccessScopeTypes.project
 _PS = VaAccessScopeTypes.project_site
 _U = VaAccessScopeTypes.org_unit
 
@@ -469,6 +470,60 @@ def _visible_user(scope: _Scope, user_id: str) -> VaUsers:
     if not scope.is_admin and not db.session.scalar(sa.select(_visible_exists(scope, user.user_id))):
         raise _not_found()
     return user
+
+
+def _grant_covers_device_role(writer, target) -> bool:
+    """Whether one writer grant covers one target's native-device grant."""
+    if writer.project_id != target.project_id:
+        return False
+    if writer.scope_type == _P:
+        return True
+    if writer.scope_type == _PS:
+        return target.scope_type == _PS and writer.project_site_id == target.project_site_id
+    if writer.scope_type == _U:
+        return target.scope_type == _U and writer.covers_unit(target.project_id, target.unit_path)
+    return False
+
+
+def _device_management_user(viewer, user_id: str) -> tuple[_Scope, VaUsers]:
+    """Return a target visible to an admin or a full-scope data manager.
+
+    A data manager must cover every live native-device-role grant on the target
+    account.  This keeps a shared account with grants in another project (or
+    outside a unit-scoped writer's subtree) indistinguishable from a missing
+    account.  The target's resolved grants are used here so project/site/unit
+    scope is compared with the same active-project rules as the rest of the
+    directory.
+    """
+    scope = _Scope(viewer)
+    user = _visible_user(scope, user_id)
+    if scope.is_admin:
+        return scope, user
+    device_writers = tuple(writer for writer in scope.writers if writer.role == VaAccessRoles.data_manager)
+    if not device_writers:
+        raise _not_found()
+    target_grants = [
+        grant for grant in resolve_grants(user).grants
+        if not grant.virtual and grant.role in NATIVE_DEVICE_ROLES
+    ]
+    if any(
+        not any(_grant_covers_device_role(writer, target) for writer in device_writers)
+        for target in target_grants
+    ):
+        raise _not_found()
+    return scope, user
+
+
+def list_user_devices(viewer, user_id: str) -> list[dict]:
+    """List live native-device pairs for an in-scope managed account."""
+    _scope, user = _device_management_user(viewer, user_id)
+    return devices.list_account_devices(user.user_id)
+
+
+def decommission_user_device(viewer, user_id: str, device_id: uuid.UUID, *, actor: VaUsers | None = None) -> int:
+    """End only the target account's sessions on one device pair."""
+    _scope, user = _device_management_user(viewer, user_id)
+    return devices.decommission_account_device(user.user_id, device_id, actor or viewer)
 
 
 def user_activity(viewer, user_id: str) -> dict:

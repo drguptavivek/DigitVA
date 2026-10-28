@@ -329,6 +329,27 @@ describe("draft store", () => {
     expect(await getDraftRow(db, "a")).toBeNull();
   });
 
+  it("keeps coding companions when the coding snapshot is absent or changed", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("coding", "2026-09-30T01:00:00Z"));
+    await markCompleted(db, "coding", { valid: true, issues: [] });
+    const envelope = (await completedDrafts(db))[0].envelope;
+
+    await db.runAsync(
+      "INSERT INTO offline_coding (client_draft_id, certificate, process_token, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ["coding", "{}", "local-token", "draft", "2026-09-30T01:00:00Z", "v1"],
+    );
+    await expect(deleteDraftSnapshot(db, "coding", envelope, null)).resolves.toBe(false);
+    expect(await getDraftRow(db, "coding")).not.toBeNull();
+    expect(await db.getFirstAsync("SELECT client_draft_id FROM offline_coding WHERE client_draft_id = ?", ["coding"])).not.toBeNull();
+
+    await expect(deleteDraftSnapshot(db, "coding", envelope, { updated_at: "v0" })).resolves.toBe(false);
+    expect(await getDraftRow(db, "coding")).not.toBeNull();
+    await expect(deleteDraftSnapshot(db, "coding", envelope, { updated_at: "v1" })).resolves.toBe(true);
+    expect(await getDraftRow(db, "coding")).toBeNull();
+    expect(await db.getFirstAsync("SELECT client_draft_id FROM offline_coding WHERE client_draft_id = ?", ["coding"])).toBeNull();
+  });
+
   it("adds the completion column to an older database, treating its completed drafts as valid", async () => {
     const old = memoryDb();
     await old.execAsync(`

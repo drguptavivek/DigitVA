@@ -66,6 +66,8 @@ export interface AccessProject {
   grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean; active: boolean; source: "assigned" | "self_coding" }>;
   sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
   actions: { interview: AccessActionContext[]; register_death: AccessActionContext[] };
+  /** Project-owned self-coding setting; absent on older servers/fixtures. */
+  self_coding?: { enabled: boolean; code_now?: boolean };
   units?: AccessUnit[];
   levels?: Array<{ level_code: string; level_name: string; depth: number }>;
 }
@@ -128,6 +130,11 @@ export function parseAccessSummary(value: unknown): AccessSummary {
     if (!record(project) || typeof project.project_id !== "string" || typeof project.project_name !== "string" ||
         typeof project.has_tree !== "boolean" || !Array.isArray(project.grants) || !Array.isArray(project.sites) ||
         !record(project.actions) || !Array.isArray(project.actions.interview) || !Array.isArray(project.actions.register_death)) throw new ApiError(200, "malformed_response");
+    if (project.self_coding !== undefined &&
+        (!record(project.self_coding) || typeof project.self_coding.enabled !== "boolean" ||
+          (project.self_coding.code_now !== undefined && typeof project.self_coding.code_now !== "boolean"))) {
+      throw new ApiError(200, "malformed_response");
+    }
     for (const grant of project.grants) {
       if (!record(grant) || typeof grant.role !== "string" || !["project", "project_site", "org_unit"].includes(String(grant.scope)) ||
           typeof grant.active !== "boolean" || !["assigned", "self_coding"].includes(String(grant.source)) ||
@@ -558,6 +565,27 @@ export interface ClientRequestOptions {
   background?: boolean;
   /** A file sent as the raw body (`application/octet-stream`) with its SHA-256 (hex); used instead of JSON. */
   rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
+}
+
+/** A live native device session, with no credentials or other sensitive fields. */
+export interface AccountDevice {
+  device_id: string;
+  name: string;
+  platform: string;
+  app_version: string | null;
+  enrolled_at: string;
+  last_seen_at: string | null;
+  current: boolean;
+}
+
+export interface AccountDevicesResponse {
+  devices: AccountDevice[];
+}
+
+export interface DeviceDecommissionResponse {
+  decommissioned: boolean;
+  sessions_ended: number;
+  current: boolean;
 }
 
 export interface RawApiResponse {
@@ -1017,6 +1045,23 @@ export async function requestClientJson<T>(path: string, options: ClientRequestO
   const internalPath = safeActionUrl(path);
   if (!internalPath) throw new ApiError(400, "invalid_request");
   return (await requestJson<T>("", internalPath, options)).body;
+}
+
+/** Browser-session device management; the server scopes the user id to the caller's authorized view. */
+export function listUserDevices(userId: string, csrf?: ClientCsrf): Promise<AccountDevicesResponse> {
+  return requestClientJson<AccountDevicesResponse>(`/api/v1/users/${encodeURIComponent(userId)}/devices`, { csrf });
+}
+
+/** Browser-session decommission; CSRF is carried by the shared cookie transport for this state change. */
+export function decommissionUserDevice(
+  userId: string,
+  deviceId: string,
+  csrf?: ClientCsrf,
+): Promise<DeviceDecommissionResponse> {
+  return requestClientJson<DeviceDecommissionResponse>(
+    `/api/v1/users/${encodeURIComponent(userId)}/devices/${encodeURIComponent(deviceId)}`,
+    { method: "DELETE", csrf },
+  );
 }
 
 /** Build browser session state from the shared access body and cookie-only CSRF header. */

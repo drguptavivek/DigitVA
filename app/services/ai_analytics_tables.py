@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 
+from app import db
 from app.models import (
     MasOrgLevel,
     MasOrgUnit,
@@ -30,7 +31,9 @@ from app.models import (
     VaDataManagerReview,
     VaFinalAssessments,
     VaInitialAssessments,
+    VaProjectMaster,
     VaProjectSites,
+    VaSiteMaster,
     VaUserAccessGrants,
     VaUsers,
 )
@@ -61,6 +64,8 @@ ORG_NAME_COLUMNS = tuple(f"org_l{d}_name" for d in ORG_DEPTHS)
 SMARTVA_LOW_LIKELIHOODS = ("Somewhat Likely", "Possible")
 UNKNOWN_CAUSE_SECTION = "Cause of death unknown"
 FAST_FINAL_MINUTES = 3
+# Sites listed for the model only up to this many (an admin on a large server).
+MAX_SCOPE_SITES = 50
 
 _core = sa.table(
     CORE_MV_NAME,
@@ -117,6 +122,42 @@ def _scope_filter(scope):
 def _scope_projects(scope) -> list[str]:
     """Every project the caller's DM grants touch (training already removed)."""
     return sorted(scope.project_ids | {p for p, _ in scope.pairs} | scope.unit_project_ids)
+
+
+def scope_places(user) -> dict:
+    """The projects and sites in *user*'s AI table scope, for the
+    model to match a question's wording against exact values (``digitva-g72d``).
+
+    Projects: ``_scope_projects`` (id, name, nickname; never ``project_code``,
+    which is not ``ai_cube.project_id``). Sites: the pairs of project and site
+    grants, as ``_mv_scope_filter`` admits them; a unit grant lists none,
+    because its cube holds only its subtree. Sites are left out past
+    ``MAX_SCOPE_SITES``. The ``sites`` key is absent when empty.
+    """
+    scope = dm_grant_scope(user)
+    projects = _scope_projects(scope)
+    places = {"projects": [
+        {"project_id": row.project_id, "name": row.project_name, "nickname": row.project_nickname}
+        for row in db.session.execute(
+            sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name,
+                      VaProjectMaster.project_nickname)
+            .where(VaProjectMaster.project_id.in_(projects))
+            .order_by(VaProjectMaster.project_id)
+        )
+    ]}
+    pairs = scope.active_pairs()
+    # ponytail: past the cap the model gets no sites at all; send the sites of
+    # the projects a question names if large servers need them.
+    if pairs and len(pairs) <= MAX_SCOPE_SITES:
+        names = dict(db.session.execute(
+            sa.select(VaSiteMaster.site_id, VaSiteMaster.site_name)
+            .where(VaSiteMaster.site_id.in_({site for _, site in pairs}))
+        ).all())
+        places["sites"] = [
+            {"project_id": project, "site_id": site, "name": names.get(site)}
+            for project, site in sorted(pairs)
+        ]
+    return places
 
 
 def _unit_names():

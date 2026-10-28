@@ -3,7 +3,7 @@ title: Test Harness Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-28
 ---
 
 # Test Harness Policy
@@ -70,6 +70,12 @@ The full suite runs in parallel inside one pytest process:
   label in a parallel failure report shows the repr.
 - **Serial is unchanged.** `-n0` or `-p no:xdist` runs exactly as before, on
   `<db>` itself. Use it for a single file or when bisecting.
+- **Budget PostgreSQL memory too.** Parallel migration scratch databases share
+  the database container even when worker databases are separate. If the
+  database's memory limit is 1 GB, use `-n2` or serialize migrations; inspect
+  Docker OOM/recovery evidence before treating a connection-error cascade as
+  application failures (`digitva-07lz`). Do not raise shared runtime limits
+  or weaken assertions to make a test run pass.
 - **One run per base database.** Parallelism lives inside one run. Two runs
   on the same `<db>` share the same worker databases and terminate each
   other's connections, exactly as two serial runs on one database would. The

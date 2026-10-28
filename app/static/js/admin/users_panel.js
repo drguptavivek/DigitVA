@@ -569,6 +569,41 @@
     });
   });
 
+  // ── pending deletion requests ─────────────────────────────────────────────
+  // Deletion stays manual: the admin confirms with the person, acts on the
+  // account, then marks the request handled.
+
+  function loadDeletionRequests() {
+    var box = document.getElementById('user-deletion-requests');
+    apiJson('/admin/api/deletion-requests').then(function (res) {
+      var rows = res.ok ? (res.data.requests || []) : [];
+      if (!rows.length) { box.classList.add('d-none'); box.innerHTML = ''; return; }
+      var html = '<div class="alert alert-warning small py-2">'
+        + '<div class="fw-semibold mb-1">Account deletion requests: ' + esc(res.data.total) + ' pending</div>'
+        + '<div class="mb-2">Deletion is manual. Confirm with the person, deactivate or remove the account, then mark the request handled. The account\'s audit history is kept.</div>'
+        + '<ul class="list-unstyled mb-0">';
+      rows.forEach(function (r) {
+        html += '<li class="d-flex align-items-center gap-2 mb-1">'
+          + '<span>' + esc(r.name) + ' &middot; ' + esc(r.email || r.phone || 'no email or mobile')
+          + ' &middot; ' + esc(new Date(r.requested_at).toLocaleString()) + ' (' + esc(r.requested_via) + ')</span>'
+          + '<button type="button" class="btn btn-sm btn-outline-secondary user-deletion-handled-btn" data-id="' + esc(r.id) + '">Mark handled</button>'
+          + '</li>';
+      });
+      box.innerHTML = html + '</ul></div>';
+      box.classList.remove('d-none');
+      var btns = box.querySelectorAll('.user-deletion-handled-btn');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].addEventListener('click', function () {
+          var btn = this;
+          btn.disabled = true;
+          apiJson('/admin/api/deletion-requests/' + encodeURIComponent(btn.getAttribute('data-id')) + '/handled', 'POST')
+            .then(function () { loadDeletionRequests(); })
+            .catch(function () { btn.disabled = false; });
+        });
+      }
+    }).catch(function () { box.classList.add('d-none'); });
+  }
+
   // ── init ──────────────────────────────────────────────────────────────────
 
   AVAILABLE_LANGUAGES.forEach(function (lang) {
@@ -581,5 +616,6 @@
   });
 
   loadUsers();
+  loadDeletionRequests();
 
 }());

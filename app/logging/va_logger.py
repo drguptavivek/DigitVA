@@ -300,6 +300,10 @@ def _safe_current_user_email() -> str:
 
 
 def _masked_request_payload() -> dict[str, Any] | None:
+    # Diagnostics have their own bounded reader. Logging must not consume or
+    # materialize that body before the endpoint enforces its 8 KiB contract.
+    if request.endpoint == "api_v1.app_telemetry.submit_batch":
+        return None
     request_data: dict[str, Any] | None = None
     if request.content_type == "application/json":
         raw = request.get_json(silent=True)

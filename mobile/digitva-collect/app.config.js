@@ -1,9 +1,11 @@
 const appJson = require("./app.json");
+const { playDistributionRequested } = require("./plugins/with-android-release-signing");
 
 const DEFAULT_RELEASE_SERVER = "https://digitvav3.causeofdeathindia.com";
 const DEFAULT_ANDROID_VERSION_CODE = 1;
-// Base code: release APKs use base * 10 + ABI digit (plugins/with-android-abi-splits.js),
-// which must stay within Android's 2,100,000,000 limit.
+// Base code: release APKs use base * 10 + ABI digit 1 or 2 (plugins/with-android-abi-splits.js) and the
+// Google Play AAB uses base * 10 + 3, above both; each must stay within Android's 2,100,000,000 limit.
+const PLAY_VERSION_CODE_DIGIT = 3;
 const MAX_ANDROID_VERSION_CODE = 209_999_999;
 
 function normalizeHttpsOrigin(raw) {
@@ -58,7 +60,8 @@ function resolveAndroidVersionCode(env = process.env) {
       `DIGITVA_ANDROID_VERSION_CODE must be between 1 and ${MAX_ANDROID_VERSION_CODE}`
     );
   }
-  return versionCode;
+  // The splits plugin stands aside for Play, so this is the AAB's final versionCode.
+  return playDistributionRequested(env) ? versionCode * 10 + PLAY_VERSION_CODE_DIGIT : versionCode;
 }
 
 // APP_VARIANT=development installs a debug build beside the release app.
@@ -95,6 +98,8 @@ module.exports = ({ config = appJson.expo } = {}) => {
       ...config.extra,
       ...(isPlus ? { appVariant: "plus" } : {}),
       digitvaReleaseServer: resolveReleaseServer(),
+      // "play" hides the in-app update check (Play forbids self-update); read by src/appVariant.ts.
+      digitvaDistribution: playDistributionRequested() ? "play" : "sideload",
     },
   };
 };

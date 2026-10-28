@@ -308,6 +308,7 @@ export function errorText(error: unknown): string {
   if (error instanceof AlreadyEnrolledError) return t("errAlreadyEnrolled");
   if (error instanceof NotInSlotError) return t("errSlotChanged");
   if (error instanceof ApiError) {
+    if (error.code === "device_limit") return t("deviceLimit");
     if (error.code === "enrolment_invalid") return t("errEnrolInvalid");
     if (error.code === "csrf_failed") return t("csrfRefreshed");
     if (error.code === "cookie_session_required") return t("loginRequiredAction");

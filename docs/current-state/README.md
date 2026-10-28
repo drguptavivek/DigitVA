@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Current State Index
@@ -43,6 +43,10 @@ Read these documents in this order:
 17. [Device Collection API](device-collection-api.md)
 18. [Test Project TST001](test-project-tst001.md)
 19. [Expo Client Hosting And Bootstrap](expo-client.md)
+    - [App Release Review](app-release-review.md): unified workflows, queued
+      submissions, device controls and release/privacy review paths
+    - [Performance Telemetry Policy](../policy/app-performance-telemetry.md):
+      own-server aggregates and internal interview/coding timelines
 20. [Authentication, Login and Onboarding](authentication-and-onboarding.md)
 21. [Coder Workspace Component Inventory](coder-component-inventory.md)
 22. [Native Passkey Status](native-passkeys.md)

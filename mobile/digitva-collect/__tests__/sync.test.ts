@@ -27,10 +27,18 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
   reduceNationalIdData: (data: unknown) => data,
 }), { virtual: true });
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
+jest.mock("../src/offlineIdentity", () => ({
+  getOrCreatePlusDeviceIdentity: jest.fn(async () => ({
+    uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    created_at: "2026-10-01T00:00:00Z",
+  })),
+}));
 
-import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, retryHeldDraft, setMeta, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary } from "../src/api";
-import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, translationsForDraft, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { acquireLocalCodingEditor } from "../src/localCodingLeases";
+import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { computeUtf8Sha256HexSync, type ConsentRecordEnvelope } from "../src/consent";
@@ -903,6 +911,107 @@ describe("sync upload ordering", () => {
       count: 2,
       client_draft_ids: [invalid, open]
     });
+  });
+
+  it("sends enrolled offline coding without standalone fields and deletes only after its receipt", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    const answersHash = await draftAnswersSha256(db, DRAFT);
+    await saveOfflineCoding(db, {
+      client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: "coded",
+      coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
+      answers_sha256: answersHash, created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+    });
+    server((call) => call.url.endsWith("/submissions")
+      ? submissionSuccess(call, { offline_coding: { status: "applied", code: null } })
+      : json(204, null));
+
+    const result = await uploadQueuedWork(USER, db);
+    const upload = calls.find(({ url }) => url.endsWith("/submissions"))!;
+    expect(upload.body).toHaveProperty("offline_coding");
+    expect(upload.body).not.toHaveProperty("standalone");
+    expect(result).toMatchObject({ sent: 1, failed: 0, codingOutcomes: [{ draftId: DRAFT, status: "applied", code: null }] });
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("keeps enrolled draft and coding when the coding receipt is missing", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, {
+      client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: "coded",
+      coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
+      answers_sha256: await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+    });
+    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call) : json(204, null));
+
+    await expect(uploadQueuedWork(USER, db)).rejects.toThrow("invalid_upload_ack");
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+    expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+  });
+
+  it.each([
+    ["stale", { status: "coded" as const, answers_sha256: "0".repeat(64) }],
+    ["nonfinal", { status: "draft" as const, answers_sha256: null }],
+  ])("retains enrolled %s coding instead of sending code-less upload", async (_name, changes) => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, {
+      client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: changes.status,
+      coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
+      answers_sha256: changes.answers_sha256 ?? await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+    });
+    server(() => { throw new Error("submission must not be sent"); });
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1 });
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+    expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+  });
+
+  it("skips a draft whose local coding editor already owns the lease", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    const release = acquireLocalCodingEditor(USER, DRAFT)!;
+    server(() => { throw new Error("submission must not be sent"); });
+    try {
+      await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0 });
+    } finally {
+      release();
+    }
+  });
+
+  it("retains coded work when the enrolled device identity is unavailable", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, {
+      client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: "coded",
+      coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
+      answers_sha256: await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+    });
+    jest.mocked(getOrCreatePlusDeviceIdentity).mockResolvedValueOnce(null);
+    server(() => { throw new Error("submission must not be sent"); });
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1 });
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+    expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
   });
 
   it("keeps 409 and 413 submission refusals queued and continues to the outstanding report", async () => {

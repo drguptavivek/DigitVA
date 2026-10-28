@@ -373,6 +373,8 @@ jest.mock("../src/draftSync", () => ({
     message: null,
     imported: false,
   })),
+  recordDraftMilestones: jest.fn(async () => undefined),
+  recordDraftTimeline: jest.fn(async () => true),
 }));
 const mockToast = jest.fn();
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
@@ -1809,6 +1811,9 @@ describe("immersive interview form", () => {
     expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "errGeneric" });
     await act(async () => { (mockFormProps.onDraftSaved as () => void)(); });
     expect(tree.root.findAll((n) => n.props.accessibilityLabel === "saveStateSaved").length).toBeGreaterThan(0);
+    expect(jest.requireMock("../src/draftSync").recordDraftMilestones).toHaveBeenCalledWith(
+      expect.anything(), expect.any(String), ["served"],
+    );
     await act(async () => tree.unmount());
   });
 });

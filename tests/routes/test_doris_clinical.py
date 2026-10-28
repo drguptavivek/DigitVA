@@ -197,18 +197,26 @@ class TestDorisProcessProof(BaseTestCase):
         }
         context = ClinicalDorisContext("coder", self.allocation_id, self.payload_version_id)
         fake_user = SimpleNamespace(user_id=self.user_id)
+        audit_rows = []
         self.app.config["DORIS_WHO_IMAGE_DIGEST"] = _IMAGE
         with self.app.test_request_context(json=payload):
             with (
                 patch("app.routes.api.doris_clinical._clinical_context", return_value=context),
                 patch("app.routes.api.doris_clinical.process_certificate", return_value=result),
                 patch("app.routes.api.doris_clinical.current_user", fake_user),
+                patch("app.routes.api.doris_clinical.db.session.scalar", return_value=None),
+                patch("app.routes.api.doris_clinical.db.session.add", side_effect=audit_rows.append),
+                patch("app.routes.api.doris_clinical.db.session.commit") as commit,
             ):
                 response = clinical_process.__wrapped__("SID-1")
 
         body = response.get_json()
         self.assertEqual(body["doris"]["status"], "completed")
         self.assertTrue(body["process_token"])
+        self.assertEqual(len(audit_rows), 1)
+        self.assertEqual(audit_rows[0].va_audit_action, "DORIS processing completed")
+        self.assertEqual(audit_rows[0].va_audit_entityid, self.allocation_id)
+        commit.assert_called_once()
 
     def test_process_route_signs_advisory_dual_engine_failure(self):
         failed = {

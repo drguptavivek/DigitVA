@@ -1,5 +1,5 @@
 import {
-  ApiError, ClientApiError, accessCapabilities, fetchClientBootstrap, getAccessSummary,
+  ApiError, ClientApiError, accessCapabilities, decommissionUserDevice, fetchClientBootstrap, getAccessSummary, listUserDevices,
   getCaseDetail, getCases, getDraft, getIntakeContext, getProjectFormOptions, getRegisteredDeaths, intakeContextFromAccess, parseAccessSummary, parseRegisteredDeathPage, registerDeath,
   requestClientJson, requestJson, requestRaw, submitDraft, type AccessSummary
 } from "../src/api";
@@ -79,6 +79,16 @@ it("uses one path and body for bearer and cookie credentials", async () => {
   expect((fetch.mock.calls[0][1]?.headers as Record<string, string>)["X-CSRFToken"]).toBeUndefined();
   expect((fetch.mock.calls[1][1]?.headers as Record<string, string>).Authorization).toBeUndefined();
   expect(ClientApiError).toBe(ApiError);
+});
+
+it("uses the browser CSRF transport for scoped device management", async () => {
+  const fetch = jest.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(response({ devices: [{ device_id: "d1", name: "Phone", platform: "android", app_version: "0.3.11", enrolled_at: "2026-10-20T00:00:00Z", last_seen_at: null, current: true }] }))
+    .mockResolvedValueOnce(response({ decommissioned: true, sessions_ended: 1, current: false }));
+  await expect(listUserDevices("user/one", csrf)).resolves.toMatchObject({ devices: [{ device_id: "d1" }] });
+  await expect(decommissionUserDevice("user/one", "device/one", csrf)).resolves.toEqual({ decommissioned: true, sessions_ended: 1, current: false });
+  expect(fetch).toHaveBeenNthCalledWith(1, "/api/v1/users/user%2Fone/devices", expect.objectContaining({ method: "GET", credentials: "include", headers: expect.objectContaining({ "X-CSRFToken": "csrf" }) }));
+  expect(fetch).toHaveBeenNthCalledWith(2, "/api/v1/users/user%2Fone/devices/device%2Fone", expect.objectContaining({ method: "DELETE", credentials: "include", headers: expect.objectContaining({ "X-CSRFToken": "csrf" }) }));
 });
 
 it("accepts the empty 204 outstanding acknowledgement", async () => {

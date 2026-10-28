@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Expo Web Client Boundary
@@ -442,6 +442,11 @@ instead of raising errors.
   (the app config `version`). A newer one shows a toast "Update available" with
   a Download button that opens the URL in the browser; when both sources are
   unreachable nothing is said at start and Settings shows "Couldn't check".
+- The Google Play build (`DIGITVA_DISTRIBUTION=play`, `digitva-6o4b`) has no
+  update check and no APK download anywhere: Settings > About says app
+  updates come from Google Play, and the start-up check does not run. Play's
+  Device and Network Abuse policy forbids an app updating itself outside
+  Play. The sideloaded build keeps the check above unchanged.
 
 ## Common questions (Help)
 
@@ -490,6 +495,33 @@ section-list button opens the fly-out, which follows the active form theme.
 New draft answers use the authorized server prefill, including the logged-in
 interviewer name; existing saved answers take precedence over prefill defaults.
 
-Coding and reviewing destinations stay hidden in the Expo navigation and
-workspace until those workflows are implemented inside Expo. Their server
-authorization and capability contracts remain unchanged.
+Online coding destinations use the shared native queue/workspace in both APK
+variants when the caller has coding access (`digitva-6rxf`). Local coding
+requires Plus and the same-project self-coding/coder rule below. Reviewing
+keeps its existing variant/permission checks. Server authorization remains
+authoritative for every case.
+
+
+## Unified phone coding access (`digitva-6rxf`)
+
+Owner 2026-10-28: onboarded, standalone and demo are contexts of the same
+workflow, keeping their existing separate stores and identities. Both APK
+variants use the existing native online coding queue/workspace for enrolled
+users with coding access. Server authorization remains authoritative. Plus
+local ICD-11/MMS/DORIS tools additionally require self-coding and coder access
+in the same project (standalone keeps its local self-coding flow). The direct
+interview setting is not a coding permission. Capability changes preserve
+unsent work; the engine starts only on an eligible offline coding route.
+Startup and later local profile editing share one form and storage schema.
+The lighter package still excludes offline engine assets; a single-package
+on-demand distribution strategy is a separate release/licensing decision.
+
+
+## Development and release builds (`digitva-a770`)
+
+Owner 2026-10-28: native Android debug builds and Metro HMR are allowed locally
+for emulator testing. Native SQLCipher/engine modules require a custom debug
+app. Keep existing Metro processes running and use a separate port when needed;
+point emulator enrollment at the local backend, not live/staging user data.
+Google Play AAB is the primary release path; CI builds and verifies release
+artifacts. No Play upload or server deploy is implied by a build.

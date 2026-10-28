@@ -18,8 +18,13 @@ const mockSetRoute = jest.fn();
 jest.mock("expo-router", () => ({ usePathname: () => mockPathname, useGlobalSearchParams: () => mockParams, useRouter: () => ({}) }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({ accounts: [{ user_id: "u1", name: "Asha" }], lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: undefined }),
+  useAppState: () => ({ accounts: [{ user_id: "u1", name: "Asha" }], lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice }),
 }));
+let mockDevice: { server: string } | undefined;
+let mockPlay = false;
+jest.mock("../src/appVariant", () => ({ isPlayDistribution: () => mockPlay }));
+const mockDailyCheck = jest.fn(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
+jest.mock("../src/updateCheck", () => ({ checkForUpdateDaily: (server?: string) => mockDailyCheck(server) }));
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => true,
   openInterviewerDb: async () => ({ db: true }),
@@ -58,8 +63,25 @@ beforeEach(() => {
   mockUnsent = 2;
   mockLastFull = null;
   mockOffline = false;
+  mockDevice = undefined;
+  mockPlay = false;
 });
 afterEach(async () => { await act(async () => tree.unmount()); });
+
+it("sideloaded build: the start-up update check offers the hosted APK download", async () => {
+  mockDevice = { server: "https://digitvav3.causeofdeathindia.com" };
+  await mount();
+  expect(mockDailyCheck).toHaveBeenCalledWith("https://digitvav3.causeofdeathindia.com");
+  expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ text: "Update available: 9.9.9", action: expect.objectContaining({ label: "Download" }) }));
+});
+
+it("Google Play build: no start-up update check and no Download toast", async () => {
+  mockDevice = { server: "https://digitvav3.causeofdeathindia.com" };
+  mockPlay = true;
+  await mount();
+  expect(mockDailyCheck).not.toHaveBeenCalled();
+  expect(mockToast).not.toHaveBeenCalled();
+});
 
 it("resolves the interviewer from the route, counts unsent work and files the screen for the error log", async () => {
   mockLastFull = new Date(2026, 9, 23, 8, 30).getTime();

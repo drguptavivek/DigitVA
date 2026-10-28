@@ -2635,6 +2635,35 @@ def admin_set_public_demo_keep(target_user_id):
     return jsonify({"user_id": str(target_user.user_id), "public_demo_keep": keep})
 
 
+@admin.get("/api/deletion-requests")
+@role_required("admin")
+def admin_deletion_requests():
+    """Pending account deletion requests, oldest first, at most 100, with the
+    total (docs/policy/public-privacy-and-data-requests.md section 8).
+    Admin only; deletion itself stays manual."""
+    from app.services import account_deletion_service
+
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    return jsonify(account_deletion_service.pending_requests())
+
+
+@admin.post("/api/deletion-requests/<uuid:request_id>/handled")
+@role_required("admin")
+def admin_mark_deletion_request_handled(request_id):
+    """Mark one pending deletion request handled (audited as
+    ``account_deletion_request_handled``). 404 when no such request is
+    pending. Deletes nothing: the admin acts on the account by hand."""
+    from app.services import account_deletion_service
+
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    if not account_deletion_service.mark_handled(request_id, current_user._get_current_object()):
+        return _json_error("Pending deletion request not found.", 404)
+    db.session.commit()
+    return jsonify({"id": str(request_id), "handled": True})
+
+
 @admin.post("/api/users/<uuid:target_user_id>/toggle-admin")
 @role_required("admin")
 def admin_toggle_user_admin(target_user_id):

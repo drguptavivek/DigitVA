@@ -21,13 +21,26 @@ from app.services import ai_analytics_planner as planner
 from app.services import ai_analytics_providers as providers
 from app.services import ai_analytics_sandbox as sandbox
 from app.services.ai_analytics_render import render
-from tests.ai_analytics_fixtures import AiAnalyticsFixtures, sandbox_on_session_connection
+from tests.ai_analytics_fixtures import (
+    PROJECT_ID,
+    SITE_A,
+    SITE_B,
+    TRAINING_PROJECT_ID,
+    AiAnalyticsFixtures,
+    sandbox_on_session_connection,
+)
 from tests.base import BaseTestCase
 
 GOOD_SQL = "SELECT site_id, sum(n) AS deaths FROM ai_cube GROUP BY site_id ORDER BY site_id"
 CHART = {"type": "bar", "x_column": "site_id", "series_columns": ["deaths"], "value_column": "deaths",
          "x_dimension": "site_id"}
 FOLLOW_UPS = ["By month?", "By sex?", "By age band?", "One too many"]
+# dm_user's scope: site A of PROJECT_ID only.
+DM_PLACES = {
+    "projects": [{"project_id": PROJECT_ID, "name": f"AI Questions Project {PROJECT_ID}",
+                  "nickname": PROJECT_ID}],
+    "sites": [{"project_id": PROJECT_ID, "site_id": SITE_A, "name": f"AI site {SITE_A}"}],
+}
 
 
 def _plan_json(sql):
@@ -103,7 +116,19 @@ class AiAnalyticsPlannerTests(AiAnalyticsFixtures, BaseTestCase):
         self.assertEqual(plan["follow_ups"], FOLLOW_UPS[:3])
         config = self._calls()[0].kwargs["config"]
         self.assertEqual(config.thinking_config.thinking_level.value, "MINIMAL")
-        self.assertEqual(json.loads(self._calls()[0].kwargs["contents"]), {"question": "Deaths by site"})
+        self.assertEqual(json.loads(self._calls()[0].kwargs["contents"]),
+                         {"question": "Deaths by site", **DM_PLACES})
+
+    def test_payload_names_only_the_projects_and_sites_in_scope(self):
+        self._model_returns(GOOD_SQL)
+        planner.ask(self.dm_user, "KEM forms with attachment sync pending")
+        payload = json.loads(self._calls()[0].kwargs["contents"])
+        self.assertEqual([p["project_id"] for p in payload["projects"]], [PROJECT_ID])
+        self.assertEqual([s["site_id"] for s in payload["sites"]], [SITE_A])
+        self.assertEqual(set(payload), {"question", "projects", "sites"})
+        sent = json.dumps(payload)
+        self.assertNotIn(SITE_B, sent)
+        self.assertNotIn(TRAINING_PROJECT_ID, sent)
 
     def test_follow_up_sends_previous_sql_and_five_earlier_questions_only(self):
         self._model_returns(GOOD_SQL)
@@ -111,7 +136,7 @@ class AiAnalyticsPlannerTests(AiAnalyticsFixtures, BaseTestCase):
                     earlier_questions=[f"q{i}" for i in range(8)], turn=2)
         payload = json.loads(self._calls()[0].kwargs["contents"])
         self.assertEqual(payload, {
-            "question": "And by month?", "previous_sql": GOOD_SQL,
+            "question": "And by month?", **DM_PLACES, "previous_sql": GOOD_SQL,
             "earlier_questions": ["q3", "q4", "q5", "q6", "q7"],
         })
 
@@ -123,7 +148,7 @@ class AiAnalyticsPlannerTests(AiAnalyticsFixtures, BaseTestCase):
         retry = self._calls()[1].kwargs
         self.assertEqual(retry["config"].thinking_config.thinking_level.value, "LOW")
         payload = json.loads(retry["contents"])
-        self.assertEqual(set(payload), {"question", "failed_sql", "database_error"})
+        self.assertEqual(set(payload), {"question", "projects", "sites", "failed_sql", "database_error"})
         # SQLSTATE and the primary message only, with quoted values redacted.
         self.assertEqual(payload["database_error"], "42703: column <value> does not exist")
         self.assertNotIn("nope", payload["database_error"])
@@ -350,7 +375,7 @@ class AiAnalyticsProviderTests(AiAnalyticsFixtures, BaseTestCase):
         self.assertEqual(kwargs["fallbacks"], "default")
         for absent in ("temperature", "top_p", "top_k", "thinking", "budget_tokens"):
             self.assertNotIn(absent, kwargs)
-        self.assertEqual(json.loads(kwargs["messages"][0]["content"]), {"question": "Deaths by site"})
+        self.assertEqual(json.loads(kwargs["messages"][0]["content"]), {"question": "Deaths by site", **DM_PLACES})
         row = db.session.get(VaAiQueryAuditLog, audit_id)
         self.assertEqual((row.provider, row.model), ("anthropic", "claude-sonnet-5-5"))
         self.assertEqual((row.prompt_tokens, row.cached_tokens, row.output_tokens), (120, 1500, 60))

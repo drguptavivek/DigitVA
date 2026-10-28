@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -293,6 +293,22 @@ answer 404 and a username never resolves at sign-in.
   nobody qualifies, or the purge is off, sign-up is refused: JSON 503
   `{"code": "cap_reached", "error": "The demo is full; try again later."}`,
   the same text flashed on the web form.
+- **Self-delete** (digitva-et16, public-demo.md section 9a):
+  `POST /api/v1/me/account/delete` with the password re-entered (either
+  credential, 5/min and 20/hour per account) runs
+  `public_demo_purge_service.delete_own_account`: the purge's own deletion
+  (`_delete_locked`, PLAN order, files after commit) under a row lock that
+  waits, with the deployment guards `not_enabled` / `main_database` and the
+  per-account guards, but neither the idle rule, the kept mark nor
+  `PUBLIC_DEMO_PURGE_ENABLED`. One `public_demo_self_delete` security event
+  with row counts. A cookie session is signed out. The phone's Settings
+  (Demo slot) wipes the profile after the server answers (`src/auth.ts`
+  `deleteDemoAccount`) and forgets the Demo device when no demo profile is
+  left; the website's profile page has the same for a demo account.
+  Staff accounts instead file `POST /api/v1/me/deletion-request`
+  (`auth_account_deletion_requests`, migration `b4e7c2a9d6f3`, one pending
+  per account by a partial unique index), reviewed on the admin Users panel;
+  see api-v1.md "Me and reference".
 - `sign_in_verified` is true for a username account (nothing to verify);
   `is_mobile_only` now means no email **and** a sign-in number, so it is
   false for a username account and unchanged for every other one. A sign-in
@@ -986,11 +1002,9 @@ alike and an unknown name costs a hash check too); an unknown name, a wrong
 password, an inactive account and an account that is **not** a public-demo
 account all get 401 `invalid_credentials` ("Invalid username or password."),
 audited as `demo_device_enrol_failed` (reason only). Then, under the account's
-advisory lock, at most `PUBLIC_DEMO_DEVICES_PER_ACCOUNT` (default 3) live
-(unrevoked) devices per account: at the cap the least recently used live device
-(newest session activity, else its enrolment time) and its sessions are revoked
-to make room, audited `device_revoked` with `reason: "demo_device_replaced"`;
-the new device is then enrolled (no 429). Success is 201 with
+row lock, the shared three-active-device limit is checked. At the cap it
+returns `409 device_limit` without enrolling or evicting another phone. The
+user frees a slot through Profile or another signed-in device. Success is 201 with
 `/enroll`'s body, `{device_id, device_secret, project, server_time}`, the secret
 shown once; the app then signs in through `POST /sessions` (section 6.2:
 `has_device_access` holds for the account's `interviewer` grant on the demo
@@ -1116,7 +1130,7 @@ signed-in user id.
 | POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email, mobile or, on the demo, username), password}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed` |
 | GET `/auth/demo-signup/challenge` | none; flag on only (else 404) | none | 200 `{salt, difficulty, expires, signature}` (section 6.7) | 30/min per IP | none |
 | POST `/auth/demo-signup` | none; flag on only (else 404) | `{username, password, captcha}` (section 6.7) | 201 `{user_id, username}`, no session; 400 `captcha_failed` / `invalid_username` / `invalid_password` / `breached_password` with `fields`; 409 `username_taken`; 429 `rate_limited`; 503 `cap_reached`, `breach_check_unavailable`, `project_missing`, `maintenance` | 10/min per IP (IPv6 per /64); `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` per IP and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT` demo-wide, on successes | `account_created` (`self_signup`), `terms_accepted` (`api`) |
-| POST `/auth/demo-enroll` | demo username and password; flag on only (else 404) | `{username, password, device_name, platform, app_version?}` (section 6.8) | 201 as `/auth/enroll` (at the device cap the least recently used device is revoked first); 401 `invalid_credentials` (also for a non-demo account); 503 `wrong_database`, `project_missing` | 10/min per IP (IPv6 per /64); 20/hour per username | `device_enrolled`, `demo_device_enrol_failed`, `device_revoked` (`demo_device_replaced`) |
+| POST `/auth/demo-enroll` | demo username and password; flag on only (else 404) | `{username, password, device_name, platform, app_version?}` (section 6.8) | 201 as `/auth/enroll`; 409 `device_limit` (no silent eviction); 401 `invalid_credentials` (also for a non-demo account); 503 `wrong_database`, `project_missing` | 10/min per IP (IPv6 per /64); 20/hour per username | `device_enrolled`, `demo_device_enrol_failed` |
 | POST `/auth/sessions/refresh` | device id + secret + refresh token | `{refresh_token, device_id, device_secret, count?, unique_ids?, client_draft_ids?, client_death_ids?}` | 200 token response; refusals in 6.4 | 30/min per IP | `device_session_revoked` |
 | DELETE `/auth/sessions/current` | Bearer | none | 204 | default | `device_session_revoked` (`signed_out`) |
 

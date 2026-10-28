@@ -30,6 +30,7 @@ from app.models import (
     VaStatuses,
     VaSubmissionPayloadVersion,
     VaSubmissions,
+    VaSubmissionsAuditlog,
     VaUserAccessGrants,
     VaWebIntakeDraft,
     VaWebIntakeDraftSection,
@@ -1473,6 +1474,76 @@ class IntakeApiTests(BaseTestCase):
         resend = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=body)
         self.assertEqual(resend.status_code, 200, resend.get_json())
         self.assertIs(resend.get_json()["can_code_now"], True)
+
+    def test_same_hash_resend_merges_later_timelines_idempotently_and_keeps_receipts(self):
+        self._self_coding_on()
+        body = self._device_body(
+            self._case(),
+            draft={
+                "startedAt": "2026-10-01T10:00:00+00:00",
+                "workflowTimelineV1": [
+                    {"event": "interview_started", "at": "2026-10-01T10:00:00+00:00"},
+                ],
+                "codingTimelineV1": [
+                    {"event": "coding_opened", "at": "2026-10-01T11:00:00+00:00"},
+                ],
+            },
+        )
+        first = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=body)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == uuid.UUID(body["client_draft_id"])
+        ))
+        self.assertIsNotNone(draft)
+        submitted = next(
+            event for event in draft.meta["workflowTimelineV1"] if event["event"] == "submitted"
+        )
+        draft.meta = {
+            **draft.meta,
+            "codingTimelineV1": [
+                {"event": "coding_opened", "at": "2026-10-01T11:00:00+00:00"},
+                {"event": "final_saved", "at": "2026-10-01T12:00:00+00:00"},
+            ],
+        }
+        db.session.commit()
+        audit_count = db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionsAuditlog))
+
+        later = {
+            **body,
+            "draft": {
+                **body["draft"],
+                "workflowTimelineV1": [
+                    {"event": "interview_started", "at": "2026-10-01T10:00:00+00:00"},
+                    {"event": "review_opened", "at": "2026-10-01T11:30:00+00:00"},
+                    {"event": "submitted", "at": "2099-01-01T00:00:00+00:00"},
+                ],
+                "codingTimelineV1": [
+                    {"event": "coding_opened", "at": "2026-10-01T11:00:00+00:00"},
+                    {"event": "doris_processed", "at": "2026-10-01T11:45:00+00:00"},
+                    {"event": "final_saved", "at": "2099-01-01T00:00:00+00:00"},
+                ],
+            },
+        }
+        resend = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=later)
+        self.assertEqual(resend.status_code, 200, resend.get_json())
+        repeat = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=later)
+        self.assertEqual(repeat.status_code, 200, repeat.get_json())
+
+        db.session.expire_all()
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == uuid.UUID(body["client_draft_id"])
+        ))
+        workflow = {event["event"]: event for event in draft.meta["workflowTimelineV1"]}
+        coding = {event["event"]: event for event in draft.meta["codingTimelineV1"]}
+        self.assertEqual(workflow["submitted"], submitted)
+        self.assertEqual(workflow["review_opened"]["at"], "2026-10-01T11:30:00+00:00")
+        self.assertEqual(coding["final_saved"]["at"], "2026-10-01T12:00:00+00:00")
+        self.assertEqual(coding["doris_processed"]["at"], "2026-10-01T11:45:00+00:00")
+        self.assertEqual(len(workflow), len(draft.meta["workflowTimelineV1"]))
+        self.assertEqual(len(coding), len(draft.meta["codingTimelineV1"]))
+        self.assertEqual(
+            db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionsAuditlog)), audit_count
+        )
 
     def _device_body(self, death_id, **over):
         text = json.dumps(self._complete_answers(), separators=(",", ":"))

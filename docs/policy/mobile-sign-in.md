@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Sign-in by Mobile Number
@@ -345,3 +345,30 @@ PIN in a row are unchanged.
   If skipped it is offered **once more** on a later PIN unlock, then never
   again; nothing is offered when an option is already on or the phone
   supports neither. Settings can turn either option on or off at any time.
+
+
+## Account device limit and decommissioning (`digitva-65m5`)
+
+Owner 2026-10-28: one account may be signed in on at most **three distinct
+active devices**. Active means at least one unrevoked device session whose
+refresh expiry has not passed, on an unrevoked device. Web sessions do not
+consume app-device slots. Re-login on an existing phone replaces its old
+sessions without using another slot; refresh does not create a slot. The
+issuer locks the account while checking and adding a device session. A fourth
+phone receives an explicit `409 device_limit`; no device is silently evicted.
+This applies to password, sign-in QR and demo entry. A refused QR remains
+retryable and no unused device is created by the refusal.
+
+Users can list and decommission their own devices from Profile or an already
+signed-in app. A user blocked on phone four can use a normal web login to
+free a slot. Do not add a pre-authenticated device-management credential flow.
+Admins can manage any account. A data manager may act only when their existing
+writer scope covers all the target account's active native-device-role grants;
+partial shared-project access does not confer global device authority. Project
+PI alone is not sufficient for these management actions.
+
+Decommissioning ends that user's sessions on the selected device. It does not
+revoke the shared physical device, another person's sessions, server cases or
+interviews. The app receives a keep-data session-ended reason: encrypted local
+work remains available for safe sign-in/recovery and is never silently wiped.
+Every management action is audited without credentials or clinical payloads.

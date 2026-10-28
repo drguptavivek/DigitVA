@@ -300,23 +300,24 @@ def _burn(token_id, user_id, reason: str) -> devices.DeviceAuthError:
 def redeem(token, *, device_name, platform, app_version, client_device_uuid=None):
     """Consume a sign-in QR: enrol a device and open the user's normal device
     session. Returns ``(device, device_secret, IssuedTokens, user)``. Every
-    failure is one 404 ``sign_in_qr_invalid``. Caller commits a success."""
+    ordinary failure is one 404 ``sign_in_qr_invalid``. A full account returns
+    409 ``device_limit`` before the token is claimed, so it remains retryable.
+    Caller commits a success."""
     name, version = devices._device_fields(device_name, platform, app_version)
     if not isinstance(token, str) or not token.strip() or len(token) > _TOKEN_MAX:
         raise _invalid()
     digest = devices.hash_token(token.strip())
     now = _now()
     table = AuthSignInToken.__table__
-    claimed = db.session.execute(
-        sa.update(table)
-        .where(
+    candidate = db.session.execute(
+        sa.select(
+            table.c.id, table.c.user_id, table.c.user_session_version,
+        ).where(
             table.c.token_hash == digest, table.c.redeemed_at.is_(None),
             table.c.revoked_at.is_(None), table.c.expires_at > now,
         )
-        .values(redeemed_at=now)
-        .returning(table.c.id, table.c.user_id, table.c.user_session_version)
     ).first()
-    if claimed is None:
+    if candidate is None:
         stale = db.session.scalar(sa.select(AuthSignInToken).where(
             AuthSignInToken.token_hash == digest, AuthSignInToken.redeemed_at.is_(None),
             AuthSignInToken.revoked_at.is_(None), AuthSignInToken.expiry_noted_at.is_(None),
@@ -327,17 +328,31 @@ def redeem(token, *, device_name, platform, app_version, client_device_uuid=None
             db.session.commit()
         raise _invalid()
 
-    user = db.session.get(VaUsers, claimed.user_id)
+    user = db.session.get(VaUsers, candidate.user_id)
     project_id = eligible_project(user) if user is not None else None
     if project_id is None:
-        raise _burn(claimed.id, claimed.user_id, "not_eligible")
+        raise _burn(candidate.id, candidate.user_id, "not_eligible")
     # Sign out everywhere, a password or factor reset: the QR dies with them.
-    if (user.auth_session_version or 0) != claimed.user_session_version:
-        raise _burn(claimed.id, claimed.user_id, "session_changed")
+    if (user.auth_session_version or 0) != candidate.user_session_version:
+        raise _burn(candidate.id, candidate.user_id, "session_changed")
     # Transient: the plain rollback in the error handler un-claims the token.
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         raise _invalid()
 
+    # Hold the account lock before claiming the one-use token or creating a
+    # device. A refused fourth phone therefore leaves the QR retryable.
+    devices.check_device_slot(user)
+    claimed = db.session.execute(
+        sa.update(table)
+        .where(
+            table.c.id == candidate.id, table.c.redeemed_at.is_(None),
+            table.c.revoked_at.is_(None), table.c.expires_at > now,
+        )
+        .values(redeemed_at=now)
+        .returning(table.c.id, table.c.user_id, table.c.user_session_version)
+    ).first()
+    if claimed is None:
+        raise _invalid()
     device, secret = devices._add_device(project_id, name, platform, version, None, client_device_uuid)
     device.enrolled_via_sign_in_token = claimed.id
     db.session.execute(

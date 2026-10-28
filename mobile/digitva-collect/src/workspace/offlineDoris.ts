@@ -13,6 +13,7 @@
 import { CryptoDigestAlgorithm, digestStringAsync, randomUUID } from "expo-crypto";
 
 import { localDateTimeWithOffset } from "../client/localDateTime";
+import { appendWorkflowEvent, workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
 import {
   ageRestrictionConfirmation,
   causingConditionUnknownError,
@@ -86,6 +87,8 @@ export interface OfflineCodingSaveInput {
   coderProfileUpdatedAt: string | null;
   /** The interview's answers hash now (src/sync.ts draftAnswersSha256): the coding is bound to these answers; absent is stale. */
   answersSha256?: string | null;
+  workflowTimelineV1?: WorkflowTimelineEvent[];
+  codingTimelineV1?: WorkflowTimelineEvent[];
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -347,7 +350,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
       return reply;
     },
 
-    async save({ clientDraftId, body, reply, deviceUuid, coderProfileUpdatedAt, answersSha256 }) {
+    async save({ clientDraftId, body, reply, deviceUuid, coderProfileUpdatedAt, answersSha256, workflowTimelineV1, codingTimelineV1 }) {
       const draftId = typeof clientDraftId === "string" ? clientDraftId.trim() : "";
       if (!draftId) throw new Error("offline_save_invalid");
       const certificate = isRecord(body.doris_certificate) ? JSON.stringify(body.doris_certificate) : null;
@@ -358,8 +361,21 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         : reply?.process_token ?? "";
       if (!certificate || !result || !codeditResult || !processToken) throw new Error("offline_save_invalid");
       const ucodCode = typeof body.antecedent_cod === "string" && body.antecedent_cod ? body.antecedent_cod : null;
-      const provenance = allowability && ucodCode ? await judgeUnderlyingCause(ucodCode, body) : null;
       const existing = await store.get(draftId);
+      const parsedProvenance: unknown = existing?.provenance ? JSON.parse(existing.provenance) : undefined;
+      if (existing?.provenance && !isRecord(parsedProvenance)) throw new Error("offline_save_invalid");
+      const existingProvenance = isRecord(parsedProvenance) ? parsedProvenance : {};
+      const codingEvents = new Set(["coding_opened", "doris_processed", "initial_saved", "final_saved"]);
+      const timeline = workflowTimeline([
+        ...workflowTimeline(existingProvenance.codingTimelineV1 ?? existingProvenance.workflowTimelineV1),
+        ...workflowTimeline(codingTimelineV1 ?? workflowTimelineV1),
+      ]).filter((event) => codingEvents.has(event.event));
+      const updatedAt = localDateTimeWithOffset();
+      const savedTimeline = appendWorkflowEvent(timeline, "initial_saved", updatedAt);
+      const codingProvenance = allowability && ucodCode ? await judgeUnderlyingCause(ucodCode, body) : null;
+      const provenance = codingProvenance
+        ? { ...codingProvenance, workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline }
+        : timeline.length ? { workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline } : null;
       const row: OfflineCodingRow = {
         client_draft_id: draftId,
         certificate,
@@ -377,7 +393,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         provenance: provenance ? JSON.stringify(provenance) : null,
         answers_sha256: answersSha256 ?? null,
         created_at: existing?.created_at ?? localDateTimeWithOffset(),
-        updated_at: localDateTimeWithOffset(),
+        updated_at: updatedAt,
       };
       await store.save(row);
       return row;

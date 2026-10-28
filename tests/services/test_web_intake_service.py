@@ -622,6 +622,67 @@ class WebIntakeServiceTests(BaseTestCase):
             envelope["data"], {"Id10013": "yes", "Id10019": "male", "Id10020": "2024"}
         )
 
+    def test_coding_timeline_is_separate_bounded_and_first_event_wins(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        interview_started = draft.meta["workflowTimelineV1"]
+        interview = [{"event": "identity_saved", "at": "2026-10-01T10:00:00+05:30"}]
+        first_open = [{"event": "coding_opened", "at": "2026-10-01T11:00:00+05:30"}]
+        intake_svc.save_draft_sections(
+            draft, sections={"background": {"Id10019": "female"}},
+            meta={"workflowTimelineV1": interview, "codingTimelineV1": first_open},
+        )
+        intake_svc.save_draft_sections(
+            draft, sections={},
+            meta={
+                "workflowTimelineV1": interview,
+                "codingTimelineV1": [
+                    {"event": "coding_opened", "at": "2026-10-01T12:00:00+05:30"},
+                    {"event": "doris_processed", "at": "2026-10-01T11:30:00+05:30", "elapsed_ms": 900},
+                ],
+            },
+        )
+
+        envelope = intake_svc.load_draft_envelope(draft)
+        self.assertEqual(envelope["data"], {"Id10019": "female"})
+        self.assertEqual(envelope["workflowTimelineV1"], [*interview_started, *interview])
+        self.assertEqual(envelope["codingTimelineV1"], [
+            {"event": "coding_opened", "at": "2026-10-01T11:00:00+05:30"},
+            {"event": "doris_processed", "at": "2026-10-01T11:30:00+05:30", "elapsed_ms": 900},
+        ])
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.save_draft_sections(
+                draft, sections={},
+                meta={"codingTimelineV1": [{"event": "final_saved", "at": "2026-10-01T12:00:00Z"}]},
+            )
+        self.assertEqual(ctx.exception.code, "invalid_coding_timeline")
+        self.assertEqual(intake_svc.load_draft_envelope(draft)["codingTimelineV1"], envelope["codingTimelineV1"])
+
+    def test_device_echo_cannot_replace_a_server_submitted_receipt(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        server_receipt = "2026-10-01T10:00:00+00:00"
+        draft.meta = {
+            **draft.meta,
+            "workflowTimelineV1": [
+                {"event": "interview_started", "at": "2026-10-01T09:00:00+00:00"},
+                {"event": "submitted", "at": server_receipt},
+            ],
+        }
+
+        intake_svc.save_draft_sections(
+            draft, sections={},
+            meta={"workflowTimelineV1": [
+                {"event": "interview_started", "at": "2026-10-01T08:00:00+00:00"},
+                {"event": "submitted", "at": "2026-10-01T12:00:00+00:00"},
+            ]},
+        )
+
+        events = intake_svc.load_draft_envelope(draft)["workflowTimelineV1"]
+        self.assertEqual(next(event["at"] for event in events if event["event"] == "submitted"), server_receipt)
+
     def test_save_draft_sections_rejects_bad_shapes(self):
         draft = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
@@ -1113,6 +1174,44 @@ class WebIntakeServiceTests(BaseTestCase):
         reply = self._resubmit(draft, data, envelope=tie)
         self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("incoming", False, True))
         self.assertGreaterEqual(datetime.fromisoformat(draft.meta["effectiveSavedAt"]), stored)
+
+    def test_a_changed_resubmission_merges_timelines_without_replacing_receipts(self):
+        death = self._register_death()
+        draft, _submission = self._submit_for_new_draft(death, self._completion())
+        submitted = next(
+            event for event in draft.meta["workflowTimelineV1"] if event["event"] == "submitted"
+        )
+        final_saved = {"event": "final_saved", "at": "2026-10-01T12:00:00+00:00"}
+        draft.meta = {
+            **draft.meta,
+            "codingTimelineV1": [
+                {"event": "coding_opened", "at": "2026-10-01T11:00:00+00:00"},
+                final_saved,
+            ],
+        }
+        db.session.flush()
+
+        reply = self._resubmit(
+            draft,
+            self._completion(data={"Id10017": "Revised"})["data"],
+            envelope={
+                "workflowTimelineV1": [
+                    {"event": "identity_saved", "at": "2026-10-01T10:30:00+00:00"},
+                    {"event": "submitted", "at": "2099-01-01T00:00:00+00:00"},
+                ],
+                "codingTimelineV1": [
+                    {"event": "doris_processed", "at": "2026-10-01T11:30:00+00:00"},
+                    {"event": "final_saved", "at": "2099-01-01T00:00:00+00:00"},
+                ],
+            },
+        )
+        self.assertTrue(reply["changed"])
+        workflow = {event["event"]: event for event in draft.meta["workflowTimelineV1"]}
+        coding = {event["event"]: event for event in draft.meta["codingTimelineV1"]}
+        self.assertEqual(workflow["submitted"], submitted)
+        self.assertEqual(workflow["identity_saved"]["at"], "2026-10-01T10:30:00+00:00")
+        self.assertEqual(coding["final_saved"], final_saved)
+        self.assertEqual(coding["doris_processed"]["at"], "2026-10-01T11:30:00+00:00")
 
     def test_a_resubmission_the_case_cannot_take_is_history_and_locked(self):
         death = self._register_death()

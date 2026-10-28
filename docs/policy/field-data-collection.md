@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Field Data Collection Policy
@@ -297,18 +297,14 @@ those web routes. A device refresh token lasts up to 30 days (90 at most),
 longer than a 30-minute web session; a lost phone is handled by revoking the
 device.
 
-**The Android app collects data only** (owner, 2026-10-22, `digitva-cpx5`).
-DigitVA Collect (package `com.causeofdeathindia.digitvacollect`) offers
-enrolment, sign-in, PIN, consent, death registration, interviews, drafts,
-attachments, sync and settings. Coding and review are not reachable on the
-phone: the coding, reviewing and workspace routes and every Code now or queue
-entry are removed from the native build, and an account that only codes or
-reviews sees "Coding and review are done in the DigitVA web app" after
-sign-in. The same Expo project builds the web app, where coding and review are
-unchanged. The server still admits a coder-only device session under the rule
-above; whether it should refuse one for this app is an open owner question. A
-separate coding app, if built, will use package
-`com.causeofdeathindia.digitvacoder`.
+**Unified collection and online coding** (owner 2026-10-28, `digitva-6rxf`;
+supersedes the collection-only UI restriction in `digitva-cpx5`). Both APK
+variants offer the existing online coding queue and shared case workspace to
+signed-in users with coding access. The server remains authoritative for every
+case and preserves the self-collected-case restriction outside self-coding
+projects. Plus adds local coding only under the same-project self-coding and
+coder permission rule below. Review access retains its existing variant and
+permission checks. No separate app identifier or account migration is needed.
 
 **Multi-project devices** (owner, 2026-10-03; no older apps in the field,
 so no compatibility path, 2026-10-04). A native device may hold data for
@@ -595,15 +591,18 @@ lost in practice.
 
 ### Path C: standalone Collect Plus (owner decision 2026-10-27, `digitva-5bzf`)
 
-Status: policy baseline, nothing built. Implementation slices S1 to S8 of
-`.tasks/collect-plus-standalone-and-parity-plan.md` follow this text. Every
+Status: core standalone collection, coding, adoption, export and backup are
+implemented; remaining translations, definition pinning and hardware acceptance
+are tracked in `digitva-5bzf`. Every
 rule below carries the owner decision of 2026-10-27 (`digitva-5bzf`).
 
 Path C is Collect Plus (see "Collect Plus (experimental)") used **without a
 server**: an unenrolled phone that collects interviews and codes them on the
 device, and pushes both later, once the phone is enrolled. It is a third
 arrangement, so this section is the amendment this policy demands for one.
-Path A and Path B are unchanged for every enrolled, non-standalone use.
+The collection storage and synchronization rules of Path A and Path B remain
+unchanged for enrolled, non-standalone use; phone coding follows the unified
+access rule below.
 
 - **Who and where (owner decision 2026-10-27, `digitva-5bzf`).** Owner-controlled
   pilot phones only. A standalone phone is never handed to an interviewer;
@@ -887,3 +886,62 @@ they are untouched; clearing them on a row that had one is refused.
 - [Access Control Model](access-control-model.md)
 - [Attachment Storage Policy](attachment-storage.md)
 - `docs/planning/who-va-2022-web-intake-plan.md`
+
+
+### Unified phone coding access (owner 2026-10-28, `digitva-6rxf`)
+
+The cases surface uses **Local cases** and **Online cases** chips; online
+cases are available while connected, and local work stays available offline.
+Connection loss does not discard an open case. The app presents onboarded,
+standalone and demo contexts over the existing
+Active/Demo slots and local accounts. Changing context never merges or deletes
+records; standalone adoption remains explicit and PIN-confirmed. Standalone
+setup and later profile editing use the same complete profile fields and
+validation. Demo credentials remain separate from local profile information.
+
+Online coding uses the existing shared native queue/workspace and server
+authorization in both APK variants. A signed-in enrolled user must have coding
+access; the server continues to enforce project/site/unit scope and the rule
+against coding one's own collected cases outside self-coding projects.
+
+Local ICD-11/MMS/DORIS tools require Collect Plus and either a standalone
+self-coding account or **self-coding enabled and an active coder permission in
+the same project**. Direct-interview availability is unrelated. Demo accounts
+follow their demo project's access, not Active grants. Missing cached capability
+is treated as unavailable until refreshed. Losing eligibility hides new coding
+entry points and blocks direct routes without deleting drafts or results.
+The engine remains initialized only on entering eligible offline coding.
+
+Runtime gating can avoid engine RAM/startup cost; it cannot remove assets already
+bundled in a Plus APK. The lighter Collect package continues to exclude those
+assets. Optional delivery or a package migration is outside this change and
+WHO offline distribution remains experimental pending written licence approval.
+Standalone CSV/JSON exports and demo own-response downloads remain available;
+enrolled phones keep encrypted backup/restore without CSV export.
+
+
+## Account device limit and decommissioning (`digitva-65m5`)
+
+Owner 2026-10-28: one account may be signed in on at most **three distinct
+active devices**. Active means at least one unrevoked device session whose
+refresh expiry has not passed, on an unrevoked device. Web sessions do not
+consume app-device slots. Re-login on an existing phone replaces its old
+sessions without using another slot; refresh does not create a slot. The
+issuer locks the account while checking and adding a device session. A fourth
+phone receives an explicit `409 device_limit`; no device is silently evicted.
+This applies to password, sign-in QR and demo entry. A refused QR remains
+retryable and no unused device is created by the refusal.
+
+Users can list and decommission their own devices from Profile or an already
+signed-in app. A user blocked on phone four can use a normal web login to
+free a slot. Do not add a pre-authenticated device-management credential flow.
+Admins can manage any account. A data manager may act only when their existing
+writer scope covers all the target account's active native-device-role grants;
+partial shared-project access does not confer global device authority. Project
+PI alone is not sufficient for these management actions.
+
+Decommissioning ends that user's sessions on the selected device. It does not
+revoke the shared physical device, another person's sessions, server cases or
+interviews. The app receives a keep-data session-ended reason: encrypted local
+work remains available for safe sign-in/recovery and is never silently wiped.
+Every management action is audited without credentials or clinical payloads.

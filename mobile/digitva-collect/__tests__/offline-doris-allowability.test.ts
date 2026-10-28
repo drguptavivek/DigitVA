@@ -6,6 +6,7 @@ import pack from "../assets/icd11-allowability-2026-01.json";
 import { createAllowabilityIndex, type AllowabilityPack, type CodingContext } from "../src/coding/icd11Allowability";
 import type { OfflineCodingRow } from "../src/drafts";
 import type { EngineInit, EngineResult, OfflineEngine } from "../src/offlineEngine";
+import type { WorkflowTimelineEvent } from "../src/workflowTimeline";
 import { createOfflineDorisEditor, OfflineAllowabilityError, type OfflineCodingStore } from "../src/workspace/offlineDoris";
 import type { JsonObject } from "../src/workspace/contracts";
 
@@ -49,8 +50,8 @@ const body = (cause: string, extra: Record<string, unknown> = {}, warning?: stri
   ...extra,
 }) as JsonObject;
 
-function save(e: ReturnType<typeof createOfflineDorisEditor>, payload: JsonObject) {
-  return e.save({ clientDraftId: "d1", body: payload, reply: null, deviceUuid: "dev", coderProfileUpdatedAt: null });
+function save(e: ReturnType<typeof createOfflineDorisEditor>, payload: JsonObject, codingTimelineV1: WorkflowTimelineEvent[] = []) {
+  return e.save({ clientDraftId: "d1", body: payload, reply: null, deviceUuid: "dev", coderProfileUpdatedAt: null, codingTimelineV1 });
 }
 function editor(context: CodingContext, eng: OfflineEngine = engine(), store = memoryStore()) {
   return { store, editor: createOfflineDorisEditor(eng, store, { index, context, confirmedBy: "user-7" }) };
@@ -59,12 +60,20 @@ function editor(context: CodingContext, eng: OfflineEngine = engine(), store = m
 describe("offline save applies the allowability rules", () => {
   it("saves an allowed code and records the rules version and primary stem", async () => {
     const { editor: e, store } = editor({ ageGroup: "adult", sex: "male" });
-    const row = await save(e, body("1A00"));
+    const codingTimeline = [
+      { event: "coding_opened", at: "2026-10-28T09:00:00+05:30" },
+      { event: "doris_processed", at: "2026-10-28T09:05:00+05:30", elapsed_ms: 2500 },
+    ];
+    const row = await save(e, body("1A00"), codingTimeline);
     expect(row.status).toBe("coded");
-    expect(JSON.parse(row.provenance!)).toEqual({
-      allowability: { rules: index.version, release: "2026-01" },
-      antecedent: { code: "1A00", primary_stem: "1A00", release: "2026-01" },
-    });
+    const provenance = JSON.parse(row.provenance!);
+    expect(provenance.allowability).toEqual({ rules: index.version, release: "2026-01" });
+    expect(provenance.antecedent).toEqual({ code: "1A00", primary_stem: "1A00", release: "2026-01" });
+    expect(provenance.codingTimelineV1).toEqual([
+      ...codingTimeline,
+      { event: "initial_saved", at: row.updated_at },
+    ]);
+    expect(provenance.workflowTimelineV1).toEqual(provenance.codingTimelineV1);
     expect(store.rows.get("d1")).toEqual(row);
   });
 

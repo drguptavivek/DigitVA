@@ -3,6 +3,47 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-28
+
+- **Account deletion** (`digitva-et16`, `digitva-kdba`): demo users confirm
+  their password to delete their own account on the phone or website; staff
+  file a request, reviewed and marked handled on the admin Users page.
+  Security/sign-in audit records are retained. New endpoints and additive
+  migration `b4e7c2a9d6f3` preserve existing APK contracts.
+- **Google Play bundle preparation** (`digitva-6o4b`): Play builds hide hosted
+  APK updates, use a higher versionCode and a manual signed AAB artifact
+  workflow. This does not publish to Google Play or deploy a server.
+- **AI project/site matching** (`digitva-g72d`): the planner receives only
+  authorized project/site IDs and names so it can use exact identifiers.
+  Organization-unit metadata is excluded from this change.
+- **Unified app workflow** (`digitva-6rxf`): shared local profile and local/online
+  case navigation, with online coding in the app. Offline coding requires
+  self-coding and actual coder access in the same project. Engine startup is
+  deferred. Upload/editor leases, exact receipts and snapshot checks retain
+  work through retries and concurrent edits.
+- **Device controls** (`digitva-65m5`): three live devices per account without
+  silent eviction; self, admin and scoped data managers can decommission an
+  account/device pair while preserving encrypted unsent work.
+- **First-party diagnostics and timelines** (`digitva-yv2n`): enabled minimal
+  daily hardware/use/error aggregates, Settings off switch, own-server analytics
+  API, 90-day retention and small-cell suppression. Interview/coding timelines
+  stay in authorized row-level submission metadata. Native submissions save
+  locally before background upload with timeouts.
+- **Emulator development** (`digitva-a770`): Plus 0.3.12 debug APK installed on
+  arm64 emulator; HMR verified without restarting the app. Helper script keeps
+  existing app data and uses Metro port 8082. Releases retain Play AAB and APK
+  paths; release/privacy review information is prepared without publication.
+- **Worktree reconciliation** (`digitva-vks8`): all seven old worktree directories
+  retired; branch refs and verified private source archives/older phonefix APKs
+  retained (596 MB). Only the active main checkout remains.
+- **Validation:** full backend 6,750 passed, 6 skipped, 5,401 subtests with
+  two workers; mobile 207 suites / 3,025 tests and TypeScript passed; real
+  emulator HMR verified. The four-worker migration run exceeded PostgreSQL's
+  1 GB limit; resource follow-up is `digitva-07lz`. Final audit found no
+  material issues after fixes. Final bounded telemetry-reader/logger regression:
+  25 tests / 3 subtests passed; diagnostics payloads are not parsed by the request
+  logger. Large-backlog paging follow-up: `digitva-uf9j`.
+
 ## 2026-10-27
 
 - **Public demo live** at https://digitvademo.causeofdeathindia.com (image

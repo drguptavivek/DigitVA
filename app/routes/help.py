@@ -433,7 +433,15 @@ def page(slug):
     page_context = {}
     if slug == "mobile-app":
         page_context["mobile_app_url"] = valid_android_apk_url()
-        page_context["hosted_apk"] = hosted_android_apk()
+        page_context["hosted_apks"] = []
+        for variant in ("normal", "plus"):
+            name = hosted_android_apk(variant)
+            if name:
+                path = os.path.join(current_app.config["DIGITVA_ANDROID_APK_DIR"], name)
+                version = name.removeprefix("digitva-collect-plus-" if variant == "plus" else "digitva-collect-").removesuffix("-arm64-v8a.apk")
+                page_context["hosted_apks"].append({
+                    "variant": variant, "version": version, "size": os.path.getsize(path),
+                })
     elif slug == "kpis":
         from app.services import kpi_registry
 
@@ -459,6 +467,18 @@ def download_android():
     """The APK this server hosts (the pinned CI release asset), public like
     the mobile-app help page; 404 when the image pinned none."""
     name = hosted_android_apk()
+    if name is None:
+        abort(404)
+    folder = current_app.config["DIGITVA_ANDROID_APK_DIR"]
+    return send_file(os.path.join(folder, name), mimetype="application/vnd.android.package-archive",
+                     as_attachment=True, download_name=name, max_age=300)
+
+
+@help_bp.get("/download/android/plus")
+@limiter.limit("30 per minute")
+def download_android_plus():
+    """Serve the hosted Plus APK, or 404 when none is pinned."""
+    name = hosted_android_apk("plus")
     if name is None:
         abort(404)
     folder = current_app.config["DIGITVA_ANDROID_APK_DIR"]

@@ -816,8 +816,10 @@ the native engine and its WHO data together in the installed package. First
 setup, repair and normal startup must use those packaged files without remote
 code or WHO-data downloads. Updating the app supplies a new packaged version;
 the old separate "Update WHO files" action is disabled. Engine startup remains
-on demand, in its isolated process. This does not authorize public engine
-redistribution; the written-WHO-permission boundary still applies.
+on demand, in its isolated process. Later on 2026-10-28 the owner explicitly
+authorized public signed Collect and Collect Plus APKs (`digitva-hs7e.17`),
+overriding the earlier Plus publication hold. Written WHO redistribution
+confirmation remains pending; this owner decision is not WHO permission.
 
 The three operating boundaries apply to navigation, reference data, coding,
 lists, caches, recoding and receipts. Standalone is local-only and never syncs
@@ -900,15 +902,13 @@ case-workspace screens and carries the offline WHO ICD-11 / DORIS engine from th
 owner's private spike (`private/icd11-offline-spike`, never committed). It exists
 to profile coding on a phone (bead digitva-hs7e).
 
-- **Experimental, not for interviewers.** (Unchanged by Path C: a standalone
-  phone is an owner-controlled pilot phone, owner decision 2026-10-27,
-  `digitva-5bzf`.) It is never uploaded to `/download/android`,
-  never pinned in `docker-compose.yml`, and never handed to interviewers. Since the
-  2026-10-26 WHO-correspondence decision supersedes the earlier public-release
-  permission: no new public offline-engine publication until written WHO
-  confirmation. See `docs/policy/icd11-local-api-runtime.md`. Release builds
-  normally run on GitHub Actions; the owner permitted local phone-measurement
-  builds for the 2026-10-28 session only.
+- **Experimental offline engine.** The owner authorized public signed Collect
+  Plus and Collect APKs on 2026-10-28 (`digitva-hs7e.17`), superseding the earlier
+  no-public-Plus decision. Each variant has a separate package, download and
+  release record; ordinary Collect links never select Plus accidentally.
+  Download pages show version and actual file size. Keep the WHO notices and
+  pending written-confirmation caveat from `icd11-local-api-runtime.md`.
+  The owner permitted local release builds in this session.
 - It installs beside the plain app and shares nothing with it: another package,
   another encrypted store, another URL scheme (`digitvacollectplus`).
 - The plain build has no engine, engine assets or native engine module. Its

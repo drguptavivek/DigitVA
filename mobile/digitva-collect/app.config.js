@@ -65,8 +65,8 @@ function resolveAndroidVersionCode(env = process.env) {
 }
 
 // APP_VARIANT=development installs a debug build beside the release app.
-// APP_VARIANT=plus is "DigitVA Collect Plus": the experimental adb-only build that carries the offline ICD-11
-// engine (docs/policy/field-data-collection.md). It installs beside the release app and is never published.
+// APP_VARIANT=plus is "DigitVA Collect Plus": it carries the offline ICD-11 engine and is published as a separate app.
+// It installs beside normal Collect (docs/policy/field-data-collection.md).
 function resolveVariant(env = process.env) {
   return { isDev: env.APP_VARIANT === "development", isPlus: env.APP_VARIANT === "plus" };
 }

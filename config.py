@@ -470,7 +470,9 @@ class Config:
     )
     DIGITVA_ALLOW_TEST_SEED = os.environ.get("DIGITVA_ALLOW_TEST_SEED", "") == "1"
     # Credential-free HTTPS URL for the published Android APK, when one exists.
+    DIGITVA_BUILD_REVISION = os.environ.get("DIGITVA_BUILD_REVISION", "")
     DIGITVA_ANDROID_APK_URL = os.environ.get("DIGITVA_ANDROID_APK_URL", "").strip()
+    DIGITVA_PLUS_ANDROID_APK_TAG = os.environ.get("DIGITVA_PLUS_ANDROID_APK_TAG", "")
     # Folder holding the pinned APK the image downloaded (Dockerfile android_apk),
     # served at /download/android; empty or missing means none.
     DIGITVA_ANDROID_APK_DIR = os.environ.get("DIGITVA_ANDROID_APK_DIR", "/opt/digitva/android")

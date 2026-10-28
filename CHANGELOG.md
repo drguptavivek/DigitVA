@@ -5,6 +5,24 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-28
 
+- **Server compatibility and separate APK downloads** (`digitva-hs7e.18`, `.17`):
+  public API contract/deployed-build endpoint, manual Settings compatibility
+  check scoped to the selected server, separate Collect/Plus update and download
+  selection, and actual APK sizes on the download page. Unknown/offline checks
+  preserve work. Owner explicitly authorized public Plus alongside Collect;
+  written WHO redistribution confirmation remains pending. Local signed 0.3.13
+  APKs passed identity/signature and 16 KB checks; normal was installed without
+  clearing data. Current mobile: 232 suites/3,329 tests, types and web export pass.
+  Backend: 7,015 passed, one non-reproduced query-count failure, six skipped;
+  the entire 20-test paging file passed serial and two-worker reruns. Final
+  release API tests: eight passed, ten subtests. No coding-list path changed;
+  follow-up investigation retains the unexplained full-run failure.
+- **Staging deployment** (`digitva-hs7e.17`): deployed server
+  `3147fc3a43b8db0e504bd1e8f029395e9a30dab0` after the owner approved image run
+  `40679243131`. Verified S3 database backup, migration `b4e7c2a9d6f3` at head,
+  healthy app/WHO/DORIS services and public web manifest
+  `expo-web-v2026.10.28.1`. Existing public Collect 0.3.10 APK and unrelated
+  server settings were preserved. Rollback image: `c8b749f7b88a1a853dcd1e7e83d2070bb76624f4`.
 - **Staging web input** (`digitva-hs7e.17`): pin the matched
   `expo-web-v2026.10.28.1` export from `efe8bd636`, verified against its app and
   WHO questionnaire checksums. Release run `40678407080` passed all 3,322 mobile

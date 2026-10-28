@@ -20,6 +20,26 @@ Design of the device side (tables, sessions, uploads, cases):
 
 ## Credentials
 
+### Public release checks
+
+`GET /api/v1/app/version` requires no sign-in and returns
+`{"api_compatibility": 1, "build_revision": "<40-character deployed SHA>"}`.
+The revision is null when the running deployment has no valid build metadata.
+`Cache-Control: no-store` prevents an old compatibility result being reused.
+The production image overlay supplies the revision from `DIGITVA_IMAGE_TAG`.
+Native Settings compares the compatibility level, never exact source SHAs;
+an unavailable endpoint on an old/offline server is an unknown result. The
+check is manual, non-blocking, and absent in Standalone Mode.
+
+`GET /api/v1/app/android/latest` remains the normal Collect metadata endpoint;
+`?variant=plus` selects Collect Plus (`normal` is also accepted). Unknown
+variants return 400. Existing version/code/tag/asset/url/sha256 fields remain;
+`variant` and `size_bytes` are additive. Metadata comes from the same numerically
+newest, strictly named arm64 APK served by `/download/android` or
+`/download/android/plus`. `/help/mobile-app` lists both with actual file sizes.
+
+### Signed-in workflow APIs
+
 Shared collection and coding APIs accept the browser session cookie or
 `Authorization: Bearer <access token>` from device sign-in. A bearer request
 uses the token alone, ignores a cookie on the same request, and answers 401

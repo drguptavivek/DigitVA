@@ -1,12 +1,16 @@
-<p class="lead">Install DigitVA Collect on an Android device when an APK has been published for this environment.</p>
+<p class="lead">Download DigitVA for Android.</p>
+<p>Collect supports interviews and coding with the server. Collect Plus also
+  includes ICD-11, DORIS and SmartVA for coding on the phone without internet.</p>
 
-{% if mobile_app_url or hosted_apk %}
+{% if mobile_app_url or hosted_apks %}
   <div class="alert alert-success" role="status">
     <strong>Android app available.</strong> Download it from this server or from
     the GitHub releases page, where the signed APK is built and published.
   </div>
   <p class="d-flex flex-wrap gap-2">
-    {% if hosted_apk %}<a class="btn btn-primary" href="{{ url_for('help.download_android') }}">Download from this server ({{ hosted_apk }})</a>{% endif %}
+    {% for apk in hosted_apks %}
+      <a class="btn btn-primary" href="{{ url_for('help.download_android_plus' if apk.variant == 'plus' else 'help.download_android') }}">Download DigitVA Collect{% if apk.variant == 'plus' %} Plus{% endif %} {{ apk.version }} ({{ (apk.size / 1048576)|round(2) }} MiB; {{ apk.size }} bytes)</a>
+    {% endfor %}
     {% if mobile_app_url %}<a class="btn btn-outline-primary" href="{{ mobile_app_url }}" rel="noopener">GitHub releases page</a>{% endif %}
   </p>
 {% else %}

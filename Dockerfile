@@ -118,34 +118,44 @@ FROM python:3.13-slim AS android_apk
 ARG ANDROID_APK_TAG
 ARG ANDROID_APK_ASSET
 ARG ANDROID_APK_SHA256
-RUN TAG="$ANDROID_APK_TAG" ASSET="$ANDROID_APK_ASSET" SHA="$ANDROID_APK_SHA256" python - <<'PY'
+ARG PLUS_ANDROID_APK_TAG
+ARG PLUS_ANDROID_APK_ASSET
+ARG PLUS_ANDROID_APK_SHA256
+RUN TAG="$ANDROID_APK_TAG" ASSET="$ANDROID_APK_ASSET" SHA="$ANDROID_APK_SHA256" \
+    PLUS_TAG="$PLUS_ANDROID_APK_TAG" PLUS_ASSET="$PLUS_ANDROID_APK_ASSET" PLUS_SHA="$PLUS_ANDROID_APK_SHA256" python - <<'PY'
 import hashlib, os, re, sys, urllib.request
 
-tag, asset, sha = (os.environ.get(k, "") for k in ("TAG", "ASSET", "SHA"))
 target = "/opt/digitva/android"
 os.makedirs(target)
-if not (tag or asset or sha):
-    print("No Android APK pinned: /download/android answers 404.")
-    sys.exit(0)
-if not (tag and sha and re.fullmatch(r"[A-Za-z0-9._-]+\.apk", asset)):
-    sys.exit("ERROR: ANDROID_APK_TAG, ANDROID_APK_ASSET (*.apk) and ANDROID_APK_SHA256 go together")
-url = f"https://github.com/drguptavivek/DigitVA/releases/download/{tag}/{asset}"
-path = os.path.join(target, asset)
-for attempt in range(3):
-    try:
-        urllib.request.urlretrieve(url, path)
-        break
-    except OSError:
-        if attempt == 2:
-            raise
-digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
-if digest != sha:
-    sys.exit(f"ERROR: {asset} SHA-256 {digest} does not match the pin {sha}")
-print(f"{asset}: OK")
+for prefix in ("", "PLUS_"):
+    tag, asset, sha = (os.environ.get(prefix + k, "") for k in ("TAG", "ASSET", "SHA"))
+    if not (tag or asset or sha):
+        continue
+    asset_pattern = r"digitva-collect-" + ("plus-" if prefix else "") + r"[0-9]+\.[0-9]+\.[0-9]+-arm64-v8a\.apk"
+    if not (re.fullmatch(r"[A-Za-z0-9._-]+", tag) and
+            re.fullmatch(asset_pattern, asset) and
+            re.fullmatch(r"[0-9a-f]{64}", sha)):
+        sys.exit(f"ERROR: {prefix}ANDROID_APK tag, asset and SHA-256 must be valid together")
+    url = f"https://github.com/drguptavivek/DigitVA/releases/download/{tag}/{asset}"
+    path = os.path.join(target, asset)
+    for attempt in range(3):
+        try:
+            urllib.request.urlretrieve(url, path)
+            break
+        except OSError:
+            if attempt == 2:
+                raise
+    with open(path, "rb") as apk:
+        digest = hashlib.file_digest(apk, "sha256").hexdigest()
+    if digest != sha:
+        sys.exit(f"ERROR: {asset} SHA-256 {digest} does not match the pin {sha}")
+    print(f"{asset}: OK")
 PY
 
 # ---- Runtime: minimal image ----
 FROM python:3.13-slim AS runtime
+ARG PLUS_ANDROID_APK_TAG
+ENV DIGITVA_PLUS_ANDROID_APK_TAG=$PLUS_ANDROID_APK_TAG
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 

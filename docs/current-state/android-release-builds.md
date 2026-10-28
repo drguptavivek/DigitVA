@@ -8,6 +8,15 @@ last_updated: 2026-10-28
 
 # Android release builds
 
+Owner decision 2026-10-28 (`digitva-hs7e.17`): publish the latest signed
+Collect and Collect Plus APKs with separate metadata and download links,
+including actual file sizes. This explicitly overrides the earlier private
+Plus publication hold; written WHO redistribution confirmation is still
+pending and must not be implied. Local release builds are authorized in this
+session. The normal package remains the default download.
+Version 0.3.13 introduces the manual Settings server compatibility/build check
+(`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
+
 DigitVA Collect supports enrolment, sign-in, PIN, consent, death registration,
 interviews, drafts, attachments, sync, settings and online coding through the
 shared native workspace (`digitva-6rxf`). Collect Plus additionally carries the

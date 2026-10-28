@@ -15,7 +15,10 @@ x-server-image: &server-image
   pull_policy: missing
 
 services:
-  minerva_app_service: *server-image
+  minerva_app_service:
+    <<: *server-image
+    environment:
+      DIGITVA_BUILD_REVISION: ${DIGITVA_IMAGE_TAG:?set DIGITVA_IMAGE_TAG to the git sha of a server-images build}
   minerva_celery_worker: *server-image
   minerva_celery_beat: *server-image
   doris_public_service: *server-image

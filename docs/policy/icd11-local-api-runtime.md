@@ -86,12 +86,15 @@ endpoints directly, with no need to reproduce the desktop tools, and offered
 a technical call with WHO colleagues. The reply does not answer points 1-4,
 so it is not a written licence confirmation.
 
-Until WHO confirms 1 and 2 in writing:
+The correspondence does not establish written confirmation of points 1 and 2.
+The server architecture and follow-up remain:
 
 - Servers use the official `whoicd/icd-api` container. This is settled
   (owner 2026-10-26), not a stopgap: it is what WHO recommends.
 - The offline engines (desktop host, Collect Plus `.so` bundle) stay
-  experimental, and the engine bundle is not published as a public release
-  asset.
+  experimental. On 2026-10-28 the owner explicitly overrode the earlier public
+  publication hold for the latest signed Collect Plus APK, alongside Collect
+  (`digitva-hs7e.17`). Publish the app package with its notices; do not describe
+  that owner decision as WHO permission or separately publish the engine bundle.
 - After the call, ask WHO for one written line covering points 1 and 2 and
   record it here.

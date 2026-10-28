@@ -8,6 +8,7 @@ synchronously after the caller's commit, never through Celery.
 
 import logging
 import os
+import re
 from urllib.parse import urlparse
 
 from flask import current_app
@@ -36,16 +37,19 @@ def valid_android_apk_url() -> str | None:
     return value
 
 
-def hosted_android_apk() -> str | None:
-    """File name of the APK this server hosts (the image's pinned release
-    asset in ``DIGITVA_ANDROID_APK_DIR``), or None. One is expected; with
-    several the last by name wins."""
+def hosted_android_apk(variant: str = "normal") -> str | None:
+    """Return the newest named APK for the requested variant, or None."""
+    if variant not in ("normal", "plus"):
+        return None
+    prefix = "digitva-collect-plus-" if variant == "plus" else "digitva-collect-"
+    pattern = re.compile(re.escape(prefix) + r"(\d+)\.(\d+)\.(\d+)-arm64-v8a\.apk")
     folder = current_app.config.get("DIGITVA_ANDROID_APK_DIR") or ""
     try:
-        names = sorted(n for n in os.listdir(folder) if n.endswith(".apk"))
+        releases = [(tuple(map(int, match.groups())), name) for name in os.listdir(folder)
+                    if (match := pattern.fullmatch(name)) and os.path.isfile(os.path.join(folder, name))]
     except OSError:
         return None
-    return names[-1] if names else None
+    return max(releases)[1] if releases else None
 
 
 def newly_collecting_user_ids(changed_grants) -> list:

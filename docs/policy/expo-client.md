@@ -8,6 +8,28 @@ last_updated: 2026-10-28
 
 # Expo Web Client Boundary
 
+## Server compatibility and APK identity (2026-10-28)
+
+`GET /api/v1/app/version` is public and returns `api_compatibility: 1` and
+`build_revision` (a validated deployed commit SHA or null). The compatibility
+level changes only for an incompatible native API contract change, not for
+additive fields, bug fixes, web exports or documentation. The commit identifies
+the running deployment for diagnostics; matching an APK source SHA is not an
+access or compatibility requirement. Responses revalidate without caching.
+
+Native Settings compares the expected contract level to the selected enrolled
+or demo server. Compatible, mismatch and unavailable are visible diagnostics;
+they do not delete work or disable collection/sync. Offline or an old server
+without the endpoint means unavailable. Standalone performs no server check.
+
+Hosted APK metadata at `/api/v1/app/android/latest` keeps the normal Collect
+default and accepts only `variant=normal|plus`. Additive `variant` and
+`size_bytes` fields describe the actual selected file; separate download links
+and filename filtering prevent Plus from replacing normal Collect. The public
+download page shows both variants' version and file size. Update checks and
+GitHub fallback select only the installed package's variant. Play builds still
+use Play updates. Neither check installs an APK automatically.
+
 The first Expo client supports the DigitVA collection workflow in a browser
 and on native devices. The browser client is an online client. It uses the
 ordinary Flask login session and server-side web-intake drafts; it does not

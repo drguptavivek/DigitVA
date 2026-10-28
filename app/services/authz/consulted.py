@@ -60,6 +60,7 @@ PUBLIC_ENDPOINTS = {
     "api_v1.ui_strings_api.ui_string_overrides": "Public UI string corrections (the sign-in "
                                           "screen is translated too); reference text "
                                           "only, no personal data (ui-strings.md).",
+    "api_v1.app_release_api.server_version": "Public server compatibility and build revision; no user data.",
     "api_v1.app_release_api.android_latest": "Public app-update check: version and download "
                                              "link, no user data.",
     "health.health_check": "Liveness probe; must answer before login.",
@@ -102,6 +103,7 @@ PUBLIC_ENDPOINTS = {
     "help.index": "Public help index; pages filtered per user in the body.",
     "help.page": "Public help page; role-restricted pages abort 403 in the body.",
     "help.download_android": "The pinned Android APK; installed before an account exists.",
+    "help.download_android_plus": "The pinned Plus APK; installed before an account exists.",
     "help.docs_index": "Index of the curated, published engineering docs.",
     "help.doc_page": "One curated published doc; slug must be a registry key.",
     "help.va_code_mappings": "Published ICD-to-VA-cause reference data.",

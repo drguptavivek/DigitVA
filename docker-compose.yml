@@ -11,6 +11,9 @@
 # (android-v<version>), downloaded and verified into /opt/digitva/android and
 # served at /download/android beside the GitHub releases link. Empty = none.
 x-release-pins: &release-pins
+  PLUS_ANDROID_APK_TAG: ""
+  PLUS_ANDROID_APK_ASSET: ""
+  PLUS_ANDROID_APK_SHA256: ""
   ANDROID_APK_TAG: "android-v0.3.6"
   ANDROID_APK_ASSET: "digitva-collect-0.3.6-arm64-v8a.apk"
   ANDROID_APK_SHA256: "8d04d4258f218f4914696adcafc1454e80bf2e52589de484b5ec5ca13aa8fb4c"

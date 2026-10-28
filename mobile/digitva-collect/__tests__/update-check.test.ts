@@ -5,11 +5,15 @@ jest.mock("../src/preferences", () => ({
   setUiPreference: async (key: string, value: string) => { mockPrefs[key] = value; },
 }));
 jest.mock("../src/appVersion", () => ({ APP_VERSION: "0.3.2" }));
+let mockPlusVariant = false;
+jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlusVariant }));
 
-import { checkForUpdate, checkForUpdateDaily, GITHUB_RELEASES_URL, versionCode } from "../src/updateCheck";
+import { checkForUpdate, checkForUpdateDaily, checkServerCompatibility, GITHUB_RELEASES_URL, versionCode } from "../src/updateCheck";
 
 const SERVER = "https://va.example.org/";
 const SERVER_URL = "https://va.example.org/api/v1/app/android/latest";
+const SERVER_PLUS_URL = `${SERVER_URL}?variant=plus`;
+const COMPAT_URL = "https://va.example.org/api/v1/app/version";
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 const fail = { ok: false, status: 404, json: async () => ({}) };
 const serverReply = (version: string) => ok({ version, version_code: versionCode(version), url: "https://va.example.org/download/android" });
@@ -28,6 +32,7 @@ const fetchMock = jest.fn(async (url: string) => {
 });
 
 beforeEach(() => {
+  mockPlusVariant = false;
   for (const key of Object.keys(mockPrefs)) delete mockPrefs[key];
   routes = {};
   fetchMock.mockClear();
@@ -35,7 +40,7 @@ beforeEach(() => {
 });
 
 test("version code is the server's base code", () => {
-  expect([versionCode("0.3.2"), versionCode("1.12.30"), versionCode("0.3"), versionCode("x")]).toEqual([302, 11230, null, null]);
+  expect([versionCode("0.3.2"), versionCode("1.12.30"), versionCode("0.3.2-plus"), versionCode("0.3"), versionCode("x")]).toEqual([302, 11230, 302, null, null]);
 });
 
 test("a newer server release is reported with the server's download url", async () => {
@@ -95,4 +100,50 @@ test("the start-up check runs once a day and is retried after an unreachable try
 test("a non-https download link is never offered", async () => {
   routes[SERVER_URL] = ok({ version: "0.4.0", version_code: 400, url: "intent://evil#Intent;end" });
   expect(await checkForUpdate(SERVER)).toEqual({ status: "unknown" });
+});
+
+test("Plus asks only for Plus metadata and reports a newer Plus build", async () => {
+  mockPlusVariant = true;
+  routes[SERVER_PLUS_URL] = ok({ version: "0.3.3", version_code: 303, variant: "plus", url: "https://va.example.org/download/android/plus" });
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "available", version: "0.3.3", url: "https://va.example.org/download/android/plus" });
+  expect(fetchMock).toHaveBeenCalledWith(SERVER_PLUS_URL, expect.anything());
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("GitHub fallback filters releases and assets by installed variant", async () => {
+  routes[GITHUB_RELEASES_URL] = ok([
+    { ...release("android-v0.3.2"), assets: [
+      { name: "digitva-collect-0.3.2-arm64-v8a.apk", browser_download_url: "https://gh/normal.apk" },
+      { name: "digitva-collect-plus-0.3.2-arm64-v8a.apk", browser_download_url: "https://gh/wrong.apk" },
+    ] },
+    { ...release("collect-plus-v0.3.2-plus.3", { prerelease: true }), assets: [{ name: "digitva-collect-plus-arm64.apk", browser_download_url: "https://gh/plus.apk" }] },
+  ]);
+  routes[SERVER_URL] = new Error("offline");
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "current" });
+  mockPlusVariant = true;
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "current" });
+});
+
+test("Plus rejects legacy normal metadata when the server ignores its variant query and falls back to Plus GitHub", async () => {
+  mockPlusVariant = true;
+  routes[SERVER_PLUS_URL] = serverReply("0.9.0");
+  routes[GITHUB_RELEASES_URL] = ok([
+    { ...release("android-v0.9.0"), assets: [{ name: "digitva-collect-0.9.0-arm64-v8a.apk", browser_download_url: "https://gh/normal.apk" }] },
+    { ...release("collect-plus-v0.3.3-plus.1", { prerelease: true }), assets: [{ name: "digitva-collect-plus-0.3.3-arm64-v8a.apk", browser_download_url: "https://gh/plus.apk" }] },
+  ]);
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "available", version: "0.3.3-plus.1", url: "https://gh/plus.apk" });
+  expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([SERVER_PLUS_URL, GITHUB_RELEASES_URL]);
+});
+
+test("server compatibility validates contract and SHA but does not compare the SHA", async () => {
+  routes[COMPAT_URL] = ok({ api_compatibility: 1, build_revision: "b".repeat(40) });
+  expect(await checkServerCompatibility(SERVER)).toEqual({ status: "compatible", buildRevision: "b".repeat(40) });
+  routes[COMPAT_URL] = ok({ api_compatibility: 2, build_revision: null });
+  expect(await checkServerCompatibility(SERVER)).toEqual({ status: "mismatch", buildRevision: null });
+  routes[COMPAT_URL] = ok({ api_compatibility: 1, build_revision: "short" });
+  expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
+  routes[COMPAT_URL] = fail;
+  expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
+  routes[COMPAT_URL] = new Error("offline");
+  expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
 });

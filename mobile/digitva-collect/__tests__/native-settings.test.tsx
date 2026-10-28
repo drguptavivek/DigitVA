@@ -1,6 +1,7 @@
 /** Native Settings: its sections, the enrolled server (read-only, changed only by re-enrolling), and the actions each section keeps. */
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import type { UpdateResult } from "../src/updateCheck";
 
 const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
@@ -52,8 +53,9 @@ jest.mock("../src/errorExport", () => ({ exportErrors: () => mockExport() }));
 let mockPlay = false;
 let mockPlus = false;
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus, isPlayDistribution: () => mockPlay }));
-const mockCheckForUpdate = jest.fn(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
-jest.mock("../src/updateCheck", () => ({ checkForUpdate: (server?: string) => mockCheckForUpdate(server) }));
+const mockCheckForUpdate = jest.fn<Promise<UpdateResult>, [server?: string]>(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
+const mockCheckServerCompatibility = jest.fn(async (_server: string) => ({ status: "compatible", buildRevision: "abcdef0123456789abcdef0123456789abcdef01" }));
+jest.mock("../src/updateCheck", () => ({ checkForUpdate: (server?: string) => mockCheckForUpdate(server), checkServerCompatibility: (server: string) => mockCheckServerCompatibility(server) }));
 const mockOpenURL = jest.fn(async (_url: string) => undefined);
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 const mockDeleteDemo = jest.fn(async (_userId: string, _password: string) => undefined);
@@ -149,6 +151,8 @@ beforeEach(() => {
   mockDecommissionMyDevice.mockReset();
   mockDecommissionMyDevice.mockImplementation(async (_userId: string, deviceId: string) => ({ decommissioned: true, sessions_ended: 1, current: deviceId === mockDevices[0].device_id }));
   mockRefreshAccessSummary.mockClear();
+  mockCheckForUpdate.mockClear();
+  mockCheckServerCompatibility.mockClear();
 });
 
 it("is titled Settings and shows every section", async () => {
@@ -161,6 +165,55 @@ it("is titled Settings and shows every section", async () => {
   expect(text).toContain("2 ready to send from this phone");
   expect(text).toContain("The app locks after 5 minutes without use.");
   expect(text).toContain("Version ");
+});
+
+it("manually checks compatibility against the selected server and displays a short build revision", async () => {
+  const tree = await render();
+  expect(out(tree)).toContain(en.serverCompatibilityUnknown);
+  await pressLabel(tree, en.serverCompatibilityCheck);
+  expect(mockCheckServerCompatibility).toHaveBeenCalledWith(shell.server);
+  expect(out(tree)).toContain(en.serverCompatibilityCompatible);
+  expect(out(tree)).toContain("Server build abcdef01");
+});
+
+it("does not apply a compatibility result after the selected server changes", async () => {
+  let resolveCheck!: (result: { status: "compatible"; buildRevision: string }) => void;
+  const pending = new Promise<{ status: "compatible"; buildRevision: string }>((resolve) => { resolveCheck = resolve; });
+  mockCheckServerCompatibility.mockImplementationOnce(() => pending);
+  const tree = await render();
+  const button = tree.root.findAll((node) => node.props.accessibilityLabel === en.serverCompatibilityCheck)[0];
+  await act(async () => { void button.props.onPress(); await Promise.resolve(); });
+  expect(mockCheckServerCompatibility).toHaveBeenCalledWith("https://digitvav3.causeofdeathindia.com");
+  shell.server = "https://demo.example.org";
+  await act(async () => { tree.update(<ShellContext.Provider value={shell}><NativeSettings /></ShellContext.Provider>); });
+  resolveCheck({ status: "compatible", buildRevision: "abcdef0123456789abcdef0123456789abcdef01" });
+  await act(async () => { await pending; });
+  expect(out(tree)).toContain(en.serverCompatibilityUnknown);
+  expect(out(tree)).not.toContain("abcdef01");
+});
+
+it("clears a pending update check when the selected server changes", async () => {
+  let resolveOldCheck!: (result: UpdateResult) => void;
+  const pending = new Promise<UpdateResult>((resolve) => { resolveOldCheck = resolve; });
+  mockCheckForUpdate.mockImplementationOnce(() => pending);
+  mockCheckForUpdate.mockResolvedValueOnce({ status: "current" });
+  const tree = await render();
+  const button = tree.root.findAll((node) => node.props.accessibilityLabel === en.updateCheck)[0];
+  await act(async () => { void button.props.onPress(); await Promise.resolve(); });
+  expect(button.props.disabled).toBe(true);
+
+  shell.server = "https://demo.example.org";
+  await act(async () => { tree.update(<ShellContext.Provider value={shell}><NativeSettings /></ShellContext.Provider>); });
+  const nextButton = tree.root.findAll((node) => node.props.accessibilityLabel === en.updateCheck)[0];
+  expect(nextButton.props.disabled).toBe(false);
+  await pressLabel(tree, en.updateCheck);
+  expect(mockCheckForUpdate).toHaveBeenLastCalledWith("https://demo.example.org");
+  expect(out(tree)).toContain(en.updateCurrent);
+
+  resolveOldCheck({ status: "available", version: "stale", url: "https://example.org/old.apk" });
+  await act(async () => { await pending; });
+  expect(out(tree)).toContain(en.updateCurrent);
+  expect(out(tree)).not.toContain("stale");
 });
 
 it("keeps the Active or demo switcher out of standalone Settings", async () => {
@@ -261,6 +314,7 @@ it.each(["standalone", "unrecognized account"])("ignores retained enrolment for 
     expect(mockRefreshAccessSummary).not.toHaveBeenCalled();
     expect(mockListMyDevices).not.toHaveBeenCalled();
     expect(mockCheckForUpdate).not.toHaveBeenCalled();
+    expect(mockCheckServerCompatibility).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();
   } finally {
     delete mockAccounts[0].standalone;
@@ -279,6 +333,7 @@ it("standalone Play build keeps the explicit store listing without hosted update
     await pressLabel(tree, en.updateCheck);
     expect(open).toHaveBeenCalledWith("market://details?id=com.causeofdeathindia.digitvacollect");
     expect(mockCheckForUpdate).not.toHaveBeenCalled();
+    expect(mockCheckServerCompatibility).not.toHaveBeenCalled();
   } finally {
     delete mockAccounts[0].standalone;
     open.mockRestore();

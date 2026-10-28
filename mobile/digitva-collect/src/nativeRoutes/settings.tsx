@@ -8,7 +8,7 @@
  * Server controls belong only to the selected server account; standalone ignores retained enrolment.
  */
 import { useRouter } from "expo-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Constants from "expo-constants";
 import { canUseBiometricAuthentication } from "expo-secure-store";
 import { Alert, Linking, Switch, Text, TextInput, View } from "react-native";
@@ -30,7 +30,7 @@ import { t, UI_LOCALES } from "../i18n";
 import { clock, useShell } from "../nativeShell/shellContext";
 import { confirmReEnrol, reEnrolDevice } from "../reEnrolConfirm";
 import { useToast } from "../toast";
-import { checkForUpdate, type UpdateResult } from "../updateCheck";
+import { checkForUpdate, checkServerCompatibility, type CompatibilityResult, type UpdateResult } from "../updateCheck";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { CodingCaseChips } from "../ui/CodingCaseChips";
 import { TelemetrySettings } from "../TelemetrySettings";
@@ -61,7 +61,10 @@ export default function NativeSettings() {
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [checkingCompatibility, setCheckingCompatibility] = useState(false);
   const [update, setUpdate] = useState<UpdateResult>();
+  const [compatibility, setCompatibility] = useState<CompatibilityResult>();
+  const serverGeneration = useRef(0);
   const [devicePermissions, setDevicePermissions] = useState<Record<DevicePermissionName, DevicePermissionState>>();
   const [accessSummary, setAccessSummary] = useState<AccessSummary>();
   const [permissionsBusy, setPermissionsBusy] = useState(false);
@@ -120,7 +123,11 @@ export default function NativeSettings() {
     return () => { active = false; };
   }, [shell.server, account?.user_id, account?.needs_sign_in]);
   useEffect(() => {
+    serverGeneration.current += 1;
     setUpdate(undefined);
+    setCompatibility(undefined);
+    setChecking(false);
+    setCheckingCompatibility(false);
     setAccessSummary(undefined);
   }, [shell.server]);
   useEffect(() => {
@@ -232,11 +239,26 @@ export default function NativeSettings() {
   }
   async function checkNow() {
     if (!shell.server) return;
+    const server = shell.server;
+    const generation = serverGeneration.current;
     setChecking(true);
     try {
-      setUpdate(await checkForUpdate(shell.server));
+      const result = await checkForUpdate(server);
+      if (generation === serverGeneration.current && shell.server === server) setUpdate(result);
     } finally {
-      setChecking(false);
+      if (generation === serverGeneration.current) setChecking(false);
+    }
+  }
+  async function checkCompatibilityNow() {
+    if (!shell.server) return;
+    const server = shell.server;
+    const generation = serverGeneration.current;
+    setCheckingCompatibility(true);
+    try {
+      const result = await checkServerCompatibility(server);
+      if (generation === serverGeneration.current && shell.server === server) setCompatibility(result);
+    } finally {
+      if (generation === serverGeneration.current) setCheckingCompatibility(false);
     }
   }
   async function openPlayListing() {
@@ -635,6 +657,13 @@ export default function NativeSettings() {
       </Section>
       <Section title={t("settingsAbout")}>
         <Text style={styles.text}>{t("appVersionLabel", { version: APP_VERSION })}</Text>
+        {shell.server ? (
+          <>
+            <Text style={styles.muted}>{t("serverCompatibilityLabel")}: {compatibility?.status === "compatible" ? t("serverCompatibilityCompatible") : compatibility?.status === "mismatch" ? t("serverCompatibilityMismatch") : t("serverCompatibilityUnknown")}</Text>
+            {compatibility?.status !== "unknown" && compatibility?.buildRevision ? <Text style={styles.muted}>{t("serverBuildRevision", { revision: compatibility.buildRevision.slice(0, 8) })}</Text> : null}
+            <Button kind="secondary" label={t("serverCompatibilityCheck")} loading={checkingCompatibility} disabled={checkingCompatibility} onPress={() => void checkCompatibilityNow()} />
+          </>
+        ) : null}
         <Button kind="secondary" label={t("openSourceLicensesTitle")} onPress={() => router.push("/open-source-licenses")} />
         {isPlayDistribution() ? (
           // Play's Device and Network Abuse policy forbids updating outside Play; send users to this build's listing.

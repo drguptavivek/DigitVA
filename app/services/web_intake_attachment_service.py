@@ -176,7 +176,19 @@ def store_upload(
     """
     # Lazy: public_demo_service imports case_transition_service, which this
     # module imports too, so a top-level import is a cycle.
-    from app.services import public_demo_service
+    from app.services import consent_service, public_demo_service, web_intake_service
+
+    # Hold the same case/draft locks as a consent decision until the upload commits.
+    if draft.death_id:
+        cases.lock_case(db.session.get(VaDeathRegister, draft.death_id))
+    draft = db.session.get(VaWebIntakeDraft, draft.draft_id, with_for_update=True, populate_existing=True)
+    if draft.status != "draft":
+        raise WebIntakeError("This draft is no longer editable.", 409)
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    if consent_service.interview_refused(
+        death=death, client_draft_id=draft.client_draft_id, answers=web_intake_service._answers_of(draft),
+    ):
+        raise WebIntakeError("Consent was refused; attachments cannot be uploaded.", 422, "consent_refused")
 
     max_bytes, max_files = MAX_BYTES, MAX_PER_DRAFT
     demo = public_demo_service.attachment_limits(draft.project_id)

@@ -1,4 +1,11 @@
 /** A surviving Keystore secret with no database file must not unlock an empty store (digitva-jish). */
+const mockSecure = new Map<string, string>();
+jest.mock("expo-secure-store", () => ({
+  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+  getItemAsync: jest.fn(async (key: string) => mockSecure.get(key) ?? null),
+  setItemAsync: jest.fn(async (key: string, value: string) => void mockSecure.set(key, value)),
+  deleteItemAsync: jest.fn(async (key: string) => void mockSecure.delete(key)),
+}));
 jest.mock("expo-file-system", () => {
   const exists = jest.fn();
   return { __exists: exists, File: function File(this: any, dir: string, name: string) { Object.defineProperty(this, "exists", { get: () => exists(dir, name) }); } };
@@ -30,7 +37,11 @@ import { isUnlocked, resetMissingStore, unlockInterviewerDb } from "../src/inter
 import { isStorageFull } from "../src/storageErrors";
 
 describe("missing database file", () => {
-  beforeEach(() => { jest.clearAllMocks(); });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSecure.clear();
+    mockSecure.set("accounts", JSON.stringify([{ user_id: "u1", name: "User" }]));
+  });
 
   it("reports storeMissing without opening, counting an attempt or unlocking", async () => {
     mockExists.mockReturnValue(false);

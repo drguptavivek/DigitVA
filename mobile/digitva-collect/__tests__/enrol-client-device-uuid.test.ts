@@ -14,7 +14,7 @@ jest.mock("../src/api", () => ({
   requestJson: (...args: unknown[]) => mockRequestJson(...args),
 }));
 
-import { enrolDevice, redeemSignInQr } from "../src/auth";
+import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr } from "../src/auth";
 
 const UUID = "3f8c1a52-7d0e-4b6a-9c11-2e5d8f0a7b34";
 const reply = {
@@ -45,16 +45,24 @@ describe("Plus build", () => {
     await redeemSignInQr("https://s.example", "tok", "Pixel", "1.0.0").catch(() => undefined);
     expect(sentBody().client_device_uuid).toBe(UUID);
   });
+
+  it("sends the device UUID on manual enrollment", async () => {
+    await passwordEnrolAndSignIn("https://digitva.causeofdeathindia.com", "asha@example.org", "pw", "Pixel", "1.0.0").catch(() => undefined);
+    expect(sentBody().client_device_uuid).toBe(UUID);
+  });
 });
 
 describe("plain build", () => {
   beforeEach(() => mockIdentity.mockResolvedValue(null));
 
-  it("omits the field on both requests", async () => {
+  it("omits the field on QR and manual requests", async () => {
     await enrolDevice("https://s.example", "code", "Pixel", "1.0.0");
     expect(sentBody()).not.toHaveProperty("client_device_uuid");
     mockRequestJson.mockClear();
     await redeemSignInQr("https://s.example", "tok", "Pixel", "1.0.0").catch(() => undefined);
+    expect(sentBody()).not.toHaveProperty("client_device_uuid");
+    mockRequestJson.mockClear();
+    await passwordEnrolAndSignIn("https://digitva.causeofdeathindia.com", "asha@example.org", "pw", "Pixel", "1.0.0").catch(() => undefined);
     expect(sentBody()).not.toHaveProperty("client_device_uuid");
   });
 });

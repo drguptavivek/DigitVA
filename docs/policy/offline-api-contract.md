@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Offline API Contract v1
@@ -457,6 +457,38 @@ Settings decide it (below, "Station Settings").
   advisory), so a receipt names it applied only after that run.
 
 ## 5. Consent
+
+### Refusal boundary (owner 2026-10-28; implementation pending)
+
+Either WHO `Id10013 = no` or a refused respondent data protection decision
+stops the interview in every mode. These decisions are independent: a data
+protection refusal does not create or change the WHO answer. A refusal holds
+only `Id10013` if actually answered, `refusal_age_group` (`neonate`, `child`,
+`15_49y`, `50_64y`, `65_plus`, `unknown`), `refusal_sex` (`male`, `female`,
+`unknown`) and essential consent and system audit metadata. It holds no names,
+identifiers, exact demographics, clinical answers, narratives, visit notes,
+attachments or coding. New registration and prefill must not collect these
+items under refusal. Previously lawfully finalised submissions are unchanged;
+withdrawal is a separate process. Explicit later grants can resume the same
+unsent draft, with removed answers still empty.
+
+The intended server contract returns 422 `consent_refused` for a refusal
+submission containing forbidden answers or offline coding and for attachment
+uploads after refusal; clients must not retry unchanged. Draft sync sanitises to
+the permitted fields or rejects without discarding the client's local draft.
+After either refusal, a later explicit grant does not restore prior answers.
+The first resumed browser PATCH carries `resume_refused: true` and the current
+`if_updated_at`; phone draft sync or final submission carries
+`resume_refused: true` and the current `base_updated_at`. Subsequent saves
+include a server draft version at or after the refusal barrier; stale or
+unversioned submissions receive 409 `refusal_stale`. When the caller owns the located server draft, that response carries `draft_id`; fetch it for the current sanitized contents and version. For a shared case the refusing draft holds further writes across open attempts. Other interviewers’ earlier lawful draft data is preserved; after the holding draft receives a fresh grant, each other attempt requires its own explicit current-version resume. A hold on a submitted refusal remains until an authorized resolution exists.
+Bundle ingest applies the same boundary. A refusal for an already submitted
+attempt, or a case-level refusal while unsent attempts are open, is rejected;
+a matching accepted refusal replay is a duplicate.
+The server must enforce the boundary even for old clients, including retries. This
+owner decision supersedes the older covered-fields-only refusal descriptions
+below; until implemented those descriptions document the old behaviour only.
+
 
 ### 5.1 Where consent is taken
 
@@ -1023,8 +1055,10 @@ private key, or decide anything section 1 gives the central server.
 
 ## 17. Standalone push (Collect Plus Path C; owner decision 2026-10-27, `digitva-5bzf`)
 
-Status: `server implemented (digitva-5bzf.6, server half of digitva-5bzf.9;
-uncommitted); app push implemented (digitva-5bzf.7, uncommitted)`. The arrangement is
+Status: server import remains implemented for older APK compatibility. The
+2026-10-28 app's standalone mode is strictly local-only and exposes no adoption
+or upload action. Enrolled/Demo offline coding uses the same receipt contract
+without adopting standalone records. The earlier arrangement is
 [Field Data Collection](field-data-collection.md) "Path C". It is **not** the
 station sandbox of 4.1 and 10: a station sandbox is never ingestable, whereas a
 Path C phone's records are accepted once the phone is enrolled, on the rules
@@ -1089,13 +1123,19 @@ pushes are safe.
 
 | Push | Result |
 | --- | --- |
-| Same device, same draft id, same `answers_sha256` | 200, the first result; nothing written again (the coding too); `offline_coding` reports the held coding's status |
+| Same device, same draft id, same `answers_sha256` and exact coding digest | 200, the existing result; `offline_coding` reports that coding's status and digest |
+| Same answers, changed coding while pending | current policy is checked and the pending snapshot replaced; the reply identifies the new coding digest |
+| Changed coding after an applied or refused terminal snapshot | 409 `coding_conflict`; terminal history is preserved and the phone keeps its revision |
 | Same device, same draft id, different hash | the existing later-version-wins rule of 3.6, and history-only once coding is finished (`kept: server`, `locked: true`, [Interview Revisions](interview-revisions.md)). A coding still `pending` for the earlier answers is replaced by this push's coding when it codes the answers now kept, else refused `coded_version_superseded` at once |
 | Same draft id, **different** device (a backup restored on a second phone) | 409 `conflict`, never a new case |
 | `offline_coding.coded_answers_sha256` not equal to the interview's `answers_sha256` (the coding is stale) | the interview is accepted, the coding is **not** applied (`refused`, `coded_version_superseded`), the case enters the normal coding queue |
 
 **Reply.** The 3.6 reply plus, when `offline_coding` was sent,
-`offline_coding: {status, code}`:
+`offline_coding: {status, code, coding_sha256}`. The digest covers the complete
+validated submitted JSON value before normalization, using the shared tagged
+JSON/IEEE-754 representation described in
+[DORIS COD Workflow](../current-state/doris-cod-workflow.md). Older clients can
+ignore the additive reply field; the server computes it without a new request key.
 
 | `status` | `code` | Meaning |
 | --- | --- | --- |
@@ -1108,9 +1148,12 @@ pushes are safe.
 | `refused` | an allocation code (`forbidden`, ...) | the import could not take the coder's allocation (scope, language, coding gates) |
 
 `pending` is an acknowledgement of receipt: the phone may delete the
-interview and its coding row together on a 2xx with `offline_coding` present,
-whatever the status. Every refusal leaves the interview in the normal coding
-queue.
+interview and its coding row together only after both the matching interview
+receipt and the exact matching coding digest. A missing, malformed or different
+coding digest keeps local work as `invalid_upload_ack`. A terminal refusal
+notice must be saved in SQLCipher before acknowledged work is deleted. Pending
+means received, not applied. Refused coding follows the server's normal queue
+rules.
 
 **Provenance stored (owner decision 2026-10-27, `digitva-5bzf`).** On the
 interview's draft meta (`standalone`): the device UUID claim, the profile

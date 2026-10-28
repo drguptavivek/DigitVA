@@ -3,10 +3,49 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # DORIS COD Workflow
+
+## Native coding receipts and reference data
+
+Offline uploads return a `coding_sha256` identifying the complete submitted
+coding JSON value. The canonical digest uses a tagged JSON value tree: object
+keys sorted by Unicode code point, ASCII escaping, finite IEEE-754 numbers
+encoded as big-endian bytes, and negative zero treated as zero. Shared Python
+and TypeScript vectors cover Unicode, missing values and numeric formatting.
+Only a matching coding digest together with the interview receipt permits
+local deletion; a refused coding outcome is saved in SQLCipher first.
+Different pending coding replaces the hold after current checks. A changed
+terminal coding returns `409 coding_conflict` and retains the local revision.
+
+Coder saves and allocation changes lock the submission before checking current
+ownership and workflow state. This prevents a save waiting behind release or
+timeout from using the former coder's allocation after reassignment.
+
+Collect Plus bundles the generated ICD-11 to VA reference from
+`scripts/export_offline_va_definitions.py`: release-specific active mappings,
+active VA definitions and WHO hierarchy, with exact-before-nearest-ancestor
+selection. The current asset contains 11,905 ICD-11 lookups and 63 definitions
+(257,807 bytes). Native codeinfo supplies a cluster's causing primary stem;
+the existing code-details sheet displays the associated VA definition with
+DigitVA attribution. Inactive schemes and nodes are excluded on server and
+phone. The reference is updated with the installed app.
+
+The server access summary explicitly projects whether local coding supports
+the project's mode/classification. New clients require self-coding, an active
+coder grant, `unmasked_doris` and ICD-11. Missing projection fails closed;
+online coding retains its existing authorization.
+
+Native My coded cases pages are cached in the account's SQLCipher database,
+bounded to ten pages and 500 cases. Only masked identifiers and rendered
+status/date metadata are retained. The scope includes mode, exact origin,
+account, project and a SHA-256 of the last validated access projection; changed
+access cannot reuse a wider saved list. Network failure can show saved pages
+with their fetch time, with all case actions removed. Authentication,
+permission and malformed-response errors do not fall back. Successful coding
+writes and acknowledged coding uploads invalidate the reconstructible cache.
 
 ## Project setting and storage
 

@@ -8,6 +8,7 @@ import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import type { ResolvedInstrument } from "../formDefinitionRuntime";
 import type { ProjectSettings } from "../sync";
 import { STANDALONE_DEFAULT_EXTENSIONS } from "./config";
+import { STANDALONE_QUESTIONNAIRE_LOCALES, standaloneTranslationVersion } from "./translations";
 
 export const STANDALONE_ID_PREFIX = "standalone-";
 export const STANDALONE_SITE_ID = "standalone";
@@ -26,8 +27,9 @@ export function standaloneProject(projectId: string): ProjectSettings {
     form_options: {
       enabled_extensions: [...STANDALONE_DEFAULT_EXTENSIONS],
       form_types: [{ instrument_code: "WHO_2022_VA", is_default: true }],
-      available_locales: [{ code: "en", label: "English" }],
+      available_locales: STANDALONE_QUESTIONNAIRE_LOCALES,
       default_locale: "en",
+      translation_versions: { hi: standaloneTranslationVersion("hi") ?? 0 },
     },
     prefill_policy: {} as ProjectSettings["prefill_policy"],
   };

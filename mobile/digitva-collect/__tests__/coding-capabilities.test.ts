@@ -1,11 +1,18 @@
 import { canUseOfflineCoding, offlineCodingProjectIds } from "../src/codingCapabilities";
 import type { AccessSummary } from "../src/api";
 
-const project = (projectId: string, enabled: boolean, grant: Partial<AccessSummary["projects"][number]["grants"][number]> = {}) => ({
+const project = (
+  projectId: string,
+  enabled: boolean,
+  grant: Partial<AccessSummary["projects"][number]["grants"][number]> = {},
+  offlineCoding: Partial<NonNullable<NonNullable<AccessSummary["projects"][number]["self_coding"]>["offline_coding"]>> = {},
+) => ({
   project_id: projectId,
   project_name: projectId,
   has_tree: false,
-  self_coding: { enabled },
+  self_coding: { enabled, offline_coding: {
+    enabled: true, project_mode: "unmasked_doris", icd_classification: "icd11", ...offlineCoding,
+  } },
   grants: [{ role: "coder", scope: "project", active: true, source: "assigned" as const, codes: true, ...grant }],
   sites: [],
   actions: { interview: [], register_death: [] },
@@ -25,6 +32,21 @@ describe("offline coding capability", () => {
     expect(offlineCodingProjectIds(access(project("cross", false), project("self", true, { codes: false })))).toEqual([]);
     expect(offlineCodingProjectIds(access(project("inactive", true, { active: false })))).toEqual([]);
     expect(offlineCodingProjectIds(access(project("tester", true, { role: "coding_tester" })))).toEqual([]);
+  });
+
+  it("allows only explicitly supported unmasked ICD-11 projects", () => {
+    expect(offlineCodingProjectIds(access(project("eligible", true)))).toEqual(["eligible"]);
+    expect(offlineCodingProjectIds(access(
+      project("icd10", true, {}, { icd_classification: "icd10", project_mode: "unmasked_simple" }),
+      project("masked", true, {}, { project_mode: "masked_doris" }),
+      project("server-disabled", true, {}, { enabled: false }),
+    ))).toEqual([]);
+
+    const oldServer = {
+      ...project("old-server", true),
+      self_coding: { enabled: true },
+    } as AccessSummary["projects"][number];
+    expect(offlineCodingProjectIds(access(oldServer))).toEqual([]);
   });
 
   it("treats missing cached access as unavailable and standalone as local self-coding", () => {

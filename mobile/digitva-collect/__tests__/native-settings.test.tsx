@@ -11,12 +11,20 @@ const mockReEnrol = jest.fn<Promise<void>, [unknown[]]>(async () => undefined);
 const mockExport = jest.fn(async () => 4);
 const mockToast = jest.fn();
 let mockBiometricAvailable = true;
-const mockAccounts: Array<{ user_id: string; name: string; signed_out?: boolean; needs_sign_in?: boolean }> = [{ user_id: "a", name: "Asha" }];
+let mockAndroidPackage: string | undefined = "com.causeofdeathindia.digitvacollect";
+const mockSecureStoreValues = new Map<string, string>();
+const mockSecureStoreSet = jest.fn(async (key: string, value: string) => { mockSecureStoreValues.set(key, value); });
+const mockAccounts: Array<{ user_id: string; name: string; standalone?: boolean; signed_out?: boolean; needs_sign_in?: boolean; offline_coding_access?: string[] }> = [{ user_id: "a", name: "Asha" }];
 const mockSwitchSlot = jest.fn(async (_slot: string) => true);
 let mockSlot = "active";
 
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
-jest.mock("expo-secure-store", () => ({ canUseBiometricAuthentication: () => mockBiometricAvailable }));
+jest.mock("expo-constants", () => ({ __esModule: true, default: { expoConfig: { android: { get package() { return mockAndroidPackage; } } } } }));
+jest.mock("expo-secure-store", () => ({
+  canUseBiometricAuthentication: () => mockBiometricAvailable,
+  getItemAsync: jest.fn(async (key: string) => mockSecureStoreValues.get(key) ?? null),
+  setItemAsync: (key: string, value: string) => mockSecureStoreSet(key, value),
+}));
 jest.mock("react-native-safe-area-context", () => ({ SafeAreaView: "SafeAreaView", useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({
@@ -42,7 +50,8 @@ jest.mock("../src/vault", () => ({
 }));
 jest.mock("../src/errorExport", () => ({ exportErrors: () => mockExport() }));
 let mockPlay = false;
-jest.mock("../src/appVariant", () => ({ isPlusVariant: () => false, isPlayDistribution: () => mockPlay }));
+let mockPlus = false;
+jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus, isPlayDistribution: () => mockPlay }));
 const mockCheckForUpdate = jest.fn(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
 jest.mock("../src/updateCheck", () => ({ checkForUpdate: (server?: string) => mockCheckForUpdate(server) }));
 const mockOpenURL = jest.fn(async (_url: string) => undefined);
@@ -98,7 +107,7 @@ import NativeSettings from "../src/nativeRoutes/settings";
 import { ShellContext, type Shell } from "../src/nativeShell/shellContext";
 
 const shell: Shell = {
-  sheet: null, openSheet: jest.fn(), closeSheet: jest.fn(), userId: "a",
+  sheet: null, openSheet: jest.fn(), closeSheet: jest.fn(), userId: "a", server: "https://digitvav3.causeofdeathindia.com",
   sync: { work: { unsent: 2, attention: 0, inProgress: 1, items: [] }, lastAt: new Date(2026, 9, 23, 9, 7).getTime(), busy: false, result: undefined, offline: false },
   sendNow: jest.fn(async () => undefined), recount: jest.fn(async () => undefined), refreshNow: jest.fn(async () => undefined), header: true, tabs: true,
 };
@@ -118,10 +127,16 @@ const out = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
 beforeEach(() => {
   jest.clearAllMocks();
   mockBiometricAvailable = true;
+  mockAndroidPackage = "com.causeofdeathindia.digitvacollect";
   mockScreenLockOn = false;
   mockScreenLockPossible = true;
+  mockSecureStoreValues.clear();
+  mockSecureStoreSet.mockClear();
   mockSlot = "active";
   mockPlay = false;
+  mockPlus = false;
+  shell.server = "https://digitvav3.causeofdeathindia.com";
+  shell.userId = "a";
   mockReadDevicePermissions.mockReset();
   mockReadDevicePermissions.mockResolvedValue({
     camera: { granted: false, canAskAgain: true },
@@ -146,6 +161,128 @@ it("is titled Settings and shows every section", async () => {
   expect(text).toContain("2 ready to send from this phone");
   expect(text).toContain("The app locks after 5 minutes without use.");
   expect(text).toContain("Version ");
+});
+
+it("keeps the Active or demo switcher out of standalone Settings", async () => {
+  const original = mockAccounts[0];
+  mockAccounts[0] = { user_id: "offline", name: "EngineBenchmark", standalone: true };
+  shell.userId = "offline";
+  shell.server = undefined;
+  try {
+    expect(out(await render())).not.toContain("Active or demo");
+  } finally {
+    mockAccounts[0] = original;
+    shell.userId = "a";
+    shell.server = "https://digitvav3.causeofdeathindia.com";
+  }
+});
+
+it("opens Profile and project access for the selected account", async () => {
+  const tree = await render();
+  await pressLabel(tree, en.profileAccessTitle);
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/profile-access", params: { userId: "a" } });
+});
+
+it("offers the offline engine check only to an eligible Plus account and passes its userId", async () => {
+  mockPlus = true;
+  mockAccounts[0].offline_coding_access = ["P"];
+  try {
+    const tree = await render();
+    await pressLabel(tree, "Offline engine check");
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/engine-check", params: { userId: "a" } });
+
+    mockRouter.push.mockClear();
+    mockAccounts[0].offline_coding_access = [];
+    expect(out(await render())).not.toContain("Offline engine check");
+    expect(mockRouter.push).not.toHaveBeenCalled();
+  } finally {
+    delete mockAccounts[0].offline_coding_access;
+  }
+});
+
+it("hides the offline engine check in the plain build", async () => {
+  mockAccounts[0].offline_coding_access = ["P"];
+  try {
+    expect(out(await render())).not.toContain("Offline engine check");
+  } finally {
+    delete mockAccounts[0].offline_coding_access;
+  }
+});
+
+it("shows the device-wide ICD-11 / DORIS choice in Settings and saves changes without changing work", async () => {
+  const tree = await render();
+  const toggle = tree.root.findByProps({ accessibilityLabel: en.icd11DorisPreferenceTitle });
+  expect(toggle.props.value).toBe(false);
+  expect(mockSecureStoreSet).not.toHaveBeenCalled();
+  const pushCount = mockRouter.push.mock.calls.length;
+  await act(async () => { await toggle.props.onValueChange(true); });
+  expect(mockSecureStoreSet).toHaveBeenCalledWith("digitva.icd11-doris-enabled.v1", "enabled");
+  expect(tree.root.findByProps({ accessibilityLabel: en.icd11DorisPreferenceTitle }).props.value).toBe(true);
+  expect(mockRouter.push).toHaveBeenCalledTimes(pushCount);
+  expect(shell.sync.work?.unsent).toBe(2);
+});
+
+it("hides server sync controls for standalone and keeps its eligible engine check", async () => {
+  mockPlus = true;
+  mockAccounts[0].standalone = true;
+  shell.server = undefined;
+  mockAccounts[0].offline_coding_access = ["P"];
+  try {
+    const tree = await render();
+    const text = out(tree);
+    expect(text).not.toContain(`"${en.tabSync}"`);
+    expect(text).not.toContain(`"${en.sendNow}"`);
+    expect(text).toContain("Offline engine check");
+    expect(shell.sendNow).not.toHaveBeenCalled();
+  } finally {
+    delete mockAccounts[0].standalone;
+    delete mockAccounts[0].offline_coding_access;
+  }
+});
+
+it.each(["standalone", "unrecognized account"])("ignores retained enrolment for %s while local settings and help remain available", async (context) => {
+  shell.server = undefined;
+  if (context === "standalone") mockAccounts[0].standalone = true;
+  else shell.userId = undefined;
+  const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+  try {
+    const tree = await render();
+    const text = out(tree);
+    for (const label of [en.enrolledServer, en.deviceLabel, en.privacyPolicy, en.dataRequests, en.reEnrol, en.updateCheck, en.devicesTitle]) {
+      expect(text).not.toContain(`"${label}"`);
+    }
+    expect(text).not.toContain("https://digitvav3.causeofdeathindia.com");
+    expect(text).not.toContain("dev-1");
+    expect(text).not.toContain(en.permissionsProjectCached.replace("{project}", "Project"));
+    await pressLabel(tree, en.permissionsCheck);
+    await pressLabel(tree, en.helpGuide);
+    expect(mockReadDevicePermissions).toHaveBeenCalled();
+    expect(shell.openSheet).toHaveBeenCalledWith("help");
+    expect(mockRefreshAccessSummary).not.toHaveBeenCalled();
+    expect(mockListMyDevices).not.toHaveBeenCalled();
+    expect(mockCheckForUpdate).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  } finally {
+    delete mockAccounts[0].standalone;
+    open.mockRestore();
+  }
+});
+
+it("standalone Play build keeps the explicit store listing without hosted update requests", async () => {
+  mockPlay = true;
+  shell.server = undefined;
+  mockAccounts[0].standalone = true;
+  const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+  try {
+    const tree = await render();
+    expect(open).not.toHaveBeenCalled();
+    await pressLabel(tree, en.updateCheck);
+    expect(open).toHaveBeenCalledWith("market://details?id=com.causeofdeathindia.digitvacollect");
+    expect(mockCheckForUpdate).not.toHaveBeenCalled();
+  } finally {
+    delete mockAccounts[0].standalone;
+    open.mockRestore();
+  }
 });
 
 it("puts Change server / re-enrol last, and re-enrols through the unsent-work check", async () => {
@@ -346,15 +483,52 @@ it("sideloaded build: checks for updates and offers the hosted APK download", as
   }
 });
 
-it("Google Play build: says updates come from Google Play, with no update check or Download", async () => {
+it("Google Play build: opens this package's Play listing and never checks hosted releases", async () => {
   mockPlay = true;
-  const tree = await render();
-  const text = out(tree);
-  expect(text).toContain("About");
-  expect(text).toContain("App updates come from Google Play.");
-  expect(text).not.toContain("Check for updates");
-  expect(text).not.toContain("Download");
-  expect(mockCheckForUpdate).not.toHaveBeenCalled();
+  const openURL = jest.spyOn(Linking, "openURL").mockImplementation(mockOpenURL);
+  try {
+    const tree = await render();
+    expect(out(tree)).toContain("App updates come from Google Play.");
+    await pressLabel(tree, "Check for updates");
+    expect(mockOpenURL).toHaveBeenCalledWith("market://details?id=com.causeofdeathindia.digitvacollect");
+    expect(mockOpenURL).toHaveBeenCalledTimes(1);
+    expect(mockCheckForUpdate).not.toHaveBeenCalled();
+  } finally {
+    openURL.mockRestore();
+  }
+});
+
+it("Google Play build falls back to the web listing for the configured Plus package", async () => {
+  mockPlay = true;
+  mockAndroidPackage = "com.causeofdeathindia.digitvacollect.plus";
+  mockOpenURL.mockRejectedValueOnce(new Error("market handler unavailable"));
+  const openURL = jest.spyOn(Linking, "openURL").mockImplementation(mockOpenURL);
+  try {
+    const tree = await render();
+    await pressLabel(tree, "Check for updates");
+    expect(mockOpenURL.mock.calls).toEqual([
+      ["market://details?id=com.causeofdeathindia.digitvacollect.plus"],
+      ["https://play.google.com/store/apps/details?id=com.causeofdeathindia.digitvacollect.plus"],
+    ]);
+    expect(mockCheckForUpdate).not.toHaveBeenCalled();
+  } finally {
+    openURL.mockRestore();
+  }
+});
+
+it("Google Play build reports an error when package metadata is missing", async () => {
+  mockPlay = true;
+  mockAndroidPackage = undefined;
+  const openURL = jest.spyOn(Linking, "openURL").mockImplementation(mockOpenURL);
+  try {
+    const tree = await render();
+    await pressLabel(tree, "Check for updates");
+    expect(out(tree)).toContain("Something went wrong. Try again.");
+    expect(mockOpenURL).not.toHaveBeenCalled();
+    expect(mockCheckForUpdate).not.toHaveBeenCalled();
+  } finally {
+    openURL.mockRestore();
+  }
 });
 
 it("re-enrols the demo slot through Try the demo, not QR enrolment", async () => {
@@ -444,6 +618,7 @@ describe("Delete my account and the privacy links", () => {
 
   it("offers no deletion for a signed-out profile: it has no session to ask with", async () => {
     mockAccounts[0].signed_out = true;
+    shell.server = undefined;
     try {
       expect(out(await render())).not.toContain("Delete my account");
     } finally {

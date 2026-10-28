@@ -45,7 +45,8 @@ export default function StandaloneSetup() {
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : "";
       setError(
-        code === "offline_profile_name_required" ? t("offlineProfileNeedName")
+        code === "standalone_server_session_active" ? t("standaloneLogoutRequired")
+        : code === "offline_profile_name_required" ? t("offlineProfileNeedName")
         : code === "offline_profile_country_required" ? t("offlineProfileNeedCountry")
         : code === "offline_profile_age_invalid" ? t("offlineProfileNeedAge")
         : t("standaloneSetupFailed"),

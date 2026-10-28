@@ -14,11 +14,12 @@ const mockRefreshReference = jest.fn(async (..._args: unknown[]) => ({ projects:
 const mockRefreshDefs = jest.fn(async (..._args: unknown[]) => undefined);
 const mockRefreshCases = jest.fn(async (..._args: unknown[]) => undefined);
 const mockSetRoute = jest.fn();
+let mockAccounts: Array<{ user_id: string; name: string; server?: string; standalone?: boolean; signed_out?: boolean }>;
 
 jest.mock("expo-router", () => ({ usePathname: () => mockPathname, useGlobalSearchParams: () => mockParams, useRouter: () => ({}) }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({ accounts: [{ user_id: "u1", name: "Asha" }], lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice }),
+  useAppState: () => ({ accounts: mockAccounts, lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice }),
 }));
 let mockDevice: { server: string } | undefined;
 let mockPlay = false;
@@ -65,6 +66,7 @@ beforeEach(() => {
   mockOffline = false;
   mockDevice = undefined;
   mockPlay = false;
+  mockAccounts = [{ user_id: "u1", name: "Asha", server: "https://digitvav3.causeofdeathindia.com" }];
 });
 afterEach(async () => { await act(async () => tree.unmount()); });
 
@@ -79,6 +81,32 @@ it("Google Play build: no start-up update check and no Download toast", async ()
   mockDevice = { server: "https://digitvav3.causeofdeathindia.com" };
   mockPlay = true;
   await mount();
+  expect(mockDailyCheck).not.toHaveBeenCalled();
+  expect(mockToast).not.toHaveBeenCalled();
+});
+
+it.each(["https://active.example.org", "https://demo.example.org"])("exposes only the selected server account's matching enrolment: %s", async (server) => {
+  mockAccounts[0].server = server;
+  mockDevice = { server };
+  await mount();
+  expect(shell.server).toBe(server);
+  expect(mockDailyCheck).toHaveBeenCalledWith(server);
+});
+
+it.each(["standalone", "signed out", "unknown account", "no account", "missing server", "different server", "unknown server"])("does not check updates or expose a retained device server for %s", async (context) => {
+  mockDevice = { server: "https://digitvav3.causeofdeathindia.com" };
+  if (context === "standalone") mockAccounts[0].standalone = true;
+  if (context === "signed out") mockAccounts[0].signed_out = true;
+  if (context === "unknown account") mockParams = { userId: "stranger" };
+  if (context === "no account") mockParams = {};
+  if (context === "missing server") delete mockAccounts[0].server;
+  if (context === "different server") mockAccounts[0].server = "https://other.example.org";
+  if (context === "unknown server") {
+    mockAccounts[0].server = "unknown";
+    mockDevice.server = "unknown";
+  }
+  await mount();
+  expect(shell.server).toBeUndefined();
   expect(mockDailyCheck).not.toHaveBeenCalled();
   expect(mockToast).not.toHaveBeenCalled();
 });

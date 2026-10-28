@@ -2,14 +2,16 @@ import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
 import { AppState, Text } from "react-native";
 import * as Crypto from "expo-crypto";
+import bundledTranslations from "../assets/standalone-questionnaire-translations.json";
 
 const mockAccount = {
   user_id: "u1",
   name: "Interviewer",
   collection_access: true,
   registration_access: true,
+  standalone: false,
 };
-const mockDb = { getFirstAsync: jest.fn(async () => null), getAllAsync: jest.fn(async () => []), runAsync: jest.fn(async () => ({ changes: 0 })) };
+const mockDb = { getFirstAsync: jest.fn(async () => null), getAllAsync: jest.fn(async () => []), runAsync: jest.fn(async () => ({ changes: 0 })), execAsync: jest.fn(async () => undefined) };
 const mockDeathRegistrationAccess = {
   user: mockAccount,
   is_admin: false,
@@ -222,6 +224,8 @@ jest.mock("../src/drafts", () => ({
   })),
   markCompleted: jest.fn(),
   stripDraftCovered: jest.fn(async () => undefined),
+  clearRefusedDraft: jest.fn(async () => undefined),
+  clearRefusedDraftInTransaction: jest.fn(async () => undefined),
   isNeverSentDraft: jest.fn(async () => false),
   deleteUnsentDraft: jest.fn(async () => true),
 }));
@@ -427,7 +431,8 @@ jest.mock("../src/web/StationConsentPanel", () => ({
 }));
 jest.mock("../src/platform", () => ({ platformServices: {} }));
 jest.mock("../src/attachmentServices", () => ({ useAttachmentServices: () => ({}) }));
-jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
+jest.mock("../src/smartva/ensureLocal", () => ({ ensureLocalSmartVa: jest.fn(async () => undefined) }));
+jest.mock("../src/prefill", () => ({ initialDataFromPrefill: jest.fn(() => ({})) }));
 jest.mock(
   "@drguptavivek/who-2022-va/native",
   () => ({
@@ -496,6 +501,10 @@ const settle = async () =>
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAccount.user_id = "u1";
+  mockAccount.standalone = false;
+  mockDb.getFirstAsync.mockReset().mockResolvedValue(null);
+  (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockReset().mockResolvedValue(null);
   mockParams = { userId: "u1", view: "interviews" };
   mockReference = pack();
   mockCachedReference = mockReference;
@@ -1016,6 +1025,9 @@ describe("native project-aware routes", () => {
 
     expect(mockFormProps.instrument).toEqual(mockServedInstrument);
     expect(jest.requireMock("../src/sync").translationsForDraft).toHaveBeenCalled();
+    const savedConfigs = (jest.requireMock("../src/drafts").setMeta as jest.Mock).mock.calls
+      .filter(([, key]) => key === `draft-config:${id}`);
+    expect(savedConfigs.every(([, , value]) => !Object.prototype.hasOwnProperty.call(value, "smartva"))).toBe(true);
     await act(async () => tree!.unmount());
   });
 
@@ -1720,8 +1732,8 @@ describe("immersive interview form", () => {
     act(async () => {
       tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress();
     });
-  const open = async () => {
-    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: FORM_ID };
+  const open = async (userId = "u1") => {
+    mockParams = { userId, projectId: "P1", siteId: "S1", draftId: FORM_ID };
     let tree!: ReturnType<typeof create>;
     await act(async () => { tree = create(<Form />); });
     await settle();
@@ -1739,6 +1751,67 @@ describe("immersive interview form", () => {
     expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header")).toHaveLength(1);
     expect(tree.root.findAllByProps({ "data-label": "finishIncomplete" })).toHaveLength(0);
     expect(mockFormProps.instrument).toBeTruthy();
+    await act(async () => tree.unmount());
+  });
+
+  it("restores a saved standalone Hindi draft, offers language in the overflow menu, and switches locally", async () => {
+    const userId = "standalone-device";
+    const [questionName, text] = Object.entries(bundledTranslations.locales.hi.translations.questions)
+      .find(([, value]) => value.label)!;
+    const instrument = {
+      id: "WHO_2022_VA",
+      version: "1",
+      sections: [],
+      questions: [{ name: questionName, label: {} }],
+    };
+    mockAccount.user_id = userId;
+    mockAccount.standalone = true;
+    (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValue({ completed: false });
+    (mockDb.getFirstAsync as jest.Mock).mockResolvedValueOnce({
+      envelope: JSON.stringify({ locale: "hi", translation_version: 6 }),
+    });
+    (jest.requireMock("@drguptavivek/who-2022-va").createWhoVa2022Instrument as jest.Mock)
+      .mockReturnValueOnce(instrument);
+
+    const tree = await open(userId);
+    expect(mockConsentProps).toMatchObject({ language: "hi" });
+    const notice = (mockConsentProps!.config as { notice_versions: Array<{ notice_version_id: string }> }).notice_versions[0]!;
+    await act(async () => {
+      (mockConsentProps!.onDecision as (envelope: unknown) => void)({
+        client_id: "standalone-consent",
+        client_draft_id: FORM_ID,
+        notice_version_id: notice.notice_version_id,
+        decision: "granted",
+      });
+    });
+    await settle();
+    expect(mockFormProps.locale).toBe("hi");
+    expect((mockFormProps.instrument as { questions: Array<{ label: object }> }).questions[0]!.label)
+      .toMatchObject({ hi: text.label });
+    expect(tree.root.findByProps({ testID: "standalone-translation-fallback" })).toBeDefined();
+    expect(jest.requireMock("../src/drafts").setMeta).toHaveBeenCalledWith(
+      mockDb,
+      "translations:WHO_2022_VA:hi:6",
+      expect.any(Object),
+      userId,
+    );
+    expect(jest.requireMock("../src/sync").translationsForDraft).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/auth").authedRawRequest).not.toHaveBeenCalled();
+
+    const saveDraft = jest.fn(async () => undefined);
+    await act(async () => {
+      (mockFormProps.onDraftController as (controller: unknown) => void)({ saveDraft });
+    });
+    await press(tree, "moreActions");
+    expect(tree.root.findAll((node) => node.props.accessibilityLabel === "questionnaireLanguage").length).toBeGreaterThan(0);
+    await press(tree, "questionnaireLanguage");
+    expect(tree.root.findAll((node) => node.props.accessibilityLabel === "English").length).toBeGreaterThan(0);
+    expect(tree.root.findAll((node) => node.props.accessibilityLabel === "हिन्दी").length).toBeGreaterThan(0);
+    await press(tree, "English");
+    await settle();
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(mockFormProps.locale).toBe("en");
+    expect(jest.requireMock("../src/auth").authedRawRequest).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 
@@ -1761,7 +1834,9 @@ describe("immersive interview form", () => {
     expect(validate).not.toHaveBeenCalled();
     await choose(tree, "finishIncomplete");
     await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
+    await settle();
     expect(validate).toHaveBeenCalledTimes(1);
+    expect(jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa).not.toHaveBeenCalled();
     await press(tree, "back");
     await settle();
     // Save now, the save inside Finish as incomplete, and the save on Back.
@@ -1851,6 +1926,7 @@ describe("respondent consent in the interview form", () => {
     (jest.requireMock("../src/cases").getRegistration as jest.Mock).mockResolvedValue(undefined);
     (getMeta as jest.Mock).mockReset().mockResolvedValue(undefined);
     mockDb.getAllAsync.mockReset().mockResolvedValue([] as never);
+    (jest.requireMock("../src/prefill").initialDataFromPrefill as jest.Mock).mockReset().mockReturnValue({});
   });
 
   it("shows the consent screen, not the questionnaire, until a decision is recorded; granted is stored and opens the form unlocked", async () => {
@@ -1867,24 +1943,36 @@ describe("respondent consent in the interview form", () => {
     await act(async () => tree.unmount());
   });
 
-  it("under a refusal locks the covered questions and drops covered answers a saved draft holds", async () => {
+  it("under a refusal stops the questionnaire and removes stored covered answers", async () => {
     setup(consentConfig());
     const tree = await open();
     await act(async () => {
       (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c1", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "refused" });
     });
     await settle();
-    expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
+    expect(tree.root.findAllByProps({ testID: "refusal-panel" }).length).toBeGreaterThan(0);
     // The stored draft and its prefill lose the covered answers at once, not only the copy in memory.
     expect(jest.requireMock("../src/drafts").stripDraftCovered).toHaveBeenCalledWith(expect.anything(), FORM_ID, ["Id10007"]);
-    const replaceData = jest.fn();
-    const saveDraft = jest.fn(async () => undefined);
-    await act(async () => {
-      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
-      (mockFormProps.onReady as (s: unknown) => void)({ getSnapshot: () => ({ data: { Id10007: "Asha", Id10013: "yes" } }), replaceData });
-    });
-    expect(replaceData).toHaveBeenCalledWith({ Id10013: "yes" });
-    expect(saveDraft).toHaveBeenCalledTimes(1); // persisted
+    await act(async () => tree.unmount());
+  });
+
+  it("does not restore the original prefill after refusal and a later grant", async () => {
+    const prefill = { answers: { Id10007: "Private" } };
+    (jest.requireMock("../src/cases").resolveDraftHost as jest.Mock).mockResolvedValue({ projectId: "P1", siteId: "S1", binding: { projectId: "P1", prefill }, prefill });
+    (jest.requireMock("../src/prefill").initialDataFromPrefill as jest.Mock).mockImplementation((value: typeof prefill | undefined) => value?.answers ?? {});
+    setup(consentConfig(), [{ key: `consent:draft:${FORM_ID}`, value: stored("granted") }]);
+    const tree = await open();
+    expect(mockFormProps.initialData).toMatchObject({ Id10007: "Private" });
+    await act(async () => { tree.root.findAll((n) => n.props.testID === "consent-chip" && typeof n.type !== "string")[0].props.onPress(); });
+    await settle();
+    await act(async () => { (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c2", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "refused" }); });
+    await settle();
+    expect(tree.root.findAllByProps({ testID: "refusal-panel" }).length).toBeGreaterThan(0);
+    await act(async () => { tree.root.findByProps({ "data-label": "Change consent" }).props.onClick(); });
+    await settle();
+    await act(async () => { (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c3", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "granted" }); });
+    await settle();
+    expect(mockFormProps.initialData).not.toHaveProperty("Id10007");
     await act(async () => tree.unmount());
   });
 
@@ -1978,10 +2066,45 @@ describe("respondent consent in the interview form", () => {
     await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes" } }); });
     await settle();
     expect(jest.requireMock("../src/drafts").markCompleted).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa).not.toHaveBeenCalled();
     expect((mockFormProps.serverProblems as Array<{ message: string }>)[0]!.message).toContain("preIdentityMissing");
     await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } }); });
     await settle();
     expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);
+    const ensure = jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa as jest.Mock;
+    expect(ensure).toHaveBeenCalledWith({ db: mockDb, userId: "u1", draftId: FORM_ID });
+    expect(saveDraft.mock.invocationCallOrder[0]).toBeLessThan(ensure.mock.invocationCallOrder[0]);
+    expect(jest.requireMock("../src/drafts").markCompleted.mock.invocationCallOrder[0]).toBeLessThan(ensure.mock.invocationCallOrder[0]);
+    await act(async () => tree.unmount());
+  });
+
+  it("does not auto-run SmartVA when saving a valid completion fails", async () => {
+    const tree = await open();
+    const saveDraft = jest.fn(async () => { throw new Error("disk"); });
+    await act(async () => { (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft }); });
+    await act(async () => {
+      (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } });
+    });
+    await settle();
+    expect(jest.requireMock("../src/drafts").markCompleted).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa).not.toHaveBeenCalled();
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("keeps completed interviews navigable when automatic SmartVA rejects", async () => {
+    const ensure = jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa as jest.Mock;
+    ensure.mockRejectedValueOnce(new Error("engine unavailable"));
+    const tree = await open();
+    const saveDraft = jest.fn(async () => undefined);
+    await act(async () => { (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft }); });
+    await act(async () => {
+      (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } });
+    });
+    await settle();
+    expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);
+    expect(mockRouter.back).toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "error", text: "errGeneric" }));
     await act(async () => tree.unmount());
   });
 
@@ -2003,7 +2126,7 @@ describe("respondent consent in the interview form", () => {
 
       setup(consentConfig(), own("refused"));
       tree = await open();
-      expect(chip(tree).props.accessibilityLabel).toBe("consentChipRefused");
+      expect(tree.root.findAllByProps({ testID: "refusal-panel" }).length).toBeGreaterThan(0);
       await act(async () => tree.unmount());
 
       // Required but no usable notice: nothing recorded and nothing to change it with.
@@ -2017,6 +2140,16 @@ describe("respondent consent in the interview form", () => {
       tree = await open();
       expect(mockFormProps.instrument).toBeTruthy(); // the subject is there
       expect(chip(tree)).toBeUndefined();
+      await act(async () => tree.unmount());
+    });
+
+    it("saves a refusal without starting local SmartVA", async () => {
+      setup(consentConfig(), own("refused"));
+      const tree = await open();
+      await act(async () => { tree.root.findByProps({ "data-label": "Save refusal" }).props.onClick(); });
+      await settle();
+      expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);
+      expect(jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa).not.toHaveBeenCalled();
       await act(async () => tree.unmount());
     });
 
@@ -2037,8 +2170,7 @@ describe("respondent consent in the interview form", () => {
       await settle();
       expect(setMeta).toHaveBeenCalledWith(expect.anything(), `consent:draft:${FORM_ID}`, expect.objectContaining({ envelope: expect.objectContaining({ client_id: "c2", decision: "refused" }), covered_fields: ["Id10007"] }));
       expect(jest.requireMock("../src/drafts").stripDraftCovered).toHaveBeenCalledWith(expect.anything(), FORM_ID, ["Id10007"]);
-      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
-      expect(chip(tree).props.accessibilityLabel).toBe("consentChipRefused");
+      expect(tree.root.findAllByProps({ testID: "refusal-panel" }).length).toBeGreaterThan(0);
       expect(mockToast).toHaveBeenCalledWith({ kind: "info", text: "consentChangedRefused" });
       await act(async () => tree.unmount());
     });
@@ -2046,20 +2178,17 @@ describe("respondent consent in the interview form", () => {
     it("refused to agreed reopens the covered questions; the menu item does the same as the chip; cancel changes nothing", async () => {
       setup(consentConfig(), own("refused"));
       const tree = await open();
-      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
-      await mountController(jest.fn(async () => undefined));
-      await act(async () => { menu(tree).props.onPress(); });
-      await act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === "consentChangeDecision" && typeof n.props.onPress === "function")[0].props.onPress(); });
+      expect(tree.root.findAllByProps({ testID: "refusal-panel" }).length).toBeGreaterThan(0);
+      await act(async () => { tree.root.findByProps({ "data-label": "Change consent" }).props.onClick(); });
       await settle();
       expect(tree.root.findAllByProps({ "data-consent-panel": true })).toHaveLength(1);
       const jestDrafts = jest.requireMock("../src/drafts");
       jestDrafts.stripDraftCovered.mockClear();
       await act(async () => { tree.root.findAll((n) => n.props["data-label"] === "cancel")[0].props.onClick(); });
       expect(tree.root.findAllByProps({ "data-consent-panel": true })).toHaveLength(0);
-      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
+      expect(tree.root.findAllByProps({ testID: "refusal-panel" }).length).toBeGreaterThan(0);
 
-      await mountController(jest.fn(async () => undefined));
-      await act(async () => { chip(tree).props.onPress(); });
+      await act(async () => { tree.root.findByProps({ "data-label": "Change consent" }).props.onClick(); });
       await settle();
       await decide("granted");
       await settle();

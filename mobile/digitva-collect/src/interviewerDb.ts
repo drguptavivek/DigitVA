@@ -21,6 +21,7 @@ import { defaultDatabaseDirectory, deleteDatabaseAsync, openDatabaseAsync } from
 import { countUnsentWork, countUnsentWorkByKind, migrate, type Db, type UnsentWorkKinds } from "./drafts";
 import { wipeMediaCache } from "./mediaFiles";
 import { summariseWork, type WorkSummary } from "./unsentWork";
+import { assertAccountStoreModeSafe } from "./accountStoreIdentity";
 import {
   buildPassphrase,
   createStoreSecret,
@@ -81,6 +82,7 @@ async function dbFileMissing(userId: string): Promise<boolean> {
 
 /** The interviewer's unlocked database; rejects with StoreLockedError while locked. */
 export async function openInterviewerDb(userId: string): Promise<Db> {
+  await assertAccountStoreModeSafe(userId);
   const db = unlocked.get(userId);
   if (!db) throw new StoreLockedError();
   return db;
@@ -148,6 +150,7 @@ export function createInterviewerDb(userId: string, pin: string): Promise<void> 
 }
 
 async function createInterviewerDbOnce(userId: string, pin: string): Promise<void> {
+  await assertAccountStoreModeSafe(userId);
   if (await hasInterviewerStore(userId)) throw new Error("store_exists");
   await deleteInterviewerDb(userId);
   const secret = await createStoreSecret(userId);
@@ -168,6 +171,7 @@ export function unlockInterviewerDb(userId: string, pin: string): Promise<Unlock
 }
 
 async function unlockInterviewerDbOnce(userId: string, pin: string): Promise<UnlockResult> {
+  await assertAccountStoreModeSafe(userId);
   if (unlocked.has(userId)) return { ok: true };
   const secret = await readStoreSecret(userId);
   if (!secret) throw new StoreLockedError();

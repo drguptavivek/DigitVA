@@ -14,6 +14,8 @@ import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
 import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
 import { ClockWarning } from "../src/nativeShell/ClockNotice";
+import { ModeBanner } from "../src/nativeShell/ModeBanner";
+import NativeIcd11DorisFirstLaunchGate from "../src/NativeIcd11DorisFirstLaunchGate";
 import { useDemoDocumentTitle } from "../src/DemoBadge";
 import { installPerformanceTelemetryLifecycle } from "../src/performanceTelemetry";
 if (Platform.OS === "android") require("../src/notificationTask");
@@ -54,6 +56,7 @@ function ActivityRoot() {
     >
       <ShellHeader />
       <ClockWarning />
+      <ModeBanner />
       <NativeTermsGate>
         <Stack
           screenOptions={{ headerShown: false, animation: "none" }}
@@ -73,9 +76,7 @@ export default function RootLayout() {
   const theme = useTheme();
   useWhoWebTheme();
   useDemoDocumentTitle();
-  useEffect(() => {
-    applyScreenCaptureBlock();
-  }, []);
+  useEffect(() => applyScreenCaptureBlock(), []);
   useEffect(() => installPerformanceTelemetryLifecycle(), []);
   return (
     <SafeAreaProvider>
@@ -83,7 +84,9 @@ export default function RootLayout() {
         <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
         <ToastProvider>
           <ShellRoot>
-            <ActivityRoot />
+            <NativeIcd11DorisFirstLaunchGate>
+              <ActivityRoot />
+            </NativeIcd11DorisFirstLaunchGate>
           </ShellRoot>
         </ToastProvider>
       </AppStateProvider>

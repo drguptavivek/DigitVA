@@ -17,10 +17,9 @@ import { t } from "../i18n";
 import { getOrCreatePlusDeviceIdentity } from "../offlineIdentity";
 import { getOfflineProfile, type OfflineProfile } from "../offlineProfile";
 import { isCodingStale, isUploadable, offlineCodingBody, sentAnswers, uploadQueuedWork, type StandalonePush, type UploadResult } from "../sync";
+import { codingNotices, dismissCodingNotices, type CodingNotice } from "../codingUploadNotices";
 
 const ADOPTION_KEY = "standalone:adoption";
-const NOTICES_KEY = "standalone:coding_notices";
-const MAX_NOTICES = 50;
 /** The server's org_code pattern, a unit code at any tree level (offline_coding_import_service._ORG_CODE): anything else is sent as null. */
 const ORG_CODE = /^[A-Za-z0-9_-]{1,64}$/;
 const SNAPSHOT_MAX = 200;
@@ -127,18 +126,13 @@ export function profileSnapshot(profile: OfflineProfile | null): StandalonePush[
 }
 
 /** A coding the server did not use (or the phone did not send because it was stale), for the user to read. */
-export interface CodingNotice {
-  draftId: string;
-  code: string;
-  at: string;
-}
-
-export const codingNotices = async (db: Db) => (await getMeta<CodingNotice[]>(db, NOTICES_KEY)) ?? [];
-export const dismissCodingNotices = (db: Db) => db.runAsync("DELETE FROM meta WHERE key = ?", [NOTICES_KEY]);
+export { codingNotices, dismissCodingNotices };
+export type { CodingNotice };
 
 async function addCodingNotices(db: Db, notices: CodingNotice[]): Promise<void> {
   if (!notices.length) return;
-  await setMeta(db, NOTICES_KEY, [...notices, ...(await codingNotices(db))].slice(0, MAX_NOTICES));
+  const existing = await codingNotices(db);
+  await setMeta(db, "standalone:coding_notices", [...notices, ...existing].slice(0, 50));
 }
 
 /**
@@ -165,8 +159,6 @@ export async function pushStandaloneRecords(db: Db): Promise<UploadResult> {
   });
   const at = new Date().toISOString();
   await addCodingNotices(db, [
-    ...(result.codingOutcomes ?? []).filter((outcome) => outcome.status === "refused")
-      .map((outcome) => ({ draftId: outcome.draftId, code: outcome.code ?? "not_available", at })),
     // Not sent: the server would have refused it the same way (coded_version_superseded).
     ...(result.staleCodingDraftIds ?? []).map((draftId) => ({ draftId, code: "coded_version_superseded", at })),
   ]);

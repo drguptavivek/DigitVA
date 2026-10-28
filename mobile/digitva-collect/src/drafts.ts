@@ -16,6 +16,7 @@ import { createNativeDefinitionCache } from "./formDefinitionCache";
 import { runInTransaction } from "./dbTransaction";
 import { clearSendError, sendRefusal } from "./unsentWork";
 import { localDateTimeWithOffset } from "./client/localDateTime";
+import { isRefused, refusalAnswers } from "./refusalBoundary";
 
 export { localDateTimeWithOffset } from "./client/localDateTime";
 
@@ -51,7 +52,7 @@ export type DeviceTimedDraft = WhoVaDraft & {
  * A persistent upload refusal. `standalone_refused` is a standalone push refused as it stands (403
  * device_mismatch, or a 422 such as consent_invalid): held, never resent or reopened on its own (contract 17).
  */
-export type UploadIssue = "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | "standalone_refused";
+export type UploadIssue = "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | "standalone_refused" | "consent_refused" | "refusal_stale";
 
 export interface DraftRow {
   id: string;
@@ -238,6 +239,23 @@ export async function migrate(db: Db): Promise<void> {
       envelope TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS coding_history_cache (
+      mode TEXT NOT NULL,
+      server_origin TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      access_fingerprint TEXT NOT NULL,
+      offset INTEGER NOT NULL,
+      page_limit INTEGER NOT NULL,
+      total_count INTEGER NOT NULL,
+      has_more INTEGER NOT NULL,
+      fetched_at TEXT NOT NULL,
+      case_count INTEGER NOT NULL,
+      cases_json TEXT NOT NULL,
+      PRIMARY KEY (mode, server_origin, user_id, project_id, access_fingerprint, offset)
+    );
+    CREATE INDEX IF NOT EXISTS ix_coding_history_cache_scope
+      ON coding_history_cache (mode, server_origin, user_id, project_id, offset);
   `);
   // v1: the completion verdict. SQLite has no ADD COLUMN IF NOT EXISTS.
   let columns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(drafts)", []);
@@ -401,6 +419,18 @@ export async function migrate(db: Db): Promise<void> {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS ix_offline_coding_draft ON offline_coding(client_draft_id);
+    CREATE TABLE IF NOT EXISTS local_smartva (
+      draft_id TEXT PRIMARY KEY NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('ready','error')),
+      result_json TEXT,
+      error_code TEXT,
+      answers_sha256 TEXT NOT NULL,
+      options_digest TEXT NOT NULL,
+      engine_version TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      CHECK (status != 'ready' OR (result_json IS NOT NULL AND engine_version IS NOT NULL))
+    );
   `);
   // provenance (JSON: allowability rules version, primary stem, age confirmation) arrived after the first offline stores.
   const codingColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(offline_coding)", []);
@@ -433,12 +463,24 @@ export function createDraftStore(
       const draft = { ...rawDraft, data: reduceNationalIdData(rawDraft.data) };
       return guard.runWrite(async () => {
         guard.assertCurrent();
-        const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string }>(
-          "SELECT project_id, envelope FROM drafts WHERE id = ?",
+        const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string; updated_at: string; death_id: string | null; client_death_id: string | null }>(
+          "SELECT project_id, envelope, updated_at, death_id, client_death_id FROM drafts WHERE id = ?",
           [draft.id]
         );
         guard.assertCurrent();
         if (existing && existing.project_id !== host.projectId) throw new Error("project_mismatch");
+        const own = await getMeta<{ envelope?: { decision?: string } }>(db, `consent:draft:${draft.id}`);
+        const regId = existing?.client_death_id ?? binding.clientDeathId;
+        const deathId = existing?.death_id ?? binding.deathId;
+        const inherited = !own && (regId ? await getMeta<{ envelope?: { decision?: string } }>(db, `consent:reg:${regId}`) : undefined)
+          || (!own && deathId ? await getMeta<{ envelope?: { decision?: string } }>(db, `consent:death:${deathId}`) : undefined);
+        const previous = existing ? (JSON.parse(existing.envelope) as { data?: Record<string, unknown> }).data : undefined;
+        const serverRefused = await getMeta<boolean>(db, `consent:server-refused:${draft.id}`) === true;
+        const refused = serverRefused || isRefused(draft.data, own?.envelope?.decision ?? inherited?.envelope?.decision) || previous?.Id10013 === "no";
+        if (refused) draft.data = refusalAnswers(previous?.Id10013 === "no" ? { ...draft.data, Id10013: "no" } : draft.data) as typeof draft.data;
+        const consentGuard = `NOT EXISTS (SELECT 1 FROM meta WHERE key = ? AND value = 'true') AND NOT EXISTS (SELECT 1 FROM meta WHERE key = ? AND json_extract(value, '$.envelope.decision') = 'refused') AND
+          (EXISTS (SELECT 1 FROM meta WHERE key = ?) OR NOT EXISTS (SELECT 1 FROM meta WHERE key IN (?, ?) AND json_extract(value, '$.envelope.decision') = 'refused'))`;
+        const guardParams = [`consent:server-refused:${draft.id}`, `consent:draft:${draft.id}`, `consent:draft:${draft.id}`, `consent:reg:${regId ?? ""}`, `consent:death:${deathId ?? ""}`];
         const envelope = JSON.stringify(envelopeWithDeviceTimes(draft, existing?.envelope ?? null, openedAt, host));
         const params = [
           draft.id,
@@ -450,7 +492,7 @@ export function createDraftStore(
           binding.deathId ?? null,
           binding.uniqueId ?? null,
           binding.clientDeathId ?? null,
-          binding.prefill === undefined ? null : JSON.stringify(binding.prefill)
+          refused || binding.prefill === undefined ? null : JSON.stringify(binding.prefill)
         ];
         guard.assertCurrent();
         const result = existing
@@ -458,19 +500,20 @@ export function createDraftStore(
             `UPDATE drafts SET envelope = ?, updated_at = ?, draft_sync_dirty = 1,
                upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
                upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
-             WHERE id = ? AND envelope = ?`,
-            [envelope, draft.updatedAt, draft.id, existing.envelope]
+             WHERE id = ? AND envelope = ? AND updated_at = ?${refused ? "" : ` AND ${consentGuard}`}`,
+            [envelope, draft.updatedAt, draft.id, existing.envelope, existing.updated_at, ...(refused ? [] : guardParams)]
           )
           : await db.runAsync(
             `INSERT INTO drafts (id, project_id, site_id, org_unit_id, updated_at, envelope, death_id, unique_id, client_death_id, prefill)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${refused ? "1" : consentGuard}
              ON CONFLICT(id) DO NOTHING`,
-            params
+            [...params, ...(refused ? [] : guardParams)]
           );
         guard.assertCurrent();
         if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) === 0) {
           throw new Error("draft_conflict");
         }
+        if (refused) await clearRefusedDraft(db, draft.id);
       });
     },
     async load(id) {
@@ -532,6 +575,26 @@ export async function unfinishedDraftsForSync(
 export async function getDraftPrefill<T>(db: Db, id: string): Promise<T | undefined> {
   const row = await db.getFirstAsync<{ prefill: string | null }>("SELECT prefill FROM drafts WHERE id = ?", [id]);
   return row?.prefill ? (JSON.parse(row.prefill) as T) : undefined;
+}
+
+/** Remove unsent interview content when consent is refused; retry if a save won the race. */
+export async function clearRefusedDraft(db: Db, id: string): Promise<void> {
+  await runInTransaction(db, (tx) => clearRefusedDraftInTransaction(tx, id));
+}
+
+export async function clearRefusedDraftInTransaction(tx: Db, id: string): Promise<void> {
+    const row = await tx.getFirstAsync<{ envelope: string; updated_at: string }>("SELECT envelope, updated_at FROM drafts WHERE id = ?", [id]);
+    if (!row) return;
+    const draft = JSON.parse(row.envelope) as { data?: Record<string, unknown>; codingTimelineV1?: unknown };
+    draft.data = refusalAnswers(draft.data);
+    delete draft.codingTimelineV1;
+    const updatedAt = new Date(Math.max(Date.now(), Date.parse(row.updated_at) + 1)).toISOString();
+    const result = await tx.runAsync("UPDATE drafts SET envelope = ?, updated_at = ?, prefill = NULL, draft_sync_dirty = 1 WHERE id = ? AND envelope = ? AND updated_at = ?", [JSON.stringify(draft), updatedAt, id, row.envelope, row.updated_at]);
+    if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) !== 1) throw new Error("draft_conflict");
+    await tx.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
+    await tx.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [id]);
+    await tx.runAsync("DELETE FROM local_smartva WHERE draft_id = ?", [id]);
+    await tx.runAsync("DELETE FROM meta WHERE key = ?", [`consent:resume-who:${id}`]);
 }
 
 /**
@@ -645,6 +708,7 @@ export interface CompletedDraft {
   org_unit_id: string | null;
   death_id: string | null;
   client_death_id: string | null;
+  base_updated_at?: string | null;
   draft: DeviceTimedDraft;
   completion: Completion | null;
   envelope: string;
@@ -663,10 +727,11 @@ interface CompletedDraftRow {
   org_unit_id: string | null;
   death_id: string | null;
   client_death_id: string | null;
+  base_updated_at: string | null;
   envelope: string;
   completion: string | null;
 }
-const COMPLETED_COLUMNS = "id, project_id, site_id, org_unit_id, death_id, client_death_id, envelope, completion";
+const COMPLETED_COLUMNS = "id, project_id, site_id, org_unit_id, death_id, client_death_id, base_updated_at, envelope, completion";
 
 /** Completed drafts with their envelopes and verdicts, oldest first, for upload. */
 export async function completedDrafts(db: Db, projectId?: string): Promise<CompletedDraft[]> {
@@ -692,6 +757,7 @@ function toCompletedDraft(row: CompletedDraftRow): CompletedDraft {
     org_unit_id: row.org_unit_id,
     death_id: row.death_id,
     client_death_id: row.client_death_id,
+    base_updated_at: row.base_updated_at,
     // Reduced here so a pre-update completed draft never uploads (or hashes)
     // the full number; `envelope` stays the stored text for the exact-match delete.
     draft: reduceLegacyNationalId(JSON.parse(row.envelope) as DeviceTimedDraft),
@@ -725,6 +791,7 @@ async function deleteDraftCompanions(db: Db, id: string): Promise<void> {
   await db.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`, `standaloneConsent:${id}`]);
   await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
   await db.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [id]);
+  await db.runAsync("DELETE FROM local_smartva WHERE draft_id = ?", [id]);
 }
 
 export async function deleteDraft(db: Db, id: string): Promise<void> {
@@ -826,6 +893,11 @@ export async function setMeta(db: Db, key: string, value: unknown, projectId?: s
     "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     [storedKey, JSON.stringify(value)]
   );
+}
+
+/** Drop only the reconstructible server coded-history display cache after an acknowledged coding upload. */
+export async function invalidateCodingHistory(db: Db): Promise<void> {
+  await db.runAsync("DELETE FROM coding_history_cache", []);
 }
 
 export async function projectIds(db: Db): Promise<string[]> {

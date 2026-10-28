@@ -6,7 +6,7 @@ authz fixture; the device-token helpers from tests/routes/test_device_api.py.
 import sqlalchemy as sa
 
 from app import db, limiter
-from app.models import VaForms, VaProjectMaster, VaStatuses, VaUsers
+from app.models import MapOrgUnitVaPresets, VaForms, VaProjectMaster, VaStatuses, VaUsers
 from app.services import mentor_institute_service as mentors
 from app.services import organization_service as org
 from app.services.authz import Action, can, invalidate, role_flags
@@ -341,7 +341,11 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(project["actions"]["code"],
                          {"project": True, "site_ids": [], "org_unit_ids": []})
         self.assertEqual(project["settings"], {"web_intake_mode": "both", "coding_scope": None})
-        self.assertEqual(project["self_coding"], {"enabled": False, "code_now": False})
+        self.assertEqual(project["self_coding"], {
+            "enabled": False,
+            "code_now": False,
+            "offline_coding": {
+                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"}})
         self.assertEqual(self.client.get(policy).status_code, 200)
         self.assertTrue(can(user, Action.CODE, "sp-1"))
 
@@ -389,15 +393,139 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(project["settings"], {
             "web_intake_mode": "both",
             "coding_scope": {"level_code": "phc", "above_mode": "code_any"}})
-        self.assertEqual(project["self_coding"], {"enabled": True, "code_now": True})
+        self.assertEqual(project["self_coding"], {
+            "enabled": True,
+            "code_now": True,
+            "offline_coding": {
+                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"}})
         self.assertEqual([e["site_id"] for e in project["actions"]["interview"]], ["AZS5"])
         self.assertIn("interviewer", project["sites"][0]["roles"])
         # Absent: a plain coder on a project that is not self-coding.
         plain = self._project(self._body("coder_ta"), TA)
         self.assertEqual({g["source"] for g in plain["grants"]}, {"assigned"})
-        self.assertEqual(plain["self_coding"], {"enabled": False, "code_now": False})
+        self.assertEqual(plain["self_coding"], {
+            "enabled": False,
+            "code_now": False,
+            "offline_coding": {
+                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"}})
         self.assertEqual(plain["settings"]["coding_scope"],
                          {"level_code": "phc", "above_mode": "view_only"})
+
+    def test_offline_coding_projection_requires_unmasked_icd11_and_an_active_coder(self):
+        project_row = db.session.get(VaProjectMaster, TB)
+        project_row.web_intake_mode = "both"
+        project_row.self_coding_enabled = True
+        # This project is ICD-10 and masked in the fixture: both gates must block.
+        db.session.commit()
+        summary = self._body("coder_tb")
+        self.assertEqual(self._project(summary, TB)["self_coding"]["offline_coding"], {
+            "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"})
+
+        project_row.masked_cod_required = False
+        project_row.icd_classification = "icd11"
+        project_row.cod_entry_mode = "doris"
+        db.session.commit()
+        summary = self._body("coder_tb")
+        project = self._project(summary, TB)
+        self.assertTrue(any(
+            grant["role"] == "coder" and grant["active"] and grant["codes"]
+            for grant in project["grants"]))
+        self.assertEqual(project["self_coding"]["offline_coding"], {
+            "enabled": True, "project_mode": "unmasked_doris", "icd_classification": "icd11"})
+
+    def test_smartva_targets_are_exactly_authorized_and_inherit_each_area_preset(self):
+        project_row = db.session.get(VaProjectMaster, TA)
+        project_row.web_intake_mode = "both"
+        project_row.project_country_iso3 = "KEN"
+        forms = db.session.scalars(sa.select(VaForms).where(VaForms.project_id == TA)).all()
+        for form in forms:
+            form.form_source = "web"
+            form.form_smartvahiv = "False"
+            form.form_smartvamalaria = "True"
+            form.form_smartvahce = "False" if form.site_id == "AZS1" else "True"
+            form.form_smartvafreetext = "True"
+        # The target inherits each field from a different nearest ancestor.
+        db.session.add(MapOrgUnitVaPresets(org_unit_id=self.units["D1"].org_unit_id,
+                                           hiv_mortality="high", malaria_mortality=None))
+        db.session.add(MapOrgUnitVaPresets(org_unit_id=self.units["C1"].org_unit_id,
+                                           hiv_mortality=None, malaria_mortality="low"))
+        db.session.commit()
+
+        project = self._project(self._body("interviewer_p1"), TA)
+        targets = project["smartva_targets"]
+        expected_units = {str(self.units["P1"].org_unit_id), str(self.units["SC1"].org_unit_id)}
+        self.assertEqual({(target["site_id"], target["org_unit_id"]) for target in targets}, {
+            (site_id, unit_id) for site_id in ("AZS1", "AZS2") for unit_id in expected_units})
+        self.assertTrue(all(target["options"]["country"] == "KEN" for target in targets))
+        self.assertTrue(all(target["options"]["hiv"] is True for target in targets))
+        self.assertTrue(all(target["options"]["malaria"] is False for target in targets))
+        self.assertTrue(all(target["options"]["freetext"] is True for target in targets))
+        self.assertEqual({target["options"]["hce"] for target in targets if target["site_id"] == "AZS1"}, {False})
+        self.assertEqual({target["options"]["hce"] for target in targets if target["site_id"] == "AZS2"}, {True})
+        self.assertTrue(all(target["options_digest"].startswith("sha256:") for target in targets))
+        again = self._project(self._body("interviewer_p1"), TA)["smartva_targets"]
+        self.assertEqual(targets, again)
+
+    def test_smartva_missing_area_preset_falls_back_to_the_site_form_flag(self):
+        project_row = db.session.get(VaProjectMaster, TA)
+        project_row.web_intake_mode = "both"
+        forms = db.session.scalars(sa.select(VaForms).where(VaForms.project_id == TA)).all()
+        for form in forms:
+            form.form_source = "web"
+            form.form_smartvahiv = "False"
+            form.form_smartvamalaria = "True" if form.site_id == "AZS1" else "False"
+            form.form_smartvahce = "True"
+            form.form_smartvafreetext = "True"
+        db.session.add(MapOrgUnitVaPresets(org_unit_id=self.units["D1"].org_unit_id,
+                                           hiv_mortality="high", malaria_mortality=None))
+        db.session.commit()
+
+        project = self._project(self._body("interviewer_p1"), TA)
+        targets = {(target["site_id"], target["options"]["hiv"], target["options"]["malaria"])
+                   for target in project["smartva_targets"]}
+        self.assertEqual(targets, {("AZS1", True, True), ("AZS2", True, False)})
+
+    def test_smartva_target_uses_site_form_fallback_and_omits_ambiguous_or_malformed_forms(self):
+        user = self.users["interviewer_p1"]
+        db.session.add(self._grant_row(user, R.interviewer, P, SP))
+        project_row = db.session.get(VaProjectMaster, SP)
+        project_row.web_intake_mode = "both"
+        project_row.project_country_iso3 = "KEN"
+        forms = db.session.scalars(sa.select(VaForms).where(VaForms.project_id == SP)).all()
+        forms_by_site = {form.site_id: form for form in forms}
+        for form in forms:
+            form.form_source = "web"
+            form.form_smartvahiv = "True" if form.site_id == "AZS1" else "False"
+            form.form_smartvamalaria = "False" if form.site_id == "AZS1" else "True"
+            form.form_smartvahce = "False" if form.site_id == "AZS1" else "True"
+            form.form_smartvafreetext = "False"
+        db.session.commit()
+
+        project = self._project(self._body("interviewer_p1"), SP)
+        self.assertTrue(all(target["org_unit_id"] is None for target in project["smartva_targets"]))
+        self.assertEqual({target["site_id"] for target in project["smartva_targets"]}, {"AZS1", "AZS3"})
+        by_site = {target["site_id"]: target for target in project["smartva_targets"]}
+        self.assertEqual(by_site["AZS1"]["options"], {
+            "country": "KEN", "hiv": True, "malaria": False, "hce": False, "freetext": False})
+        self.assertEqual(by_site["AZS3"]["options"], {
+            "country": "KEN", "hiv": False, "malaria": True, "hce": True, "freetext": False})
+        self.assertEqual(by_site["AZS1"]["form_id"], forms_by_site["AZS1"].form_id)
+        self.assertEqual(by_site["AZS3"]["form_id"], forms_by_site["AZS3"].form_id)
+
+        duplicate = VaForms(
+            form_id="AZSP01AZS199", project_id=SP, site_id="AZS1", odk_form_id="web",
+            odk_project_id="0", form_type="WHO VA 2022", form_source="web",
+            form_status=VaStatuses.active,
+        )
+        db.session.add(duplicate)
+        db.session.commit()
+        project = self._project(self._body("interviewer_p1"), SP)
+        self.assertEqual({target["site_id"] for target in project["smartva_targets"]}, {"AZS3"})
+        db.session.delete(duplicate)
+        forms_by_site["AZS1"].form_smartvahce = "TRUE"
+        db.session.commit()
+        project = self._project(self._body("interviewer_p1"), SP)
+        self.assertEqual({target["site_id"] for target in project["smartva_targets"]}, {"AZS3"})
 
     def test_the_in_charge_derives_data_manager_in_their_subtree_only(self):
         body = self._body("incharge_c1")

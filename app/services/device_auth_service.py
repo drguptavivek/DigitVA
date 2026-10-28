@@ -72,6 +72,7 @@ API_V1_PREFIX = "/api/v1/"
 UNAUTHENTICATED_ENDPOINTS = frozenset({
     "api_v1.auth_api.enroll", "api_v1.auth_api.open_session", "api_v1.auth_api.refresh_session",
     "api_v1.auth_api.demo_enroll", "api_v1.auth_api.redeem_sign_in_qr",
+    "api_v1.auth_api.password_enroll",
 })
 ACCESS_TTL = timedelta(minutes=15)
 DEFAULT_REFRESH_TTL_DAYS = 30
@@ -309,7 +310,7 @@ def _device_fields(device_name, platform, app_version) -> tuple[str, str | None]
     ``invalid_request``."""
     name = _clean_text(device_name, limit=_DEVICE_NAME_MAX, name="device_name", required=True)
     version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
-    if platform not in _PLATFORMS:
+    if not isinstance(platform, str) or platform not in _PLATFORMS:
         raise DeviceAuthError("platform must be android, ios or desktop.", "invalid_request", 400)
     return name, version
 
@@ -342,12 +343,12 @@ def device_for_client_uuid(session: AuthDeviceSession, client_device_uuid) -> Au
 def _add_device(
     project_id: str, name: str, platform: str, version: str | None, via, client_device_uuid=None
 ) -> tuple[AuthDevice, str]:
-    """Insert a device enrolled through the code row *via*; returns (device,
+    """Insert a device, optionally through code row *via*; returns (device,
     plaintext secret). Caller commits."""
     secret = _new_secret()
     device = AuthDevice(
-        # The enrolment code's project: the device's admin home (listed and
-        # revoked there, ended when it closes). It does not limit which
+        # The enrolment project: the device's admin home (listed and
+        # revoked there). It does not limit which
         # projects the device serves; every request names its project.
         project_id=project_id,
         name=name,
@@ -393,6 +394,55 @@ def enrol_device(
     if consumed is None or not _project_active(consumed.project_id):
         raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
     return _add_device(consumed.project_id, name, platform, version, consumed.id, client_device_uuid)
+
+
+def enrol_with_password(
+    *, identifier, password, device_name, platform, app_version, client_device_uuid=None
+) -> tuple[AuthDevice, str, IssuedTokens, VaUsers]:
+    """Authenticate, enrol and open one native session; caller commits.
+
+    The optional install UUID is parsed before writes. The home is the first
+    accessible collection project, otherwise the first native coding/review
+    project. Raises DeviceAuthError before creating rows on credential,
+    eligibility or device-cap refusal. Session issuance never commits, so a
+    later failure rolls the new device back with it. Invalid credentials
+    commit only their audit event before any device/session is created.
+    """
+    from app.services.web_intake_service import interviewer_context, register_death_context
+
+    name, version = _device_fields(device_name, platform, app_version)
+    client_uuid = parse_client_device_uuid(client_device_uuid)
+    identifier = identifier.strip() if isinstance(identifier, str) else ""
+    user, valid = _check_credentials(identifier, password)
+    if not valid or user.is_public_demo:
+        record_security_event(
+            user_id=user.user_id if user and user.is_active else None,
+            event_type="device_password_enrol_failed", detail={"reason": "invalid_credentials"},
+        )
+        db.session.commit()
+        raise DeviceAuthError("Invalid email or password.", "invalid_credentials", 401)
+    if not user.sign_in_verified:
+        raise DeviceAuthError("Verify your email address before signing in.", "email_unverified", 403)
+    if not user.is_admin() and should_block_non_admin_after_cutoff():
+        raise DeviceAuthError("Site is under maintenance.", "maintenance", 403)
+
+    resolved = resolve_grants(user)
+    context = interviewer_context(user, _grants=resolved)
+    register_context = register_death_context(user, context, _grants=resolved)
+    if not has_device_access(user, context, register_context, _grants=resolved):
+        raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
+    projects = {entry["project_id"] for entry in context + register_context}
+    if not projects:
+        projects = {
+            grant.project_id for grant in resolved.of(_DEVICE_CODING_ROLES, virtual=False)
+            if grant.opens_gate
+        }
+    project_id = min(projects)
+    # Hold the account lock through creation and issuance; no phone is evicted.
+    check_device_slot(user)
+    device, secret = _add_device(project_id, name, platform, version, None, client_uuid)
+    issued, user = _create_session(device, user)
+    return device, secret, issued, user
 
 
 def _demo_code_hash(user: VaUsers) -> str:
@@ -620,6 +670,15 @@ def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedT
         raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
     check_device_slot(user, device.device_id)
     _end_existing_pair_sessions(device, user)
+    return _create_session(device, user)
+
+
+def _create_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, VaUsers]:
+    """Issue tokens after the caller checks credentials, access and slots.
+
+    Returns the issued session and user. Caller commits, so a newly enrolled
+    device and its session remain one transaction if issuance fails.
+    """
     session = AuthDeviceSession(
         device_id=device.device_id,
         user_id=user.user_id,

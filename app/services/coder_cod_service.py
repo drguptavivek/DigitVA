@@ -27,7 +27,6 @@ from app.models import (
     VaInitialAssessments,
     VaSmartvaResults,
     VaStatuses,
-    VaSubmissions,
     VaSubmissionsAuditlog,
 )
 from app.services import coding_search_telemetry_service
@@ -41,7 +40,10 @@ from app.services.cod_entry_mode import (
     smartva_icd11_alternatives,
 )
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
-from app.services.coding_allocation_service import return_tester_coding_to_pool
+from app.services.coding_allocation_service import (
+    lock_coding_submission,
+    return_tester_coding_to_pool,
+)
 from app.services.coding_service import get_project_for_submission
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
@@ -72,7 +74,10 @@ from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     verify_doris_submission,
 )
-from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
+from app.services.submission_payload_version_service import (
+    get_active_payload_version,
+    joined_payload,
+)
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -315,7 +320,7 @@ def require_coding_session(user, va_sid: str, actiontype: str) -> VaAllocations:
             VaAllocations.va_allocated_to == user.user_id,
             VaAllocations.va_allocation_for == VaAllocation.coding,
             VaAllocations.va_allocation_status == VaStatuses.active,
-        )
+        ).execution_options(populate_existing=True)
     )
     if allocation is None:
         raise CoderCodingError(
@@ -441,9 +446,9 @@ def submit_coder_initial_cod(
     ``age_restriction_confirmed``; the confirmation is then recorded in the
     ``antecedent`` provenance, as the final records it (``digitva-oh7j``).
     """
-    actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
-    if db.session.get(VaSubmissions, va_sid) is None:
+    if lock_coding_submission(va_sid) is None:
         raise CoderCodingError("Submission not found.", 404, code="not_found")
+    actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     allocation = require_coding_session(user, va_sid, actiontype)
     project = _load_project(va_sid)
     mode = project_mode(project)
@@ -750,8 +755,10 @@ def submit_coder_final_cod(
     is recorded there too; on a value that is not one ICD-11 stem it is a 422
     ``INVALID_CAUSING_CONDITION_FLAG``.
     """
+    submission = lock_coding_submission(va_sid)
+    if submission is None:
+        raise CoderCodingError("Submission not found.", 404, code="not_found")
     actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
-    # Authorize before the row lock: a refused caller never waits on it.
     allocation = require_coding_session(user, va_sid, actiontype)
     project = _load_project(va_sid)
     mode = project_mode(project)
@@ -765,14 +772,6 @@ def submit_coder_final_cod(
             400,
             code="invalid_request",
         )
-    # Final assessment replacement is a single-writer operation per
-    # submission: lock the submission before reading its allocation and
-    # finals so two requests cannot both pass the check-then-insert window.
-    submission = db.session.scalar(
-        sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_sid).with_for_update()
-    )
-    if submission is None:
-        raise CoderCodingError("Submission not found.", 404, code="not_found")
     active_payload_version = get_active_payload_version(va_sid)
     blocking_messages: list[str] = []
     if active_payload_version is None:
@@ -1068,9 +1067,9 @@ def submit_coder_not_codeable(
     ``CoderCodingError``: 404/403 authz or no allocation, 400
     ``invalid_request``, 409 ``wrong_state``.
     """
-    actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
-    if db.session.get(VaSubmissions, va_sid) is None:
+    if lock_coding_submission(va_sid) is None:
         raise CoderCodingError("Submission not found.", 404, code="not_found")
+    actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     allocation = require_coding_session(user, va_sid, actiontype)
     if reason not in NOT_CODEABLE_REASONS:
         raise CoderCodingError(

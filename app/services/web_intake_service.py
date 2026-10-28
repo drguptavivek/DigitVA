@@ -1188,7 +1188,7 @@ def _interview_completed(death: VaDeathRegister) -> bool:
 
 def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_at: object | None = None,
                  identifiers: dict | None = None, warnings: list | None = None,
-                 station_roster: bool = False) -> VaDeathRegister:
+                 station_roster: bool = False, consent=None) -> VaDeathRegister:
     """Correct the register fields of a case, until an interview of it is completed.
 
     *changes* holds only the fields to change, named as ``register_death``'s
@@ -1241,6 +1241,10 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
             if death is None or not (cases.is_interview_supervisor_for(user, death) or _reporter_reaches(user, death)):
                 raise
     death = cases.lock_case(death)
+    from app.services import consent_service
+    if consent_service.interview_refused(death=death, client_draft_id=None, answers={}, consent=consent):
+        if any(v not in (None, "") for v in changes.values()) or identifiers:
+            raise WebIntakeError("Consent was refused; do not add registration details.", 422, "consent_refused")
     if station_roster and death.status in IDENTIFIER_CLOSED_STATES:
         raise WebIntakeError("This case is closed; correct it on the web.", 409, "case_closed")
     if not changes and not identifiers:
@@ -2123,7 +2127,102 @@ def stored_answers(answers: dict) -> dict:
     return redact_payload_national_ids(scrub_attachment_names(answers))[0]
 
 
-def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None) -> int:
+def clear_direct_identity_for_refusal(draft: VaWebIntakeDraft, actor: VaUsers) -> None:
+    """Remove identity copied from an unsent direct interview, not a register."""
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    if death is None:
+        return
+    if db.session.scalar(sa.select(sa.exists().where(
+        VaWebIntakeDraft.death_id == death.death_id,
+        VaWebIntakeDraft.draft_id != draft.draft_id,
+        VaWebIntakeDraft.status == "draft",
+    ))):
+        now = _utcnow()
+        db.session.execute(sa.update(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.draft_id != draft.draft_id,
+            VaWebIntakeDraft.status == "draft",
+        ).values(updated_at=now, meta=VaWebIntakeDraft.meta.op("||")(
+            sa.func.jsonb_build_object("refusalBarrier", now.isoformat(), "refusalResumePending", True)
+        )).execution_options(synchronize_session=False))
+        draft.meta = {**(draft.meta or {}), "caseRefusalHold": True}
+        return
+    if death.source != "direct" or death.status not in ("draft_identity", "in_progress") or death.va_sid or db.session.scalar(sa.select(sa.exists().where(
+        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "submitted",
+    ))):
+        return
+    if death.status == "in_progress":
+        cases.transition(death, "draft_identity", actor=actor, action="refusal_identity_cleared")
+    register_pii_accessor.write_fields(death, {
+        "deceased_name": None, "deceased_sex": None, "date_of_death": None,
+        "date_of_birth": None, "date_of_birth_partial": None, "age_years": None,
+    })
+    db.session.flush()
+
+
+def scrub_refused_draft(draft: VaWebIntakeDraft) -> None:
+    """Scrub this unsent draft and its saved losing versions."""
+    from app.services import consent_service
+
+    history = sa.select(VaWebIntakeDraft.draft_id).where(
+        VaWebIntakeDraft.status == "replaced", VaWebIntakeDraft.user_id == draft.user_id,
+        VaWebIntakeDraft.death_id == draft.death_id,
+        VaWebIntakeDraft.meta["replacedDraftId"].astext == str(draft.draft_id),
+    )
+    section_data = VaWebIntakeDraftSection.data
+    pairs = []
+    for key, values in consent_service.REFUSAL_ANSWERS.items():
+        pairs.extend((key, sa.case((section_data[key].astext.in_(values), section_data[key].astext), else_=None)))
+    db.session.execute(sa.update(VaWebIntakeDraftSection).where(
+        VaWebIntakeDraftSection.draft_id.in_(history)
+    ).values(data=sa.func.jsonb_strip_nulls(sa.func.jsonb_build_object(*pairs))))
+    db.session.execute(sa.update(VaWebIntakeDraft).where(VaWebIntakeDraft.draft_id.in_(history)).values(prefill={}))
+    for row in draft.sections:
+        row.data = consent_service.refusal_answers(row.data or {})
+    draft.prefill = {}
+    draft.updated_at = _utcnow()
+    draft.meta = {**(draft.meta or {}), "refusalBarrier": draft.updated_at.isoformat(), "refusalResumePending": True}
+    attachments.delete_draft_uploads(draft)
+
+
+def check_refusal_resume(draft: VaWebIntakeDraft, *, base_updated_at: object, resume_refused: bool) -> bool:
+    """Require a current, explicit first resume and reject pre-refusal saves."""
+    meta = draft.meta or {}
+    barrier = _device_time(meta.get("refusalBarrier"))
+    if barrier is None:
+        return False
+    base = _device_time(base_updated_at)
+    if base is None or base < barrier:
+        raise refusal_stale(draft, "Reload the cleared draft before continuing.")
+    if meta.get("refusalResumePending"):
+        if not resume_refused or base != draft.updated_at:
+            raise refusal_stale(draft, "Confirm the new consent decision on the current draft.")
+        draft.meta = {**meta, "refusalResumePending": False}
+        return True
+    return False
+
+
+def refusal_stale(draft: VaWebIntakeDraft, message: str) -> WebIntakeError:
+    exc = WebIntakeError(message, 409, "refusal_stale")
+    exc.draft_id = str(draft.draft_id)
+    return exc
+
+
+def release_who_refusal_hold(draft: VaWebIntakeDraft, *, answers: dict, base_updated_at: object,
+                             resume_refused: bool, consent=None) -> bool:
+    if not ((draft.meta or {}).get("caseRefusalHold") and resume_refused and answers.get("Id10013") == "yes"):
+        return False
+    from app.services import consent_service
+    death = db.session.get(VaDeathRegister, draft.death_id)
+    if consent_service.interview_refused(death=death, client_draft_id=draft.client_draft_id,
+                                         answers=answers, consent=consent, include_case_hold=False):
+        return False
+    check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=True)
+    draft.meta = {**draft.meta, "caseRefusalHold": False}
+    db.session.flush()
+    return True
+
+
+def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None, refusal_override: bool | None = None, resume_refused: bool = False) -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
     A direct start's case (``draft_identity``) takes its identity from the
@@ -2134,6 +2233,31 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     """
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
+    from app.services import consent_service
+
+    combined = _answers_of(draft)
+    if resume_refused and any(isinstance(answers, dict) and answers.get("Id10013") == "yes"
+                              for answers in sections.values()):
+        for row in draft.sections:
+            row.data = {key: value for key, value in (row.data or {}).items() if key != "Id10013"}
+        combined.pop("Id10013", None)
+    if str(combined.get("Id10013") or "").strip().lower() == "no" and not resume_refused:
+        prior_sections = {row.section_name for row in draft.sections if (row.data or {}).get("Id10013") == "no"}
+        sections = {name: ({**answers, "Id10013": "no"} if isinstance(answers, dict)
+                           and ("Id10013" in answers or name in prior_sections) else answers)
+                    for name, answers in sections.items()}
+    for answers in sections.values():
+        if isinstance(answers, dict):
+            combined.update(answers)
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    refused = refusal_override if refusal_override is not None else consent_service.interview_refused(
+        death=death, client_draft_id=draft.client_draft_id, answers=combined,
+    )
+    if refused:
+        clear_direct_identity_for_refusal(draft, actor or db.session.get(VaUsers, draft.user_id))
+        scrub_refused_draft(draft)
+        sections = {name: consent_service.refusal_answers(answers) if isinstance(answers, dict) else answers
+                    for name, answers in sections.items()}
     # Validate metadata before writing answers so an invalid pin, locale, or
     # timeline cannot leave the answers saved while its metadata is refused.
     locale_meta = _clean_locale_meta(meta) if meta else {}
@@ -2143,7 +2267,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     existing = {row.section_name: row for row in draft.sections}
     # docs/policy/web-intake.md "Locked prefill": a tampered or dropped locked
     # answer is put back, not refused (see submit_draft).
-    locked = _draft_locked_answers(draft)
+    locked = {} if refused else _draft_locked_answers(draft)
     written = 0
     browser_keys: set = set()
     for name, answers in sections.items():
@@ -2191,7 +2315,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         death = db.session.get(VaDeathRegister, draft.death_id)
         # Identity follows the form only for a direct start, which only its
         # starter sees; on a shared case it updates at the winning submit.
-        if death.status == "draft_identity":
+        if death.status == "draft_identity" and not refused:
             merged: dict = {}
             for row in draft.sections:
                 merged.update(row.data or {})
@@ -2554,7 +2678,7 @@ def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, s
     return payload, references, validation_err
 
 
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None, locked_death: VaDeathRegister | None = None) -> VaSubmissions | None:
+def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None, locked_death: VaDeathRegister | None = None, refusal_override: bool | None = None) -> VaSubmissions | None:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
     Every outcome is stored as a submission. Only ``completed`` enters coding
@@ -2581,35 +2705,43 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     check_device_answers(completion["data"])
     # Web and device submits both pass here (public-demo.md section 8).
     public_demo_service.check_new_submission(user, draft.project_id)
-    outcome = _interview_outcome(completion["data"], completion)
+    from app.services import consent_service
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    if death is not None and (locked_death is None or locked_death.death_id != death.death_id):
+        death = cases.lock_case(death)
+    refused = refusal_override if refusal_override is not None else consent_service.interview_refused(
+        death=death, client_draft_id=draft.client_draft_id, answers=completion["data"],
+    )
+    outcome = "refused" if refused else _interview_outcome(completion["data"], completion)
     # Locked answers (interviewer identity, area presets, ABHA, registered age) are
     # overwritten with the draft's server-computed prefill, added when the
     # client left them out, before relevance is derived or stripped. Overwrite,
     # not refuse: a device interview finished offline may hold a stale locked
     # value (a profile or case edit), and refusing
     # would strand a completed interview the interviewer cannot correct.
-    data = {**completion["data"], **_draft_locked_answers(draft), "interview_outcome": outcome}
+    data = (consent_service.refusal_answers(completion["data"]) if refused else
+            {**completion["data"], **_draft_locked_answers(draft), "interview_outcome": outcome})
     consent = normalize_consent(data.get("Id10013"))
     _require_live_org_unit(draft)
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
     visit_note: dict = {}
     if death is not None:
         # Under the case lock, so a teammate's concurrent winning submit is
         # seen here and this one is kept as a superseded copy, and before any
         # identity sync, so a closed case's identity is never rewritten.
-        if locked_death is None or locked_death.death_id != death.death_id:
-            death = cases.lock_case(death)
         # Re-read under the lock: a double or retried submit of this same
         # draft that won meanwhile must not turn the winner into a copy.
         if db.session.scalar(sa.select(VaWebIntakeDraft.status).where(VaWebIntakeDraft.draft_id == draft.draft_id)) != "draft":
             raise WebIntakeError("This draft has already been submitted.", 409)
+        if refused:
+            clear_direct_identity_for_refusal(draft, user)
+            scrub_refused_draft(draft)
         if death.status in _SUPERSEDED_CASE_STATES:
             _supersede_draft(draft, data, completion)
             return None
         # Identity comes from a direct start's own (only) draft or from the
         # winning complete submit, never from a refused or partial one on a
         # shared case.
-        if death.status == "draft_identity" or outcome == "completed":
+        if outcome != "refused" and (death.status == "draft_identity" or outcome == "completed"):
             _sync_case_identity(death, data, user)
         # A refusal needs no identity: WHO asks it after consent, so a direct
         # start refused at consent never has one. The submission is stored as
@@ -2621,8 +2753,6 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
                 data, name=bool(death.has_deceased_name or death.deceased_name),
                 sex=bool(death.deceased_sex), date_of_death=bool(death.date_of_death),
             )
-        if identity_pending:
-            visit_note = _visit_note(data)
         _begin_interview(death, user)
         if not (identity_pending or death.status in ("in_progress", "paused")):
             raise WebIntakeError("This case is closed.", 409)
@@ -2632,6 +2762,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
                 data, name=bool(death.has_deceased_name or death.deceased_name),
                 sex=bool(death.deceased_sex), date_of_death=bool(death.date_of_death),
             )
+
+    elif refused:
+        scrub_refused_draft(draft)
 
     submitted_at = _utcnow()
     try:
@@ -2649,6 +2782,16 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         draft, user, data, submitted_at=submitted_at, expression_now=expression_now,
         visit_note=visit_note, intake_source=intake_source,
     )
+    if refused:
+        # Keep system identifiers needed by the submission pipeline, never register prefill.
+        keep = {"KEY", "instanceID", "sid", "SubmissionDate", "updatedAt", "SubmitterID",
+                "DeviceID", "FormVersion", "ReviewState", "form_def", "intake_source",
+                "death_register_id", "AttachmentsExpected", "AttachmentsPresent"}
+        payload = {k: v for k, v in payload.items() if k in keep or k in consent_service.REFUSAL_ANSWERS}
+        payload.update(consent_service.refusal_answers(data))
+        payload["interview_outcome"] = "refused"
+        references = {}
+        validation_err = []
     if references and intake_source == "web":
         # Every file the answers name must be on the server first (the page
         # sends them before it submits); a case must not reach coding with a
@@ -2932,6 +3075,9 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     db.session.refresh(draft)
     if submission is None or draft.status != "submitted":
         raise WebIntakeError("Submission not found.", 404)
+    if ((draft.meta or {}).get("interviewOutcome") == "refused" or
+            str(data.get("Id10013") or "").strip().lower() == "no"):
+        raise WebIntakeError("A submitted interview cannot be changed to or from a refusal here.", 422, "consent_refused")
     state = get_submission_workflow_state(va_sid)
     # A sent-back or reopened case takes the revision and restarts coding at
     # once; every other protected state is locked, an ODK upstream change
@@ -3653,7 +3799,7 @@ def fold_into_own_submission(user: VaUsers, draft: VaWebIntakeDraft, *, completi
     return own, reply
 
 
-def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None, unrouted_ok: bool = False) -> tuple[VaWebIntakeDraft, str, bool]:
+def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None, unrouted_ok: bool = False, refusal_override: bool | None = None, resume_refused: bool = False, base_updated_at: object | None = None, incoming_consent=None) -> tuple[VaWebIntakeDraft, str, bool]:
     """Store and submit one completed device interview; returns
     ``(draft, kept, locked)`` (``"incoming"``/``"server"``: whose answers are
     the coder's version; *locked*: coding is final or the case closed).
@@ -3694,12 +3840,24 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     completion = _device_completion(completion, data)
     entries = interviewer_context(user)
     death = None
+    case_hold = None
     if death_id:
         death = cases.lock_case(get_death(user, death_id, entries=entries))
         if death.project_id != project_id:
             raise WebIntakeError("Death entry not found.", 404)
+        from app.services import consent_service
+        case_hold = consent_service.case_refusal_hold(death)
+        refusal_override = consent_service.interview_refused(
+            death=death, client_draft_id=client_draft_id, answers=data, consent=incoming_consent, known_case_hold=case_hold,
+        )
+        attempting_resume = (resume_refused and data.get("Id10013") == "yes"
+                              and case_hold)
+        if refusal_override and not attempting_resume:
+            consent_service.check_refusal_answers(data)
         own = _own_submitted_draft(user, death)
         if own is not None:
+            if refusal_override:
+                raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
             kept, locked = resubmit_device_interview(
                 user, own, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
             )
@@ -3717,6 +3875,11 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
         # not for it.
         if death_id:
             raise WebIntakeError("That client_draft_id is already in use.", 409)
+        if pending.death_id:
+            death = cases.lock_case(db.session.get(VaDeathRegister, pending.death_id))
+        pending = db.session.get(VaWebIntakeDraft, pending.draft_id, with_for_update=True, populate_existing=True)
+        if not is_attachment_draft(pending):
+            raise WebIntakeError("This draft is no longer editable.", 409)
         _check_attachment_draft_matches(pending, project_id, site_id, org_unit_id)
         _require_scope(user, project_id, site_id, pending.org_unit_id, entries=entries)
         draft = pending
@@ -3725,6 +3888,29 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
             user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
             death_id=death_id, entries=entries, locked_death=death, unrouted_ok=unrouted_ok,
         )
+    from app.services import consent_service
+    if draft.death_id and case_hold is None:
+        case_hold = consent_service.case_refusal_hold(db.session.get(VaDeathRegister, draft.death_id))
+    if case_hold and not (draft.meta or {}).get("caseRefusalHold"):
+        raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
+    released = release_who_refusal_hold(draft, answers=data, base_updated_at=base_updated_at,
+                                        resume_refused=resume_refused, consent=incoming_consent)
+    if released:
+        case_hold = False
+    if not death_id or released:
+        refusal_override = consent_service.interview_refused(
+            death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
+            client_draft_id=client_draft_id, answers=data, consent=incoming_consent, known_case_hold=case_hold,
+        )
+    if refusal_override:
+        consent_service.check_refusal_answers(data)
+    if (not released and str(_answers_of(draft).get("Id10013") or "").lower() == "no"
+            and str(data.get("Id10013") or "").lower() != "no"):
+        if not (resume_refused and data.get("Id10013") == "yes"
+                and _device_time(base_updated_at) == draft.updated_at):
+            raise refusal_stale(draft, "Reload the draft and record the new consent decision.")
+    if not refusal_override and not released:
+        check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=resume_refused)
     if draft.sections:
         # An open draft with content: the phone's own earlier sync is the same
         # draft continuing; a newer browser save is unfinished work that must
@@ -3741,8 +3927,9 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     draft.client_draft_id = client_draft_id
     draft.answers_sha256 = answers_sha256
     draft.meta = {**(draft.meta or {}), **stored}
-    save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
-    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death) is None:
+    save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user,
+                        refusal_override=refusal_override, resume_refused=resume_refused)
+    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death, refusal_override=refusal_override) is None:
         return draft, "server", True
     return draft, "incoming", False
 
@@ -3826,7 +4013,7 @@ def _sync_reply(draft: VaWebIntakeDraft, kept: str, conflict: bool) -> dict:
     return reply
 
 
-def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None, death_id: object | None, client_draft_id: uuid.UUID, envelope: dict, data: dict, answers_sha256: str, saved_at: object, device_clock_at: object, base_updated_at: object | None) -> dict:
+def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None, death_id: object | None, client_draft_id: uuid.UUID, envelope: dict, data: dict, answers_sha256: str, saved_at: object, device_clock_at: object, base_updated_at: object | None, resume_refused: bool = False) -> dict:
     """Sync a phone's in-progress interview into the interviewer's one open
     draft of the case (web-intake.md "Parallel interviews"); returns the reply.
 
@@ -3857,13 +4044,31 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         raise WebIntakeError("death_id is required.")
     now = _utcnow()
     draft = start_draft(user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id, death_id=death_id)
+    from app.services import consent_service  # local: consent_service imports this module
+    if consent_service.case_refusal_hold(db.session.get(VaDeathRegister, draft.death_id)) and not (draft.meta or {}).get("caseRefusalHold"):
+        raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
+    resume_refused = resume_refused and base is not None and base == draft.updated_at
+    released = release_who_refusal_hold(draft, answers=data, base_updated_at=base_updated_at,
+                                        resume_refused=resume_refused)
+    if str(_answers_of(draft).get("Id10013") or "").strip().lower() == "no" and not resume_refused:
+        data = {**data, "Id10013": "no"}
     # No covered answer is stored without a granted consent on file (the gate of /submissions); the hash
     # stays the phone's, so a resend of the same save is still recognised below.
-    from app.services import consent_service  # local: consent_service imports this module
-
     data, stripped = consent_service.strip_unconsented_answers(
         project_id=draft.project_id, death=db.session.get(VaDeathRegister, draft.death_id),
         client_draft_id=client_draft_id, answers=data)
+    combined = {**_answers_of(draft), **data}
+    refused = consent_service.interview_refused(
+        death=db.session.get(VaDeathRegister, draft.death_id),
+        client_draft_id=client_draft_id, answers=combined,
+    )
+    if not refused and not released:
+        check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=resume_refused)
+    if refused:
+        cleaned = consent_service.refusal_answers(data)
+        stripped = stripped or cleaned != data
+        data = cleaned
+        scrub_refused_draft(draft)
     meta = draft.meta or {}
     last = meta.get("lastSync") or {}
     cid = str(client_draft_id)
@@ -3871,6 +4076,12 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
     # continuing, never a conflict. A stripped earlier sync is not a no-op
     # resend: once consent is on file the same hash stores the full answers.
     from_phone = draft.answers_sha256 is not None and last.get("clientDraftId") == cid
+    if from_phone and draft.answers_sha256 == answers_sha256 and refused:
+        draft.meta = {**meta, "lastSync": {**last, "refusal": True, "stripped": True}}
+        db.session.flush()
+        return _sync_reply(draft, "server", bool(last.get("conflict")))
+    if from_phone and draft.answers_sha256 == answers_sha256 and last.get("refusal") and not refused:
+        return _sync_reply(draft, "server", False)
     if from_phone and draft.answers_sha256 == answers_sha256 and not last.get("stripped"):
         return _sync_reply(draft, "incoming", bool(last.get("conflict")))
     has_content = bool(draft.sections)
@@ -3908,16 +4119,17 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         **meta, **stored,
         "effectiveSavedAt": effective.isoformat(),
         "clockSkewSeconds": round((now - clock).total_seconds()),
-        "lastSync": {"clientDraftId": cid, "conflict": conflict, **({"stripped": True} if stripped else {})},
+        "lastSync": {"clientDraftId": cid, "conflict": conflict, **({"stripped": True} if stripped else {}),
+                     **({"refusal": True} if refused else {})},
     }
     section = envelope.get("currentSection")
     save_draft_sections(
         draft, sections={DEVICE_SECTION: data},
         meta={k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope} or None,
-        current_section=section if isinstance(section, str) and section else None, actor=user,
+        current_section=section if isinstance(section, str) and section else None, actor=user, resume_refused=resume_refused,
     )
     log.info("device draft synced | unique_id=%s | conflict=%s | by=%s", draft.unique_id, conflict, user.user_id)
-    return _sync_reply(draft, "incoming", conflict)
+    return _sync_reply(draft, "server" if refused else "incoming", conflict)
 
 
 def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:

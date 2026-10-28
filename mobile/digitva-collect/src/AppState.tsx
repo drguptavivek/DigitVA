@@ -32,6 +32,7 @@ import {
   loadActiveSlot,
   loadDevice,
   setActiveSlot,
+  standaloneModeAvailable,
   subscribeAccountChanges,
   subscribeAccessChanges,
   type Account,
@@ -67,6 +68,8 @@ interface AppState {
   ready: boolean;
   device: Device | undefined;
   accounts: Account[];
+  /** Native only: both slots have no server accounts awaiting explicit logout; false until checked. */
+  standaloneAvailable: boolean;
   /** Native only: the enrolment in use, Active (live server) or Demo. */
   slot?: Slot;
   /**
@@ -121,6 +124,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [device, setDevice] = useState<Device | undefined>();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [standaloneAvailable, setStandaloneAvailable] = useState(false);
   const [slot, setSlot] = useState<Slot>("active");
   const [uiLocale, setLocaleState] = useState("en");
   const [lockVersion, setLockVersion] = useState(0);
@@ -137,6 +141,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const holds = useRef(0);
   const refreshPending = useRef(false);
   const lastAccess = useRef(new Map<string, string>());
+  const reloadVersion = useRef(0);
 
   // A refresh that changed data bumps lockVersion; with a form open it waits.
   const bumpRefresh = useCallback(() => {
@@ -225,25 +230,38 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reload = useCallback(async () => {
-    // Device and accounts from one slot, read once, even if a switch lands meanwhile.
-    const nextSlot = await loadActiveSlot();
-    const [nextDevice, storedAccounts] = await Promise.all([
-      loadDevice(nextSlot),
-      loadAccounts(nextSlot),
-    ]);
-    // Accounts kept before they recorded a server belong to this device's: one write, then never again.
-    const slotAccounts = nextDevice && storedAccounts.some(lacksServer) && (await bindLegacyAccounts(nextSlot))
-      ? await loadAccounts(nextSlot)
-      : storedAccounts;
-    // An account signed in on another server than the phone now uses (it was
-    // re-enrolled elsewhere) is not shown at all: its encrypted store stays on
-    // the phone, unsent work included, and returns if the phone is enrolled on
-    // that server again.
-    const nextAccounts = slotAccounts.filter((account) => !accountServerChanged(account, nextDevice));
-    setSlot(nextSlot);
-    // Keep identities when nothing changed so an idle poll redraws nothing.
-    setDevice((prev) => (sameJson(prev, nextDevice) ? prev : nextDevice));
-    setAccounts((prev) => (sameJson(prev, nextAccounts) ? prev : nextAccounts));
+    const version = ++reloadVersion.current;
+    // Keep the validated gate while reading so a routine refresh cannot unmount open standalone work.
+    try {
+      // Device and accounts from one slot, read once, even if a switch lands meanwhile.
+      const nextSlot = await loadActiveSlot();
+      const [nextDevice, storedAccounts] = await Promise.all([
+        loadDevice(nextSlot),
+        loadAccounts(nextSlot),
+      ]);
+      // Accounts kept before they recorded a server belong to this device's: one write, then never again.
+      const slotAccounts = nextDevice && storedAccounts.some(lacksServer) && (await bindLegacyAccounts(nextSlot))
+        ? await loadAccounts(nextSlot)
+        : storedAccounts;
+      // An account signed in on another server than the phone now uses (it was
+      // re-enrolled elsewhere) is not shown at all: its encrypted store stays on
+      // the phone, unsent work included, and returns if the phone is enrolled on
+      // that server again.
+      const nextAccounts = slotAccounts.filter((account) => !accountServerChanged(account, nextDevice));
+      const available = await standaloneModeAvailable();
+      // Publish one complete snapshot; an older read must never undo a newer slot or account change.
+      if (version !== reloadVersion.current) return;
+      setSlot(nextSlot);
+      // Keep identities when nothing changed so an idle poll redraws nothing.
+      setDevice((prev) => (sameJson(prev, nextDevice) ? prev : nextDevice));
+      setAccounts((prev) => (sameJson(prev, nextAccounts) ? prev : nextAccounts));
+      setStandaloneAvailable(available);
+      setReady(true);
+    } catch (reloadError) {
+      if (version !== reloadVersion.current) return;
+      setStandaloneAvailable(false);
+      throw reloadError;
+    }
   }, []);
 
   const switchSlot = useCallback(async (next: Slot) => {
@@ -358,9 +376,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       subscribeAccountChanges(() => {
-        void reload();
+        void reload().catch(reportBackgroundError);
       }),
-    [reload],
+    [reload, reportBackgroundError],
   );
 
   useEffect(
@@ -378,9 +396,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const saved = await SecureStore.getItemAsync(UI_LOCALE_KEY);
       setLocaleState(setUiLocale(saved ?? getLocales()[0]?.languageCode));
       await reload();
-      setReady(true);
-    })();
-  }, [reload]);
+    })().catch(reportBackgroundError);
+  }, [reload, reportBackgroundError]);
 
   // Network watch; on reconnect, one debounced pass sends what queued up while offline.
   useEffect(() => {
@@ -467,6 +484,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ready,
       device,
       accounts,
+      standaloneAvailable,
       slot,
       switchSlot,
       uiLocale,
@@ -491,6 +509,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ready,
       device,
       accounts,
+      standaloneAvailable,
       slot,
       switchSlot,
       uiLocale,

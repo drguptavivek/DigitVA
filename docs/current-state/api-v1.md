@@ -135,6 +135,7 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | Call | Notes |
 |---|---|
 | `POST /auth/enroll` | Body `code`, `device_name`, `platform` (`android`, `ios` or `desktop`, the offline station), `app_version`, optional `signing_public_key` (base64url raw Ed25519 public key, 32 bytes; digitva-gb8w.5). 201 `{device_id, device_secret, project, server_time}`, plus `signing_key_id` (first 16 hex of the key's SHA-256) when a key was sent. A bad key is 400 `invalid_request` with `fields: ["signing_public_key"]`, checked before the code is consumed. 10/min per IP. Code consumed atomically (`use_count < max_uses`). |
+| `POST /auth/password-enroll` | Native Active enrolment without QR. Body `{identifier, password, device_name, platform, app_version?, client_device_uuid?}`. Atomically creates a device and session; 201 is `/auth/enroll` plus `/auth/sessions` and `access`. Existing credential/native-role/terms checks and serialized three-device cap apply; `409 device_limit` never evicts. Home project is deterministic administrative metadata, not authorization. Public Demo deployment: 404; demo accounts: generic 401 `invalid_credentials`. Existing native credential rate limits and body cap apply. Passwords/secrets/tokens are never logged. |
 | `POST /auth/sign-in-qr/redeem` | Public. Body `{token, device_name, platform, app_version?, signing_public_key?}`: enrols a device and opens the person's device session in one step (a sign-in QR, mobile-sign-in.md section 8). 201 `/auth/enroll`'s `{device_id, device_secret, signing_key_id?, project, server_time}` plus the `/auth/sessions` token response and `access`. Every failure 404 `sign_in_qr_invalid`; 400 `invalid_request`. 10/min per IP, 5/min per token digest. Detail: authentication-and-onboarding.md 6.1a. |
 | `POST /auth/devices/current/signing-key` | Device bearer only (the device is the session's, never the body; a cookie: 403 `device_session_required`; a revoked device's bearer: 401). Body `{signing_public_key}`. 200 `{signing_key_id}`. Set once: 409 `conflict` when the device has a key; 400 `invalid_request` with `fields` for a bad key. 10/min per IP. Audited `device_signing_key_set` (key id only). |
 | `POST /auth/sessions` | Body `device_id`, `device_secret`, `email` (an email or a mobile number), `password`. 201 `{access_token, access_expires_at, refresh_token, refresh_expires_at, user {user_id, name, email}, terms_required, access}`. `access` is the `GET /me/access` body for that user, shown even while terms are pending (it is display only; the terms gate is on requests). Refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` (no interviewer, coder, coding_tester or reviewer access in any active project; code kept for the app). Limits: 10/min per IP, 10/min per device, 20/hour per account. |
@@ -142,7 +143,7 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | `DELETE /auth/sessions/current` | Bearer only (a cookie: 401 `unauthorized`). 204. `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out; open while terms are pending. |
 | `GET /auth/demo-signup/challenge` | Public demo only (`PUBLIC_DEMO_ENABLED`; else 404). No body. 200 `{salt, difficulty, expires, signature}`: a proof-of-work challenge valid 5 minutes, spent by one successful verification. 30/min per IP. |
 | `POST /auth/demo-signup` | Public demo only (else 404). Body `{username, password, captcha {salt, difficulty, expires, signature, solution}}`. 201 `{user_id, username}`, no session (the app then calls `POST /auth/sessions`). 400 `captcha_failed` / `invalid_username` / `invalid_password` / `breached_password` (with `fields`); 409 `username_taken`; 429 `rate_limited`; 503 `cap_reached`, `breach_check_unavailable`, `project_missing`, `wrong_database`, `maintenance`. 10/min per IP (IPv6 per /64) plus `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT`. Audited `account_created`, `terms_accepted`. |
-| `POST /auth/demo-enroll` | Public demo only (else 404). Body `{username, password, device_name (<= 64), platform: "android", app_version?}`. 201 as `/auth/enroll`, `{device_id, device_secret, project, server_time}`, with no enrolment code. 401 `invalid_credentials` (also for a non-demo account); 400 `invalid_request`; 503 `wrong_database`, `project_missing`. At `PUBLIC_DEMO_DEVICES_PER_ACCOUNT` (3) live devices the least recently used one is revoked (audited `device_revoked`, reason `demo_device_replaced`) and the new one enrolled. 10/min per IP, 20/hour per username. |
+| `POST /auth/demo-enroll` | Public demo only (else 404). Body `{username, password, device_name (<= 64), platform: "android", app_version?}`. 201 as `/auth/enroll`, `{device_id, device_secret, project, server_time}`, with no enrolment code. 401 `invalid_credentials` (also for a non-demo account); 400 `invalid_request`; 503 `wrong_database`, `project_missing`. At the shared three-active-device cap it returns `409 device_limit` without eviction; the user must explicitly free a slot. 10/min per IP, 20/hour per username. |
 
 ## Public demo (`/api/v1/public-demo`, `app/routes/public_demo.py`; `PUBLIC_DEMO_ENABLED` only)
 
@@ -1763,3 +1764,31 @@ records the acceptance and audits `terms_accepted`; 200
 `{"error", "code": "invalid_request"}`. Exempt from the terms gate, so it works
 while terms are pending; limited to 5 per minute per user, one counter shared with the
 profile URL.
+
+## POST /api/v1/intake/refusals
+
+Registration-authorized interviewers/death reporters can save an identity-free
+refusal without acquiring interview permission. Browser writes use the existing
+CSRF protection; device writes use their enrolled or demo server and device grant.
+Standalone never calls this endpoint.
+
+The body contains `client_draft_id` (UUID), `project_id`, `site_id`, optional
+`org_unit_id`, optional `refusal_age_group` and `refusal_sex`, and the independent
+consent decisions: `who_consent: "no"` and/or a valid refused `consent` envelope.
+No other fields are accepted. Unknown broad demographic values are allowed;
+neither audit question is mandatory. Project/site/unit registration scope and
+the project's death-register mode are checked before persistence.
+
+The server creates an identity-free direct case and a minimal draft using the
+existing tables. A first receipt is 201 and an identical replay is 200, both
+`{"client_draft_id": "<uuid>"}`. Reuse with different data or another owner is
+409. The native encrypted registration queue removes an item only after the
+matching receipt. A later grant does not confer interview permission on a
+registration-only user.
+
+Existing draft/submission refusal conflicts return `refusal_stale` with an
+authorized `draft_id` when available. Clients hold the upload, fetch the sanitized
+draft, and request fresh consent; they must not retry the same stale copy. Explicit
+resume uses `resume_refused: true` with the current `if_updated_at` (browser) or
+`base_updated_at` (device). Refused same-hash sync replies keep the server copy and
+return its sanitized envelope, including refusals recorded through bundle ingest.

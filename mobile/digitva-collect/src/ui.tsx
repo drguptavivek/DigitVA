@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
-import { AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { describeError, recordError } from "./errorLog";
 import { isStorageFull } from "./storageErrors";
 import { t, type StringKey } from "./i18n";
@@ -306,6 +306,7 @@ export function errorText(error: unknown): string {
   if (error instanceof SessionRevokedError) return t(error.keptUnsent ? "accessRemovedKept" : "sessionRevoked");
   if (error instanceof SignInRequiredError) return t("signInAgain");
   if (error instanceof AlreadyEnrolledError) return t("errAlreadyEnrolled");
+  if (error instanceof AccountStoreCollisionError) return t("accountStoreCollision");
   if (error instanceof NotInSlotError) return t("errSlotChanged");
   if (error instanceof ApiError) {
     if (error.code === "device_limit") return t("deviceLimit");

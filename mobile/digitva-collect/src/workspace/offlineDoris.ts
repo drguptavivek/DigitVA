@@ -222,7 +222,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
   };
 
   /** The engine's codeinfo record for one exact token, or null when WHO does not know it. */
-  async function codeinfoItem(code: string): Promise<{ stemId: string; title: string } | null> {
+  async function codeinfoItem(code: string): Promise<{ stemId: string; title: string; primaryStem: string } | null> {
     const result = await engine.codeinfo(code);
     if (!result.ok) throw new Error("icd11_unavailable");
     if (!isRecord(result.data)) return null;
@@ -231,7 +231,10 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
     if (!stemId) return null;
     const title = plain(result.data.title ?? result.data.label);
     if (!title) return null;
-    return { stemId, title };
+    const expression = extractIcd11CodeExpression(code);
+    const first = expression ? firstStem(expression) : null;
+    const primaryStem = expression && first ? (isCluster(expression) ? icd11PrimaryStem(result.data, first) : first) : "";
+    return { stemId, title, primaryStem };
   }
 
   const codeInfoReply = async (requested: string): Promise<DorisCodeInfoReply> => {
@@ -243,7 +246,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
     if (!uri) throw new Error("icd11_unknown_code");
     return {
       schema_version: 1,
-      item: { code, title: info.title, uri, release: OFFLINE_ICD11_RELEASE, postcoordination: false },
+      item: { code, title: info.title, uri, release: OFFLINE_ICD11_RELEASE, postcoordination: false, primary_stem: info.primaryStem },
     };
   };
 

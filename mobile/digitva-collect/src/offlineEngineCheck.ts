@@ -77,12 +77,6 @@ export function describeSetup(setup: EngineSetup): string {
   return `downloaded ${setup.files.length} files: ${files}`;
 }
 
-/** The result line of "Update WHO files": what it changed, that it found nothing new, or why it failed. */
-export function describeUpdate(result: EngineInit): string {
-  if (!result.ok) return result.error === "no_connection" ? "No connection; kept the current WHO files." : "Failed; kept the shipped copies.";
-  return result.setup ? describeSetup(result.setup) : "shipped copies (no newer WHO files)";
-}
-
 /** Runs init, search, codeinfo, DORIS (cold and warm) and CoDEdit once, reporting each step's timings. */
 export async function runEngineCheck(engine: OfflineEngine, onStep: (step: CheckStep) => void = () => undefined): Promise<CheckStep[]> {
   const steps: CheckStep[] = [];

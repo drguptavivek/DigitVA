@@ -38,6 +38,7 @@ let mockCurrentBootstrap = mockBootstrap;
 let mockParams: {draftId?: string; deathId?: string; projectId?: string; siteId?: string; orgUnitId?: string; revisionDraftId?: string; revisionProjectId?: string; revisionSiteId?: string; revisionVaSid?: string} = {draftId: "draft-1"};
 const mockRouter = {back: jest.fn(), replace: jest.fn()};
 const mockServerFlush = jest.fn(async () => undefined);
+const mockResumeConsent = jest.fn(async () => undefined);
 const mockHasServed = jest.fn(() => false);
 const mockMarkServed = jest.fn(async () => undefined);
 let mockBeforeRemove: ((event: {preventDefault: () => void; data: {action: unknown}}) => void) | undefined;
@@ -71,6 +72,8 @@ jest.mock("../src/client/serverDraftStore", () => ({
     Object.assign(this, {
       load: jest.fn(async () => ({})),
       flush: mockServerFlush,
+      enterRefusal: jest.fn(),
+      resumeAfterConsentGrant: mockResumeConsent,
       recordTimelineEvent: jest.fn(async () => undefined),
       getLocaleMetadata: () => ({}),
       getServerUpdatedAt: () => "revision-1",
@@ -100,6 +103,7 @@ jest.mock("../src/web/StationConsentPanel", () => ({
   RespondentConsentPanel: (props: {language: string; onDecision: (envelope: unknown) => void}) =>
     jest.requireActual("react").createElement("mock-consent-panel", props),
 }));
+jest.mock("../src/ConfirmDialog", () => ({ ConfirmDialog: () => null }));
 jest.mock("../src/consent", () => ({
   ...jest.requireActual("../src/consent"),
   getDraftConsent: (...args: unknown[]) => mockGetDraftConsent(...args),
@@ -1021,7 +1025,7 @@ describe("respondent consent before the interview", () => {
     }
   });
 
-  it("after a refusal, locks the covered questions and never submits their answers", async () => {
+  it("after a refusal, stops the questionnaire and saves only the refusal profile", async () => {
     mockGetDraftConsent.mockResolvedValue({consent_required: true, decision: null, covered_fields: [], client_draft_id: null});
     mockFetchConsentConfig.mockResolvedValue(consentConfig);
     mockPostDraftConsent.mockResolvedValue({consent_required: true, decision: "refused", covered_fields: ["Id10007", "Id10061"], client_draft_id: null});
@@ -1030,11 +1034,25 @@ describe("respondent consent before the interview", () => {
     await act(async () => { tree = create(<InterviewScreen />); });
     const panel = tree.root.findByType("mock-consent-panel" as unknown as React.ElementType);
     await act(async () => { await panel.props.onDecision({client_id: "c2", decision: "refused"}); });
-    const form = tree.root.findByType(WhoVaForm);
-    expect(form.props.lockedQuestionNames).toEqual(expect.arrayContaining(["Id10007", "Id10061"]));
-    expect(tree.root.findByProps({testID: "consent-refused-note"})).toBeDefined();
-    await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes", Id10007: "Ram", interview_outcome: "completed" } }); });
-    expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "completed" } }, mockBootstrap.csrf, "revision-1");
+    expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+    expect(tree.root.findByProps({testID: "refusal-panel"})).toBeDefined();
+    const save = tree.root.findByProps({label: "इनकार सहेजें"});
+    await act(async () => { save.props.onPress(); });
+    expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: {} }, mockBootstrap.csrf, "revision-1");
+    await act(async () => tree.unmount());
+  });
+
+  it("acknowledges the server refusal barrier after an explicit DP grant", async () => {
+    mockGetDraftConsent.mockResolvedValue({ consent_required: true, decision: "refused", covered_fields: [], client_draft_id: null });
+    mockFetchConsentConfig.mockResolvedValue(consentConfig);
+    mockPostDraftConsent.mockResolvedValue({ consent_required: true, decision: "granted", covered_fields: [], client_draft_id: null });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    expect(tree.root.findByProps({ testID: "refusal-panel" })).toBeDefined();
+    await act(async () => { tree.root.findByProps({ label: "सहमति बदलें" }).props.onPress(); });
+    const panel = tree.root.findByType("mock-consent-panel" as unknown as React.ElementType);
+    await act(async () => { await panel.props.onDecision({ client_id: "c3", decision: "granted" }); });
+    expect(mockResumeConsent).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 

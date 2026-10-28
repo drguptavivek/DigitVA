@@ -8,7 +8,9 @@ import { authedRequest } from "./auth";
 import type { CaseDetail } from "./cases";
 import { canStartDeathInterview } from "./deathWorkflow";
 import { consentFor, loadConsents, withoutCovered } from "./consentStore";
-import { draftForCase, getDraftPrefill, getDraftRow, localDateTimeWithOffset, type Db, type DeviceTimedDraft, type DraftRow, type DraftSyncItem } from "./drafts";
+import { isRefused, refusalAnswers } from "./refusalBoundary";
+import { clearRefusedDraftInTransaction, draftForCase, getDraftPrefill, getDraftRow, getMeta, setMeta, localDateTimeWithOffset, type Db, type DeviceTimedDraft, type DraftRow, type DraftSyncItem } from "./drafts";
+import { runInTransaction } from "./dbTransaction";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 import {
   appendWorkflowEvent,
@@ -177,6 +179,25 @@ export async function fetchServerDraft(userId: string, serverDraftId: string): P
     envelope: serverEnvelope(body.envelope, serverDraftId),
     prefill: prefillRecord(body.prefill)
   };
+}
+
+/** Refresh only a refusal conflict; unrelated server changes never replace local work. */
+export async function recoverRefusalDraft(userId: string, db: Db, row: DraftRow): Promise<void> {
+  if (row.upload_issue !== "refusal_stale" || !row.server_draft_id) throw new Error("refusal_server_draft_unavailable");
+  const server = await fetchServerDraft(userId, row.server_draft_id);
+  if (server.draft.project_id !== row.project_id || server.draft.site_id !== row.site_id || server.draft.org_unit_id !== row.org_unit_id || server.draft.death_id !== row.death_id) throw new Error("server_draft_case_mismatch");
+  const safe = refusalAnswers(server.envelope.data);
+  if (Object.keys(server.envelope.data).some((key) => !(key in safe))) throw new Error("refusal_server_draft_changed");
+  await runInTransaction(db, async (tx) => {
+    await setMeta(tx, `consent:server-refused:${row.id}`, true);
+    await clearRefusedDraftInTransaction(tx, row.id);
+    const local = await tx.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ? AND upload_issue = 'refusal_stale'", [row.id]);
+    if (!local) throw new Error("draft_conflict");
+    const draft = JSON.parse(local.envelope) as { data: Record<string, unknown> };
+    draft.data = safe;
+    const result = await tx.runAsync("UPDATE drafts SET envelope = ?, base_updated_at = ?, upload_issue = 'consent_refused', draft_sync_dirty = 1 WHERE id = ? AND envelope = ? AND upload_issue = 'refusal_stale'", [JSON.stringify(draft), server.draft.updated_at, row.id, local.envelope]);
+    if (!resultChanges(result)) throw new Error("draft_conflict");
+  });
 }
 
 async function fetchForLocalSnapshot(userId: string, db: Db, item: DraftSyncItem): Promise<FetchedServerDraft> {
@@ -448,6 +469,10 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
     throw error;
   }
   if (!item.project_id || !item.death_id || !isOffsetTimestamp(item.updated_at)) throw new Error("invalid_local_draft");
+  const appliedConsent = consentFor(await loadConsents(db), item);
+  if (isRefused(draft.data, appliedConsent?.record.envelope.decision)) {
+    return { applied: false, conflict: false, message: null, draftId: item.id };
+  }
   if (item.draft_sync_blocked) return { applied: true, conflict: false, message: null, draftId: item.id };
   if (item.draft_sync_dirty === 0 && item.server_draft_id && item.base_updated_at && isOffsetTimestamp(item.base_updated_at)) {
     const fetched = await fetchForLocalSnapshot(userId, db, item);
@@ -467,6 +492,7 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
     };
   }
   const covered = await refusedCovered(db, item);
+  const resumeRefused = !!item.base_updated_at && await getMeta<boolean>(db, `consent:resume-who:${item.id}`) === true;
   const answersJson = JSON.stringify(withoutCovered(draft.data, covered));
   let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
   const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/drafts/sync`, {
@@ -483,7 +509,8 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
       draft: { ...metadataForSync(draft), ...clockOffsetField() },
       savedAt: item.updated_at,
       deviceClockAt: localDateTimeWithOffset(),
-      base_updated_at: item.base_updated_at
+      base_updated_at: item.base_updated_at,
+      ...(resumeRefused ? { resume_refused: true } : {})
     })
   });
 
@@ -491,6 +518,14 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
   try {
     response = await send();
   } catch (error) {
+    if (error instanceof ApiError && error.status === 409 && error.code === "refusal_stale") {
+      const serverId = error.payload?.draft_id;
+      if (typeof serverId === "string" && UUID_RE.test(serverId)) {
+        await db.runAsync("UPDATE drafts SET server_draft_id = ? WHERE id = ? AND (server_draft_id IS NULL OR server_draft_id = ?)", [serverId, item.id, serverId]);
+      }
+      await db.runAsync("UPDATE drafts SET upload_issue = 'refusal_stale' WHERE id = ? AND envelope = ? AND updated_at = ?", [item.id, item.envelope, item.updated_at]);
+      throw error;
+    }
     if (error instanceof ApiError && error.status === 409 && error.code === "conflict") {
       await db.runAsync(`UPDATE drafts SET draft_sync_blocked = 1
         WHERE id = ? AND envelope = ? AND updated_at = ? AND completed = 0 AND draft_sync_blocked = 0`,
@@ -553,6 +588,7 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
     WHERE id = ? AND envelope = ? AND updated_at = ? AND completed = 0 AND draft_sync_blocked = 0`,
   [envelope, savedAt, server.draft_id, server.updated_at, item.id, item.envelope, item.updated_at]);
   const applied = resultChanges(persisted);
+  if (applied && body.kept === "incoming" && resumeRefused) await db.runAsync("DELETE FROM meta WHERE key = ?", [`consent:resume-who:${item.id}`]);
   return {
     applied,
     conflict: body.conflict || !applied,

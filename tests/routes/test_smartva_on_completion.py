@@ -261,7 +261,7 @@ class SmartvaOnCompletionTests(BaseTestCase):
 
     def test_a_refused_or_partial_interview_is_never_queued(self):
         for name, answers, valid in (
-            ("refused", _answers(Id10013="no"), True),
+            ("refused", {"Id10013": "no"}, True),
             ("partial", {"Id10013": "yes", "Id10017": "Bina", "interview_outcome": "partially_completed"}, False),
         ):
             with self.subTest(name=name):

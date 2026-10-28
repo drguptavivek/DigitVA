@@ -26,6 +26,19 @@ jest.mock("expo-router", () => {
 const mockAccounts: Array<Record<string, unknown>> = [{ user_id: "coder-1", name: "Coder", coding_access: true, offline_coding_access: ["SELF"] }];
 const mockReload = jest.fn(async () => undefined);
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: mockAccounts, reload: mockReload }) }));
+let mockSelectedSlot: "active" | "demo" = "active";
+const mockLoadActiveSlot = jest.fn(async () => mockSelectedSlot);
+const mockLoadAccounts = jest.fn(async (_slot?: "active" | "demo") => mockAccounts as never);
+jest.mock("../src/auth", () => ({
+  ...jest.requireActual("../src/auth"),
+  loadActiveSlot: () => mockLoadActiveSlot(),
+  loadAccounts: (slot?: "active" | "demo") => mockLoadAccounts(slot),
+}));
+const mockIdentitySelected = jest.fn(async (_userId: string) => true);
+jest.mock("../src/accountStoreIdentity", () => ({
+  ...jest.requireActual("../src/accountStoreIdentity"),
+  accountStoreIdentityIsInSelectedMode: (userId: string) => mockIdentitySelected(userId),
+}));
 
 const mockDb = { runAsync: jest.fn(), getAllAsync: jest.fn(), getFirstAsync: jest.fn(), execAsync: jest.fn(), closeAsync: jest.fn() };
 let mockEnvelope = JSON.stringify({ instrumentId: "VA", instrumentVersion: "1", data: {} });
@@ -47,9 +60,53 @@ jest.mock("../src/drafts", () => ({
   listOfflineCodingCases: jest.fn(async () => mockCases),
   getOfflineCoding: jest.fn(async () => null),
   getOfflineCodingCase: jest.fn(async () => null),
+  getMeta: jest.fn(async () => null),
+  setMeta: jest.fn(async () => undefined),
   saveOfflineCoding: jest.fn(),
 }));
+const mockEnsureSmartVa = jest.fn(async (_input?: unknown): Promise<{ status: string; row?: unknown; reason?: string }> => ({ status: "config_needed" }));
+jest.mock("../src/smartva/ensureLocal", () => ({ ensureLocalSmartVa: (input: unknown) => mockEnsureSmartVa(input) }));
+const mockSmartVaOptions = {
+  schemaVersion: 1,
+  formId: "VA",
+  formUpdatedAt: "1",
+  options: { country: "India", hiv: false, malaria: false, hce: true, freetext: true },
+  optionsDigest: `sha256:${"a".repeat(64)}`,
+};
+const mockPersistSmartVa = jest.fn(async () => undefined);
+const mockBeforeManualPersist = jest.fn(async () => undefined);
+const mockRunLocalSmartVa = jest.fn(async (input: { assertAllowed: () => Promise<void> }) => {
+  await input.assertAllowed();
+  await mockBeforeManualPersist();
+  await input.assertAllowed();
+  await mockPersistSmartVa();
+  return {
+    draft_id: "draft-7", status: "ready" as const, result_json: "{}", error_code: null,
+    answers_sha256: "a".repeat(64), options_digest: mockSmartVaOptions.optionsDigest,
+    engine_version: "3.0.1", created_at: "2026-10-28T00:00:00.000Z", updated_at: "2026-10-28T00:00:00.000Z",
+  };
+});
+jest.mock("../src/smartva/localApi", () => ({
+  ...jest.requireActual("../src/smartva/localApi"),
+  runLocalSmartVa: (input: { assertAllowed: () => Promise<void> }) => mockRunLocalSmartVa(input),
+}));
+jest.mock("../src/smartva/nativeEngine", () => ({
+  offlineSmartvaEngine: () => ({ init: jest.fn(async () => ({ ok: true, version: "3.0.1" })) }),
+}));
+jest.mock("../src/consentStore", () => ({
+  DEFAULT_COVERED_FIELDS: [], consentForDraft: jest.fn(async () => undefined),
+}));
+jest.mock("../src/sync", () => ({
+  ...jest.requireActual("../src/sync"),
+  draftAnswersSha256: jest.fn(async () => "a".repeat(64)),
+  getCachedReferenceData: jest.fn(async () => undefined),
+}));
 const mockEditorSave = jest.fn(async () => undefined);
+let mockIcd11DorisEnabled = true;
+jest.mock("../src/icd11DorisPreference", () => ({
+  isIcd11DorisEnabled: async () => mockIcd11DorisEnabled,
+  useIcd11DorisPreference: () => ({ ready: true, answered: true, enabled: mockIcd11DorisEnabled }),
+}));
 jest.mock("../src/offlineIdentity", () => ({ getOrCreatePlusDeviceIdentity: jest.fn(async () => ({ uuid: "plus-install" })) }));
 const mockGetProfile = jest.fn(async (): Promise<Record<string, unknown> | null> => null);
 const mockSaveProfile = jest.fn(async (_profile?: unknown) => undefined);
@@ -118,6 +175,10 @@ afterEach(() => {
 beforeEach(() => {
   setOs("ios");
   mockPlus.mockReturnValue(false);
+  mockSelectedSlot = "active";
+  mockLoadActiveSlot.mockClear();
+  mockLoadAccounts.mockClear();
+  mockIdentitySelected.mockReset().mockResolvedValue(true);
   mockAccounts.splice(0, mockAccounts.length, { user_id: "coder-1", name: "Coder", coding_access: true, offline_coding_access: ["SELF"] });
   mockGetProfile.mockReset();
   mockGetProfile.mockResolvedValue(null);
@@ -130,7 +191,12 @@ beforeEach(() => {
   mockReload.mockClear();
   mockEngineInit.mockClear();
   mockEditorSave.mockClear();
+  mockIcd11DorisEnabled = true;
   mockPanelProps = undefined;
+  mockEnsureSmartVa.mockReset().mockResolvedValue({ status: "config_needed" });
+  mockRunLocalSmartVa.mockClear();
+  mockPersistSmartVa.mockReset().mockResolvedValue(undefined);
+  mockBeforeManualPersist.mockReset().mockResolvedValue(undefined);
   mockAcquireEditor.mockReset();
   mockAcquireEditor.mockReturnValue(jest.fn());
   mockDb.getFirstAsync.mockReset();
@@ -147,8 +213,9 @@ beforeEach(() => {
   draftMocks.getOfflineCoding.mockReset().mockResolvedValue(null);
   draftMocks.getOfflineCodingCase.mockReset().mockResolvedValue({
     client_draft_id: "draft-7", envelope: JSON.stringify({ instrumentId: "VA", instrumentVersion: "1", data: {} }),
-    org_unit_id: "OU-42", started_at: null, completed_at: null,
+    org_unit_id: "OU-42", started_at: null, completed_at: "2026-10-26T09:30:00.000+05:30",
   });
+  (require("../src/drafts").getMeta as jest.Mock).mockReset().mockResolvedValue(null);
   for (const key of Object.keys(mockParams)) delete mockParams[key];
   mockCases.length = 0;
   mockCases.push({
@@ -200,6 +267,59 @@ describe("the offline coding screen", () => {
     ]);
   });
 
+  it("does not open the local store or show its case list while ICD-11/DORIS is off", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockIcd11DorisEnabled = false;
+    const { openInterviewerDb } = require("../src/interviewerDb") as { openInterviewerDb: jest.Mock };
+    openInterviewerDb.mockClear();
+
+    const root = await render(<OfflineCoding />);
+
+    expect(alerts(root)).toContain("icd11DorisDisabledBody");
+    expect(labels(root)).not.toContain("draft-7 · 2026-10-26 · OU-42 · Coded");
+    expect(openInterviewerDb).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["enrolled", { user_id: "coder-1", name: "Coder", coding_access: true, offline_coding_access: ["SELF"] }],
+    ["standalone", { user_id: "coder-1", name: "Coder", standalone: true }],
+    ["demo", { user_id: "coder-1", name: "Coder", coding_access: true, offline_coding_access: ["SELF"], server: "https://demo.example" }],
+  ])("blocks a direct local ICD-11 case for %s when the device preference is off", async (_mode, account) => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockAccounts.splice(0, mockAccounts.length, account);
+    mockIcd11DorisEnabled = false;
+    mockParams.caseId = "draft-7";
+    const { openInterviewerDb } = require("../src/interviewerDb") as { openInterviewerDb: jest.Mock };
+    openInterviewerDb.mockClear();
+
+    const root = await render(<OfflineCoding />);
+
+    expect(alerts(root)).toContain("icd11DorisDisabledBody");
+    expect(labels(root)).toContain("icd11DorisOpenSettings");
+    expect(openInterviewerDb).not.toHaveBeenCalled();
+    expect(mockEngineInit).not.toHaveBeenCalled();
+  });
+
+  it("returns to the local case list after enabling without starting the engine", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockIcd11DorisEnabled = false;
+    mockParams.caseId = "draft-7";
+    const root = await render(<OfflineCoding />);
+    expect(mockEngineInit).not.toHaveBeenCalled();
+
+    mockIcd11DorisEnabled = true;
+    await act(async () => { root.update(<OfflineCoding />); });
+    expect(labels(root)).toContain("draft-7 · 2026-10-26 · OU-42 · Coded");
+    expect(mockEngineInit).not.toHaveBeenCalled();
+
+    const row = root.root.find((node) => node.props.accessibilityLabel?.startsWith("draft-7 ·"));
+    await act(async () => { row.props.onPress(); });
+    expect(mockEngineInit).toHaveBeenCalledTimes(1);
+  });
+
   it("without a signed-in account it redirects home", async () => {
     setOs("android");
     mockPlus.mockReturnValue(true);
@@ -234,6 +354,22 @@ describe("the offline coding screen", () => {
     expect(alerts(root)).toContain("Offline coding access for this project is unavailable.");
   });
 
+  it("stops an already-open local editor from processing or saving after ICD-11 coding is turned off", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    const root = await render(<OfflineCoding />);
+    expect(mockPanelProps).toBeDefined();
+    mockIcd11DorisEnabled = false;
+    await act(async () => { root.update(<OfflineCoding />); });
+
+    await expect(mockPanelProps!.api.processDoris("draft-7", "coder", 1, {})).rejects.toThrow("icd11_doris_disabled");
+    await expect(mockPanelProps!.api.saveInitial("draft-7", {})).rejects.toThrow("icd11_doris_disabled");
+    expect(mockEditorSave).not.toHaveBeenCalled();
+    expect(mockEngineInit).toHaveBeenCalledTimes(1);
+    expect(alerts(root)).toContain("icd11DorisDisabledBody");
+  });
+
   it("keeps its requester and engine across an unrelated account refresh", async () => {
     setOs("android");
     mockPlus.mockReturnValue(true);
@@ -244,6 +380,77 @@ describe("the offline coding screen", () => {
     await act(async () => { root.update(<OfflineCoding />); });
     expect(mockPanelProps!.request).toBe(request);
     expect(mockEngineInit).toHaveBeenCalledTimes(1);
+    expect(mockEnsureSmartVa).toHaveBeenCalledTimes(1);
+  });
+
+  it("ensures SmartVA on local coding entry before taking the editor lease", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    await render(<OfflineCoding />);
+
+    expect(mockEnsureSmartVa).toHaveBeenCalledWith({ db: mockDb, userId: "coder-1", draftId: "draft-7" });
+    expect(mockEnsureSmartVa.mock.invocationCallOrder[0]).toBeLessThan(mockAcquireEditor.mock.invocationCallOrder[0]);
+    expect(mockPanelProps).toBeDefined();
+  });
+
+  it("opens coding with a current SmartVA result", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    mockEnsureSmartVa.mockResolvedValueOnce({ status: "current" });
+    const root = await render(<OfflineCoding />);
+    expect(mockEnsureSmartVa).toHaveBeenCalledTimes(1);
+    expect(mockPanelProps).toBeDefined();
+  });
+
+  it("tries automatic generation only once per entry and retains manual Run after failure", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    (require("../src/drafts").getMeta as jest.Mock).mockResolvedValue({ smartva: mockSmartVaOptions });
+    mockEnsureSmartVa.mockResolvedValueOnce({ status: "failed" });
+    const root = await render(<OfflineCoding />);
+    expect(labels(root)).toContain("localSmartVaRun");
+    expect(alerts(root)).toContain("localSmartVaFailed");
+
+    mockAccounts[0] = { ...mockAccounts[0], name: "Coder refreshed" };
+    await act(async () => { root.update(<OfflineCoding />); });
+    expect(mockEnsureSmartVa).toHaveBeenCalledTimes(1);
+    expect(labels(root)).toContain("localSmartVaRun");
+  });
+
+  it("keeps manual SmartVA available for the current selected server account", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    (require("../src/drafts").getMeta as jest.Mock).mockResolvedValue({ smartva: mockSmartVaOptions });
+    const root = await render(<OfflineCoding />);
+    const run = root.root.find((node) => node.props.accessibilityLabel === "localSmartVaRun");
+    await act(async () => { await run.props.onPress(); });
+
+    expect(mockLoadAccounts).toHaveBeenCalledWith("active");
+    expect(mockIdentitySelected).toHaveBeenCalledWith("coder-1");
+    expect(mockPersistSmartVa).toHaveBeenCalledTimes(1);
+  });
+
+  it.each<[string, () => void]>([
+    ["logout", () => { mockAccounts.length = 0; }],
+    ["selected-mode switch", () => { mockSelectedSlot = "demo"; mockIdentitySelected.mockResolvedValue(false); }],
+    ["project-access revocation", () => { mockAccounts[0] = { ...mockAccounts[0], offline_coding_access: ["OTHER"] }; }],
+  ])("refuses a manual SmartVA result after %s and before persistence", async (_change, revoke) => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    (require("../src/drafts").getMeta as jest.Mock).mockResolvedValue({ smartva: mockSmartVaOptions });
+    mockBeforeManualPersist.mockImplementationOnce(async () => { revoke(); });
+    const root = await render(<OfflineCoding />);
+    const run = root.root.find((node) => node.props.accessibilityLabel === "localSmartVaRun");
+    await act(async () => { await run.props.onPress(); });
+
+    expect(mockRunLocalSmartVa).toHaveBeenCalledTimes(1);
+    expect(mockPersistSmartVa).not.toHaveBeenCalled();
+    expect(alerts(root)).toContain("localSmartVaFailed");
   });
 
   it("does not cancel an async case load when the account object refreshes", async () => {
@@ -297,6 +504,7 @@ describe("the offline coding screen", () => {
   it("shows a retry while upload owns the case lease and releases the editor lease on unmount", async () => {
     setOs("android");
     mockPlus.mockReturnValue(true);
+    mockEnsureSmartVa.mockResolvedValueOnce({ status: "skipped", reason: "busy" });
     mockAcquireEditor.mockReturnValueOnce(null);
     const root = await render(<OfflineCoding />);
     const row = root.root.find((node) => node.props.accessibilityLabel?.startsWith("draft-7 ·"));
@@ -307,6 +515,8 @@ describe("the offline coding screen", () => {
     const retryButton = root.root.find((node) => node.props.accessibilityLabel === "Retry");
     await act(async () => { retryButton.props.onPress(); });
     expect(mockPanelProps).toBeDefined();
+    expect(mockEnsureSmartVa).toHaveBeenCalledTimes(2);
+    expect(mockEnsureSmartVa.mock.invocationCallOrder[1]).toBeLessThan(mockAcquireEditor.mock.invocationCallOrder[1]);
     await act(async () => { root.unmount(); });
     expect(release).toHaveBeenCalledTimes(1);
   });

@@ -3,7 +3,8 @@
 Served by ``GET /api/v1/me/access`` for either credential. Built from
 ``resolve_grants`` (closed projects and inactive grants, pairs and units are
 already absent from it) plus a fixed number of queries per project: names,
-sites, granted-unit names, and one tree load per tree project. Pure reads.
+sites, granted-unit names, and one tree load per tree project. SmartVA target
+forms and unit presets are also read in bounded batches. Pure reads.
 
 The body is the complete statement of the user's access (digitva-ntct.3):
 every value is the output of the predicate the server enforces, no second
@@ -38,6 +39,7 @@ from app.services import training_demo_service
 from app.services.authz import action_reach, resolve_grants, role_flags
 from app.services.authz.actions import ADMIN_BYPASS
 from app.services.authz.consulted import mark_consulted
+from app.services.cod_entry_mode import project_mode
 from app.services.viewer_pii_service import should_redact_pii
 
 _PS = VaAccessScopeTypes.project_site
@@ -78,15 +80,23 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
     for grant in explicit:
         by_project.setdefault(grant.project_id, []).append(grant)
 
-    names = {}
+    project_rows = {}
     sites: dict[str, list] = {}
     unit_names = {}
     if by_project:
         project_ids = sorted(by_project)
-        names = dict(db.session.execute(
-            sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name)
-            .where(VaProjectMaster.project_id.in_(project_ids))
-        ).all())
+        project_rows = {
+            row.project_id: row
+            for row in db.session.execute(
+                sa.select(
+                    VaProjectMaster.project_id,
+                    VaProjectMaster.project_name,
+                    VaProjectMaster.masked_cod_required,
+                    VaProjectMaster.cod_entry_mode,
+                    VaProjectMaster.icd_classification,
+                ).where(VaProjectMaster.project_id.in_(project_ids))
+            ).all()
+        }
         for row in db.session.execute(
             sa.select(VaProjectSites.project_id, VaProjectSites.site_id, VaSiteMaster.site_name)
             .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
@@ -109,11 +119,34 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
     # Training screens (docs/policy/training-demo-project.md).
     training_pid = training_demo_service.TRAINING_PROJECT_ID if training_demo_service.training_configured() else None
     built = {
-        project_id: _project(project_id, grants, resolved, names.get(project_id),
+        project_id: _project(project_id, grants, resolved, project_rows.get(project_id),
                              sites.get(project_id, []), unit_names, interviewing.get(project_id, []),
                              project_id in self_coding, registering.get(project_id, []))
         for project_id, grants in sorted(by_project.items())
     }
+    from app.services.smartva_access_projection_service import build_smartva_targets
+
+    target_keys = []
+    target_keys_by_project = {}
+    for project_id, project in built.items():
+        keys = []
+        for action in project["actions"]["interview"]:
+            if not project["has_tree"]:
+                keys.append((project_id, action["site_id"], None))
+                continue
+            roots = [unit["path"] for unit in action["org_units"]]
+            for unit in project.get("units", []):
+                if not unit["selectable"] or "interviewer" not in unit["roles"]:
+                    continue
+                if roots and not any(unit["path"] == root or unit["path"].startswith(f"{root}.") for root in roots):
+                    continue
+                keys.append((project_id, action["site_id"], unit["org_unit_id"]))
+        target_keys_by_project[project_id] = keys
+        target_keys.extend(keys)
+    smartva_targets = build_smartva_targets(target_keys)
+    for project_id, project in built.items():
+        project["smartva_targets"] = [smartva_targets[key] for key in target_keys_by_project[project_id]
+                                      if key in smartva_targets]
     projects = [entry for project_id, entry in built.items() if project_id != training_pid]
     real_grants = dataclasses.replace(
         resolved, grants=tuple(g for g in resolved.grants if g.project_id != training_pid))
@@ -176,7 +209,7 @@ def _roles(grant, resolved) -> set:
     return roles
 
 
-def _project(project_id, grants, resolved, name, site_rows, unit_names, interview,
+def _project(project_id, grants, resolved, project, site_rows, unit_names, interview,
              code_now, register) -> dict:
     has_tree = resolved.has_tree(project_id)
     grants = sorted(grants, key=lambda g: (
@@ -208,6 +241,16 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
                 "roles": sorted(r.value for r in roles),
             })
     settings = resolved.projects[project_id]
+    mode = project_mode(project)
+    classification = project.icd_classification if project is not None else None
+    offline_coding = {
+        "enabled": bool(
+            settings.self_coding and mode == "unmasked_doris" and classification == "icd11"
+            and any(g.role == VaAccessRoles.coder and g.opens_gate and _codes(g, resolved) for g in grants)
+        ),
+        "project_mode": mode,
+        "icd_classification": classification,
+    }
     actions = action_reach(resolved, project_id)
     actions["interview"] = [
         {k: entry[k] for k in ("site_id", "site_name", "web_intake_mode", "org_units")}
@@ -227,7 +270,7 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
     supervises_deaths = bool({_DM, _IS} & held_any) and settings.web_intake_mode != "off"
     body = {
         "project_id": project_id,
-        "project_name": name,
+        "project_name": project.project_name if project is not None else None,
         "has_tree": has_tree,
         "supervises_deaths": supervises_deaths,
         "settings": {
@@ -235,7 +278,8 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
             "coding_scope": None if settings.scope_depth is None else {
                 "level_code": settings.scope_level_code, "above_mode": settings.above_mode},
         },
-        "self_coding": {"enabled": settings.self_coding, "code_now": code_now},
+        "self_coding": {"enabled": settings.self_coding, "code_now": code_now,
+                        "offline_coding": offline_coding},
         "grants": [_grant(g, unit_names, resolved) for g in grants],
         "actions": actions,
         "sites": site_list,

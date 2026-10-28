@@ -409,6 +409,41 @@ it("rejects incomplete interview entries and unit roots at the access boundary",
   expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: [{ org_unit_id: "i" }] }], register_death: [] } }] })).toThrow(ApiError);
 });
 
+it("parses only complete SmartVA snapshots while allowing older servers to omit them", () => {
+  const target = {
+    schema_version: 1,
+    site_id: "S1",
+    org_unit_id: "i",
+    form_id: "FORM001",
+    form_updated_at: "2026-10-28T00:00:00Z",
+    options: { country: "IND", hiv: true, malaria: false, hce: true, freetext: false },
+    options_digest: `sha256:${"a".repeat(64)}`,
+  };
+  expect(parseAccessSummary(access).projects[0].smartva_targets).toBeUndefined();
+  expect(parseAccessSummary({
+    ...access, projects: [{ ...access.projects[0], smartva_targets: [target] }],
+  }).projects[0].smartva_targets).toEqual([target]);
+  for (const malformed of [
+    { ...target, schema_version: 2 },
+    { ...target, form_updated_at: "yesterday" },
+    { ...target, options: { ...target.options, hiv: "True" } },
+    { ...target, options_digest: "a".repeat(64) },
+  ]) {
+    expect(() => parseAccessSummary({
+      ...access, projects: [{ ...access.projects[0], smartva_targets: [malformed] }],
+    })).toThrow(ApiError);
+  }
+  expect(() => parseAccessSummary({
+    ...access, projects: [{ ...access.projects[0], smartva_targets: [{ ...target, site_id: "S2" }] }],
+  })).toThrow(ApiError);
+  expect(() => parseAccessSummary({
+    ...access, projects: [{ ...access.projects[0], smartva_targets: [{ ...target, org_unit_id: "c" }] }],
+  })).toThrow(ApiError);
+  expect(() => parseAccessSummary({
+    ...access, projects: [{ ...access.projects[0], smartva_targets: [{ ...target, org_unit_id: null }] }],
+  })).toThrow(ApiError);
+});
+
 it.each([undefined, null, "yes"])("rejects an absent or malformed top-level roles field: %s", (roles) => {
   expect(() => parseAccessSummary({ ...access, roles })).toThrow(ApiError);
 });

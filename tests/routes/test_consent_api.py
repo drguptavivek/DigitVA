@@ -8,6 +8,7 @@ Contract: docs/policy/offline-api-contract.md section 5.
 import hashlib
 import json
 import uuid
+from unittest.mock import patch
 from datetime import UTC, date, datetime, timedelta
 
 import sqlalchemy as sa
@@ -22,13 +23,14 @@ from app.models import (
     VaDeathRegister,
     VaForms,
     VaWebIntakeDraft,
+    VaSubmissions,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
     VaStatuses,
     VaUserAccessGrants,
 )
-from app.services import consent_service
+from app.services import consent_service, web_intake_service
 from app.services import device_auth_service as devices
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
@@ -257,13 +259,9 @@ class ConsentApiTests(BaseTestCase):
 
     def test_refused_consent_with_informant_fields_is_a_conflict(self):
         self._refusal(self._register(informant_name="Ram", consent=self._consent(decision="refused")),
-                      422, "consent_conflict")
+                      422, "consent_refused")
         self.assertEqual(self._records(), [])
-        # Refused and no informant data: the refusal is kept.
-        response = self._register(consent=self._consent(decision="refused"))
-        self.assertEqual(response.status_code, 201, response.get_json())
-        [record] = self._records(response.get_json()["case"]["death_id"])
-        self.assertEqual(record.event, "refused")
+        self._refusal(self._register(consent=self._consent(decision="refused")), 422, "consent_refused")
 
     def test_project_without_consent_settings_registers_as_today(self):
         response = self._register(self.PLAIN, informant_name="Ram", informant_phone="9876543210")
@@ -400,9 +398,8 @@ class ConsentApiTests(BaseTestCase):
         attempt = uuid.uuid4()
         self._refusal(self._upload(death_id, _answers(Id10007="Sita"), client_draft_id=attempt,
                                    consent=self._consent(decision="refused", client_draft_id=attempt)),
-                      422, "consent_conflict")
-        # The refusal path of 5.2: the interview runs with covered fields empty.
-        response = self._upload(death_id, _answers(), client_draft_id=attempt,
+                      422, "consent_refused")
+        response = self._upload(death_id, {"refusal_sex": "female"}, client_draft_id=attempt,
                                 consent=self._consent(decision="refused", client_draft_id=attempt))
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertIn("refused", {r.event for r in self._records(death_id)})
@@ -442,11 +439,13 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(self._synced_answers(death_id)["Id10007"], "Ram")
 
     def test_draft_sync_drops_covered_answers_under_a_refused_registration_consent(self):
-        death_id = self._register(consent=self._consent(decision="refused")).get_json()["case"]["death_id"]
+        death_id = self._register().get_json()["case"]["death_id"]
+        consent_service.record_consent(self.interviewer, project_id=self.REQUIRED, death=self._death(death_id),
+                                      consent=self._consent(decision="refused"), client_draft_id=None, channel="web")
+        db.session.commit()
         self.assertEqual(self._sync_draft(death_id, _answers(Id10007="Ram")).status_code, 200)
         stored = self._synced_answers(death_id)
-        self.assertIn("Id10017", stored)
-        self.assertNotIn("Id10007", stored)
+        self.assertEqual(stored, {"Id10013": "yes"})
 
     def test_a_stripped_sync_is_stored_in_full_when_resent_after_consent(self):
         death_id = self._register().get_json()["case"]["death_id"]
@@ -593,8 +592,11 @@ class ConsentApiTests(BaseTestCase):
 
     def test_patch_after_a_refused_registration_consent_is_a_conflict(self):
         refused = self._consent(decision="refused")
-        death_id = self._register(consent=refused).get_json()["case"]["death_id"]
-        self._refusal(self._patch(death_id, informant_name="Ram"), 422, "consent_conflict")
+        death_id = self._register().get_json()["case"]["death_id"]
+        consent_service.record_consent(self.interviewer, project_id=self.REQUIRED, death=self._death(death_id),
+                                      consent=refused, client_draft_id=None, channel="web")
+        db.session.commit()
+        self._refusal(self._patch(death_id, informant_name="Ram"), 422, "consent_refused")
         self.assertIsNone(self._death(death_id).informant_name)
         # A new granted consent that corrects the refusal lets it through.
         response = self._patch(death_id, informant_name="Ram",
@@ -632,10 +634,8 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(uploaded.status_code, 201, uploaded.get_json())
         va_sid = uploaded.get_json()["va_sid"]
         refusal = self._consent(decision="refused", client_draft_id=attempt)
-        self._refusal(self._revise(va_sid, _answers(Id10007="Sita"), consent=refusal), 422, "consent_conflict")
-        # Contract 5.6: the scrubbed answers are a new revision, accepted.
-        response = self._revise(va_sid, _answers(), consent=refusal)
-        self.assertEqual(response.status_code, 200, response.get_json())
+        self._refusal(self._revise(va_sid, _answers(Id10007="Sita"), consent=refusal), 422, "consent_refused")
+        self._refusal(self._revise(va_sid, {}, consent=refusal), 422, "consent_refused")
 
     # ── POST /intake/drafts/<id>/submit (browser) ──────────────────────────
 
@@ -703,7 +703,7 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(self._upload(death_id, answers, client_draft_id=attempt).status_code, 200)
         # ... while other answers of that attempt are checked.
         self._refusal(self._upload(death_id, _answers(Id10007="Ram", Id10008="x"), client_draft_id=attempt),
-                      422, "consent_conflict")
+                      422, "consent_refused")
 
     # ── configuration edge cases ───────────────────────────────────────────
 
@@ -862,8 +862,278 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(body["decision"], "refused")
         self.assertIn("Id10007", body["covered_fields"])
         self._refusal(self._submit(draft_id, _answers(Id10007="Ram")), 422, "consent_conflict")
-        response = self._submit(draft_id, _answers())
+        response = self._submit(draft_id, {"refusal_age_group": "65_plus", "refusal_sex": "female"})
         self.assertEqual(response.status_code, 201, response.get_json())
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        self.assertEqual(draft.meta["interviewOutcome"], "refused")
+        self.assertNotIn("Id10013", self._saved_answers(draft_id))
+        self.assertEqual(self._saved_answers(draft_id)["refusal_sex"], "female")
+
+    def test_refusal_clears_saved_answers_and_a_grant_does_not_restore_them(self):
+        draft_id = self._direct_draft()
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "yes", "Id10007": "Ram"}).status_code, 200)
+        self.assertEqual(self._saved_answers(draft_id)["Id10007"], "Ram")
+        self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "yes"})
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "yes"})
+
+    def test_refusal_clears_identity_copied_from_an_unsent_direct_draft(self):
+        draft_id = self._direct_draft()
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        self.assertEqual(self._save_draft(draft_id, _answers()).status_code, 200)
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        death = db.session.get(VaDeathRegister, draft.death_id)
+        self.assertTrue(death.has_deceased_name or death.deceased_name)
+        self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
+        db.session.refresh(death)
+        self.assertFalse(death.has_deceased_name or death.deceased_name)
+        self.assertIsNone(death.deceased_sex)
+        self.assertIsNone(death.date_of_death)
+        self.assertEqual(death.status, "draft_identity")
+
+    def test_stale_who_yes_does_not_reverse_refusal(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        self._refusal(self._save_draft(draft_id, {"Id10013": "yes", "Id10017": "Bina"}), 409, "refusal_stale")
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "no"})
+        self.assertEqual(self._save_draft(draft_id, {}).status_code, 200)
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "no"})
+        draft = self.client.get(f"{INTAKE}/drafts/{draft_id}").get_json()["draft"]
+        response = self.client.patch(f"{INTAKE}/drafts/{draft_id}", headers=self._csrf_headers(), json={
+            "sections": {"main": {"Id10013": "yes"}}, "resume_refused": True,
+            "if_updated_at": draft["updated_at"],
+        })
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "yes"})
+
+    def test_refused_draft_rejects_attachment_upload(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        response = self.client.put(
+            f"{INTAKE}/drafts/{draft_id}/attachments/{uuid.uuid4()}",
+            headers=self._csrf_headers(), data=b"%PDF-1.4 test", content_type="application/octet-stream",
+        )
+        self._refusal(response, 422, "consent_refused")
+
+    def test_refusal_scrubs_the_unsent_drafts_saved_history(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        web_intake_service._keep_history(draft, {"Id10017": "Bina", "refusal_sex": "female"},
+                                         sha256=None, meta={})
+        db.session.commit()
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        history = db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.status == "replaced", VaWebIntakeDraft.death_id == draft.death_id)).one()
+        self.assertEqual(history.sections[0].data, {"refusal_sex": "female"})
+
+    def test_phone_can_submit_a_deliberate_grant_with_the_current_draft_version(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        synced = self._sync_draft(death_id, {"Id10013": "no"}, project_id=self.PLAIN, client_draft_id=attempt)
+        self.assertEqual(synced.status_code, 200, synced.get_json())
+        self.assertEqual(self._synced_answers(death_id)["Id10013"], "no")
+        response = self._upload(death_id, _answers(), project_id=self.PLAIN, client_draft_id=attempt,
+                                resume_refused=True, base_updated_at=synced.get_json()["draft"]["updated_at"])
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+    def test_direct_upload_rechecks_consent_after_the_case_lock(self):
+        attempt = uuid.uuid4()
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.REQUIRED, "site_id": self.SITE_REQ, "client_draft_id": str(attempt),
+        })
+        self.assertEqual(started.status_code, 201, started.get_json())
+        self.assertIsNotNone(db.session.get(VaWebIntakeDraft, uuid.UUID(started.get_json()["draft"]["draft_id"])))
+        # The route's initial check has already run when the case lock is taken.
+        from app.services import case_transition_service as cases
+        original = cases.lock_case
+        injected = False
+
+        def lock_with_refusal(death):
+            nonlocal injected
+            if not injected:
+                injected = True
+                consent_service.record_consent(self.interviewer, project_id=self.REQUIRED, death=death,
+                    consent=self._consent(client_draft_id=attempt, decision="refused"),
+                    client_draft_id=attempt, channel="web")
+            return original(death)
+
+        with patch.object(cases, "lock_case", side_effect=lock_with_refusal):
+            response = self._upload(None, {"Id10013": "yes", "Id10017": "Bina"}, client_draft_id=attempt)
+        self._refusal(response, 422, "consent_refused")
+
+    def test_direct_upload_cannot_bypass_a_refusal_already_on_file(self):
+        attempt = uuid.uuid4()
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.REQUIRED, "site_id": self.SITE_REQ, "client_draft_id": str(attempt),
+        })
+        self.assertEqual(started.status_code, 201, started.get_json())
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(started.get_json()["draft"]["draft_id"]))
+        death = db.session.get(VaDeathRegister, draft.death_id)
+        consent_service.record_consent(self.interviewer, project_id=self.REQUIRED, death=death,
+            consent=self._consent(client_draft_id=attempt, decision="refused"), client_draft_id=attempt, channel="web")
+        db.session.commit()
+        self._refusal(self._upload(None, {"Id10013": "yes", "Id10017": "Bina"}, client_draft_id=attempt),
+                      422, "consent_refused")
+
+    def test_old_phone_answers_cannot_return_after_refusal_and_later_grant(self):
+        death_id = self._register(consent=self._consent()).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        old = _answers(Id10007="Ram")
+        first = self._sync_draft(death_id, old, client_draft_id=attempt)
+        self.assertEqual(first.status_code, 200, first.get_json())
+        draft_id = first.get_json()["draft"]["draft_id"]
+        self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        stale = self._refusal(self._sync_draft(death_id, old, client_draft_id=attempt), 409, "refusal_stale")
+        self.assertEqual(stale["draft_id"], draft_id)
+        self._refusal(self._sync_draft(death_id, _answers(Id10007="Sita"), client_draft_id=attempt), 409, "refusal_stale")
+        stale = self._refusal(self._upload(death_id, old, client_draft_id=attempt), 409, "refusal_stale")
+        self.assertEqual(stale["draft_id"], draft_id)
+        self.assertNotIn("Id10007", self._saved_answers(draft_id))
+
+    def test_browser_sections_share_one_consent_lookup(self):
+        draft_id = self._direct_draft()
+        statements = []
+
+        def count(conn, cursor, statement, parameters, context, executemany):
+            if "va_consent_records" in statement:
+                statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", count)
+        try:
+            response = self.client.patch(f"{INTAKE}/drafts/{draft_id}", headers=self._csrf_headers(),
+                json={"sections": {f"s{i}": {"Id10007": "Ram"} for i in range(8)}})
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", count)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertLessEqual(len(statements), 3)
+
+    def test_refusal_blocks_identifier_writes_for_browser_and_station(self):
+        from app.services import death_identifier_write
+
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        death_id = str(draft.death_id)
+        response = self.client.put(f"{INTAKE}/cases/{death_id}/identifiers", headers=self._csrf_headers(),
+                                   json={"identifiers": {"crs": "12345"}})
+        self._refusal(response, 422, "consent_refused")
+        with self.assertRaises(death_identifier_write.WebIntakeError) as error:
+            death_identifier_write.put_identifiers(self.interviewer, death_id, {"crs": "12345"}, station_roster=True)
+        self.assertEqual(error.exception.code, "consent_refused")
+
+    def test_shared_direct_case_holds_other_drafts_until_each_explicit_resume(self):
+        first_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(first_id, _answers()).status_code, 200)
+        first = db.session.get(VaWebIntakeDraft, uuid.UUID(first_id))
+        death_id = str(first.death_id)
+        self._login(str(self.outsider.user_id))
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": death_id,
+        })
+        self.assertEqual(started.status_code, 201, started.get_json())
+        other_id = started.get_json()["draft"]["draft_id"]
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self._login(self.interviewer_id)
+        self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
+        self._login(str(self.outsider.user_id))
+        self._refusal(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Changed"}),
+                      409, "consent_refused")
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        version = self.client.get(f"{INTAKE}/drafts/{other_id}").get_json()["draft"]["updated_at"]
+        attack = self.client.patch(f"{INTAKE}/drafts/{other_id}", headers=self._csrf_headers(), json={
+            "sections": {"main": {"Id10013": "yes"}}, "resume_refused": True, "if_updated_at": version,
+        })
+        self._refusal(attack, 409, "consent_refused")
+        self._login(self.interviewer_id)
+        version = self.client.get(f"{INTAKE}/drafts/{first_id}").get_json()["draft"]["updated_at"]
+        resumed = self.client.patch(f"{INTAKE}/drafts/{first_id}", headers=self._csrf_headers(), json={
+            "sections": {"main": {"Id10013": "yes"}}, "resume_refused": True, "if_updated_at": version,
+        })
+        self.assertEqual(resumed.status_code, 200, resumed.get_json())
+        self._login(str(self.outsider.user_id))
+        self._refusal(self._save_draft(other_id, {"Id10017": "Changed"}), 409, "refusal_stale")
+        version = self.client.get(f"{INTAKE}/drafts/{other_id}").get_json()["draft"]["updated_at"]
+        resumed = self.client.patch(f"{INTAKE}/drafts/{other_id}", headers=self._csrf_headers(), json={
+            "sections": {}, "resume_refused": True, "if_updated_at": version,
+        })
+        self.assertEqual(resumed.status_code, 200, resumed.get_json())
+
+    def test_shared_case_dp_grant_does_not_override_who_refusal(self):
+        self._grant(self.outsider, self.REQUIRED)
+        db.session.commit()
+        first_id = self._direct_draft()
+        self.assertEqual(self._draft_consent(first_id, self._consent()).status_code, 201)
+        self.assertEqual(self._save_draft(first_id, _answers()).status_code, 200)
+        first = db.session.get(VaWebIntakeDraft, uuid.UUID(first_id))
+        self._login(str(self.outsider.user_id))
+        other = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.REQUIRED, "site_id": self.SITE_REQ, "death_id": str(first.death_id),
+        })
+        self.assertEqual(other.status_code, 201, other.get_json())
+        other_id = other.get_json()["draft"]["draft_id"]
+        self._login(self.interviewer_id)
+        self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
+        self.assertEqual(self._draft_consent(first_id, self._consent(decision="refused")).status_code, 201)
+        self.assertEqual(self._draft_consent(first_id, self._consent()).status_code, 201)
+        self._login(str(self.outsider.user_id))
+        self._refusal(self._save_draft(other_id, {"Id10013": "yes"}), 409, "consent_refused")
+
+    def test_submitting_shared_refusal_keeps_the_hold(self):
+        first_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(first_id, _answers()).status_code, 200)
+        first = db.session.get(VaWebIntakeDraft, uuid.UUID(first_id))
+        self._login(str(self.outsider.user_id))
+        other = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": str(first.death_id),
+        })
+        self.assertEqual(other.status_code, 201, other.get_json())
+        other_id = other.get_json()["draft"]["draft_id"]
+        self._login(self.interviewer_id)
+        self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
+        response = self._submit(first_id, {"Id10013": "no"})
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self._login(str(self.outsider.user_id))
+        self._refusal(self._save_draft(other_id, {"Id10013": "yes"}), 409, "consent_refused")
+
+    def test_refusal_on_an_existing_open_attempt_preserves_an_earlier_submission(self):
+        first_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(first_id, _answers()).status_code, 200)
+        first = db.session.get(VaWebIntakeDraft, uuid.UUID(first_id))
+        death_id = first.death_id
+        self._login(str(self.outsider.user_id))
+        other = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": str(death_id),
+        })
+        self.assertEqual(other.status_code, 201, other.get_json())
+        other_id = other.get_json()["draft"]["draft_id"]
+        third = self._get_or_make_user("consent.third.parallel@test.local", "Consent123!")
+        self._grant(third, self.PLAIN)
+        db.session.commit()
+        self._login(str(third.user_id))
+        third_draft = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": str(death_id),
+        })
+        self.assertEqual(third_draft.status_code, 201, third_draft.get_json())
+        third_id = third_draft.get_json()["draft"]["draft_id"]
+        self._login(self.interviewer_id)
+        submitted = self._submit(first_id, _answers())
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        va_sid = submitted.get_json()["va_sid"]
+        self._login(str(self.outsider.user_id))
+        refused = self._save_draft(other_id, {"Id10013": "no"})
+        self.assertEqual(refused.status_code, 200, refused.get_json())
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "no"})
+        death = db.session.get(VaDeathRegister, death_id)
+        db.session.refresh(death)
+        self.assertEqual((death.status, death.va_sid), ("submitted", va_sid))
+        self.assertEqual(db.session.get(VaSubmissions, va_sid).va_consent, "yes")
+        self._login(str(third.user_id))
+        self._refusal(self._save_draft(third_id, {"Id10013": "yes", "Id10017": "Other"}),
+                      409, "consent_refused")
 
     def test_a_case_with_a_registration_consent_opens_the_interview_at_once(self):
         death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
@@ -903,8 +1173,7 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
         self.assertEqual(self._save_draft(draft_id, _answers(Id10007="Ram")).status_code, 200)
         saved = self._saved_answers(draft_id)
-        self.assertIn("Id10017", saved)
-        self.assertNotIn("Id10007", saved)
+        self.assertEqual(saved, {"Id10013": "yes"})
 
     def test_a_browser_draft_save_in_a_project_without_consent_keeps_everything(self):
         draft_id = self._direct_draft(self.PLAIN)

@@ -67,7 +67,7 @@ export function AccountSheet() {
   }
   return (
     <BottomSheet visible={shell.sheet === "account"} title={account?.name ?? t("accountsTitle")} onClose={shell.closeSheet}>
-      {account ? <RoleLine account={account} project={device?.project_name} /> : null}
+      {account ? <RoleLine account={account} project={shell.server ? device?.project_name : undefined} /> : null}
       <Text style={{ ...typography.caption, color: ui.mutedForeground, marginBottom: spacing.xs }}>{syncSummary(shell.sync)}</Text>
       <SheetRow label={t("settings")} onPress={go(() => router.push({ pathname: "/settings", params: { userId } }))} />
       <SheetRow label={t("formHelp")} onPress={() => shell.openSheet("help")} />
@@ -100,7 +100,6 @@ export function HelpSheet() {
   const shell = useShell();
   const pathname = usePathname();
   const toast = useToast();
-  const { device } = useAppState();
   const { ui } = useTheme();
   const screen = helpScreenFor(pathname);
   const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.work?.unsent });
@@ -119,8 +118,8 @@ export function HelpSheet() {
     else router.replace({ pathname: "/worklist", params: { ...params, view: "interviews", filter: target } });
   }
   function openGuide() {
-    if (!device) return;
-    Linking.openURL(helpGuideUrl(device.server, help.slug)).catch(() => toast.show({ kind: "error", text: t("helpGuideFailed") }));
+    if (!shell.server) return;
+    Linking.openURL(helpGuideUrl(shell.server, help.slug)).catch(() => toast.show({ kind: "error", text: t("helpGuideFailed") }));
   }
   return (
     <BottomSheet visible={shell.sheet === "help"} title={t("formHelp")} onClose={shell.closeSheet}>
@@ -131,7 +130,7 @@ export function HelpSheet() {
         <Text key={line} style={{ ...typography.body, color: ui.popoverForeground, marginTop: spacing.xxs }}>{`• ${line}`}</Text>
       ))}
       <View style={{ marginTop: spacing.md }}>
-        <Button label={t("helpOpenGuide")} disabled={!device} onPress={openGuide} />
+        <Button label={t("helpOpenGuide")} disabled={!shell.server} onPress={openGuide} />
       </View>
       <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, marginTop: spacing.lg }}>{t("faqTitle")}</Text>
       <TextInput
@@ -162,16 +161,20 @@ export function HelpSheet() {
 
 export function SyncSheet() {
   const shell = useShell();
+  const { accounts } = useAppState();
   const router = useRouter();
   const { ui } = useTheme();
   const { sync } = shell;
+  const account = accounts.find((item) => item.user_id === shell.userId);
+  const standalone = account?.standalone === true;
   const work = sync.work;
   const openDrafts = () => {
     shell.closeSheet();
-    router.replace({ pathname: "/worklist", params: { userId: shell.userId, view: "interviews", filter: "drafts" } });
+    router.replace({ pathname: standalone ? "/standalone" : "/worklist", params: { userId: shell.userId, view: "interviews", filter: "drafts" } });
   };
   return (
     <BottomSheet visible={shell.sheet === "sync"} title={t("tabSync")} onClose={shell.closeSheet}>
+      {standalone ? <Text style={{ ...typography.body, color: ui.popoverForeground }}>{t("standaloneWarning")}</Text> : null}
       <Text style={{ ...typography.body, color: ui.popoverForeground }}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
       <Text style={{ ...typography.body, color: ui.popoverForeground }}>{work ? t("syncUnsentScoped", { count: work.unsent }) : t("syncUnsentUnknown")}</Text>
       {work?.attention ? <Text style={{ ...typography.subhead, color: ui.destructiveText }}>{t("syncAttentionCount", { count: work.attention })}</Text> : null}
@@ -184,11 +187,14 @@ export function SyncSheet() {
         </View>
       ))}
       {work?.inProgress ? <SheetRow label={t("syncDraftsLink", { count: work.inProgress })} onPress={openDrafts} /> : null}
+      {standalone ? <Button kind="secondary" label={t("standaloneEnrol")} onPress={() => { shell.closeSheet(); router.push("/enrol"); }} /> : null}
       {sync.result ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("syncLastResult", { text: sync.result })}</Text> : null}
-      <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
-        <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
-        <Button kind="secondary" label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />
-      </View>
+      {account && !standalone ? (
+        <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
+          <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
+          <Button kind="secondary" label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />
+        </View>
+      ) : null}
     </BottomSheet>
   );
 }

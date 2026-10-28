@@ -5,11 +5,12 @@
  * DORIS still goes to the server here; the offline engine is wired in by phase B.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
-import { isUnlocked } from "../interviewerDb";
+import { isUnlocked, openInterviewerDb } from "../interviewerDb";
+import { loadActiveSlot, loadDevice } from "../auth";
 import { t } from "../i18n";
 import { Button, Screen, useUiStyles } from "../ui";
 import { createWorkspaceApi } from "../workspace/api";
@@ -19,8 +20,11 @@ import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { AttachmentMedia } from "../workspace/media/AttachmentMedia.native";
 import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 import { QueueScreen } from "../workspace/QueueScreen";
+import { createNativeCodingHistoryCache } from "../codingHistoryCache.native";
+import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
+import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
 
-type Params = { userId?: string | string[]; vaSid?: string | string[]; mode?: string | string[] };
+type Params = { userId?: string | string[]; vaSid?: string | string[]; mode?: string | string[]; initialHistory?: string | string[] };
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -42,12 +46,72 @@ function usePlusUserId(mode: WorkspaceMode): string | undefined {
 
 function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
   const router = useRouter();
+  const { initialHistory } = useLocalSearchParams<Params>();
   const styles = useUiStyles();
+  const icd11Preference = useIcd11DorisPreference();
   const userId = usePlusUserId(mode);
   const { accounts } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
+  const [historyContext, setHistoryContext] = useState<{ identity: CodingHistoryIdentity; cache: CodingHistoryCache }>();
+  const historyCacheRef = useRef<CodingHistoryCache | undefined>(undefined);
+  historyCacheRef.current = historyContext?.cache;
   const request = useMemo(() => (userId ? createNativeWorkspaceTransport(userId) : undefined), [userId]);
-  const api = useMemo(() => (request ? createWorkspaceApi(request) : undefined), [request]);
+  const api = useMemo(() => {
+    if (!request) return undefined;
+    const base = createWorkspaceApi(request);
+    const invalidate = (vaSid: string) => {
+      const cache = historyCacheRef.current;
+      if (cache && historyContext?.identity) void cache.invalidateCase(historyContext.identity, vaSid).catch(() => undefined);
+    };
+    return {
+      ...base,
+      async saveInitial(...args: Parameters<typeof base.saveInitial>) {
+        const reply = await base.saveInitial(...args);
+        invalidate(args[0]);
+        return reply;
+      },
+      async saveFinal(...args: Parameters<typeof base.saveFinal>) {
+        const reply = await base.saveFinal(...args);
+        invalidate(args[0]);
+        return reply;
+      },
+      async saveNotCodeable(...args: Parameters<typeof base.saveNotCodeable>) {
+        const reply = await base.saveNotCodeable(...args);
+        invalidate(args[0]);
+        return reply;
+      },
+      async recode(...args: Parameters<typeof base.recode>) {
+        const reply = await base.recode(...args);
+        invalidate(args[0]);
+        return reply;
+      },
+    };
+  }, [historyContext?.identity, request]);
+
+  useEffect(() => {
+    let active = true;
+    setHistoryContext(undefined);
+    if (!userId || mode !== "coding" || !account || account.standalone || account.coding_access !== true ||
+        account.signed_out || account.needs_sign_in || account.access_removed || account.terms_required || account.access_blocked ||
+        !account.server || !/^[a-f0-9]{64}$/i.test(account.coding_history_access ?? "")) return () => { active = false; };
+    void (async () => {
+      const slot = await loadActiveSlot();
+      const device = await loadDevice(slot);
+      if (!device || new URL(device.server).origin !== new URL(account.server!).origin) return;
+      const identity: CodingHistoryIdentity = {
+        mode: slot === "demo" ? "demo" : "enrolled",
+        serverOrigin: new URL(device.server).origin,
+        userId,
+      };
+      const db = await openInterviewerDb(userId);
+      const cache = await createNativeCodingHistoryCache(db, identity, account.coding_history_access);
+      if (active) setHistoryContext({ identity, cache });
+    })().catch(() => {
+      if (active) setHistoryContext(undefined);
+    });
+    return () => { active = false; };
+  }, [account?.access_blocked, account?.access_removed, account?.coding_access, account?.coding_history_access, account?.needs_sign_in, account?.server,
+    account?.signed_out, account?.standalone, account?.terms_required, mode, userId]);
 
   if (!userId || !account || !request || !api) return <Redirect href="/" />;
   if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
@@ -64,10 +128,15 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
     return <CaseWorkspaceScreen
       identity={identity}
       api={api}
+      icd11DorisEnabled={icd11Preference.enabled}
+      onIcd11DorisOpenSettings={() => router.push({ pathname: "/settings", params: { userId } })}
+      assertIcd11DorisEnabled={async () => {
+        if (!await isIcd11DorisEnabled()) throw new Error("icd11_doris_disabled");
+      }}
       onExit={() => router.replace({ pathname: mode === "reviewing" ? "/reviewing" : "/coding", params: { userId } })}
-      renderDoris={(workspace, onSaved, onDone) => <DorisPanel
+      renderDoris={(workspace, onSaved, onDone, guardedApi) => <DorisPanel
         workspace={workspace}
-        api={api}
+        api={guardedApi}
         identity={identity}
         request={request}
         onSaved={onSaved}
@@ -82,6 +151,9 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
     mode={mode}
     onOpen={(identity) => router.push({ pathname: "/workspace", params: { userId, vaSid: identity.vaSid, mode: identity.mode } })}
     onExit={() => router.replace("/")}
+    initialView={first(initialHistory) === "1" ? { allProjects: false, showHistory: true, offset: 0 } : undefined}
+    historyCache={historyContext?.cache}
+    historyIdentity={historyContext?.identity}
   />;
 }
 

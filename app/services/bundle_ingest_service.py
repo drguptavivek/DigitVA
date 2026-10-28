@@ -82,6 +82,7 @@ from app.services import death_identifier_write as identifier_write
 from app.services import device_auth_service as devices
 from app.services import offline_coding_import_service as offline_coding_import
 from app.services import station_config_service as station_config
+from app.services import web_intake_attachment_service as intake_attachments
 from app.services import web_intake_service as intake
 from app.services.authz import resolve_grants
 from app.services.cod_entry_mode import is_masked, project_mode
@@ -875,6 +876,9 @@ def _registration(ingest: _Ingest, line: _Line, record: dict, digest: str) -> _O
         consent_line = ingest.lines_by_id.get(consent_id)
         if consent_line is None or consent_line.record_type != "consent":
             raise RecordRejected("consent_required", ["consent_client_id"])
+        consent_record, _ = ingest.open(consent_line)
+        if consent_record.get("decision") == "refused":
+            raise RecordRejected("consent_refused", ["consent_client_id"])
     if consent_line is None and consent_service.has_covered_data(fields, INFORMANT_FIELDS):
         raise RecordRejected("consent_required", ["consent_client_id"])
 
@@ -926,7 +930,33 @@ def _consent(ingest: _Ingest, line: _Line, record: dict, digest: str) -> _Outcom
     with _device_projection(True):
         if not (intake.interviewer_reaches(actor, death) or intake._reporter_reaches(actor, death)):
             raise RecordRejected("forbidden")
+    if ingest.replayed(line, digest) is not None:
+        return _Outcome(line, "duplicate", death_id=death.death_id, unique_id=death.unique_id)
     draft_id = record.get("client_draft_id")
+    death = cases.lock_case(death)
+    if record.get("decision") == "refused":
+        submitted = sa.select(sa.exists().where(
+            VaWebIntakeDraft.death_id == death.death_id,
+            VaWebIntakeDraft.status.in_(("submitted", "superseded")),
+            *([VaWebIntakeDraft.client_draft_id == _uuid(draft_id)] if draft_id is not None else []),
+        ))
+        if db.session.scalar(submitted):
+            raise RecordRejected("consent_refused", ["client_draft_id"])
+        open_drafts = list(db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft",
+            *([sa.or_(VaWebIntakeDraft.client_draft_id == _uuid(draft_id),
+                      VaWebIntakeDraft.meta["lastSync"]["clientDraftId"].astext == str(draft_id))]
+              if draft_id is not None else []),
+        ).with_for_update()))
+        if draft_id is None and open_drafts:
+            raise RecordRejected("consent_refused", ["client_draft_id"])
+        if len(open_drafts) > 1:
+            raise RecordRejected("conflict", ["client_draft_id"])
+        for draft in open_drafts:
+            if draft.user_id != actor.user_id:
+                raise RecordRejected("forbidden")
+            intake.clear_direct_identity_for_refusal(draft, actor)
+            intake.scrub_refused_draft(draft)
     body = {k: v for k, v in record.items() if k not in _CONSENT_ENVELOPE_ONLY}
     stored, created = consent_service.record_consent(
         actor, project_id=ingest.verified.project_id, death=death, consent=body,
@@ -1064,6 +1094,10 @@ def _interview(ingest: _Ingest, line: _Line, record: dict, digest: str) -> _Outc
             return _Outcome(line, "duplicate", received_sha256=answers_sha256, death_id=existing.death_id,
                             unique_id=existing.unique_id)
         if existing is not None:
+            death = cases.lock_case(death)
+            if ((existing.meta or {}).get("interviewOutcome") == "refused"
+                    or consent_service.interview_refused(death=death, client_draft_id=client_draft_id, answers=data)):
+                raise RecordRejected("consent_refused")
             kept, _locked = intake.resubmit_device_interview(
                 actor, existing, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion)
             draft = existing
@@ -1282,12 +1316,15 @@ def _process(ingest: _Ingest) -> None:
         ingest.outcomes[line.client_id] = _one(ingest, line)
     if coding and not ingest.dry_run:
         db.session.commit()
+        intake_attachments.delete_committed_blobs()
     for line in coding:
         ingest.outcomes[line.client_id] = _one_coding(ingest, line)
 
 
 def _one(ingest: _Ingest, line: _Line) -> _Outcome:
     named_consent = None
+    queued_blobs = db.session().info.setdefault("web_intake_blobs_to_delete", [])
+    queued_before = len(queued_blobs)
     try:
         with db.session.begin_nested():
             record, digest = ingest.open(line)
@@ -1308,6 +1345,7 @@ def _one(ingest: _Ingest, line: _Line) -> _Outcome:
         log.warning("bundle record failed | bundle=%s | client=%s | error=%s",
                     ingest.verified.container.bundle_id, line.client_id, type(exc).__name__)
         rejection = _Outcome(line, "rejected", "record_invalid")
+    del queued_blobs[queued_before:]
     if named_consent is not None and named_consent.record_type == "consent":
         # Rolled back with the registration: the consent is rejected alike.
         ingest.outcomes.setdefault(named_consent.client_id, _Outcome(
@@ -1638,6 +1676,7 @@ def ingest_bundle(raw: bytes, *, uploader: VaUsers, bearer_device_id: uuid.UUID 
             return 200, stored.report
         status, report = _ingest(verified, uploader, bearer_device_id, dry_run=False, resuming=stored is not None)
         db.session.commit()
+        intake_attachments.delete_committed_blobs()
     return status, report
 
 

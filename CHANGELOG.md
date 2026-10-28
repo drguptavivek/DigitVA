@@ -5,6 +5,46 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-28
 
+- **Bundled native coding** (`digitva-hs7e.3`, `.5`, `.12`, `.13`, `.13.1`):
+  Plus includes SmartVA and WHO ICD-11/DORIS code/data in its installed package.
+  SmartVA runs after valid local completion, fills missing/stale results on
+  coding entry and retains manual regeneration. Frozen options and encrypted,
+  answer/version-bound caches preserve provenance. Native libraries support
+  16 KB pages; no runtime engine/data download is offered. Policy and runtime:
+  `docs/policy/smartva-generation-policy.md`, `docs/current-state/expo-client.md`.
+  SmartVA mobile-core source is pinned to `790af12` in the owner fork.
+- **Device mode boundaries** (`digitva-hs7e.6`, `.7`, `.11`): explicit server,
+  standalone and demo setup, manual password enrolment, project/profile access
+  details and persistent mode banners. Standalone needs explicit logout from
+  both server slots. Cross-server account-ID collisions fail closed before
+  token/store use; serialized sign-in and refresh writes protect those bindings.
+  ICD-11/DORIS coding starts disabled and can be enabled in Settings.
+- **Consent refusal is a hard stop** (`digitva-hs7e.15`, `.15.1`, `.16`): either
+  interview or data-processing refusal permits only broad deceased age/sex and
+  essential audit metadata. Save, upload, attachment, identifier and bundle
+  ingress enforce the same rule. Fresh-version resume prevents stale answers
+  returning after a grant. Registration-only staff have a minimal offline-safe
+  refusal receipt. Standalone English/Hindi notices are editable in Settings;
+  recorded consent retains its wording. Submitted shared-refusal hold resolution
+  remains open as `.15.2`. See `docs/policy/respondent-consent-notice-draft.md`.
+- **Coding integrity and local history** (`digitva-hs7e.4.1`–`.4.5`): exact coding
+  revision acknowledgements, durable refusal notices, allocation ownership under
+  locks, scoped encrypted coded-list cache and bundled VA definitions/mappings.
+  SmartVA batch processing rechecks refused/duplicate state under row locks.
+- **Phone screens and notices** (`digitva-hs7e.8`–`.10`, `.14`): simpler setup and
+  Settings text, actual phone date/time, bundled English/Hindi, offline software
+  notices and corrected first-run safe area. The owner-approved screenshot
+  allowance covers normal and Plus builds until `2026-11-25T08:12:11Z`.
+- **Combined validation**: backend 7,013 passed, 6 skipped, 5,469 subtests;
+  mobile 232 suites / 3,322 tests, TypeScript and web export passed. Default
+  Rust 10 tests and mobile-core 8 tests passed. Local release APK installed on
+  SM-E146B Android 15 and an Android 13 emulator; both passed offline engine
+  checks with expected synthetic results. APK 141,185,658 bytes, target API 36,
+  all 33 native libraries 16 KB aligned. Phone SmartVA scored the three age
+  groups in 245/34/28 ms; DORIS returned expected BA41.Z. These are functional
+  checks, not clinical validation. No staging/store publication; remaining
+  physical acceptance, signing and WHO/Hindi clearance are in `handoff.md`.
+
 - **Account deletion** (`digitva-et16`, `digitva-kdba`): demo users confirm
   their password to delete their own account on the phone or website; staff
   file a request, reviewed and marked handled on the admin Users page.

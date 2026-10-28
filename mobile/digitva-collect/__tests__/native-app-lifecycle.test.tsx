@@ -35,6 +35,7 @@ jest.mock("../src/auth", () => ({
   setActiveSlot: jest.fn(async () => undefined),
   loadDevice: jest.fn(async () => ({ device_id: "d", server: "https://example.test", project_id: "p", project_name: "P" })),
   loadAccounts: jest.fn(async () => mockAccounts.map((account) => ({ ...account }))),
+  standaloneModeAvailable: jest.fn(async () => false),
   subscribeAccountChanges: jest.fn(() => () => undefined),
   subscribeAccessChanges: jest.fn((listener: typeof mockAccessListener) => {
     mockAccessListener = listener ?? undefined;

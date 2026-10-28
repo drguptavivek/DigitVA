@@ -5,8 +5,8 @@ import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { ApiError } from "../src/api";
 import { authedRequest } from "../src/auth";
 import { saveDraftConsent } from "../src/consentStore";
-import { createDraftStore, getDraftRow, markCompleted, migrate, stripDraftCovered, unfinishedDraftsForSync, type Db, type DraftSyncItem } from "../src/drafts";
-import { reconcileCaseDraft, recordCodingTimeline, recordDraftTimeline, syncDraftSnapshot, type FetchedServerDraft } from "../src/draftSync";
+import { createDraftStore, getDraftRow, markCompleted, migrate, setMeta, stripDraftCovered, unfinishedDraftsForSync, type Db, type DraftSyncItem } from "../src/drafts";
+import { recoverRefusalDraft, reconcileCaseDraft, recordCodingTimeline, recordDraftTimeline, syncDraftSnapshot, type FetchedServerDraft } from "../src/draftSync";
 import type { CaseDetail } from "../src/cases";
 
 jest.mock("../src/auth", () => ({ authedRequest: jest.fn() }));
@@ -173,6 +173,40 @@ describe("native draft sync", () => {
     expect(payload?.draft).toMatchObject({
       instrumentVersion: "served-v2", definitionSha256: "c".repeat(64), definitionExtensions: ["geography"],
     });
+  });
+
+  it("sends an explicit DP consent resume with its server version without inventing a WHO answer", async () => {
+    await saveLocal();
+    await db.runAsync("UPDATE drafts SET server_draft_id = ?, base_updated_at = ? WHERE id = ?", [SERVER_ID, OLD_TIME, LOCAL_ID]);
+    await setMeta(db, `consent:resume-who:${LOCAL_ID}`, true);
+    const [item] = await unfinishedDraftsForSync(db, "PROJECT1");
+    let payload: Record<string, unknown> | undefined;
+    request.mockImplementationOnce(async (_userId: string, _path: string, init: { bodyFactory: () => unknown }) => {
+      payload = init.bodyFactory() as Record<string, unknown>;
+      return { status: 200, body: syncReply("incoming") };
+    });
+    await syncDraftSnapshot("user-1", db, item);
+    expect(payload).toMatchObject({ resume_refused: true, base_updated_at: OLD_TIME });
+    expect(JSON.parse(payload!.answers_json as string)).not.toHaveProperty("Id10013");
+    expect((await getDraftRow(db, LOCAL_ID))?.base_updated_at).toBe(NEW_TIME);
+  });
+
+  it("recovers only a sanitized server refusal and preserves unrelated drafts", async () => {
+    await saveLocal();
+    const other = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    await createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" }).save(localDraft(other, OLD_TIME, { Id10007: "other lawful work" }));
+    await db.runAsync("UPDATE drafts SET server_draft_id = ?, base_updated_at = ?, upload_issue = 'refusal_stale' WHERE id = ?", [SERVER_ID, OLD_TIME, LOCAL_ID]);
+    const row = (await getDraftRow(db, LOCAL_ID))!;
+    request.mockResolvedValueOnce({ body: { draft: summary(), envelope: serverEnvelope({ Id10007: "changed elsewhere" }), prefill: {} } });
+    await expect(recoverRefusalDraft("user-1", db, row)).rejects.toThrow("refusal_server_draft_changed");
+    expect((await getDraftRow(db, LOCAL_ID))?.upload_issue).toBe("refusal_stale");
+    request.mockResolvedValueOnce({ body: { draft: summary(), envelope: serverEnvelope({ Id10013: "no", refusal_sex: "female" }), prefill: {} } });
+    await recoverRefusalDraft("user-1", db, row);
+    expect(await getDraftRow(db, LOCAL_ID)).toMatchObject({ base_updated_at: NEW_TIME, upload_issue: "consent_refused" });
+    const saved = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
+    expect(JSON.parse(saved!.envelope).data).toEqual({ Id10013: "no", refusal_sex: "female" });
+    const unrelated = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [other]);
+    expect(JSON.parse(unrelated!.envelope).data).toEqual({ Id10007: "other lawful work" });
   });
 
   it("persists coding milestones separately from interview metadata without changing answers", async () => {
@@ -433,7 +467,7 @@ describe("native draft sync", () => {
       project_id: "PROJECT1", covered_fields: ["Id10007", "Id10055"], recorded_by: "u1",
     };
 
-    it("sends the in-progress answers without the covered fields", async () => {
+    it("does not sync a refused in-progress draft", async () => {
       await saveDraftConsent(db, LOCAL_ID, refusal);
       const item = await saveLocal();
       await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [
@@ -445,12 +479,10 @@ describe("native draft sync", () => {
         return { status: 200, body: syncReply("incoming") };
       });
       await syncDraftSnapshot("user-1", db, stored);
-      const sent = JSON.parse(payload!.answers_json as string);
-      expect(sent).toEqual({ Id10013: "yes" }); // the other answer is there, the covered one is not
-      expect(payload!.answers_json).not.toContain("Asha");
+      expect(payload).toBeUndefined();
     });
 
-    it("keeps covered answers out of the stored draft when the server version wins, prefill included", async () => {
+    it("does not restore server answers into a refused draft", async () => {
       await saveDraftConsent(db, LOCAL_ID, refusal);
       const item = await saveLocal();
       await db.runAsync("UPDATE drafts SET prefill = ? WHERE id = ?", [JSON.stringify({ answers: { Id10007: "from-prefill", Id10013: "yes" } }), LOCAL_ID]);
@@ -459,7 +491,7 @@ describe("native draft sync", () => {
       request.mockResolvedValueOnce({ status: 200, body: reply });
       await syncDraftSnapshot("user-1", db, item);
       const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
-      expect(JSON.parse(row!.envelope).data).toEqual({ Id10013: "yes", Id10019: "female" });
+      expect(JSON.parse(row!.envelope).data).toEqual({});
     });
 
     it("sends everything when no refusal is on file", async () => {

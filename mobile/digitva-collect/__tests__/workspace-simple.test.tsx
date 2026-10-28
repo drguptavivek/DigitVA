@@ -162,6 +162,80 @@ it("keeps mode=view read-only and loads only the served case history", async () 
   await act(async () => tree.unmount());
 });
 
+it("blocks a validated online ICD-11 workspace when the device preference is off", async () => {
+  const payload = workspace("coding");
+  payload.case.icd_classification = "icd11";
+  const api = apiFor(payload);
+  const onExit = jest.fn();
+  const onSettings = jest.fn();
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen
+      identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={onExit}
+      icd11DorisEnabled={false} onIcd11DorisOpenSettings={onSettings}
+    />);
+    await flush();
+  });
+
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Open Settings" }).length).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Save initial COD" })).toHaveLength(0);
+  expect(api.getWorkspace).toHaveBeenCalledTimes(1);
+  await act(async () => tree.root.findAllByProps({ accessibilityLabel: "Open Settings" })[0].props.onPress());
+  expect(onSettings).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+});
+
+it("keeps ICD-10 and callers without the native preference guard unchanged", async () => {
+  const icd10Api = apiFor(workspace("coding"));
+  const webApi = apiFor({ ...workspace("coding"), case: { ...workspace("coding").case, icd_classification: "icd11" } });
+  let icd10Tree!: ReactTestRenderer;
+  let webTree!: ReactTestRenderer;
+  await act(async () => {
+    icd10Tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={icd10Api} onExit={jest.fn()} icd11DorisEnabled={false} />);
+    webTree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={webApi} onExit={jest.fn()} />);
+    await flush();
+  });
+
+  expect(icd10Tree.root.findAllByProps({ accessibilityLabel: "Open Settings" })).toHaveLength(0);
+  expect(webTree.root.findAllByProps({ accessibilityLabel: "Open Settings" })).toHaveLength(0);
+  expect(icd10Api.getWorkspace).toHaveBeenCalledTimes(1);
+  expect(webApi.getWorkspace).toHaveBeenCalledTimes(1);
+  await act(async () => { icd10Tree.unmount(); webTree.unmount(); });
+});
+
+it("rechecks an online ICD-11 preference before DORIS process, selection, and save calls", async () => {
+  const payload = workspace("coding");
+  payload.case.icd_classification = "icd11";
+  payload.case.project_mode = "unmasked_doris";
+  const api = apiFor(payload, {
+    processDoris: jest.fn(async () => ({ doris: { status: "completed" } } as never)),
+    checkDorisSelection: jest.fn(async () => ({ item: {} } as never)),
+    saveInitial: jest.fn(async () => ({ va_sid: "sid-1" })),
+  });
+  let enabled = true;
+  let guardedApi!: WorkspaceApi;
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen
+      identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()}
+      icd11DorisEnabled={true}
+      assertIcd11DorisEnabled={async () => { if (!enabled) throw new Error("icd11_doris_disabled"); }}
+      renderDoris={(_workspace, _onSaved, _onDone, providedApi) => { guardedApi = providedApi; return null; }}
+    />);
+    await flush();
+  });
+  expect(guardedApi).toBeDefined();
+  enabled = false;
+
+  await expect(guardedApi.processDoris("sid-1", "coder", 1, {})).rejects.toThrow("icd11_doris_disabled");
+  await expect(guardedApi.checkDorisSelection("sid-1", "A00", "uri")).rejects.toThrow("icd11_doris_disabled");
+  await expect(guardedApi.saveInitial("sid-1", {})).rejects.toThrow("icd11_doris_disabled");
+  expect(api.processDoris).not.toHaveBeenCalled();
+  expect(api.checkDorisSelection).not.toHaveBeenCalled();
+  expect(api.saveInitial).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
+});
+
 it.each([
   ["unknown", null],
   ["background", "background"],

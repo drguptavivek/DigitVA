@@ -35,10 +35,11 @@ jest.mock("../src/offlineIdentity", () => ({
 }));
 
 import { createDraftStore, getDraftRow, getMeta, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
-import type { AccessSummary } from "../src/api";
+import type { AccessSummary, SmartVaTarget } from "../src/api";
 import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { acquireLocalCodingEditor } from "../src/localCodingLeases";
 import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
+import { codingReceiptSha256 } from "../src/codingReceipt";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { computeUtf8Sha256HexSync, type ConsentRecordEnvelope } from "../src/consent";
@@ -46,7 +47,7 @@ import { consentForDraft, getConsentConfig, inheritedConsentRefused, loadConsent
 import { pendingErrors, resetErrorLog } from "../src/errorLog";
 import { sendRefusal, summariseWork } from "../src/unsentWork";
 import { draftAttachments, saveAttachment } from "../src/attachmentStore";
-import { getCase, getRegistration, getRegistrationRefusal, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
+import { getCase, getRegistration, getRegistrationRefusal, listCases, listRegistrations, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -91,6 +92,7 @@ const access = (projects = [project()]): AccessSummary => ({
     project_id: item.project_id,
     project_name: item.project_name,
     has_tree: true,
+    smartva_targets: item.smartva_targets,
     grants: [{ role: "interviewer", scope: "project", active: true, source: "assigned" as const }],
     actions: { interview: item.sites.map((site) => ({
       site_id: site.site_id, site_name: site.site_name ?? site.site_id,
@@ -339,6 +341,35 @@ describe("project scoped reference data", () => {
     expect(reconciled?.projects.map(({ project: item }) => item.project_id)).toEqual(["P1"]);
     expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", ["P2"])).toBeNull();
     expect(calls).toEqual([]);
+  });
+
+  it("stores and reconciles only the current access summary's SmartVA target snapshot", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const target = (formId: string): SmartVaTarget => ({
+      schema_version: 1 as const,
+      site_id: SITE,
+      org_unit_id: "U1",
+      form_id: formId,
+      form_updated_at: "2026-10-28T00:00:00Z",
+      options: { country: "IND", hiv: true, malaria: false, hce: true, freetext: false },
+      options_digest: `sha256:${formId === "FORM001" ? "a" : "b"}${"0".repeat(63)}`,
+    });
+    const configured = project();
+    configured.smartva_targets = [target("FORM001")];
+    server((call) => call.url.endsWith("/fixture-reference")
+      ? json(200, referenceFixture([configured])) : json(200, { scoped: false, levels: [], units: [] }));
+    await refreshReferenceData(USER, db, { force: true });
+    expect((await getCachedReferenceData(db))?.projects[0].project.smartva_targets).toEqual([target("FORM001")]);
+
+    const fresh = access([configured]);
+    fresh.projects[0].smartva_targets = [target("FORM002")];
+    const reconciled = await reconcileReferenceAccess(db, fresh);
+    expect(reconciled?.projects[0].project.smartva_targets).toEqual([target("FORM002")]);
+
+    delete fresh.projects[0].smartva_targets;
+    const olderServer = await reconcileReferenceAccess(db, fresh);
+    expect(olderServer?.projects[0].project.smartva_targets).toBeUndefined();
   });
 
   it("retains registration data while hiding projects that have only reporter access", async () => {
@@ -927,7 +958,7 @@ describe("sync upload ordering", () => {
       answers_sha256: answersHash, created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
     });
     server((call) => call.url.endsWith("/submissions")
-      ? submissionSuccess(call, { offline_coding: { status: "applied", code: null } })
+      ? submissionSuccess(call, { offline_coding: { status: "applied", code: null, coding_sha256: codingReceiptSha256(call.body?.offline_coding) } })
       : json(204, null));
 
     const result = await uploadQueuedWork(USER, db);
@@ -938,7 +969,11 @@ describe("sync upload ordering", () => {
     expect(await getDraftRow(db, DRAFT)).toBeNull();
   });
 
-  it("keeps enrolled draft and coding when the coding receipt is missing", async () => {
+  it.each([
+    ["missing", undefined],
+    ["malformed", { status: "applied", code: null, coding_sha256: "not-a-digest" }],
+    ["another revision", { status: "applied", code: null, coding_sha256: "f".repeat(64) }],
+  ])("keeps enrolled draft and coding when the coding receipt is %s", async (_name, receipt) => {
     const db = memoryDb();
     await migrate(db);
     const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
@@ -950,7 +985,8 @@ describe("sync upload ordering", () => {
       coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
       answers_sha256: await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
     });
-    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call) : json(204, null));
+    server((call) => call.url.endsWith("/submissions")
+      ? submissionSuccess(call, receipt ? { offline_coding: receipt } : {}) : json(204, null));
 
     await expect(uploadQueuedWork(USER, db)).rejects.toThrow("invalid_upload_ack");
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
@@ -977,6 +1013,54 @@ describe("sync upload ordering", () => {
     await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1 });
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
     expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+  });
+
+  it.each([false, true])("persists refusal before deletion and retains work if persistence fails (%s)", async (failNotice) => {
+    const db = memoryDb();
+    await migrate(db);
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, {
+      client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: "coded",
+      coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
+      answers_sha256: await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+    });
+    let digest = "";
+    server((call) => {
+      if (call.url.endsWith("/submissions")) {
+        digest = codingReceiptSha256(call.body?.offline_coding);
+        return submissionSuccess(call, { offline_coding: { status: "refused", code: "coding_grant_required", coding_sha256: digest } });
+      }
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.includes("/cases")) return json(200, { cases: [], next_cursor: null });
+      return json(204, null);
+    });
+    const run = db.runAsync.bind(db);
+    let deletedAfterNotice = false;
+    db.runAsync = async (sql, params) => {
+      if (params?.[0] === "standalone:coding_notices" && failNotice) throw new Error("notice_storage_failed");
+      if (sql.startsWith("DELETE FROM drafts WHERE id")) {
+        expect(await getMeta(db, "standalone:coding_notices")).toEqual([
+          expect.objectContaining({ draftId: DRAFT, code: "coding_grant_required", codingSha256: digest }),
+        ]);
+        deletedAfterNotice = true;
+      }
+      return run(sql, params);
+    };
+    if (failNotice) {
+      await expect(syncInterviewer(USER, db)).rejects.toThrow("notice_storage_failed");
+      expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+      expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+      expect(deletedAfterNotice).toBe(false);
+    } else {
+      const result = await syncInterviewer(USER, db);
+      expect(result).toMatchObject({
+        sent: 1, codingOutcomes: [{ draftId: DRAFT, status: "refused", code: "coding_grant_required", codingSha256: digest }],
+      });
+      expect(deletedAfterNotice).toBe(true);
+      expect(await getDraftRow(db, DRAFT)).toBeNull();
+    }
   });
 
   it("skips a draft whose local coding editor already owns the lease", async () => {
@@ -1705,6 +1789,20 @@ describe("respondent consent and refusals on the phone", () => {
     expect(await loadConsents(db)).toEqual(new Map());
   });
 
+  it("sends a DP resume with its base version without adding a WHO answer", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10007: "new answer" });
+    await saveDraftConsent(db, ID, record("granted", ID));
+    await setMeta(db, `consent:resume-who:${ID}`, true);
+    await db.runAsync("UPDATE drafts SET base_updated_at = ? WHERE id = ?", ["2026-10-01T11:00:00Z", ID]);
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    const body = calls.find(({ url }) => url.endsWith("/submissions"))!.body!;
+    expect(body).toMatchObject({ resume_refused: true, base_updated_at: "2026-10-01T11:00:00Z" });
+    expect(JSON.parse(body.answers_json as string)).not.toHaveProperty("Id10013");
+  });
+
   it("under a refusal strips the covered answers from the answers, their hash and the draft sent", async () => {
     const db = memoryDb();
     await migrate(db);
@@ -1714,12 +1812,12 @@ describe("respondent consent and refusals on the phone", () => {
     await syncInterviewer(USER, db);
     const body = calls.find(({ url }) => url.endsWith("/submissions"))!.body!;
     expect(body.consent).toMatchObject({ decision: "refused", client_draft_id: ID });
-    expect(JSON.parse(body.answers_json as string)).toEqual({ Id10013: "yes", Id10019: "female" });
+    expect(JSON.parse(body.answers_json as string)).toEqual({ Id10013: "yes" });
     expect(body.answers_sha256).toBe(require("node:crypto").createHash("sha256").update(body.answers_json as string, "utf8").digest("hex"));
-    expect((body.draft as { data: object }).data).toEqual({ Id10013: "yes", Id10019: "female" });
+    expect((body.draft as { data: object }).data).toEqual({ Id10013: "yes" });
   });
 
-  it("under a refusal deletes the files of the covered questions before sending, and keeps the others", async () => {
+  it("under a refusal deletes all draft attachments before sending", async () => {
     const db = memoryDb();
     await migrate(db);
     await complete(db, ID, { Id10013: "yes", Id10007: "Asha" });
@@ -1732,8 +1830,37 @@ describe("respondent consent and refusals on the phone", () => {
     readyServer(() => json(409, { error: "closed", code: "case_closed" })); // the draft stays, so its rows can be read
     await syncInterviewer(USER, db);
     const left = (await draftAttachments(db, ID)).map((f) => f.question);
-    expect(left).toContain("Id10013");
-    expect(left).not.toContain("Id10007");
+    expect(left).toEqual([]);
+  });
+
+  it("holds a server refusal, removes interview answers, and does not retry it", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "Private" });
+    readyServer(() => json(422, { error: "Consent refused", code: "consent_refused" }));
+    await syncInterviewer(USER, db);
+    const row = await db.getFirstAsync<{ envelope: string; upload_issue: string }>("SELECT envelope, upload_issue FROM drafts WHERE id = ?", [ID]);
+    expect(row?.upload_issue).toBe("consent_refused");
+    expect(JSON.parse(row!.envelope).data).toEqual({ Id10013: "yes" });
+    readyServer(() => submissionSuccess(calls[calls.length - 1]));
+    await syncInterviewer(USER, db);
+    expect(calls.filter(({ url }) => url.endsWith("/submissions"))).toHaveLength(0);
+  });
+
+  it("holds a stale refusal conflict for explicit recovery without silently clearing local work", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "local work" });
+    const serverId = "22222222-2222-4222-8222-222222222222";
+    readyServer(() => json(409, { error: "Reload the cleared draft", code: "refusal_stale", draft_id: serverId }));
+    await syncInterviewer(USER, db);
+    const row = await db.getFirstAsync<{ envelope: string; upload_issue: string }>("SELECT envelope, upload_issue FROM drafts WHERE id = ?", [ID]);
+    expect(row?.upload_issue).toBe("refusal_stale");
+    expect((await getDraftRow(db, ID))?.server_draft_id).toBe(serverId);
+    expect(JSON.parse(row!.envelope).data.Id10007).toBe("local work");
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    expect(calls.filter(({ url }) => url.endsWith("/submissions"))).toHaveLength(0);
   });
 
   it("reuses a registration's consent without sending it again, and honours its refusal", async () => {
@@ -1761,7 +1888,7 @@ describe("respondent consent and refusals on the phone", () => {
     expect(JSON.parse(refusedBody.answers_json as string)).not.toHaveProperty("Id10007");
   });
 
-  it("sends a registration's consent with POST /deaths, strips informant fields under a refusal, and hands the decision to the case", async () => {
+  it("sends granted registrations and holds a refused legacy registration", async () => {
     const db = memoryDb();
     await migrate(db);
     const reg = "bbbbbbbb-0000-4000-8000-000000000032";
@@ -1779,9 +1906,24 @@ describe("respondent consent and refusals on the phone", () => {
     await saveRegistrationConsent(db, refusedReg, record("refused", null));
     readyServer((call) => submissionSuccess(call));
     await syncInterviewer(USER, db);
-    const refused = calls.filter(({ url }) => url.endsWith("/deaths")).map(({ body }) => body!).find((body) => body.client_death_id === refusedReg)!;
-    expect(refused).not.toHaveProperty("informant_name");
-    expect(refused).toMatchObject({ consent: { decision: "refused", client_draft_id: null } });
+    const refused = calls.filter(({ url }) => url.endsWith("/deaths")).map(({ body }) => body!).find((body) => body.client_death_id === refusedReg);
+    expect(refused).toBeUndefined();
+    expect((await listRegistrations(db)).find((item) => item.client_death_id === refusedReg)?.state).toBe("needs_edit");
+  });
+
+  it("uploads a registration-only refusal without identity and removes it after its receipt", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const id = "bbbbbbbb-0000-4000-8000-000000000034";
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: id, site_id: SITE, fields: { refusal_only: true, refusal_sex: "female" } as never });
+    await saveRegistrationConsent(db, id, record("refused", null));
+    server((call) => call.url.endsWith("/refusals") ? json(201, { client_draft_id: id }) : json(200, { cases: [], next_cursor: null }));
+    await syncInterviewer(USER, db);
+    const body = calls.find(({ url }) => url.endsWith("/refusals"))!.body!;
+    expect(body).toMatchObject({ client_draft_id: id, refusal_sex: "female", consent: { decision: "refused" } });
+    expect(body).not.toHaveProperty("deceased_name");
+    expect(body).not.toHaveProperty("refusal_only");
+    expect(await getRegistration(db, id)).toBeUndefined();
   });
 
   it("stores a 422 refusal with the server's message, fields and Ref, reopens the draft, and shows it in the Sync summary", async () => {

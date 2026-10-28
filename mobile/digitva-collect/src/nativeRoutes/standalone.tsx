@@ -1,8 +1,7 @@
 /**
  * Path C home: the standalone account's local interviews and offline coding, an age warning on records older than
  * STANDALONE_AGE_WARNING_DAYS, a backup reminder every BACKUP_REMINDER_DAYS, and the export, backup and restore
- * actions (src/standalone/DataActions.tsx). Once the phone is enrolled, the adoption offer and push
- * (src/standalone/AdoptionCard.tsx) are the only part that calls a server, and only after the user confirms.
+ * actions (src/standalone/DataActions.tsx). Standalone work remains local after enrollment too.
  */
 import { randomUUID } from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -14,7 +13,6 @@ import { retryHeldDraft, type Db } from "../drafts";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { t } from "../i18n";
 import { backupReminder, isOverAgeLimit } from "../standalone/age";
-import { AdoptionCard } from "../standalone/AdoptionCard";
 import { heldText } from "../standalone/adopt";
 import { DataActions } from "../standalone/DataActions";
 import { dataActionsAllowed } from "../standalone/export";
@@ -27,12 +25,17 @@ export default function StandaloneHome() {
   const styles = useUiStyles();
   const router = useRouter();
   const { userId } = useLocalSearchParams<{ userId: string }>();
-  const { accounts, lockVersion, lockNow } = useAppState();
+  const { accounts, lockVersion, lockNow, uiLocale } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [records, setRecords] = useState<StandaloneRecord[]>();
   const [db, setDb] = useState<Db>();
   const [backupAt, setBackupAt] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const load = useCallback(async () => {
     if (!account?.standalone || !isUnlocked(account.user_id)) return;
@@ -51,7 +54,6 @@ export default function StandaloneHome() {
   if (!isUnlocked(account.user_id)) return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
   if (!records || !db) return error ? <Text style={styles.error}>{error}</Text> : <ActivityIndicator style={{ flex: 1 }} />;
 
-  const now = new Date();
   const reminder = backupReminder(
     {
       lastBackupAt: backupAt,
@@ -68,12 +70,12 @@ export default function StandaloneHome() {
     <Screen title={t("standaloneHomeTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
       <Text style={styles.muted}>{t("standaloneClockNotice")}</Text>
+      <Text style={styles.text}>{now.toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}</Text>
       {reminder.due ? (
         <View style={styles.card}>
           <Text style={styles.text}>{reminder.days === null ? t("standaloneBackupNever") : t("standaloneBackupReminder", { days: reminder.days })}</Text>
         </View>
       ) : null}
-      <AdoptionCard db={db} refresh={records.length} onChanged={() => void load()} />
       {dataActionsAllowed(account) ? <DataActions db={db} userId={account.user_id} onChanged={() => void load()} /> : null}
       <Button label={t("standaloneNewInterview")} onPress={() => router.push({ pathname: "/form", params: formParams(randomUUID()) })} />
       {records.length === 0 ? <Text style={styles.muted}>{t("standaloneNoRecords")}</Text> : null}
@@ -102,7 +104,7 @@ export default function StandaloneHome() {
       ))}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button kind="secondary" label={t("standaloneEnrol")} onPress={() => router.push("/enrol")} />
-      <Button kind="secondary" label={t("settings")} onPress={() => router.push("/settings")} />
+      <Button kind="secondary" label={t("settings")} onPress={() => router.push({ pathname: "/settings", params: { userId: account.user_id } })} />
       <Button kind="secondary" label={t("lockNow")} onPress={() => void lockNow()} />
     </Screen>
   );

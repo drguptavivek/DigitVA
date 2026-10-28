@@ -94,6 +94,25 @@ describe("local standalone account", () => {
     expect(await loadAccounts()).toEqual([]);
   });
 
+  it.each(["accounts", "demo.accounts"])("refuses a server account in %s before writing identity, profile or account", async (key) => {
+    mockSecure.set(key, JSON.stringify([{ user_id: "server-user", name: "Server", needs_sign_in: true }]));
+    const before = new Map(mockSecure);
+    await expect(setUpStandaloneAccount(profile())).rejects.toThrow("standalone_server_session_active");
+    expect(mockSecure).toEqual(before);
+    expect(mockSecure.has("offline_device_identity")).toBe(false);
+    expect(await getOfflineProfile()).toBeNull();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("allows setup after explicit server logout while preserving the server account", async () => {
+    const server = { user_id: "server-user", name: "Server", needs_sign_in: true, signed_out: true };
+    mockSecure.set("demo.accounts", JSON.stringify([server]));
+    const account = await setUpStandaloneAccount(profile());
+    expect(account.standalone).toBe(true);
+    expect(await loadAccounts("demo")).toEqual([server]);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("is refused off Android", async () => {
     (Platform as { OS: string }).OS = "ios";
     await expect(setUpStandaloneAccount(profile())).rejects.toThrow();

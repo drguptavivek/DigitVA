@@ -1,0 +1,53 @@
+[
+  {
+    "name": "unicode-and-order",
+    "value": {
+      "\ud800\udc00": "\ud83d\ude00",
+      "\ue000": "\u0939\u093f\u0928\u094d\u0926\u0940",
+      "a": "\u007f\n\\\"",
+      "nil": null,
+      "yes": true
+    },
+    "sha256": "497157c97dd910e7ce6a2238dace3d5a36d2e52fa48d314f6cd4544933aa40c2"
+  },
+  {
+    "name": "numeric",
+    "value": [
+      0,
+      -0.0,
+      1,
+      1.0,
+      1e-07,
+      1e+20,
+      1e+21,
+      1.7976931348623157e+308,
+      5e-324
+    ],
+    "sha256": "bd2a0d0b2325dda89ffb1b618d8e7eba7140d6e599b0228f261f74db6e9481d3"
+  },
+  {
+    "name": "missing",
+    "value": {},
+    "sha256": "51d865c4d0211f7540b0b6bbd76c09de62cf66b70ec13707b1c783257bc4d927"
+  },
+  {
+    "name": "null",
+    "value": {
+      "x": null
+    },
+    "sha256": "b6728e30bdde6164d886a622016b2f285d39efdd26382cc3ce700856436a2033"
+  },
+  {
+    "name": "array-order",
+    "value": [
+      {
+        "x": 1
+      },
+      [
+        false,
+        "x"
+      ]
+    ],
+    "sha256": "9f2b50dd4478c4e4af77bb605a708ed17d3b9cc14069b2919cf53309043cbead"
+  }
+]

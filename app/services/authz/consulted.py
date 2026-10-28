@@ -147,6 +147,9 @@ PUBLIC_ENDPOINTS = {
                                        "and token.",
     "api_v1.auth_api.open_session": "Device sign-in: authenticates (device secret, "
                                   "password), does not authorize.",
+    "api_v1.auth_api.password_enroll": "Native device enrol and sign-in: authenticates "
+                                     "(email/mobile and password), checks native access "
+                                     "and the device cap; rate-limited (mobile-sign-in.md).",
     "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "
                                      "refresh token, reuse revokes), does not authorize.",
 }

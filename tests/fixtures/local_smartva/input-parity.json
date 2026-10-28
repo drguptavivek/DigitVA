@@ -1,0 +1,76 @@
+[
+  {
+    "name": "adult with qualified headers and sealed identity fields",
+    "sid": "local-adult",
+    "payload": {
+      "ageInDays": "",
+      "finalAgeInYears": 60,
+      "age_group": "adult",
+      "age_adult": "1",
+      "Id10019": 2,
+      "Survey/Id10035": "yes",
+      "Id10017": "Synthetic Givenname",
+      "Id10057": "Synthetic Village",
+      "name": "Synthetic Givenname",
+      "unrelated": "ignored",
+      "sealed": {"Id10010": "Synthetic Interviewer"}
+    },
+    "expected": {
+      "ageInDays": "21900",
+      "age_group": "adult",
+      "age_adult": "1",
+      "Id10019": "2",
+      "Survey/Id10035": "yes",
+      "sid": "local-adult"
+    }
+  },
+  {
+    "name": "child with Python ties-to-even age conversion",
+    "sid": "local-child",
+    "payload": {
+      "ageInDays": null,
+      "finalAgeInYears": 10.5,
+      "age_group": "child",
+      "age_child": true,
+      "Id10035": [1, true, "x"]
+    },
+    "expected": {
+      "ageInDays": "3832",
+      "age_group": "child",
+      "age_child": "True",
+      "Id10035": "[1, True, 'x']",
+      "sid": "local-child"
+    }
+  },
+  {
+    "name": "neonate with derived neonatal age",
+    "sid": "local-neonate",
+    "payload": {
+      "ageInDays": 3,
+      "Id10020": false
+    },
+    "expected": {
+      "ageInDays": "3",
+      "age_neonate_days": "3",
+      "Id10020": "False",
+      "sid": "local-neonate"
+    }
+  },
+  {
+    "name": "refusal record without age",
+    "sid": "local-refusal",
+    "payload": {
+      "Id10020": "no",
+      "Id10032": "nan",
+      "ageInYears": null,
+      "Id10035": "refusal"
+    },
+    "expected": {
+      "Id10020": "no",
+      "Id10032": "",
+      "ageInYears": "",
+      "Id10035": "refusal",
+      "sid": "local-refusal"
+    }
+  }
+]

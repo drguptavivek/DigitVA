@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -155,6 +155,18 @@ rest):
 - If a mentoring institution runs the workstation for [ORGANISATION], name
   it as a processor in the notice or the project's data processing
   agreement.
+
+## Refusal boundary (owner 2026-10-28)
+
+Either WHO interview consent `Id10013 = no` or a refused respondent data
+protection consent stops collection in every mode. The two decisions are
+independent: a data protection refusal does not invent a WHO answer. Only the
+WHO decision when supplied, the broad `refusal_age_group` and `refusal_sex`,
+and essential consent and system audit metadata may be retained. Names,
+identifiers, exact demographic details, clinical answers, narratives,
+attachments, visit notes and coding are excluded. An explicit subsequent
+grant permits an unsent draft to resume; removed answers remain empty. Historic
+lawfully finalised submissions are not changed; withdrawal is separate.
 
 ## Refusal profile, for legal review (owner 2026-10-27)
 
@@ -389,6 +401,8 @@ record informant details on the phone.
 
 ## Changing a decision during an interview (owner 2026-10-24, `digitva-wy90`)
 
+The covered-fields-only behaviour described in this historical section is superseded by the 2026-10-28 refusal boundary above.
+
 Where the project requires consent, the phone interview's top bar shows a
 status chip: "Consent: agreed", "Consent: refused" or "Consent: not recorded"
 (the state is in the words and the chip's accessibility label, not in colour
@@ -414,6 +428,8 @@ alone; theme tokens). It is absent when the project does not require consent.
   can no longer be changed on the phone (see "Not on the phone").
 
 ## In-progress saves (owner 2026-10-24)
+
+The covered-fields-only behaviour described in this historical section is superseded by the 2026-10-28 refusal boundary above.
 
 No covered data is stored without a granted consent on file, in any save of
 an unfinished interview. `consent_service.strip_unconsented_answers` runs the

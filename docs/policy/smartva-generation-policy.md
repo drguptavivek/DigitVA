@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-28
 ---
 
 # SmartVA Generation Policy
@@ -12,7 +12,52 @@ last_updated: 2026-10-06
 
 This policy defines when SmartVA cause-of-death analysis should run, how it interacts with the workflow state machine, and what protections exist for finalized submissions.
 
-## Core Principle
+## Collect Plus on-device SmartVA (owner decision 2026-10-28)
+
+The owner now requires SmartVA in the same installed package as the offline
+coding tools (`digitva-hs7e.13`), superseding the earlier standalone exclusion.
+Use the existing MIT Rust engine (algorithm 3.0.1, Rust wrapper 3.0.2), with
+its embedded reference data and no runtime code/data downloads or Python.
+Run it in a separate native process so the UI remains responsive. After a valid,
+consented local interview is durably completed, start SmartVA automatically without
+making interview saving depend on engine success. On opening local coding, generate
+a missing, failed or stale result once for that entry. Keep manual Run/Regenerate
+available. This matches the web completion and coding-reference behavior.
+
+All automatic and manual runs require the device coding preference and the same
+project's local coding authorization, valid completion, no interview/DP refusal,
+and a valid frozen options snapshot. Do not silently repair missing old settings.
+Reuse a successful result only while answers, options and engine version match.
+Coalesce concurrent attempts and use the upload/editor lease before starting
+background work. A failed/interrupted automatic attempt leaves the interview saved
+and can be retried on coding entry or manually. Never start models at app startup,
+on enabling the setting, for refused/incomplete interviews, or by a background
+download. No new schema or server-side trust in phone-generated results is implied.
+The device coding opt-in and existing account/project permissions still apply.
+
+The initial local workflow covers completed interviews whose encrypted answer
+envelope is already on the phone. Online server cases keep their existing
+server SmartVA workflow. Do not approximate missing inputs from a display-only
+case cache. Local output is advisory and never silently replaces server output.
+After upload, the server generates its own payload-version-linked result.
+
+Snapshot exact effective options with each draft. Enrolled/Demo options are
+access-scoped, selected by the precise site/form and authorized organization
+unit, with the server's country precedence and inherited HIV/malaria presets.
+Missing or ambiguous configuration disables local SmartVA without blocking
+collection. A resumed draft retains its original options. Standalone uses the
+local profile's country and explicit mortality values, with HCE and free-text
+enabled explicitly, matching the existing form defaults. Missing mortality
+values require profile completion and are never guessed from interview answers.
+
+Cache only the sanitized result and provenance in SQLCipher, keyed by draft,
+answer hash, options digest and engine version. Changes make the result stale;
+acknowledged draft deletion removes its cached result. Preserve interview and
+physician coding work through SmartVA failure. Validate input cleaning and
+adult/child/neonate output against the server, then measure Android cold/warm
+latency, memory, process recovery and airplane-mode operation.
+
+## Server generation
 
 SmartVA is an **advisory tool** that provides automated COD suggestions to coders. It must respect the workflow state machine and **not regenerate results for finalized submissions** unless explicitly authorized.
 

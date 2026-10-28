@@ -62,10 +62,10 @@ function Probe() {
   );
 }
 
-async function render(): Promise<ReactTestRenderer> {
+async function render(children?: React.ReactNode): Promise<ReactTestRenderer> {
   let tree!: ReactTestRenderer;
   await act(async () => {
-    tree = create(<AppStateProvider><Probe /></AppStateProvider>);
+    tree = create(<AppStateProvider><Probe />{children}</AppStateProvider>);
   });
   return tree;
 }
@@ -109,6 +109,204 @@ it("hides an account signed in on another server and keeps its entry on the phon
   });
   expect(out(tree)).toContain('\\"accounts\\":[]');
   expect(JSON.parse(mockSecure.get("accounts")!).map((a: { user_id: string }) => a.user_id)).toEqual(["live-user", "old-user", "legacy-user"]);
+  await act(async () => tree.unmount());
+});
+
+it("keeps standalone unavailable until both slots are read, then recomputes on reload and other-slot logout", async () => {
+  mockSecure.set("accounts", "[]");
+  let finish!: (value: boolean) => void;
+  const check = jest.spyOn(auth, "standaloneModeAvailable").mockImplementationOnce(() =>
+    new Promise<boolean>((resolve) => { finish = resolve; }),
+  );
+  const tree = await render();
+  expect(state.ready).toBe(false);
+  expect(state.standaloneAvailable).toBe(false);
+  await act(async () => finish(true));
+  expect(state.ready).toBe(true);
+  expect(state.standaloneAvailable).toBe(true);
+  check.mockRestore();
+
+  mockSecure.set("demo.accounts", demoAccounts);
+  await act(async () => state.reload());
+  expect(state.standaloneAvailable).toBe(false);
+  expect(state.slot).toBe("active");
+  expect(state.accounts).toEqual([]);
+
+  await act(async () => { await auth.signOut("demo-user"); });
+  expect(state.standaloneAvailable).toBe(true);
+  expect(state.slot).toBe("active");
+  expect(state.accounts).toEqual([]);
+
+  mockSecure.set("demo.accounts", "not-json");
+  await act(async () => {
+    await expect(state.reload()).rejects.toBeInstanceOf(auth.AccountStoreCollisionError);
+  });
+  expect(state.standaloneAvailable).toBe(false);
+  await act(async () => tree.unmount());
+});
+
+it("fails closed during a failed reload instead of retaining earlier standalone availability", async () => {
+  mockSecure.set("accounts", "[]");
+  const tree = await render();
+  expect(state.standaloneAvailable).toBe(true);
+  const read = jest.spyOn(auth, "loadActiveSlot").mockRejectedValueOnce(new Error("storage failed"));
+  await act(async () => {
+    await expect(state.reload()).rejects.toThrow("storage failed");
+  });
+  expect(state.standaloneAvailable).toBe(false);
+  read.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("ignores an older eligibility read after a newer account reload refused standalone", async () => {
+  mockSecure.set("accounts", "[]");
+  const tree = await render();
+  expect(state.standaloneAvailable).toBe(true);
+  let finish!: (value: boolean) => void;
+  const check = jest.spyOn(auth, "standaloneModeAvailable").mockImplementationOnce(() =>
+    new Promise<boolean>((resolve) => { finish = resolve; }),
+  );
+  let older!: Promise<void>;
+  await act(async () => {
+    older = state.reload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(state.standaloneAvailable).toBe(true);
+  mockSecure.set("demo.accounts", demoAccounts);
+  await act(async () => state.reload());
+  expect(state.standaloneAvailable).toBe(false);
+  await act(async () => {
+    finish(true);
+    await older;
+  });
+  expect(state.standaloneAvailable).toBe(false);
+  check.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("keeps an eligible standalone form mounted while an unchanged reload is pending", async () => {
+  mockSecure.set("accounts", JSON.stringify([{ user_id: "standalone-local", name: "Local", standalone: true }]));
+  const unmount = jest.fn();
+  function Form() {
+    React.useEffect(() => unmount, []);
+    return <>standalone-form</>;
+  }
+  function StandaloneRoute() {
+    const app = useAppState();
+    return app.ready && app.standaloneAvailable ? <Form /> : null;
+  }
+  const tree = await render(<StandaloneRoute />);
+  expect(out(tree)).toContain("standalone-form");
+  expect(state.standaloneAvailable).toBe(true);
+  let finish!: (value: boolean) => void;
+  const check = jest.spyOn(auth, "standaloneModeAvailable").mockImplementationOnce(() =>
+    new Promise<boolean>((resolve) => { finish = resolve; }),
+  );
+  let pending!: Promise<void>;
+  await act(async () => {
+    pending = state.reload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(state.standaloneAvailable).toBe(true);
+  expect(out(tree)).toContain("standalone-form");
+  expect(unmount).not.toHaveBeenCalled();
+  await act(async () => {
+    finish(true);
+    await pending;
+  });
+  expect(state.standaloneAvailable).toBe(true);
+  expect(unmount).not.toHaveBeenCalled();
+  check.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("publishes only the newest slot, device and accounts when older account storage finishes last", async () => {
+  const tree = await render();
+  let finish!: (value: auth.Account[]) => void;
+  const read = jest.spyOn(auth, "loadAccounts").mockImplementationOnce(() =>
+    new Promise<auth.Account[]>((resolve) => { finish = resolve; }),
+  );
+  let older!: Promise<void>;
+  await act(async () => {
+    older = state.reload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  const demoDevice = { device_id: "demo-new", server: DEMO_SERVER, project_id: "D", project_name: "Demo" };
+  mockSecure.set("active_slot", "demo");
+  mockSecure.set("demo.device", JSON.stringify(demoDevice));
+  mockSecure.set("demo.accounts", demoAccounts);
+  await act(async () => state.reload());
+  const newest = { slot: state.slot, device: state.device, accounts: state.accounts, available: state.standaloneAvailable };
+  expect(newest).toEqual({ slot: "demo", device: demoDevice, accounts: JSON.parse(demoAccounts), available: false });
+  await act(async () => {
+    finish([{ user_id: "old-active", name: "Old", server: LIVE }]);
+    await older;
+  });
+  expect({ slot: state.slot, device: state.device, accounts: state.accounts, available: state.standaloneAvailable }).toEqual(newest);
+  read.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("does not mark startup ready when an older read finishes before the newest reload", async () => {
+  let finishOlder!: (value: boolean) => void;
+  let finishNewer!: (value: boolean) => void;
+  const check = jest.spyOn(auth, "standaloneModeAvailable")
+    .mockImplementationOnce(() => new Promise<boolean>((resolve) => { finishOlder = resolve; }))
+    .mockImplementationOnce(() => new Promise<boolean>((resolve) => { finishNewer = resolve; }));
+  const tree = await render();
+  let newer!: Promise<void>;
+  await act(async () => {
+    newer = state.reload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => finishOlder(true));
+  expect(state.ready).toBe(false);
+  expect(state.standaloneAvailable).toBe(false);
+  expect(state.device).toBeUndefined();
+  expect(state.accounts).toEqual([]);
+  await act(async () => {
+    finishNewer(false);
+    await newer;
+  });
+  expect(state.ready).toBe(true);
+  expect(state.accounts).toEqual(JSON.parse(liveAccounts));
+  check.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("keeps a newer valid snapshot when an obsolete reload fails", async () => {
+  mockSecure.set("accounts", "[]");
+  const tree = await render();
+  let fail!: (error: Error) => void;
+  const check = jest.spyOn(auth, "standaloneModeAvailable").mockImplementationOnce(() =>
+    new Promise<boolean>((_resolve, reject) => { fail = reject; }),
+  );
+  let older!: Promise<void>;
+  await act(async () => {
+    older = state.reload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  await act(async () => state.reload());
+  expect(state.standaloneAvailable).toBe(true);
+  await act(async () => {
+    fail(new Error("obsolete storage failure"));
+    await older;
+  });
+  expect(state.ready).toBe(true);
+  expect(state.standaloneAvailable).toBe(true);
+  expect(state.backgroundError).toBeUndefined();
+  check.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("keeps startup unavailable and reports a failed initial read", async () => {
+  const read = jest.spyOn(auth, "loadActiveSlot").mockRejectedValueOnce(new Error("storage failed"));
+  const tree = await render();
+  expect(state.ready).toBe(false);
+  expect(state.standaloneAvailable).toBe(false);
+  expect(state.backgroundError).toBeDefined();
+  expect(state.accounts).toEqual([]);
+  read.mockRestore();
   await act(async () => tree.unmount());
 });
 

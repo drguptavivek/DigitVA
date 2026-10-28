@@ -8,7 +8,7 @@ False) and deleted in tearDownClass. See tests/base.py.
 
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 
@@ -18,6 +18,7 @@ from app.models import (
     VaAccessScopeTypes,
     VaAllocation,
     VaAllocations,
+    VaFinalAssessments,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -25,11 +26,12 @@ from app.models import (
     VaSiteMaster,
     VaSites,
     VaStatuses,
-    VaSubmissionWorkflow,
     VaSubmissions,
+    VaSubmissionWorkflow,
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services import coder_cod_service as cod
 from app.services import coder_workflow_service as cws
 from app.services.coder_workflow_service import AllocationError
 from tests.base import BaseTestCase
@@ -49,7 +51,7 @@ class CodingAllocationRaceTests(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cls.coder_a = cls._make_user("race.a@test.local", "RaceCoderA123")
         cls.coder_b = cls._make_user("race.b@test.local", "RaceCoderB123")
         for project_id, site_id, form_id, sid, mode in FIXTURES:
@@ -240,8 +242,8 @@ class CodingAllocationRaceTests(BaseTestCase):
         try:
             lock_tx = lock_conn.begin()
             lock_conn.execute(
-                sa.select(VaSubmissionWorkflow.va_sid)
-                .where(VaSubmissionWorkflow.va_sid == RANDOM_SID)
+                sa.select(VaSubmissions.va_sid)
+                .where(VaSubmissions.va_sid == RANDOM_SID)
                 .with_for_update()
             )
             results = {}
@@ -262,6 +264,62 @@ class CodingAllocationRaceTests(BaseTestCase):
             db.session.get(VaUsers, self.coder_b_id), project_id="RAC02"), results).join(30)
         self.assertEqual(results["R2"][0], "ok", results["R2"])
         self.assertEqual(results["R2"][1].va_sid, RANDOM_SID)
+
+    def test_save_waiting_for_case_lock_cannot_use_reassigned_allocation(self):
+        """Release/reassign after a save starts but before it locks the case."""
+        cws.allocate_pick_form(db.session.get(VaUsers, self.coder_a_id), PICK_SID)
+        reached_lock, resume_save = threading.Event(), threading.Event()
+        results = {}
+
+        def before_execute(_conn, _cursor, statement, _params, _context, _many):
+            if (
+                threading.current_thread().name == "save-A"
+                and "FROM va_submissions" in statement
+                and "FOR UPDATE" in statement
+            ):
+                reached_lock.set()
+                assert resume_save.wait(20)
+
+        def save():
+            user = db.session.get(VaUsers, self.coder_a_id)
+            # Keep old identity-map rows: locked reads must refresh them.
+            db.session.scalar(sa.select(VaAllocations).where(
+                VaAllocations.va_sid == PICK_SID,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            ))
+            db.session.scalar(sa.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == PICK_SID,
+            ))
+            return cod.submit_coder_final_cod(
+                user, PICK_SID, conclusive_cod="I24", immediate_cod="I24", actiontype=""
+            )
+
+        engine = db.engine
+        sa.event.listen(engine, "before_cursor_execute", before_execute)
+        thread = self._in_thread("save-A", save, results)
+        try:
+            self.assertTrue(reached_lock.wait(20), results)
+            self.assertEqual(
+                cws.release_own_coding_allocation(db.session.get(VaUsers, self.coder_a_id)),
+                PICK_SID,
+            )
+            cws.allocate_pick_form(db.session.get(VaUsers, self.coder_b_id), PICK_SID)
+        finally:
+            resume_save.set()
+            thread.join(30)
+            sa.event.remove(engine, "before_cursor_execute", before_execute)
+        self.assertFalse(thread.is_alive(), "save did not finish after reassignment")
+        self.assertEqual(results["save-A"][0], "error")
+        error = results["save-A"][1]
+        self.assertIsInstance(error, cod.CoderCodingError, repr(error))
+        self.assertEqual((error.status_code, error.code), (403, "no_allocation"))
+        active = self._active_allocations(PICK_SID)
+        self.assertEqual([a.va_allocated_to for a in active], [self.coder_b_id])
+        self.assertEqual(db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid == PICK_SID
+            )
+        ), 0)
 
     def test_random_pick_taken_before_the_transition_is_409(self):
         """A state change the lock did not stop (a writer that skips the lock)."""

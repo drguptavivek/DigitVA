@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import uuid
 
+import sqlalchemy as sa
+
 from app import db
-from app.models import VaDeathRegister, VaUsers
+from app.models import VaDeathRegister, VaUsers, VaWebIntakeDraft, VaWebIntakeDraftSection
 from app.services import case_list_service
 from app.services import case_transition_service as cases
 from app.services import death_identifier_service as death_identifiers
@@ -68,6 +70,20 @@ def put_identifiers(user: VaUsers, death_id: object, values: dict, *, if_updated
             raise WebIntakeError("This case is closed; correct it on the web.", 409, "case_closed")
     else:
         _authorise(user, death)
+    if isinstance(values, dict) and any(value not in (None, "") for value in values.values()):
+        refused_draft = db.session.scalar(sa.select(sa.exists().where(
+            VaWebIntakeDraft.death_id == death.death_id,
+            VaWebIntakeDraft.status == "draft",
+            sa.or_(
+                VaWebIntakeDraft.meta["refusalResumePending"].astext == "true",
+                sa.exists().where(
+                    VaWebIntakeDraftSection.draft_id == VaWebIntakeDraft.draft_id,
+                    sa.func.lower(VaWebIntakeDraftSection.data["Id10013"].astext) == "no",
+                ),
+            ),
+        )))
+        if death.status == "refused" or refused_draft:
+            raise WebIntakeError("Consent was refused; do not add identifiers.", 422, "consent_refused")
     if if_updated_at is not None and intake.draft_is_stale(death, if_updated_at):
         raise WebIntakeError("This case was changed since you opened it; reload it.", 409, "death_stale")
     _, found = death_identifiers.set_identifiers(

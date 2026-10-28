@@ -110,7 +110,7 @@ export default function NativeCollectionGate({
   const pathname = routeName === undefined
     ? currentPathname
     : `/${routeName.split("/").filter(Boolean).at(-1) ?? ""}`;
-  const params = useGlobalSearchParams<{ userId?: string | string[]; mode?: string | string[] }>();
+  const params = useGlobalSearchParams<{ userId?: string | string[]; mode?: string | string[]; view?: string | string[] }>();
   const router = useRouter();
   const state = useAppState();
   const styles = useUiStyles();
@@ -138,6 +138,8 @@ export default function NativeCollectionGate({
   const needsCoding = pathname === CODING_ROUTE || (pathname === WORKSPACE_ROUTE && routeMode !== "reviewing");
   const needsReviewing = pathname === REVIEWING_ROUTE || (pathname === WORKSPACE_ROUTE && routeMode === "reviewing");
   const offlineCapability = account ? canUseOfflineCoding(account) : false;
+  const standaloneSetupRoute = pathname === "/standalone-setup";
+  const standaloneAccountRoute = account?.standalone === true;
 
   const checkAccess = useCallback(async () => {
     if (!userId) return;
@@ -156,6 +158,7 @@ export default function NativeCollectionGate({
   }, [state.reload, userId]);
 
   useEffect(() => {
+    if (account?.standalone) return;
     const needsCollection = COLLECTION_ROUTES.has(pathname) || pathname === WORKLIST_ROUTE;
     const needsRegistration = REGISTRATION_ROUTES.has(pathname) || pathname === WORKLIST_ROUTE;
     const needsWorkspace = pathname === WORKLIST_ROUTE;
@@ -165,15 +168,28 @@ export default function NativeCollectionGate({
         (needsCoding && codingAccess === undefined) || (needsReviewing && reviewingAccess === undefined))) {
       void checkAccess();
     }
-  }, [checkAccess, codingAccess, collectionAccess, hasAccount, pathname, registrationAccess, reviewingAccess]);
+  }, [account?.standalone, checkAccess, codingAccess, collectionAccess, hasAccount, pathname, registrationAccess, reviewingAccess]);
 
-  const guarded = (screen: ReactNode) => level === "block" && ENTRY_ROUTES.has(pathname)
+  const guarded = (screen: ReactNode) => !standaloneAccountRoute && level === "block" && ENTRY_ROUTES.has(pathname)
     ? <View style={{ flex: 1 }}>{screen}<ClockBlock /></View>
     : screen;
+  const standaloneUnavailable = state.ready && !state.standaloneAvailable && (standaloneSetupRoute || standaloneAccountRoute);
+  if (!state.ready) return <ActivityIndicator style={{ flex: 1 }} />;
+  if (standaloneUnavailable) {
+    return (
+      <Screen title={t("accountsTitle")}>
+        <Text style={styles.text}>{t("standaloneLogoutRequired")}</Text>
+        <Button kind="secondary" label={t("accounts")} onPress={() => router.replace("/")} />
+      </Screen>
+    );
+  }
   if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE &&
       pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && !needsCoding && !needsReviewing) return children;
-  if (!state.ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!userId || !account) return <Redirect href="/" />;
+  if (pathname === WORKLIST_ROUTE && account.standalone) {
+    const routeView = firstParam((routeParams as { view?: string | string[] } | undefined)?.view) ?? firstParam(params.view);
+    return <Redirect href={{ pathname: "/standalone", params: { userId, ...(routeView === "interviews" ? { view: routeView } : {}) } }} />;
+  }
   if (pathname === OFFLINE_CODING_ROUTE || pathname === ENGINE_CHECK_ROUTE) {
     if (!isPlusVariant() || !offlineCapability) return <Redirect href="/" />;
     if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;

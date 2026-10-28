@@ -57,12 +57,15 @@ import {
   getRegistrationConsent,
   registrationConsentGate,
   saveRegistrationConsent,
+  saveDraftConsent,
   storedConsent,
   withoutCovered,
   type StoredConsent,
 } from "../consentStore";
 import { sendRefusal } from "../unsentWork";
 import { RespondentConsentPanel } from "../web/StationConsentPanel";
+import { RefusalPanel } from "../RefusalPanel";
+import { runInTransaction } from "../dbTransaction";
 import { t, uiLocale, type StringKey } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { platformServices } from "../platform";
@@ -83,7 +86,7 @@ import {
   type ReferenceData,
   type Target,
 } from "../sync";
-import { Button, Row, Screen, useUiStyles } from "../ui";
+import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { useLeaveGuard } from "../leaveGuard";
 import { MultilineInput } from "../MultilineInput";
@@ -398,6 +401,9 @@ export default function Register() {
   const [consentConfig, setConsentConfig] = useState<ProjectConsentConfig | undefined>();
   const [consent, setConsent] = useState<StoredConsent | undefined>();
   const registrationId = useRef(randomUUID());
+  const refusalId = useRef(randomUUID());
+  const [refusalAge, setRefusalAge] = useState("");
+  const [refusalSex, setRefusalSex] = useState("");
   const registrationOnly = account?.collection_access !== true;
   const editing = params.clientDeathId;
   const serverDeathId = params.deathId;
@@ -740,10 +746,23 @@ export default function Register() {
 
   async function recordConsent(envelope: import("../consent").ConsentRecordEnvelope) {
     if (!db || !account || !consentConfig) return;
+    if (envelope.decision === "refused") {
+      if (persistable) { await clearInProgress(db); hydrated.current = false; }
+      setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
+      dirty.current = false;
+      if (!canStartInterview || !target || !projectId) {
+        setConsent(storedConsent(envelope, consentConfig, account.user_id));
+        setMessage("");
+        return;
+      }
+      const draftId = randomUUID();
+      await saveDraftConsent(db, draftId, storedConsent({ ...envelope, client_draft_id: draftId }, consentConfig, account.user_id));
+      router.replace({ pathname: "/form", params: { userId: account.user_id, projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}), draftId } });
+      return;
+    }
     const record = storedConsent(envelope, consentConfig, account.user_id);
     if (!serverDeathId) await saveRegistrationConsent(db, clientDeathIdForConsent, record);
     setConsent(record);
-    if (envelope.decision === "refused") setFields((current) => withoutCovered(current, covered));
     setMessage("");
   }
 
@@ -857,6 +876,7 @@ export default function Register() {
 
   async function save(startAfter: boolean, confirmAge = false) {
     if (!db || !account || !target || !projectId) return;
+    if (decision === "refused") { setMessage("The interview was refused. Start a direct interview to save the refusal."); return; }
     setMessage("");
     const found = validateRegistration(fields, localToday());
     for (const key of ["informant_phone", "informant_phone_2"] as const) if (phoneUnchanged(key)) delete found[key];
@@ -1022,6 +1042,21 @@ export default function Register() {
     setTarget(undefined);
     setTargets(allTargets.filter((choice) => choice.projectId === nextProjectId));
   };
+
+  if (decision === "refused") {
+    const saveRefusal = async () => {
+      if (!db || !account || !target || !projectId || !consent) return;
+      try {
+        await runInTransaction(db, async (tx) => {
+          await saveRegistration(tx, { project_id: projectId, client_death_id: refusalId.current, site_id: target.siteId, org_unit_id: target.orgUnitId ?? null,
+            fields: { refusal_only: true, ...(refusalAge ? { refusal_age_group: refusalAge } : {}), ...(refusalSex ? { refusal_sex: refusalSex } : {}) } as unknown as RegistrationFields });
+          await setMeta(tx, `consent:reg:${refusalId.current}`, consent);
+        });
+        router.back();
+      } catch (error) { setMessage(errorText(error)); }
+    };
+    return <Screen title={t("registerDeath")}><RefusalPanel locale={uiLocale()} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={changeConsent} onNew={() => router.back()} />{message ? <Text style={styles.error}>{message}</Text> : null}</Screen>;
+  }
 
   return (
     <Screen title={t("registerDeath")}>

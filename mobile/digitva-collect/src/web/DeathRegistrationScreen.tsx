@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
+import { randomUUID } from "expo-crypto";
 
 import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
 
@@ -25,6 +26,7 @@ import { IdentifierFields, identifierIssueText } from "../IdentifierFields";
 import { IdentifierFacts } from "./CaseIdentifiers";
 import { RespondentConsentPanel, StationConsentPanel } from "./StationConsentPanel";
 import { fetchProjectConsentConfig, INFORMANT_PII_FIELDS, type ConsentRecordEnvelope, type ProjectConsentConfig } from "../consent";
+import { RefusalPanel } from "../RefusalPanel";
 import {
   identifierChanges, identifierFieldErrors, identifierIssues, identifiersToSend, identifierValues, identifierWarnings,
   isBadgeOnly, loadIdentifierTypes, type CaseIdentifier, type IdentifierType,
@@ -583,6 +585,9 @@ export default function DeathRegistrationScreen() {
   const station = Boolean(getLocalStationLaunchToken());
   const [consentConfig, setConsentConfig] = useState<ProjectConsentConfig | null>(null);
   const [webConsent, setWebConsent] = useState<ConsentRecordEnvelope | null>(null);
+  const refusalDraftId = useRef(randomUUID());
+  const [refusalAge, setRefusalAge] = useState("");
+  const [refusalSex, setRefusalSex] = useState("");
   const [consentCheck, setConsentCheck] = useState(0);
   useEffect(() => {
     setWebConsent(null);
@@ -605,11 +610,8 @@ export default function DeathRegistrationScreen() {
   function recordWebConsent(envelope: ConsentRecordEnvelope) {
     setWebConsent(envelope);
     if (envelope.decision !== "refused") return;
-    // Refused: the informant fields go back to what is stored (empty on a new registration).
-    setFields((previous) => ({
-      ...previous,
-      ...Object.fromEntries(INFORMANT_PII_FIELDS.map((key) => [key, editingDeathId ? registrationBase.current?.[key] ?? "" : ""])),
-    }));
+    setFields({}); setSex(""); setLocation(null); setIdValues({});
+    dirtyRef.current = false;
   }
 
   const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => field.key === "informant_phone" ? (
@@ -642,6 +644,7 @@ export default function DeathRegistrationScreen() {
   async function submit(confirmAge = false, saveOnly = false) {
     const editing = Boolean(editingDeathId);
     if (!bootstrap || (!editing && (!intake || !context)) || editingReadOnly) return;
+    if (webConsent?.decision === "refused") return;
     pendingSaveOnly.current = saveOnly;
     setMessage("");
     setNotice("");
@@ -846,6 +849,21 @@ export default function DeathRegistrationScreen() {
     } finally {
       if (current()) setBusy(false);
     }
+  }
+
+  if (webConsent?.decision === "refused") {
+    const saveRefusal = async () => {
+      if (!bootstrap || !projectId || !siteId) return;
+      setBusy(true);
+      try {
+        const receipt = await requestClientJson<{ client_draft_id?: unknown }>(`${INTAKE_API}/refusals`, { method: "POST", csrf: bootstrap.csrf,
+          json: { client_draft_id: refusalDraftId.current, project_id: projectId, site_id: siteId, ...(orgUnitId ? { org_unit_id: orgUnitId } : {}),
+            ...(refusalAge ? { refusal_age_group: refusalAge } : {}), ...(refusalSex ? { refusal_sex: refusalSex } : {}), consent: webConsent } });
+        if (receipt.client_draft_id !== refusalDraftId.current) throw new Error("invalid_refusal_receipt");
+        router.replace(collectionPath as never);
+      } catch (error) { setMessage(browserErrorText(error)); } finally { setBusy(false); }
+    };
+    return <WebShell title={t("interviewTitle")}><RefusalPanel locale={uiLocale()} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={() => setWebConsent(null)} onNew={() => router.replace(collectionPath as never)} />{message ? <Text style={styles.error}>{message}</Text> : null}</WebShell>;
   }
 
   return (

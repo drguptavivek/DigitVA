@@ -12,6 +12,12 @@ let mockParams: Record<string, string> = { userId: "u1" };
 const mockLockNow = jest.fn(async () => true);
 const mockChooseLocale = jest.fn(async () => undefined);
 const mockReload = jest.fn(async () => undefined);
+const mockSyncAccount = jest.fn(async (_userId: string, _db: unknown) => ({ sync: { sent: 1, failed: 0, remaining: 0 } }));
+const mockOpenInterviewerDb = jest.fn(async (_userId: string) => ({}));
+const mockUnsentWork = jest.fn(async (_userId: string) => ({ unsent: 0, attention: 0, inProgress: 0, items: [] }));
+const mockRefreshReferenceData = jest.fn(async (_userId: string, _db: unknown, _options?: unknown) => ({}));
+const mockRefreshAuthorizedProjectDefinitions = jest.fn(async (_userId: string, _db: unknown, _fresh: unknown) => undefined);
+const mockRefreshCases = jest.fn(async (_userId: string, _db: unknown) => undefined);
 const mockConfirmSignOut = jest.fn(async (_userId: string, onConfirmed: () => void) => onConfirmed());
 const mockSignOut = jest.fn(async (_userId: string) => undefined);
 let mockAccount: Record<string, unknown> = { user_id: "u1", name: "Asha Sharma", collection_access: true, registration_access: true, coding_access: true, reviewing_access: true };
@@ -26,6 +32,9 @@ jest.mock("../src/AppState", () => ({
   useAppState: () => ({
     ready: true,
     accounts: [mockAccount],
+    lockVersion: 0,
+    offline: false,
+    syncAccount: (userId: string, db: unknown) => mockSyncAccount(userId, db),
     device: { device_id: "d1", server: "https://va.example.org/", project_id: "p", project_name: "Hamirpur" },
     uiLocale: "en",
     chooseUiLocale: mockChooseLocale,
@@ -35,7 +44,17 @@ jest.mock("../src/AppState", () => ({
 }));
 jest.mock("../src/auth", () => ({ signOut: (userId: string) => mockSignOut(userId) }));
 jest.mock("../src/signOutConfirm", () => ({ confirmSignOut: (userId: string, cb: () => void) => mockConfirmSignOut(userId, cb) }));
-jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true }));
+jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true, openInterviewerDb: (userId: string) => mockOpenInterviewerDb(userId), unsentWork: (userId: string) => mockUnsentWork(userId) }));
+jest.mock("../src/sync", () => ({
+  refreshAuthorizedProjectDefinitions: (userId: string, db: unknown, fresh: unknown) => mockRefreshAuthorizedProjectDefinitions(userId, db, fresh),
+  refreshCases: (userId: string, db: unknown) => mockRefreshCases(userId, db),
+  refreshReferenceData: (userId: string, db: unknown, options: unknown) => mockRefreshReferenceData(userId, db, options),
+}));
+jest.mock("../src/network", () => ({ isOffline: () => false, OfflineError: class OfflineError extends Error {} }));
+jest.mock("../src/errorLogDb", () => ({ installErrorLog: jest.fn() }));
+jest.mock("../src/errorLog", () => ({ flushErrors: jest.fn(), setErrorRoute: jest.fn() }));
+jest.mock("../src/notificationState", () => ({ readNotificationState: jest.fn(async () => undefined) }));
+jest.mock("../src/updateCheck", () => ({ checkForUpdateDaily: jest.fn(async () => undefined) }));
 const mockToast = jest.fn();
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 
@@ -45,12 +64,13 @@ import { HELP_SLUGS, helpContent, helpGuideUrl, helpScreenFor, type HelpScreen }
 import { SCREEN_HELP_CONFIG } from "../src/web/ContextualHelp";
 import { initials, LanguageButton, syncIndicator, NativeHeader, NativeTabs } from "../src/nativeShell/NativeChrome";
 import { AccountSheet, HelpSheet, SyncSheet } from "../src/nativeShell/sheets";
-import { ShellContext, type Shell } from "../src/nativeShell/shellContext";
+import { ShellProvider } from "../src/nativeShell/shell";
+import { ShellContext, useShell, type Shell } from "../src/nativeShell/shellContext";
 import { setUiLocale } from "../src/i18n";
 
 const SYNC = { work: { unsent: 3, attention: 0, inProgress: 2, items: [] }, lastAt: new Date(2026, 9, 23, 14, 5).getTime(), busy: false, result: undefined, offline: false };
 const shellValue = (patch: Partial<Shell> = {}): Shell => ({
-  sheet: null, openSheet: jest.fn(), closeSheet: jest.fn(), userId: "u1", sync: SYNC,
+  sheet: null, openSheet: jest.fn(), closeSheet: jest.fn(), userId: "u1", server: "https://va.example.org/", sync: SYNC,
   sendNow: jest.fn(async () => undefined), recount: jest.fn(async () => undefined), refreshNow: jest.fn(async () => undefined), header: true, tabs: true, ...patch,
 });
 async function render(node: React.ReactElement, value: Shell): Promise<ReactTestRenderer> {
@@ -71,6 +91,12 @@ beforeEach(() => {
   setUiLocale("en");
   mockPathname = "/worklist";
   mockParams = { userId: "u1" };
+  mockSyncAccount.mockClear();
+  mockOpenInterviewerDb.mockClear();
+  mockUnsentWork.mockClear();
+  mockRefreshReferenceData.mockClear();
+  mockRefreshAuthorizedProjectDefinitions.mockClear();
+  mockRefreshCases.mockClear();
   mockAccount = { user_id: "u1", name: "Asha Sharma", collection_access: true, registration_access: true, coding_access: true, reviewing_access: true };
 });
 
@@ -85,6 +111,15 @@ describe("navigation adapter", () => {
     for (const tab of nativeTabs({ collection_access: true, registration_access: true, registered_deaths_access: true })) {
       expect(`${tab.route ?? ""}`).not.toMatch(/coding|review|workspace/);
     }
+  });
+  it("keeps standalone Home and Interviews local and omits enrolled tabs", () => {
+    const tabs = nativeTabs({ standalone: true });
+    expect(tabs).toEqual([
+      { key: "home", labelKey: "home", route: "/standalone" },
+      { key: "interviews", labelKey: "tabInterviews", route: "/standalone", params: { view: "interviews" } },
+    ]);
+    expect(activeNativeTab("/standalone", {})).toBe("home");
+    expect(activeNativeTab("/standalone", { view: "interviews" })).toBe("interviews");
   });
   it("opens Sync as a sheet, not a route", () => {
     expect(nativeTabs({ collection_access: true }).find((tab) => tab.key === "sync")?.route).toBeUndefined();
@@ -280,6 +315,19 @@ describe("help", () => {
     await press(tree, "Open the full guide");
     expect(open).toHaveBeenCalledWith("https://va.example.org/help/data-collection");
   });
+  it("keeps bundled help and FAQs available without opening the retained server guide", async () => {
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    try {
+      const tree = await render(<HelpSheet />, shellValue({ sheet: "help", server: undefined }));
+      expect(texts(tree)).toContain(en.help_worklist_what);
+      expect(texts(tree)).toContain(en.faq_language_q);
+      expect(byLabel(tree, en.helpOpenGuide)[0].props.disabled).toBe(true);
+      await press(tree, en.helpOpenGuide);
+      expect(open).not.toHaveBeenCalled();
+    } finally {
+      open.mockRestore();
+    }
+  });
 });
 
 describe("sync sheet", () => {
@@ -319,6 +367,65 @@ describe("sync sheet", () => {
     expect(byLabel(tree, "Send now")[0].props.disabled).toBe(true);
     expect(byLabel(tree, "Refresh")[0].props.disabled).toBe(true);
   });
+  it("keeps standalone sync local and links to its drafts and enrolment", async () => {
+    mockAccount.standalone = true;
+    const work = { unsent: 1, attention: 0, inProgress: 2, items: [] };
+    const tree = await render(<SyncSheet />, shellValue({ sheet: "sync", sync: { ...SYNC, work } }));
+    const out = texts(tree);
+    expect(out).toContain(en.standaloneWarning);
+    expect(byLabel(tree, "Send now")).toHaveLength(0);
+    expect(byLabel(tree, "Refresh")).toHaveLength(0);
+    await press(tree, "2 in progress → Interviews");
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/standalone", params: { userId: "u1", view: "interviews", filter: "drafts" } });
+    await press(tree, en.standaloneEnrol);
+    expect(mockRouter.push).toHaveBeenCalledWith("/enrol");
+  });
+});
+
+it("refuses standalone shell send and refresh before opening a database or syncing", async () => {
+  mockAccount.standalone = true;
+  let shell!: Shell;
+  function CaptureShell() {
+    shell = useShell();
+    return null;
+  }
+  let tree!: ReactTestRenderer;
+  mockPathname = "/standalone";
+  await act(async () => { tree = create(<ShellProvider><CaptureShell /></ShellProvider>); });
+  await act(async () => {
+    await shell.sendNow();
+    await shell.refreshNow();
+  });
+  expect(mockOpenInterviewerDb).not.toHaveBeenCalled();
+  expect(mockSyncAccount).not.toHaveBeenCalled();
+  expect(mockRefreshReferenceData).not.toHaveBeenCalled();
+  expect(mockRefreshAuthorizedProjectDefinitions).not.toHaveBeenCalled();
+  expect(mockRefreshCases).not.toHaveBeenCalled();
+  expect(shell.sync.result).toBeUndefined();
+  expect(mockToast).toHaveBeenCalledWith({ kind: "info", text: en.standaloneWarning });
+  await act(async () => tree.unmount());
+});
+
+it("does not use another account when the shell userId is unrecognized", async () => {
+  let shell!: Shell;
+  function CaptureShell() {
+    shell = useShell();
+    return null;
+  }
+  let tree!: ReactTestRenderer;
+  mockParams = { userId: "unrecognized" };
+  await act(async () => { tree = create(<ShellProvider><CaptureShell /></ShellProvider>); });
+  await act(async () => {
+    await shell.sendNow();
+    await shell.refreshNow();
+  });
+  expect(shell.userId).toBeUndefined();
+  expect(mockOpenInterviewerDb).not.toHaveBeenCalled();
+  expect(mockSyncAccount).not.toHaveBeenCalled();
+  expect(mockRefreshReferenceData).not.toHaveBeenCalled();
+  expect(mockRefreshAuthorizedProjectDefinitions).not.toHaveBeenCalled();
+  expect(mockRefreshCases).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
 });
 
 describe("common questions (Help)", () => {

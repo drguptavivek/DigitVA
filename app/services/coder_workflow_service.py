@@ -10,7 +10,7 @@ from __future__ import annotations
 import functools
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from flask import current_app
@@ -22,11 +22,12 @@ from app.models import (
     VaForms,
     VaProjectMaster,
     VaStatuses,
-    VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaSubmissionWorkflow,
     VaWebIntakeDraft,
 )
+from app.services import training_scope
 from app.services.authz import (
     Action,
     Reason,
@@ -39,15 +40,21 @@ from app.services.coding_allocation_service import (
     ActiveAllocationHeld,
     _release_coding_allocation,
     active_allocation_savepoint,
+    lock_coding_submission,
     release_stale_coding_allocations,
 )
 from app.services.demo_project_service import (
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
 )
+from app.services.duplicate_exclusion import (
+    DUPLICATE_MESSAGE,
+    is_confirmed_duplicate,
+    not_confirmed_duplicate_condition,
+)
 from app.services.final_cod_authority_service import (
-    get_authoritative_final_assessment,
     get_active_recode_episode,
+    get_authoritative_final_assessment,
     start_recode_episode,
 )
 from app.services.odk_retirement_service import (
@@ -55,40 +62,31 @@ from app.services.odk_retirement_service import (
     is_submission_retired,
     submission_is_in_odk,
 )
-from app.services.duplicate_exclusion import (
-    DUPLICATE_MESSAGE,
-    is_confirmed_duplicate,
-    not_confirmed_duplicate_condition,
-)
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
+    WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
-    WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_SMARTVA_PENDING,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_SMARTVA_PENDING,
 )
-from app.services import training_scope
-from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.intake_modes import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
+    split_form_ids_by_coding_intake_mode,
 )
-from app.services.workflow.state_store import (
-    get_submission_workflow_record,
-    get_submission_workflow_state,
-)
+from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     admin_actor,
     coder_actor,
+    mark_admin_override_to_recode,
     mark_coding_started,
     mark_demo_started,
-    mark_reviewer_eligible_after_recode_window,
     mark_recode_started,
-    mark_admin_override_to_recode,
+    mark_reviewer_eligible_after_recode_window,
     reset_demo_state,
     system_actor,
 )
@@ -96,7 +94,6 @@ from app.utils import va_local_date, va_user_timezone_name
 from app.utils.va_permission.va_permission_05_validaterecodelimits import (
     recode_limit_error,
 )
-
 
 # ---------------------------------------------------------------------------
 # Stats / dashboard helpers
@@ -632,12 +629,11 @@ def _create_coding_allocation(
     Raises ActiveAllocationHeld, having written nothing, when *user* already
     holds an active coding allocation (a concurrent request inserted first).
 
-    Locks the workflow row before the insert: the random path locks it first
-    (its pick), and one user firing both paths on one case would otherwise
-    hold each lock the other waits for (digitva-nw4b). Re-locking a row this
-    transaction already holds returns at once.
+    Locks submission, then workflow before inserting the allocation, as do
+    saves and releases. Re-locking rows this transaction holds returns at once.
     """
-    get_submission_workflow_record(va_sid, for_update=True)
+    lock_coding_submission(va_sid)
+    _require_coder_access(user, va_sid)
     gen_uuid = uuid.uuid4()
     with active_allocation_savepoint():
         db.session.add(VaAllocations(
@@ -801,10 +797,8 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         .where(sa.and_(*base_filters))
         .order_by(sa.func.random())
         .limit(1)
-        # Lock the workflow row the coding_started transition locks, and skip
-        # one a concurrent coder has: no two requests pick the same case. The
-        # lock is held until the commit below (digitva-kxit).
-        .with_for_update(skip_locked=True, of=VaSubmissionWorkflow)
+        # All coder mutations lock the submission first; skip busy cases.
+        .with_for_update(skip_locked=True, of=VaSubmissions)
     )
     if not va_new_sid:
         msg = (
@@ -1000,7 +994,6 @@ def release_own_coding_allocation(user) -> str:
         )
         .order_by(VaAllocations.va_allocation_createdat)
         .limit(1)
-        .with_for_update()  # a second release waits, then finds none
     ).first()
     if record is None:
         raise AllocationError(
@@ -1008,13 +1001,17 @@ def release_own_coding_allocation(user) -> str:
         )
     va_sid = record.va_sid
     try:
-        _release_coding_allocation(
+        released = _release_coding_allocation(
             record,
             cause="coder release",
             reason="coder_release",
             audit_action="va_allocation_released_by_coder",
             actor=coder_actor(user.user_id),
         )
+        if not released:
+            raise AllocationError(
+                "You have no active coding allocation to release.", 409, code="no_allocation"
+            )
     except WorkflowTransitionError:
         db.session.rollback()
         state = get_submission_workflow_state(va_sid)
@@ -1042,6 +1039,8 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     """
     from app.services.recode_window import recode_window_for_submission
 
+    if lock_coding_submission(va_sid) is None:
+        raise AllocationError("Submission not found.", 404)
     existing_sid = get_active_coding_allocation(user.user_id)
     active_recode_episode = get_active_recode_episode(va_sid)
     if existing_sid:
@@ -1141,6 +1140,7 @@ def admin_override_to_recode(user, va_sid: str) -> None:
     by admin role membership rather than project/site-scoped admin access.
     """
     _require_submission_exists(va_sid)
+    lock_coding_submission(va_sid)
     if is_confirmed_duplicate(va_sid):
         raise AllocationError(DUPLICATE_MESSAGE, 409)
     current_state = get_submission_workflow_state(va_sid)
@@ -1189,9 +1189,9 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     counted from the authoritative final COD. One query reads each candidate with its project's window (joined, not
     looked up per project).
     """
-    from datetime import timedelta, timezone
+    from datetime import timedelta
 
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     finalized = db.session.execute(
         sa.select(VaSubmissionWorkflow.va_sid, VaProjectMaster.recode_window_minutes)
         .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionWorkflow.va_sid)
@@ -1217,7 +1217,7 @@ def mark_reviewer_eligible_after_recode_window_submissions(
             continue
         final_created_at = authoritative_final.va_finassess_createdat
         if final_created_at.tzinfo is None:
-            final_created_at = final_created_at.replace(tzinfo=timezone.utc)
+            final_created_at = final_created_at.replace(tzinfo=UTC)
         if final_created_at > cutoff:
             continue
         mark_reviewer_eligible_after_recode_window(
@@ -1264,9 +1264,15 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
             VaAllocations.va_allocation_training.is_(training_scope.on_training_side()),
         )
     )
-    released_sid = None
     if existing_alloc:
-        released_sid = existing_alloc.va_sid
+        lock_coding_submission(existing_alloc.va_sid)
+        existing_alloc = db.session.scalar(
+            sa.select(VaAllocations).where(
+                VaAllocations.va_allocation_id == existing_alloc.va_allocation_id,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            ).with_for_update().execution_options(populate_existing=True)
+        )
+    if existing_alloc:
         existing_alloc.va_allocation_status = VaStatuses.deactive
         db.session.flush()
         reset_demo_state(
@@ -1288,10 +1294,13 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*_available_submission_filters(coder_form_ids, project_id=project_id, user=user)))
         .order_by(sa.func.random())
+        .limit(1)
+        .with_for_update(skip_locked=True, of=VaSubmissions)
     )
     if not va_new_sid:
         raise AllocationError("No forms are currently available for demo coding.")
 
+    lock_coding_submission(va_new_sid)
     gen_uuid = uuid.uuid4()
     try:
         with active_allocation_savepoint():

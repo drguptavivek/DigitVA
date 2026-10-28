@@ -34,7 +34,7 @@
 import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
-import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
+import { ApiError, INTAKE_API, isSmartVaTarget, parseAccessSummary, type AccessSummary, type SmartVaTarget } from "./api";
 import { authedRawRequest, authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import { identifierFieldErrors, type IdentifierType } from "./identifiers";
 import {
@@ -59,6 +59,8 @@ import {
 import {
   completedDraft,
   completedDrafts,
+  clearRefusedDraft,
+  invalidateCodingHistory,
   countDrafts,
   countUnsentWork,
   draftIds,
@@ -81,6 +83,8 @@ import {
   type OfflineCodingSnapshot
 } from "./drafts";
 import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
+import { codingReceiptSha256 } from "./codingReceipt";
+import { recordCodingOutcome } from "./codingUploadNotices";
 import { acquireDraftUpload } from "./localCodingLeases";
 import { getStandaloneConsent } from "./standaloneConsentStore";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
@@ -88,7 +92,9 @@ import { syncQueuedRevisions } from "./revisions";
 import { deleteCoveredAttachments, markDraftUnconfirmed } from "./attachmentStore";
 import { uploadDraftAttachments } from "./attachmentUpload";
 import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
-import { consentFor, deleteDraftConsent, getRegistrationConsent, loadConsents, markInheritedConsentRefused, refreshConsentConfig, withoutCovered, type ConsentIndex } from "./consentStore";
+import { consentFor, deleteDraftConsent, getRegistrationConsent, holdServerRefusal, loadConsents, markInheritedConsentRefused, refreshConsentConfig, type ConsentIndex } from "./consentStore";
+import { isRefused, refusalAnswers } from "./refusalBoundary";
+import { runInTransaction } from "./dbTransaction";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
 import {
@@ -110,6 +116,7 @@ export interface SyncResult {
   draftConflictIds?: string[];
   revisionAttentionIds?: string[];
   definitionRefresh?: DefinitionRefreshStatus[];
+  codingOutcomes?: OfflineCodingOutcome[];
 }
 
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
@@ -277,8 +284,8 @@ async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unk
  */
 export async function sentAnswers(item: CompletedDraft, consents: ConsentIndex) {
   const applied = consentFor(consents, item);
-  const sentData = applied?.record.envelope.decision === "refused" && item.draft.data
-    ? withoutCovered(item.draft.data, applied.record.covered_fields)
+  const sentData = isRefused(item.draft.data, applied?.record.envelope.decision)
+    ? refusalAnswers(item.draft.data)
     : item.draft.data;
   const answersJson = JSON.stringify(sentData);
   const answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
@@ -306,7 +313,7 @@ export interface StandalonePush {
 }
 
 /** The reply's verdict on the offline coding sent with a standalone interview. */
-export type OfflineCodingOutcome = { draftId: string; status: "pending" | "applied" | "refused"; code: string | null };
+export type OfflineCodingOutcome = { draftId: string; status: "pending" | "applied" | "refused"; code: string | null; codingSha256: string };
 
 const PROCESS_TOKEN = /^local-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -344,13 +351,15 @@ export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, cl
 }
 
 /** The reply's `offline_coding`, required whenever one was sent: without it the coding was not received. */
-function codingOutcome(body: { offline_coding?: unknown }, draftId: string): OfflineCodingOutcome {
-  const value = body.offline_coding as { status?: unknown; code?: unknown } | null | undefined;
+function codingOutcome(body: { offline_coding?: unknown }, draftId: string, sentDigest: string): OfflineCodingOutcome {
+  const value = body.offline_coding as { status?: unknown; code?: unknown; coding_sha256?: unknown } | null | undefined;
   if (!value || typeof value !== "object" || !["pending", "applied", "refused"].includes(value.status as string) ||
-      (value.code !== null && typeof value.code !== "string")) {
+      (value.code !== null && typeof value.code !== "string") ||
+      typeof value.coding_sha256 !== "string" || !HEX64.test(value.coding_sha256) || value.coding_sha256 !== sentDigest) {
     throw new Error("invalid_upload_ack");
   }
-  return { draftId, status: value.status as OfflineCodingOutcome["status"], code: (value.code as string | null) ?? null };
+  return { draftId, status: value.status as OfflineCodingOutcome["status"], code: (value.code as string | null) ?? null,
+    codingSha256: value.coding_sha256 };
 }
 
 /** Standalone refusals shown and held, never resent or reopened on their own (contract 17: consent is terminal). */
@@ -413,11 +422,37 @@ export async function uploadQueuedWork(
 
   for (const reg of await listRegistrations(db)) {
     if (reg.state !== "pending") continue;
+    const registrationFields = reg.fields as unknown as Record<string, unknown>;
+    const refusalOnly = registrationFields.refusal_only === true;
     try {
       // The consent decision taken for the informant details travels with the registration (contract 5.4);
       // a refusal never sends them.
       const consent = await getRegistrationConsent(db, reg.client_death_id);
-      const fields = consent?.envelope.decision === "refused" ? withoutCovered(reg.fields, consent.covered_fields) : reg.fields;
+      if (refusalOnly) {
+        if (consent?.envelope.decision !== "refused") throw new ApiError(422, "consent_invalid");
+        const profile = refusalAnswers(registrationFields);
+        const { body } = await authedRequest<{ client_draft_id?: unknown }>(userId, `${INTAKE_API}/refusals`, {
+          method: "POST", body: { client_draft_id: reg.client_death_id, project_id: reg.project_id, site_id: reg.site_id,
+            ...(reg.org_unit_id ? { org_unit_id: reg.org_unit_id } : {}), ...profile, consent: consent.envelope },
+        });
+        if (body?.client_draft_id !== reg.client_death_id) throw new Error("invalid_refusal_receipt");
+        await runInTransaction(db, async (tx) => {
+          const result = await tx.runAsync("DELETE FROM registrations WHERE client_death_id = ? AND fields = ? AND state = 'pending'", [reg.client_death_id, JSON.stringify(reg.fields)]);
+          if (result && typeof result === "object" && "changes" in result && Number(result.changes) === 1) {
+            await tx.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${reg.client_death_id}`]);
+          }
+        });
+        await clearSendError(db, reg.client_death_id);
+        sent += 1;
+        continue;
+      }
+      if (consent?.envelope.decision === "refused") {
+        await setRegistrationState(db, reg.client_death_id, "needs_edit");
+        await noteSendError(db, reg.client_death_id, "consent_refused");
+        failed += 1;
+        continue;
+      }
+      const fields = reg.fields;
       const { body } = await authedRequest<{ case: CaseDetail }>(userId, `${INTAKE_API}/deaths`, {
         method: "POST",
         body: {
@@ -443,11 +478,12 @@ export async function uploadQueuedWork(
       if (isDemoLimit(refused)) await setRegistrationState(db, reg.client_death_id, "needs_edit");
       if (refused.status === 422) {
         // An unusable consent decision is dropped so the registration screen asks again.
-        if (refused.code?.startsWith("consent_")) await db.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${reg.client_death_id}`]);
+        if (!refusalOnly && refused.code?.startsWith("consent_")) await db.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${reg.client_death_id}`]);
         const numbers = identifierFieldErrors(refused);
         if (Object.keys(numbers).length) await setRegistrationRefusal(db, reg.client_death_id, numbers);
         await setRegistrationState(db, reg.client_death_id, "needs_edit");
       }
+      if (refusalOnly && refused.status === 409) await setRegistrationState(db, reg.client_death_id, "needs_edit");
       failed += 1;
     }
   }
@@ -477,12 +513,21 @@ export async function uploadQueuedWork(
     }
   }
 
-  const consents = await loadConsents(db);
-  draftLoop: for (const item of await completedDrafts(db)) {
+  draftLoop: for (const candidate of await completedDrafts(db)) {
+    let item = candidate;
     if (!item.project_id) continue;
     const releaseUpload = acquireDraftUpload(userId, item.id);
     if (!releaseUpload) continue;
     try {
+      const consents = await loadConsents(db);
+      const decision = consentFor(consents, item)?.record.envelope.decision;
+      if (isRefused(item.draft.data, decision)) {
+        await clearRefusedDraft(db, item.id);
+        const cleaned = await completedDraft(db, item.id);
+        if (!cleaned) continue draftLoop;
+        item = cleaned;
+      }
+      if (!item.project_id) continue draftLoop;
       try {
         readDefinitionPin(item.draft);
       } catch (error) {
@@ -501,6 +546,8 @@ export async function uploadQueuedWork(
     // A refusal (this interview's, or its registration's) never sends the covered answers, so the hash covers
     // only what is sent. A decision taken for this interview travels with it (contract 5.3).
     const { applied, sentData, answersJson, answersHash: sentHash } = await sentAnswers(item, consents);
+    const refusedInterview = isRefused(item.draft.data, applied?.record.envelope.decision);
+    const resumeRefused = !refusedInterview && !!item.base_updated_at && await getMeta<boolean>(db, `consent:resume-who:${item.id}`) === true;
     if (applied?.record.envelope.decision === "refused") await deleteCoveredAttachments(db, item.id, applied.record.covered_fields);
     const sentDraft = sentData === item.draft.data ? item.draft : { ...item.draft, data: sentData };
     // A standalone interview goes to the adopted project and site; the server routes it by the org code claim.
@@ -508,7 +555,7 @@ export async function uploadQueuedWork(
     let standaloneFields: Record<string, unknown> = {};
     let codingSent = false;
     let codingSnapshot: OfflineCodingSnapshot | null = null;
-    const row = await getOfflineCoding(db, item.id);
+    const row = refusedInterview ? null : await getOfflineCoding(db, item.id);
     if (row) codingSnapshot = { updated_at: row.updated_at };
     let coding: ReturnType<typeof offlineCodingBody> = null;
     if (!standalone && row) {
@@ -527,7 +574,7 @@ export async function uploadQueuedWork(
       standaloneFields = { offline_coding: coding };
     }
     if (standalone) {
-      const coding = row ? offlineCodingBody(row, sentHash, standalone.clientDeviceUuid) : null;
+      coding = row ? offlineCodingBody(row, sentHash, standalone.clientDeviceUuid) : null;
       if (row?.status === "coded" && isCodingStale(row, sentHash)) staleCodingDraftIds.push(item.id);
       codingSent = coding !== null;
       standaloneFields = {
@@ -542,16 +589,18 @@ export async function uploadQueuedWork(
       };
     }
     // Files first, and the interview only when the server holds every one (owner rule, digitva-jkvl).
-    const files = await uploadDraftAttachments(userId, db, target, sentData);
+    const files = refusedInterview ? { state: "done" as const } : await uploadDraftAttachments(userId, db, target, sentData);
     if (files.state !== "done") {
       const refused = files.error instanceof Error ? refusal(files.error) : undefined;
       if (refused) await notePausedRefusal(db, item.project_id, refused);
+      if (refused?.status === 422 && refused.code === "consent_refused") await holdServerRefusal(db, item.id);
       console.warn(`attachment upload ${files.state} draft=${item.id} status=${refused?.status ?? "-"} code=${refused?.code ?? "-"}`);
       failed += 1;
       continue draftLoop;
     }
     let answersHash = sentHash;
     try {
+      const codingDigest = coding ? codingReceiptSha256(coding) : null;
       const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
         method: "POST",
         timeoutMs: 120_000,
@@ -565,6 +614,8 @@ export async function uploadQueuedWork(
           answers_json: answersJson,
           answers_sha256: answersHash,
           completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] },
+          ...(item.base_updated_at ? { base_updated_at: item.base_updated_at } : {}),
+          ...(resumeRefused ? { resume_refused: true } : {}),
           ...(applied?.own && !standalone ? { consent: applied.record.envelope } : {}),
           ...standaloneFields
         })
@@ -616,7 +667,12 @@ export async function uploadQueuedWork(
       }
       acknowledgedUploadCase(responseBody, item.death_id);
       // pending, applied and refused are all receipt of the coding; a refusal is kept for the user to read.
-      if (codingSent) codingOutcomes.push(codingOutcome(responseBody as { offline_coding?: unknown }, item.id));
+      if (codingSent) {
+        const outcome = codingOutcome(responseBody as { offline_coding?: unknown }, item.id, codingDigest!);
+        await recordCodingOutcome(db, outcome);
+        await invalidateCodingHistory(db).catch(() => undefined);
+        codingOutcomes.push(outcome);
+      }
       const acknowledgedUniqueId = body.case?.unique_id;
       if (
         body.can_code_now === true && !body.superseded &&
@@ -654,7 +710,15 @@ export async function uploadQueuedWork(
       // A standalone record refused as it stands is held and shown (a 409 by case_conflict below), never reopened.
       const standaloneHeld = standalone && ((refused.status === 403 && refused.code === "device_mismatch") ||
         (refused.status === 422 && STANDALONE_HELD_422.has(refused.code ?? "")));
-      if (standaloneHeld) {
+      if (refused.status === 409 && refused.code === "refusal_stale") {
+        const serverId = refused.payload?.draft_id;
+        if (typeof serverId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serverId)) {
+          await db.runAsync("UPDATE drafts SET server_draft_id = ? WHERE id = ? AND (server_draft_id IS NULL OR server_draft_id = ?)", [serverId, item.id, serverId]);
+        }
+        await setDraftUploadIssue(db, item.id, "refusal_stale");
+      } else if (refused.status === 422 && refused.code === "consent_refused") {
+        await holdServerRefusal(db, item.id);
+      } else if (standaloneHeld) {
         await setDraftUploadIssue(db, item.id, "standalone_refused");
       } else if (refused.status === 422 && refused.code !== "answers_hash_invalid") {
         // Its own decision is dropped; an inherited one (the registration's) is shared, so only this draft is told to ask again.
@@ -666,7 +730,7 @@ export async function uploadQueuedWork(
       }
       // The server lost the files (its draft was purged): send them again on the next pass, hold nothing.
       if (refused.status === 409 && refused.code === "attachments_pending") await markDraftUnconfirmed(db, item.id);
-      else if (refused.status === 409) await setDraftUploadIssue(db, item.id, "case_conflict");
+      else if (refused.status === 409 && refused.code !== "refusal_stale") await setDraftUploadIssue(db, item.id, "case_conflict");
       // Final until the interviewer asks again (retryHeldDraft): sync skips it.
       if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
       failed += 1;
@@ -696,7 +760,7 @@ export async function syncInterviewer(
   // (not a local purge) decides what happens to it.
   const uploads = await uploadQueuedWork(userId, db, { onSuperseded, onServerKept, onCanCodeNow });
   let { sent, failed } = uploads;
-  const { supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds } = uploads;
+  const { supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds, codingOutcomes } = uploads;
   const draftConflictIds: string[] = [];
 
   const referenceData = await refreshReferenceData(userId, db, { force: true });
@@ -761,7 +825,8 @@ export async function syncInterviewer(
     ...(canCodeNowUniqueIds.length ? { canCodeNowUniqueIds: [...new Set(canCodeNowUniqueIds)] } : {}),
     ...(draftConflictIds.length ? { draftConflictIds } : {}),
     ...(revisionSync.attentionIds.length ? { revisionAttentionIds: revisionSync.attentionIds } : {}),
-    ...(definitionRefresh.length ? { definitionRefresh } : {})
+    ...(definitionRefresh.length ? { definitionRefresh } : {}),
+    ...(codingOutcomes.length ? { codingOutcomes } : {})
   };
 }
 
@@ -994,6 +1059,8 @@ function validProjectSettings(value: unknown): value is ProjectSettings {
   ) {
     return false;
   }
+  if (value.smartva_targets !== undefined &&
+      (!Array.isArray(value.smartva_targets) || !value.smartva_targets.every(isSmartVaTarget))) return false;
   const policy = value.prefill_policy;
   if (
     !isRecord(policy.direct) ||
@@ -1089,6 +1156,7 @@ export async function reconcileReferenceAccess(
     if (!accessProject) continue;
     const project: ProjectSettings = {
       ...item.project,
+      smartva_targets: accessProject.smartva_targets,
       sites: accessProject.sites
         .filter((site) => site.roles.includes("interviewer"))
         .map((site) => ({
@@ -1249,6 +1317,7 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
         project_id: accessProject.project_id,
         project_name: accessProject.project_name,
         web_intake_mode: String(formOptions.web_intake_mode),
+        smartva_targets: accessProject.smartva_targets,
         sites,
         form_options: formOptions,
         prefill_policy: prefillPolicy,
@@ -1655,6 +1724,8 @@ export interface ProjectSettings {
   project_name: string;
   /** off, direct, death_register or both. */
   web_intake_mode: string;
+  /** Current server-approved SmartVA settings for exact interview targets. */
+  smartva_targets?: SmartVaTarget[];
   sites: Array<{ project_id: string; site_id: string; site_name?: string; web_intake_mode?: string }>;
   form_options: {
     web_intake_mode?: string;

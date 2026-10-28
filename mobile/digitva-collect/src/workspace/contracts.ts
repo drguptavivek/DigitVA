@@ -68,6 +68,8 @@ export interface DorisCodeInfoItem extends JsonObject {
   uri: string;
   release: string;
   postcoordination: boolean;
+  /** Local engine result only: the stem that drives VA mapping for a / cluster. */
+  primary_stem: string | null;
 }
 
 export interface DorisCodeInfoReply {
@@ -939,6 +941,7 @@ export function parseDorisCodeInfo(value: unknown): DorisCodeInfoReply {
       uri: string(rawItem.uri, "doris.codeinfo.item.uri"),
       release: string(rawItem.release, "doris.codeinfo.item.release"),
       postcoordination: boolean(rawItem.postcoordination, "doris.codeinfo.item.postcoordination"),
+      primary_stem: typeof rawItem.primary_stem === "string" ? rawItem.primary_stem : null,
     },
   };
 }

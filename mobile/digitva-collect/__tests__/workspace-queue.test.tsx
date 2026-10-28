@@ -6,6 +6,8 @@ import { ApiError } from "../src/api";
 import { errorText } from "../src/ui";
 import { QueueScreen, recodeDeadlineText } from "../src/workspace/QueueScreen";
 import type { WorkspaceApi } from "../src/workspace/api";
+import type { CodingHistoryCache, CodingHistoryIdentity } from "../src/codingHistoryCache";
+import type { CoderHistory } from "../src/workspace/contracts";
 
 const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(Platform, "OS");
 const originalConfirmDescriptor = Object.getOwnPropertyDescriptor(window, "confirm");
@@ -553,6 +555,65 @@ describe("queue project defaults", () => {
     expect(api.getReviewerStats).not.toHaveBeenCalledWith("P1");
     expect(api.getReviewerStats).not.toHaveBeenCalledWith("P2");
     expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    await unmount(renderer);
+  });
+
+  test("offline history uses the saved page as read-only and never exposes case actions", async () => {
+    const page: CoderHistory = {
+      history: [{ ...coderRow, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: true }],
+      count: 1, limit: 50, offset: 0, has_more: false,
+    };
+    const identity: CodingHistoryIdentity = { mode: "enrolled", serverOrigin: "https://va.example.org", userId: "u1" };
+    const cache: CodingHistoryCache = {
+      cachedProjects: jest.fn().mockResolvedValue(["P1"]),
+      fingerprintForProject: jest.fn().mockReturnValue("a".repeat(64)),
+      readPage: jest.fn().mockResolvedValue({ page, fetchedAt: "2026-10-03T12:00:00Z", accessFingerprint: "a".repeat(64) }),
+      writePage: jest.fn(), invalidateCase: jest.fn(), invalidateProject: jest.fn(),
+    };
+    const api = makeApi({
+      getCodingStats: jest.fn().mockRejectedValue(new TypeError("Network request failed")),
+      getCodingHistory: jest.fn().mockRejectedValue(new TypeError("Network request failed")),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} historyCache={cache} historyIdentity={identity}
+        initialView={{ projectId: "P1", allProjects: false, showHistory: true, offset: 0 }} />);
+    });
+    await settle();
+    expect(JSON.stringify(renderer.toJSON())).toContain("Saved on this phone");
+    expect(JSON.stringify(renderer.toJSON())).toContain("CODER-MASKED-1");
+    for (const label of ["View case", "Recode", "Pick case", "Start a random case", "Release case"]) {
+      expect(button(renderer.root, label)).toBeUndefined();
+    }
+    expect(cache.readPage).toHaveBeenCalledWith(identity, "P1", 0);
+    expect(cache.invalidateProject).not.toHaveBeenCalled();
+    await unmount(renderer);
+  });
+
+  test("permission failures invalidate history and never show cached rows", async () => {
+    const identity: CodingHistoryIdentity = { mode: "enrolled", serverOrigin: "https://va.example.org", userId: "u1" };
+    const cache: CodingHistoryCache = {
+      cachedProjects: jest.fn().mockResolvedValue(["P1"]),
+      fingerprintForProject: jest.fn().mockReturnValue("a".repeat(64)),
+      readPage: jest.fn().mockResolvedValue({
+        page: { history: [], count: 0, limit: 50, offset: 0, has_more: false },
+        fetchedAt: "2026-10-03T12:00:00Z", accessFingerprint: "a".repeat(64),
+      }),
+      writePage: jest.fn(), invalidateCase: jest.fn(), invalidateProject: jest.fn(),
+    };
+    const api = makeApi({
+      getCodingStats: jest.fn().mockRejectedValue(new ApiError(403, "no_coding_access")),
+      getCodingHistory: jest.fn().mockRejectedValue(new ApiError(403, "no_coding_access")),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} historyCache={cache} historyIdentity={identity}
+        initialView={{ projectId: "P1", allProjects: false, showHistory: true, offset: 0 }} />);
+    });
+    await settle();
+    expect(cache.invalidateProject).toHaveBeenCalledWith(identity, "P1");
+    expect(cache.readPage).not.toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Saved on this phone");
     await unmount(renderer);
   });
 });

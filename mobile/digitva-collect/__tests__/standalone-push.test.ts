@@ -38,6 +38,7 @@ jest.mock("../src/offlineProfile", () => ({
 
 import { createDraftStore, getDraftRow, getMeta, getOfflineCoding, markCompleted, migrate, saveOfflineCoding, type Db, type OfflineCodingRow } from "../src/drafts";
 import { draftAnswersSha256, isCodingStale, offlineCodingBody } from "../src/sync";
+import { codingReceiptSha256 } from "../src/codingReceipt";
 import { saveStandaloneConsent } from "../src/standaloneConsentStore";
 import type { StandaloneConsentRecord } from "../src/standaloneConsent";
 import { saveDraftConsent } from "../src/consentStore";
@@ -140,7 +141,10 @@ const json = (status: number, body: unknown) =>
 const accepted = (call: Call, offlineCoding?: unknown, status = 201) => json(status, {
   received_sha256: call.body?.answers_sha256, answers_sha256: call.body?.answers_sha256,
   kept: "incoming", locked: false, superseded: false, case: { death_id: "dddddddd-0000-4000-8000-000000000001", unique_id: "U-1", status: "submitted" },
-  ...(offlineCoding === undefined ? {} : { offline_coding: offlineCoding }),
+  ...(offlineCoding === undefined ? {} : { offline_coding: {
+    ...(offlineCoding as Record<string, unknown>),
+    coding_sha256: call.body?.offline_coding ? codingReceiptSha256(call.body.offline_coding) : undefined,
+  } }),
 });
 
 function server(submissions: (call: Call) => Response): void {
@@ -276,7 +280,12 @@ describe("reply handling", () => {
     expect(result).toMatchObject({ sent: 1, codingOutcomes: [{ status: "refused", code: "coding_grant_required" }] });
     expect(await kept(db)).toEqual(ALL_GONE);
     const notices = await codingNotices(db);
-    expect(notices).toEqual([{ draftId: DRAFT, code: "coding_grant_required", at: expect.any(String) }]);
+    expect(notices).toEqual([{
+      draftId: DRAFT,
+      code: "coding_grant_required",
+      at: expect.any(String),
+      codingSha256: expect.any(String),
+    }]);
     expect(codingNoticeText(notices[0].code)).toMatch(/no coding role/);
     for (const code of ["coding_mode_mismatch", "coded_version_superseded", "not_available", "forbidden"]) {
       expect(codingNoticeText(code)).not.toBe(codingNoticeText("coding_grant_required"));

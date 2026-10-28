@@ -1,5 +1,5 @@
 import { ApiError, maskApiPath, requestJson } from "../src/api";
-import { AlreadyEnrolledError, NotInSlotError } from "../src/authErrors";
+import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError } from "../src/authErrors";
 import { errorReference, errorText } from "../src/ui";
 
 describe("maskApiPath", () => {
@@ -43,6 +43,12 @@ describe("errorReference", () => {
   it("shows a slot refusal as a normal message, without a reference", () => {
     expect(errorText(new AlreadyEnrolledError())).toBe("This phone is already enrolled there. To change it, use Settings, \"Change server / re-enrol\".");
     expect(errorText(new NotInSlotError())).toBe("The phone switched between Active and Demo meanwhile. Try again.");
+  });
+  it("explains an account-store collision without exposing account or server identifiers", () => {
+    const error = new AccountStoreCollisionError();
+    expect(errorText(error)).toContain("Your saved work was kept");
+    expect(errorText(error)).not.toContain("11111111");
+    expect(errorText(error)).not.toContain("https://");
   });
   it("is appended to the generic fallback only", () => {
     expect(errorText(new ApiError(500, undefined))).toContain("Ref: HTTP 500");

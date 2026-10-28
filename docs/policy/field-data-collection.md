@@ -591,14 +591,15 @@ lost in practice.
 
 ### Path C: standalone Collect Plus (owner decision 2026-10-27, `digitva-5bzf`)
 
-Status: core standalone collection, coding, adoption, export and backup are
+Status: core standalone collection, coding, export and backup are
 implemented; remaining translations, definition pinning and hardware acceptance
 are tracked in `digitva-5bzf`. Every
-rule below carries the owner decision of 2026-10-27 (`digitva-5bzf`).
+rule below carries the owner decision of 2026-10-27 (`digitva-5bzf`), except
+the later 2026-10-28 local-only boundary, which supersedes adoption/upload.
 
 Path C is Collect Plus (see "Collect Plus (experimental)") used **without a
 server**: an unenrolled phone that collects interviews and codes them on the
-device, and pushes both later, once the phone is enrolled. It is a third
+device. Its records remain local even if the phone is later enrolled. It is a third
 arrangement, so this section is the amendment this policy demands for one.
 The collection storage and synchronization rules of Path A and Path B remain
 unchanged for enrolled, non-standalone use; phone coding follows the unified
@@ -619,7 +620,7 @@ access rule below.
   the app, with the DigitVA extension set the user picks in setup (default
   none; the equity layer available once it ships). The local account is not
   a server account: it holds no grants, never calls the server, and is
-  skipped by token refresh, notification polling and sync until enrolment.
+  skipped by token refresh, notification polling and sync.
   Informant details are saved only after the standalone consent below.
 - **Device identity (owner decision 2026-10-27, `digitva-5bzf`).** On first run
   the phone mints a device UUID, kept in the Keystore-backed secure store,
@@ -652,7 +653,11 @@ access rule below.
   reaches the server as an imported, coded result with its provenance, not as
   a masked coding (see [Offline API Contract](offline-api-contract.md)
   section 17).
-- **Enrolment later (owner decision 2026-10-27, `digitva-5bzf`).** Enrolling
+- **Earlier adoption design (superseded 2026-10-28).** The historical server
+  import contract remains for older APK compatibility, but the current app
+  exposes no standalone adoption or upload action. Enrolling keeps standalone
+  records separate and inaccessible until all server accounts are logged out.
+  The following describes only the older import contract: enrolling
   the phone (enrolment QR or sign-in QR,
   [Sign-in by Mobile Number](mobile-sign-in.md) section 8) binds the device
   UUID to the server device row and moves the standalone records under the
@@ -677,10 +682,10 @@ access rule below.
   [Respondent Consent Notice](respondent-consent-notice-draft.md) "Standalone
   notice". A missing or unusable bundled notice behaves like no notice:
   covered fields stay locked empty, never "consent off".
-- **SmartVA offline is out of scope for now (owner decision 2026-10-27,
-  `digitva-5bzf`).** No SmartVA runs on a standalone phone, and the app says
-  so. The profile's HIV and malaria mortality levels are collected for a later
-  SmartVA build and are unused until then.
+- **SmartVA offline (owner update 2026-10-28, `digitva-hs7e.13`).** Bundle
+  the existing Rust engine and embedded models in Plus. Local profile mortality
+  settings now supply explicit local SmartVA inputs. This supersedes the
+  2026-10-27 exclusion; see [SmartVA Generation Policy](smartva-generation-policy.md).
 - **Plus-only.** Everything here requires the Plus variant on Android
   (arm64); the plain build is unchanged.
 
@@ -806,6 +811,88 @@ clock against the server.
 
 ## Collect Plus (experimental)
 
+Owner clarification 2026-10-28 (`digitva-hs7e.2`, `digitva-hs7e.5`): keep
+the native engine and its WHO data together in the installed package. First
+setup, repair and normal startup must use those packaged files without remote
+code or WHO-data downloads. Updating the app supplies a new packaged version;
+the old separate "Update WHO files" action is disabled. Engine startup remains
+on demand, in its isolated process. This does not authorize public engine
+redistribution; the written-WHO-permission boundary still applies.
+
+The three operating boundaries apply to navigation, reference data, coding,
+lists, caches, recoding and receipts. Standalone is local-only and never syncs
+to a server. Enrolled accounts can work online or offline and sync only to
+their enrolled target. Demo accounts can also work online or offline and sync
+only to their demo target. Connectivity changes never change mode or target.
+Standalone must not enter enrolled reference-refresh or server-sync paths.
+Explicit enrolment creates server-backed work separately and does not adopt
+or send standalone records.
+Server-backed caches must be isolated by mode, target server and account.
+
+The initial setup presents three explicit choices with short instructions:
+"Enroll This Device with Server", "Standalone Mode" and "Demo Server".
+Standalone setup and use are available only after server accounts are explicitly
+logged out; an expired sign-in does not silently enable standalone mode.
+Existing standalone records remain on the phone, but must not be usable alongside
+a signed-in enrolled or demo account. Enforcing this boundary must not erase
+unsent work or automatically sign out another shared-phone user.
+Every standalone screen, including forms, visibly states at the top
+"Standalone Mode - Server Disabled". Every demo screen states "Demo Mode".
+The mode notice must remain visible when the normal navigation header is hidden.
+
+Owner-approved coding reliability additions (`digitva-hs7e.4`, 2026-10-28):
+
+Native first launch asks "Enable ICD-11 / DORIS coding in this app?" with
+the feature off by default (`digitva-hs7e.7`). The choice is device-wide and
+editable in Settings. It applies to online server-backed ICD-11/DORIS and
+eligible bundled local tools in Enrolled, Demo and Standalone modes. It grants
+no account/project permission, changes no server target, downloads nothing and
+does not start the engine. Disabling preserves all work. ICD-10 coding,
+collection, queues and read-only history remain available under their existing
+permissions; web coding is unchanged. Missing/unreadable preference is off.
+
+Settings exposes bundled open-source licence notices (`digitva-hs7e.8`):
+DigitVA and SmartVA retain their MIT notices; WHO ICD-11 retains its separate
+WHO licence and official link. A notice does not confer redistribution rights.
+
+Profile and project access (`digitva-hs7e.11`) shows the selected account's
+profile, exact server/mode, project roles/scopes, coding settings and available
+languages. Online data is server-authoritative. Offline display uses only a
+sanitized account-encrypted projection matching the exact slot, origin,
+account and latest validated access digest, labelled with its refresh time.
+Authentication/permission/schema failures never fall back. This display grants
+no permission. Standalone shows only its local profile and server-disabled
+status, with no server call. Hindi is bundled for standalone at the owner's
+request (`digitva-hs7e.10`); its existing in-review status is retained and
+missing strings fall back visibly to English. No server publication is implied.
+
+- An offline-coding receipt identifies the complete submitted coding snapshot
+  with `coding_sha256`, not only its interview answers. Client and server use
+  one deterministic representation, verified by shared digest vectors. Local
+  deletion requires both the matching interview receipt and matching coding
+  digest. Missing, malformed or different coding receipts retain local work.
+- An exact resend is idempotent. Different coding may replace a pending hold
+  only after current policy/answer checks; an already-terminal different
+  snapshot returns `409 coding_conflict` without overwriting terminal history.
+- Coding refusals are durably recorded in the encrypted account store before
+  acknowledged local work is removed, and remain visible after restart. A
+  pending coding receipt is not displayed as an applied coding result.
+- The native My coded cases cache holds bounded, reconstructible display
+  metadata only, isolated by mode, server, account and project. It carries a
+  fetched timestamp and an explicit saved/read-only label while offline.
+  Cached records never authorize viewing an editable workspace, claiming,
+  releasing or recoding. Authentication/permission failures do not fall back
+  to cached history; access changes and successful coding mutations invalidate
+  affected cached data. No answers, narrative, contacts or attachments are cached.
+- Offline reference data includes versioned, generated ICD-11 to VA bucket
+  mappings and active VA definitions from the canonical catalog. It follows
+  the server's primary-stem and ancestor precedence and existing attribution;
+  it is separate from ICD code selectability/allowability.
+- Enrolled/Demo local coding requires explicit server support metadata for
+  self-coding, an actual coder grant, `unmasked_doris` mode and ICD-11.
+  Missing support metadata fails closed; an ICD-10 project is not silently
+  converted to ICD-11. Standalone retains its explicitly local ICD-11 workflow.
+
 "DigitVA Collect Plus" (`APP_VARIANT=plus`, Android package
 `com.causeofdeathindia.digitvacollect.plus`, versionName `<version>-plus`) is a
 build variant of the collect app that also enables the native Coding, Review and
@@ -817,15 +904,15 @@ to profile coding on a phone (bead digitva-hs7e).
   phone is an owner-controlled pilot phone, owner decision 2026-10-27,
   `digitva-5bzf`.) It is never uploaded to `/download/android`,
   never pinned in `docker-compose.yml`, and never handed to interviewers. Since the
-  owner's decision of 2026-10-25 it may be published as a public GitHub prerelease
-  (`collect-plus-release.yml`, arm64 only) and its engine as a release asset
-  (`icd11-engine-<version>`); the ICD-11 licence ruling (2026-10-21) and its
-  obligations are in `docs/policy/icd11-local-api-runtime.md`. Builds run only on
-  GitHub Actions.
+  2026-10-26 WHO-correspondence decision supersedes the earlier public-release
+  permission: no new public offline-engine publication until written WHO
+  confirmation. See `docs/policy/icd11-local-api-runtime.md`. Release builds
+  normally run on GitHub Actions; the owner permitted local phone-measurement
+  builds for the 2026-10-28 session only.
 - It installs beside the plain app and shares nothing with it: another package,
   another encrypted store, another URL scheme (`digitvacollectplus`).
-- The plain build is unchanged: it has no engine, no engine assets and no module
-  code, and its coding routes still explain that coding is done on the web.
+- The plain build has no engine, engine assets or native engine module. Its
+  authorized online coding routes use the shared server-backed app workspace.
 - Connected (enrolled) coding screens still call the server for DORIS; the
   offline engine is exercised by the hidden Settings > "Offline engine check"
   screen and, on a standalone phone (Path C), by on-device coding with the
@@ -873,7 +960,7 @@ they are untouched; clearing them on a row that had one is refused.
 | C2 | One device per interviewer, or shared? | **Decided 2026-09-18:** shared, with one encrypted store per interviewer |
 | C3 | Retention ceiling for an unsent interview | **Decided 2026-09-18:** no ceiling; purge only after a confirmed push. Accepted risk recorded above |
 | C4 | Distribution and signing-key custody | ~~Deferred 2026-09-18: unsigned development builds for now; must be settled before the app collects real interviews~~ **Deferred 2026-09-19:** with the native app, not open; decided when that work starts |
-| C5 | Standalone Collect Plus (Path C) | **Decided 2026-10-27** (`digitva-5bzf`): owner-controlled pilot phones only; no retention ceiling with age warning and backup reminders; SmartVA offline out of scope. Open points listed under Path C |
+| C5 | Standalone Collect Plus (Path C) | **Updated 2026-10-28** (`digitva-5bzf`, `digitva-hs7e.13`): owner-controlled pilot phones only; no retention ceiling with age warning and backup reminders; bundled SmartVA uses the device/profile coding eligibility and explicit options. Open points listed under Path C |
 
 ## References
 
@@ -895,7 +982,7 @@ cases are available while connected, and local work stays available offline.
 Connection loss does not discard an open case. The app presents onboarded,
 standalone and demo contexts over the existing
 Active/Demo slots and local accounts. Changing context never merges or deletes
-records; standalone adoption remains explicit and PIN-confirmed. Standalone
+records; standalone records remain local and are never adopted for sync. Standalone
 setup and later profile editing use the same complete profile fields and
 validation. Demo credentials remain separate from local profile information.
 

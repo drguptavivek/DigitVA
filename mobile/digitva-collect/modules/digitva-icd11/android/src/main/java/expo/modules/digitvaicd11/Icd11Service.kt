@@ -8,7 +8,6 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
-import android.os.Process
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.PriorityBlockingQueue
 import java.util.concurrent.atomic.AtomicLong
@@ -22,8 +21,7 @@ import java.util.concurrent.atomic.AtomicLong
  * is still queued or running waits for it, so no call reaches an engine that is not up yet. A job killed with the
  * process is simply run again by the next process: the init is idempotent and the data copy restarts cleanly.
  *
- * OP_UPDATE (the explicit "Update WHO files") is a setup-priority job too: it runs after the calls queued before it. It
- * ends this process, so the app's next init starts a new one that may fetch WHO files (EngineHost.init).
+ * OP_UPDATE is retained for source compatibility but always returns bundled_only without disturbing the running engine.
  *
  * Messages: what = op (OP_*), arg1 = request id echoed in the reply, data["input"] = request text; replyTo receives the
  * result as a Bundle. While an init runs, the worker also sends WHAT_PROGRESS bundles (phase, percent) to the same
@@ -54,7 +52,7 @@ class Icd11Service : Service() {
       val id = msg.arg1
       val input = msg.data.getString("input").orEmpty()
       if (op == OP_UPDATE) {
-        submit(PRIORITY_SETUP, Runnable { refreshWhoFiles(replyTo, id) })
+        answer(replyTo, OP_UPDATE, id) { mapOf("ok" to false, "error" to "bundled_only") }
         return
       }
       if (op == OP_INIT) {
@@ -64,8 +62,6 @@ class Icd11Service : Service() {
         submit(PRIORITY_SETUP, Runnable {
           answer(replyTo, op, id) { host.init() }
           done.complete(Unit)
-          // A first setup that fetched and failed ends the process: the next attempt starts fresh (EngineHost).
-          if (host.restartAfterInit) Process.killProcess(Process.myPid())
         })
         return
       }
@@ -84,23 +80,6 @@ class Icd11Service : Service() {
 
   private fun submit(priority: Int, task: Runnable) {
     jobs.put(Job(priority, seq.getAndIncrement(), task))
-  }
-
-  /**
-   * Offline: answers "no_connection" and keeps the engine. Online: marks the refresh, replies "restarting" and ends
-   * this process. The reply goes out before the process ends, as a failed fetch's does (EngineHost.init).
-   */
-  private fun refreshWhoFiles(replyTo: Messenger, id: Int) {
-    if (!isOnline(applicationContext)) {
-      answer(replyTo, OP_UPDATE, id) { mapOf("ok" to false, "error" to "no_connection") }
-      return
-    }
-    if (!EngineData.requestRefresh(applicationContext)) {
-      answer(replyTo, OP_UPDATE, id) { mapOf("ok" to false, "error" to "failed") }
-      return
-    }
-    answer(replyTo, OP_UPDATE, id) { mapOf("ok" to true, "restarting" to true) }
-    Process.killProcess(Process.myPid())
   }
 
   /** Runs [work] and replies with its map. Any throwable becomes a generic code: engine text never leaves the process. */
@@ -136,7 +115,7 @@ class Icd11Service : Service() {
 
   companion object {
     const val OP_INIT = 0
-    /** Explicit WHO-file update (EngineData.requestRefresh); a request op, handled here rather than by the engine. */
+    /** Legacy update request; retained for backward compatibility and rejected as bundled_only. */
     const val OP_UPDATE = 5
     /** Reply `what` for progress reports; never a request op. */
     const val WHAT_PROGRESS = 100

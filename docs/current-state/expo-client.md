@@ -546,53 +546,31 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   index `released-index-files/...pbf.zip`. The engine has no setting that turns
   this off, and without OpenSSL its .NET runtime aborts the process. No telemetry
   or licence call was seen.
-- **Download rule.** `EngineHost` lets an init fetch only online, with OpenSSL
-  loaded, and only for one of three reasons: (a) the first setup after an install
-  or data reset (no setup record); (b) a WHO file is missing or the wrong size at
-  start-up (`EngineData.repair` restores the shipped copy first, then the fetch
-  runs); (c) the user asks for it: "Update WHO files" (the Offline engine check
-  screen, Settings > Collect Plus, or `digitvacollectplus://engine-check?update=1`).
-  Every other init blocks the network: `http(s)_proxy` point at a dead local port,
-  so each attempt fails before any TLS and the engine uses the local files. A
-  fetching init has a 50 s budget (`SETUP_BUDGET_MS`); past it the process ends.
-  A failed fetch ends the process too, and the next init starts from shipped
-  copies.
+- **Packaged-only data (2026-10-28, `digitva-hs7e.5`).** Every init uses
+  the dead local proxy before the WHO engine is loaded. First setup and repair
+  use the APK assets; no runtime WHO-file download is allowed. Updating the app
+  supplies a new data version. The old native update operation returns
+  `bundled_only` without restarting the engine; its UI and deep-link action
+  are removed. The v4 workspace replaces previous engine data only, never
+  clinical stores, attachments, backups or upload queues.
 - **OpenSSL.** `io.github.ronickg:openssl:3.3.2-1` (OpenSSL 3.3.2, Apache-2.0),
   a prefab AAR that expo-sqlite already pulls in transitively. `build.gradle`
   copies its arm64 `libssl.so` into the build; `libcrypto.so` is the copy
   expo-sqlite packages from the same artifact. Nothing is vendored; the AAR is
   fetched at build time. Google's NDK OpenSSL AAR was rejected: only 1.1.1q is
   published, and its libcrypto cannot sit beside expo-sqlite's 3.3.2 one.
-- **WHO-supplied files.** `bundle/Data/languageResources.txt`, the release
-  `data/icd11_..._en.pbf.gz`, the index `data/ix_..._v5.7.pbf.zip` and the DORIS
-  rule files in `data/DORIS_v2.1_1.2.0/` (AddCodes, AgeRelated, MainSteps,
-  OtherConditionMappings, Rules, ValueSets, info). They are the shipped files
-  listed with size and sha256 in the APK's `digitva-icd11/who-files.json`, written
-  by `stage-engine.js` from the staged copies. DORIS's own zip ships nowhere; it
-  is tracked only once a fetch stores it. Engine-built files (unzipped `.pbf`,
-  `.annex`, `.annexu`, DORIS `log.txt`, `ixconf`) are never tracked or reported.
-- **Setup record** `filesDir/icd11-<DATA_VERSION>.setup.json`: `state` is
-  `attempt` (a setup or fetch started and did not finish; the next init discards
-  the data and starts from shipped copies), `downloaded` or `shipped`; `files`
-  lists the WHO files that differ from the shipped copies (size, sha256). After a
-  fetch the WHO files on disk are hashed (about 0.13 s for the 48 MB set on a Mac;
-  slower on the phone) and compared with what was expected. The init reports
-  "downloaded N files: ..." only when this run changed a WHO file, and otherwise
-  "shipped copies (no newer WHO files)".
-- **Integrity.** Each init size-checks every WHO file (cheap; it catches missing
-  and truncated files). A missing or wrong-size file gets its shipped copy back,
-  or is removed when only a download could supply it. sha256 is not checked on
-  ordinary starts: it would cost time on every start for little gain, since the
-  copies are ours and a fetch hashes what it stores. A same-size corruption is
-  therefore not caught until the next fetch, which "Update WHO files" triggers.
-- **Worker priorities** (`Icd11Service`, one thread): interactive calls (0),
-  first setup, init and the WHO update (1), housekeeping (2, reserved). A call
-  that arrives during an init waits for it. "Update WHO files" is a priority-1 job,
-  so it runs after the calls queued before it. Offline it answers
-  `no_connection` and keeps the engine. Online it writes a refresh flag, replies
-  "restarting" and ends `:icd11`. The app then unbinds, rebinds and runs an init
-  in the new process, and that init settles the update's promise. Calls made while
-  it runs wait for it (`offlineEngine.updateWhoFiles()`, `inflight`).
+- **WHO-supplied files.** The APK carries language resources, the compressed
+  release and search index, and extracted DORIS rule files. Their staged sizes
+  and SHA-256 values are listed in `digitva-icd11/who-files.json`. Engine-built
+  indexes, annexes and logs remain in the disposable versioned engine workspace.
+- **Setup record.** `filesDir/icd11-<DATA_VERSION>.setup.json` records an
+  `attempt` or completed `shipped` setup. Interrupted setup restarts from APK
+  copies. Missing or truncated packaged WHO files are repaired from assets.
+  Ordinary starts check sizes; same-size corruption is not detected by that
+  check. Build-input integrity remains a separate follow-up.
+- **Worker priorities.** Interactive calls precede queued setup and
+  housekeeping. Calls wait for initialization; every process serializes its
+  engine calls. The compatibility update request refuses with `bundled_only`.
 - Start-up (SM-E146B, warm data, from `init-timings.txt` written by the bridge):
   the work is CPU bound (about 21 s user, 1.4 s system) and is not an index
   rebuild: the unzipped index and `.annexu` already on disk are not rewritten on a
@@ -604,13 +582,11 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   independent, so the bridge loads them on two threads: about 18 to 20 s, same
   output on six certificates (DORIS and CoDEdit). GC settings changed nothing
   measurable.
-- Background warm-up: `app/_layout.tsx` calls `scheduleEngineWarmUp()` in the plus
-  build (after interactions plus 1 s); it logs `ICD11WARM ready=... ms=...`. The
-  module binds the service from the app level and never unbinds, so the engine
-  process lives as long as the app process; there is no `onTrimMemory` handler,
-  Android decides. The engine has no cache-on-background hook, so nothing is saved
-  when the app goes to the background. If Android kills `:icd11`, the next call
-  re-inits once and retries.
+- **Demand-only startup.** App launch does not schedule engine warm-up.
+  Eligible local coding initializes after project access and the editor lease
+  are checked. The explicit eligible-account diagnostic can also start it.
+  The isolated service remains bound after use; Android may reclaim it and
+  the next call reinitializes. No background cache-save hook is present.
 - Measured on the phone (one run each, noise about 1 to 2 s): launch to engine
   ready 24.7 s before (init 23.6 s), 19.9 to 21.3 s after (init 19.1 to 20.3 s);
   launcher start with warm-up 20.3 to 22.3 s. Peak `:icd11` PSS 801 to 824 MB
@@ -619,21 +595,29 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   Hosting the engine in the main process also works now (init 17.4 and 17.7 s in
   two runs; one run returned a native error that was not diagnosed): steady PSS
   666 MB, peak 948 MB in the UI process, so `:icd11` stays the default.
-- `src/offlineEngine.ts`: `available / init / updateWhoFiles / search / codeinfo /
-  doris / codedit`, each with timings; "unavailable" on web and in the plain
-  build. Concurrent `init()` calls share one request; `warmUpOfflineEngine` and
-  `scheduleEngineWarmUp` start it in the background. `updateWhoFiles()` takes the
-  same in-flight slot, so calls made meanwhile wait for it.
-- `src/nativeRoutes/plusWorkspace.tsx`: Coding, Reviewing and Workspace routes
-  render `QueueScreen` / `CaseWorkspaceScreen` (plain: `CodingOnWeb`).
-- Hidden check: Settings > Collect Plus > "Offline engine check", or
-  `digitvacollectplus://engine-check?run=1` (`src/nativeRoutes/engineCheck.tsx`).
-  The same screen has "Update WHO files" (Settings has a shortcut too); its
-  deep link is `digitvacollectplus://engine-check?update=1`. The result line says
-  what changed, "no newer WHO files", "No connection" or "Failed; kept the shipped
-  copies".
-- **Build: GitHub Actions only** (owner rule, 2026-10-25). No APK, Gradle or Expo
-  build runs on the developer Mac. `.github/workflows/collect-plus-release.yml`
+- `src/offlineEngine.ts` exposes availability, init, search, codeinfo, DORIS
+  and CoDEdit. Concurrent init calls share one request. Legacy warm-up helpers
+  remain unused; the retained update API receives `bundled_only` from native.
+- Native Coding, Reviewing and Workspace routes use the shared server-backed
+  queue/workspace in both APK variants, subject to current authorization.
+- **Engine diagnostic:** an eligible, unlocked Plus account can open Settings
+  > Collect Plus > Offline engine check. An explicit deep link must include
+  `userId=<eligible-account-id>` as well as `run=1`; the route never bypasses
+  account, capability or local unlock checks. The check uses a synthetic
+  certificate and displays short results/timings, never patient data.
+- **2026-10-28 phone baseline:** SM-E146B, Android 15, 5.3 GiB RAM; local
+  release build with packaged-only data. First setup: 20.502 s total,
+  134 ms copy, 20.263 s engine initialization. Subsequent cold engine start:
+  17.812 s total, 17.702 s engine initialization. Sampled engine PSS peaked
+  at 1191.0 MiB on fresh setup and 871.7 MiB on the subsequent start, settling
+  around 528 MiB. These are sampled maxima, not allocation peaks. Both checks
+  returned expected synthetic DORIS `BA41.Z`; this is not a new server parity
+  study. Android Settings reported App 354 MB, Data 501 MB, Total 855 MB.
+  Later mode/setup UI additions require their final artifact acceptance;
+  raw numeric measurements and synthetic outputs stay in private local files.
+- **Build:** GitHub Actions is the default release path. The owner explicitly
+  permitted local builds and web-export checks for the 2026-10-28 measurement
+  session; that exception does not authorize publication or deployment. `.github/workflows/collect-plus-release.yml`
   (`workflow_dispatch`: `publish`, `tag` such as `collect-plus-v0.3.10-plus.1`)
   runs the same steps the release does: vendor build, `npm ci`, typecheck, tests,
   `APP_VARIANT=plus npx expo prebuild`, `./gradlew assembleRelease` for arm64 only,
@@ -725,5 +709,36 @@ in the same project (standalone keeps its local self-coding flow). The direct
 interview setting is not a coding permission. Capability changes preserve
 unsent work; the engine starts only on an eligible offline coding route.
 Startup and later local profile editing share one form and storage schema.
-The lighter package still excludes offline engine assets; a single-package
-on-demand distribution strategy is a separate release/licensing decision.
+The lighter package still excludes offline engine assets. Experimental Plus
+ships the engines and their reference data together, with no runtime package
+download. Public WHO software redistribution still needs written clearance.
+
+## Bundled SmartVA reference (`digitva-hs7e.13`, `.13.1`)
+
+Plus stages the MIT Rust engine through `scripts/build-smartva-android.sh` and
+`modules/digitva-smartva`. Its non-exported `:smartva` service calls the existing
+C ABI, using embedded data and the `mobile-core` Cargo feature. The default
+desktop build still includes reports; the phone excludes chart/font/workbook
+dependencies. Algorithm 3.0.1 and Rust wrapper 3.0.2 remain unchanged.
+
+`smartva/ensureLocal.ts` reserves the per-draft upload/editor lease before its
+first await and coalesces completion and coding-entry requests. A valid completed
+interview starts scoring after its durable save; opening local coding fills a
+missing, failed or stale result once. Manual Run/Regenerate remains available.
+Default-off device preference, current same-project permissions, both consent
+decisions, valid completion and the frozen options snapshot are rechecked.
+Missing old settings require explicit repair. Engine failure does not undo the
+interview or block leaving the form; interruption is retried on coding entry.
+
+The SQLCipher cache stores projected causes, controlled symptom descriptions and
+answer/options/engine provenance. A changed identity invalidates the result;
+matched upload acknowledgement deletes the draft and cascades its cache. Phone
+results remain advisory; the server generates its own version-linked result.
+
+Private release APK checks on 2026-10-28 passed on Android 15 (SM-E146B) and an
+Android 13 emulator with no active network. Phone SmartVA process setup was 93 ms,
+and adult/child/neonate scoring 245/34/28 ms. Sampled steady engine PSS was about
+60 MiB; co-resident WHO engine about 526 MiB. WHO initialization still takes about
+18 seconds on this phone. All 33 native libraries meet 16 KB alignment. Synthetic
+checks establish function/parity, not clinical accuracy; full field acceptance
+and distribution clearance remain open.

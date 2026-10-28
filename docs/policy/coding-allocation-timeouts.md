@@ -3,7 +3,7 @@ title: Coding Allocation Timeout Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-28
 ---
 
 # Coding Allocation Timeout Policy
@@ -155,6 +155,12 @@ instead of a timeout. See [Coding Workflow State Machine
 Policy](coding-workflow-state-machine.md), "Confirmed Duplicate Cases".
 
 ## Invariant for all timeout paths
+
+Coder writes must lock the submission before re-reading the active allocation,
+authorization and workflow state. A request that passed an earlier check must
+still be refused if its allocation expired, was released or was reassigned
+before that lock was acquired. Allocation mutations use the same submission
+then allocation lock order; a stale coder cannot overwrite the new owner's work.
 
 The release action must not:
 

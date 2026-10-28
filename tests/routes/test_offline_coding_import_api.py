@@ -39,8 +39,10 @@ from app.models import (
 )
 from app.services import bundle_ingest_service, consent_service
 from app.services import device_auth_service as devices
+from app.services import offline_coding_import_service as offline_coding
 from app.services import organization_service as org
 from app.services.consent_notice_seed import SEED_PURPOSES, SEED_TEXT, standalone_bundle_sha256
+from app.services.offline_coding_import_service import coding_receipt_sha256
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE
 from app.services.workflow.state_store import (
@@ -158,7 +160,7 @@ class StandalonePushTests(BaseTestCase):
             antecedent["age_restriction_confirmation"] = confirmation
         return {
             "coded_answers_sha256": answers_sha, "device_uuid": client_uuid,
-            "process_token": f"local-{uuid.uuid4()}", "conclusive_cod": f"{code} Title {code}", "remark": None,
+            "process_token": f"local-{uuid.uuid5(uuid.NAMESPACE_URL, client_uuid)}", "conclusive_cod": f"{code} Title {code}", "remark": None,
             "certificate": {"ICDVersion": "ICD11", "Part1": [{"Conditions": [{"Code": code}]}]},
             "result": {"status": "ok", "result": {"stemCode": code}}, "codedit_result": None,
             "certificate_digest": "a" * 64, "result_digest": "b" * 64,
@@ -222,6 +224,12 @@ class StandalonePushTests(BaseTestCase):
             body["offline_coding"] = self._coding(client_uuid, answers_sha, code)
         return self.client.post(INTAKE, json=body, headers=headers), client_draft_id
 
+    def _coding_receipt(self, response):
+        receipt = response.get_json()["offline_coding"]
+        self.assertEqual(set(receipt), {"status", "code", "coding_sha256"})
+        self.assertRegex(receipt["coding_sha256"], r"^[0-9a-f]{64}$")
+        return {key: receipt[key] for key in ("status", "code")}
+
     @staticmethod
     def _draft(client_draft_id):
         return db.session.scalar(sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.client_draft_id == client_draft_id))
@@ -247,7 +255,7 @@ class StandalonePushTests(BaseTestCase):
         client_uuid, headers = self._device(self.coder)
         first, draft_id = self._push(headers, client_uuid)
         self.assertEqual(first.status_code, 201, first.get_json())
-        self.assertEqual(first.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(self._coding_receipt(first), {"status": "pending", "code": "not_ready"})
         counts = lambda: (db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft)),  # noqa: E731
                           db.session.scalar(sa.select(sa.func.count()).select_from(VaBundlePendingCoding)),
                           db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionsAuditlog)))
@@ -255,7 +263,7 @@ class StandalonePushTests(BaseTestCase):
         again, _ = self._push(headers, client_uuid, client_draft_id=draft_id)
         self.assertEqual(again.status_code, 200, again.get_json())
         self.assertEqual(again.get_json()["va_sid"], first.get_json()["va_sid"])
-        self.assertEqual(again.get_json()["offline_coding"]["status"], "pending")
+        self.assertEqual(self._coding_receipt(again)["status"], "pending")
         self.assertEqual(counts(), before)
         meta = self._draft(draft_id).meta["standalone"]
         self.assertEqual((meta["clientDeviceUuid"], meta["orgCode"], meta["orgCodeMatched"]),
@@ -322,7 +330,7 @@ class StandalonePushTests(BaseTestCase):
         client_uuid, headers = self._device(self.coder)
         response, draft_id = self._push_enrolled(headers, client_uuid)
         self.assertEqual(response.status_code, 201, response.get_json())
-        self.assertEqual(response.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(self._coding_receipt(response), {"status": "pending", "code": "not_ready"})
         self.assertNotIn("standalone", self._draft(draft_id).meta)
         held = db.session.get(VaBundlePendingCoding, draft_id)
         self.assertEqual((held.result["enrolled_context"], held.result["profile_snapshot"]), (True, {}))
@@ -344,10 +352,10 @@ class StandalonePushTests(BaseTestCase):
         first, draft_id = self._push_enrolled(headers, client_uuid, coding=False)
         self.assertEqual(first.status_code, 201, first.get_json())
         second, _ = self._push_enrolled(headers, client_uuid, client_draft_id=draft_id)
-        self.assertEqual(second.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(self._coding_receipt(second), {"status": "pending", "code": "not_ready"})
         count = db.session.scalar(sa.select(sa.func.count()).select_from(VaBundlePendingCoding))
         again, _ = self._push_enrolled(headers, client_uuid, client_draft_id=draft_id)
-        self.assertEqual(again.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(self._coding_receipt(again), {"status": "pending", "code": "not_ready"})
         self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaBundlePendingCoding)), count)
 
     def test_same_hash_retry_rejects_a_cross_project_substitution(self):
@@ -396,7 +404,7 @@ class StandalonePushTests(BaseTestCase):
         try:
             client_uuid, headers = self._device(self.coder)
             response, draft_id = self._push_enrolled(headers, client_uuid)
-            self.assertEqual(response.get_json()["offline_coding"], {"status": "refused", "code": "self_coding_required"})
+            self.assertEqual(self._coding_receipt(response), {"status": "refused", "code": "self_coding_required"})
             self.assertTrue(db.session.get(VaBundlePendingCoding, draft_id).result["enrolled_context"])
         finally:
             project.self_coding_enabled = True
@@ -405,7 +413,7 @@ class StandalonePushTests(BaseTestCase):
     def test_enrolled_coding_is_refused_if_grant_is_revoked_before_apply(self):
         client_uuid, headers = self._device(self.coder)
         response, draft_id = self._push_enrolled(headers, client_uuid)
-        self.assertEqual(response.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(self._coding_receipt(response), {"status": "pending", "code": "not_ready"})
         grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
             VaUserAccessGrants.user_id == self.coder.user_id,
             VaUserAccessGrants.project_id == PROJECT,
@@ -429,7 +437,7 @@ class StandalonePushTests(BaseTestCase):
         try:
             client_uuid, headers = self._device(self.coder)
             response, draft_id = self._push_enrolled(headers, client_uuid)
-            self.assertEqual(response.get_json()["offline_coding"], {"status": "refused", "code": "coding_mode_mismatch"})
+            self.assertEqual(self._coding_receipt(response), {"status": "refused", "code": "coding_mode_mismatch"})
             self.assertEqual(db.session.get(VaBundlePendingCoding, draft_id).code, "coding_mode_mismatch")
         finally:
             project.masked_cod_required = False
@@ -476,6 +484,139 @@ class StandalonePushTests(BaseTestCase):
 
     # ── offline coding ─────────────────────────────────────────────────────
 
+    def test_changed_coding_on_identical_answers_replaces_pending_exact_snapshot(self):
+        client_uuid, headers = self._device(self.coder)
+        _text, answers_sha = self._answers_json()
+        coding = self._coding(client_uuid, answers_sha)
+        first, draft_id = self._push(headers, client_uuid, coding=False, offline_coding=coding)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        self.assertEqual(first.get_json()["offline_coding"]["coding_sha256"], coding_receipt_sha256(coding))
+        changed = self._coding(client_uuid, answers_sha, OTHER_CODE)
+        changed["remark"] = "हिन्दी 😀"
+        second, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
+                               coding=False, offline_coding=changed)
+        self.assertEqual(second.status_code, 200, second.get_json())
+        receipt = second.get_json()["offline_coding"]
+        self.assertEqual(receipt["coding_sha256"], coding_receipt_sha256(changed))
+        self.assertNotEqual(receipt["coding_sha256"], first.get_json()["offline_coding"]["coding_sha256"])
+        held = db.session.get(VaBundlePendingCoding, draft_id)
+        self.assertEqual(held.result["coding"]["conclusive_cod"], changed["conclusive_cod"])
+        self.assertEqual(self._apply(first.get_json()["va_sid"])["applied"], 1)
+        self.assertEqual(self._final(first.get_json()["va_sid"]).icd11_provenance["conclusive"]["code"], OTHER_CODE)
+
+    def test_changed_terminal_coding_conflicts_and_exact_resend_remains_idempotent(self):
+        for actor, terminal in ((self.coder, "applied"), (self.interviewer, "refused")):
+            with self.subTest(terminal=terminal):
+                client_uuid, headers = self._device(actor)
+                _text, answers_sha = self._answers_json()
+                coding = self._coding(client_uuid, answers_sha)
+                first, draft_id = self._push(headers, client_uuid, coding=False, offline_coding=coding)
+                self.assertEqual(first.status_code, 201, first.get_json())
+                if terminal == "applied":
+                    self.assertEqual(self._apply(first.get_json()["va_sid"])["applied"], 1)
+                again, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
+                                      coding=False, offline_coding=coding)
+                self.assertEqual(again.status_code, 200, again.get_json())
+                self.assertEqual(again.get_json()["offline_coding"]["status"], terminal)
+                changed = {**coding, "remark": "Changed coding revision"}
+                refused, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
+                                        coding=False, offline_coding=changed)
+                self.assertEqual((refused.status_code, refused.get_json()["code"]), (409, "coding_conflict"))
+                held = db.session.get(VaBundlePendingCoding, draft_id)
+                self.assertEqual(held.content_sha256, coding_receipt_sha256(coding))
+                self.assertEqual(held.result["coding"]["remark"], coding["remark"])
+
+    def test_pending_replacement_refusal_receipts_the_new_snapshot(self):
+        client_uuid, headers = self._device(self.coder)
+        first, draft_id = self._push(headers, client_uuid)
+        stale = self._coding(client_uuid, "f" * 64)
+        second, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
+                               coding=False, offline_coding=stale)
+        self.assertEqual(second.status_code, 200, second.get_json())
+        self.assertEqual(second.get_json()["offline_coding"], {
+            "status": "refused", "code": "coded_version_superseded",
+            "coding_sha256": coding_receipt_sha256(stale),
+        })
+        self.assertNotEqual(first.get_json()["offline_coding"]["coding_sha256"],
+                            second.get_json()["offline_coding"]["coding_sha256"])
+
+    def test_apply_error_after_rollback_does_not_reject_a_replacement(self):
+        client_uuid, headers = self._device(self.coder)
+        first, draft_id = self._push(headers, client_uuid)
+        va_sid = first.get_json()["va_sid"]
+        _answers_text, answers_sha = self._answers_json()
+        replacement = self._coding(client_uuid, answers_sha, OTHER_CODE)
+        replacement["remark"] = "replacement arrived while the old apply was rolling back"
+        replacement_digest = coding_receipt_sha256(replacement)
+        original_rollback = db.session.rollback
+        replaced = False
+
+        def rollback_then_replace():
+            nonlocal replaced
+            original_rollback()
+            if replaced:
+                return
+            replaced = True
+            draft = self._draft(draft_id)
+            receipt = offline_coding.hold(
+                self.coder,
+                db.session.get(VaProjectMaster, PROJECT),
+                draft,
+                replacement,
+                {"name": "Dr. Plus"},
+                coding_sha256=replacement_digest,
+            )
+            self.assertEqual(receipt["status"], "pending")
+            db.session.commit()
+
+        failure = offline_coding.coder_cod.CoderCodingError(
+            "simulated final-save refusal", 409, code="wrong_state")
+        with mock.patch.object(offline_coding, "_save_imported_final", side_effect=failure), \
+                mock.patch.object(db.session, "rollback", side_effect=rollback_then_replace):
+            counts = self._apply(va_sid)
+
+        held = db.session.get(VaBundlePendingCoding, draft_id)
+        self.assertTrue(replaced)
+        self.assertEqual(counts["pending"], 1)
+        self.assertEqual((held.status, held.content_sha256), ("pending", replacement_digest))
+        self.assertEqual(held.result["coding"]["conclusive_cod"], replacement["conclusive_cod"])
+        self.assertIsNone(self._final(va_sid))
+
+    def test_refusal_cleanup_leaves_a_different_active_allocation_alone(self):
+        client_id = uuid.uuid4()
+        va_sid = "offline-coding-receipt-case"
+        digest = "a" * 64
+        held = mock.Mock(status="pending", content_sha256=digest, va_sid=va_sid, client_id=client_id,
+                         actor_user_id=self.coder.user_id)
+        with mock.patch.object(offline_coding, "_lock_held", return_value=held), \
+                mock.patch.object(offline_coding, "_audit"), \
+                mock.patch.object(offline_coding.db.session, "commit"), \
+                mock.patch.object(offline_coding.coder_workflow, "get_active_coding_allocation",
+                                  return_value="some-other-case") as active, \
+                mock.patch.object(offline_coding.coder_workflow, "release_own_coding_allocation") as release:
+            result = offline_coding._finish(client_id, va_sid, digest, "rejected", "wrong_state",
+                                            release_actor=self.coder)
+
+        self.assertEqual(result, "rejected")
+        active.assert_called_once_with(self.coder.user_id)
+        release.assert_not_called()
+
+    def test_refusal_cleanup_failure_does_not_commit_a_terminal_receipt(self):
+        client_id, va_sid, digest = uuid.uuid4(), "receipt-cleanup-failure", "a" * 64
+        held = mock.Mock(status="pending", content_sha256=digest, va_sid=va_sid,
+                         actor_user_id=self.coder.user_id)
+        failure = offline_coding.coder_workflow.AllocationError("Release failed", 409, code="wrong_state")
+        with mock.patch.object(offline_coding, "_lock_held", return_value=held), \
+                mock.patch.object(offline_coding, "_audit"), \
+                mock.patch.object(offline_coding.db.session, "commit") as commit, \
+                mock.patch.object(offline_coding.coder_workflow, "get_active_coding_allocation", return_value=va_sid), \
+                mock.patch.object(offline_coding.coder_workflow, "release_own_coding_allocation", side_effect=failure) as release:
+            with self.assertRaises(offline_coding.coder_workflow.AllocationError):
+                offline_coding._finish(client_id, va_sid, digest, "rejected", "wrong_state",
+                                       release_actor=self.coder)
+        commit.assert_not_called()
+        release.assert_called_once_with(self.coder)
+
     def test_agreement_lands_coded_with_the_normal_recode_window(self):
         client_uuid, headers = self._device(self.coder)
         response, draft_id = self._push(headers, client_uuid)
@@ -503,7 +644,7 @@ class StandalonePushTests(BaseTestCase):
                          ["final cod imported from collect plus offline"])
         self.assertEqual(self._audits(va_sid, "offline coding allowability disagreement"), [])
         again, _ = self._push(headers, client_uuid, client_draft_id=draft_id)
-        self.assertEqual(again.get_json()["offline_coding"], {"status": "applied", "code": None})
+        self.assertEqual(self._coding_receipt(again), {"status": "applied", "code": None})
 
     def test_coding_timeline_survives_the_pending_import_and_uses_server_final_save_time(self):
         client_uuid, headers = self._device(self.coder)
@@ -563,7 +704,7 @@ class StandalonePushTests(BaseTestCase):
         client_uuid, headers = self._device(self.interviewer)
         response, draft_id = self._push(headers, client_uuid)
         self.assertEqual(response.status_code, 201, response.get_json())
-        self.assertEqual(response.get_json()["offline_coding"], {"status": "refused", "code": "coding_grant_required"})
+        self.assertEqual(self._coding_receipt(response), {"status": "refused", "code": "coding_grant_required"})
         va_sid = response.get_json()["va_sid"]
         self.assertIsNotNone(db.session.get(VaSubmissions, va_sid))
         self.assertEqual(self._audits(va_sid, "offline coding refused"),
@@ -577,11 +718,11 @@ class StandalonePushTests(BaseTestCase):
     def test_a_later_version_with_its_own_coding_replaces_the_pending_coding(self):
         client_uuid, headers = self._device(self.coder)
         first, draft_id = self._push(headers, client_uuid)
-        self.assertEqual(first.get_json()["offline_coding"]["status"], "pending")
+        self.assertEqual(self._coding_receipt(first)["status"], "pending")
         edited = {**_answers(), "Id10018": "Sahoo"}
         second, _ = self._push(headers, client_uuid, client_draft_id=draft_id, answers=edited, code=OTHER_CODE)
         self.assertEqual(second.status_code, 200, second.get_json())
-        self.assertEqual(second.get_json()["offline_coding"], {"status": "pending", "code": "not_ready"})
+        self.assertEqual(self._coding_receipt(second), {"status": "pending", "code": "not_ready"})
         va_sid = first.get_json()["va_sid"]
         self.assertEqual(self._apply(va_sid)["applied"], 1)
         self.assertEqual(self._final(va_sid).icd11_provenance["conclusive"]["code"], OTHER_CODE)
@@ -590,14 +731,14 @@ class StandalonePushTests(BaseTestCase):
         stale = self._coding(client_uuid, "d" * 64)
         again, _ = self._push(headers, client_uuid, client_draft_id=other_id, answers={**_answers(), "Id10018": "X"},
                               coding=False, offline_coding=stale)
-        self.assertEqual(again.get_json()["offline_coding"], {"status": "refused", "code": "coded_version_superseded"})
+        self.assertEqual(self._coding_receipt(again), {"status": "refused", "code": "coded_version_superseded"})
 
     def test_stale_coding_is_not_applied(self):
         client_uuid, headers = self._device(self.coder)
         _json, sha = self._answers_json()
         stale = self._coding(client_uuid, "d" * 64)
         response, _ = self._push(headers, client_uuid, coding=False, offline_coding=stale)
-        self.assertEqual(response.get_json()["offline_coding"], {"status": "refused", "code": "coded_version_superseded"})
+        self.assertEqual(self._coding_receipt(response), {"status": "refused", "code": "coded_version_superseded"})
         self.assertNotEqual(sha, "d" * 64)
 
     def test_malformed_offline_coding_refuses_the_whole_push(self):

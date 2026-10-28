@@ -330,17 +330,19 @@ def find_va_definition_for_icd(
         .join(MasVaCauseDefinition, MasVaCauseDefinition.va_code == va_code_expr)
         .where(
             MasCodBucketScheme.scheme_code == VA_DEFINITION_SCHEMES[cls],
+            MasCodBucketScheme.is_active.is_(True),
             MapIcdCodBucket.icd_classification == cls,
             MapIcdCodBucket.is_active.is_(True),
+            MasCodBucketNode.is_active.is_(True),
             sa.func.upper(MapIcdCodBucket.icd_code).in_(candidates),
             MasCodBucketNode.node_code.like("vas\\_%", escape="\\"),
             MasVaCauseDefinition.is_active.is_(True),
         )
+        .order_by(MapIcdCodBucket.age_scope.nullsfirst(), MasVaCauseDefinition.va_code)
     ).all()
     if not matches:
         return None
-    # ponytail: if a code maps to different causes per age scope, the first
-    # row wins; pass the deceased's age scope if schemes ever split that way.
+    # Age-neutral mappings take precedence; ties have stable VA-code ordering.
     _, row = min(matches, key=lambda m: candidates.index(m[0]))
     return {
         "icd_code": code,

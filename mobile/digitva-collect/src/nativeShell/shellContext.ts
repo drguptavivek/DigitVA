@@ -23,6 +23,8 @@ export interface Shell {
   closeSheet(): void;
   /** The interviewer the current screen belongs to (route param `userId`), when it is a known account. */
   userId: string | undefined;
+  /** Server of the selected server account; unavailable when signed out or the enrolment does not match. */
+  server?: string;
   sync: SyncStatus;
   sendNow(): Promise<void>;
   /** Count the phone's unsent work again (a screen that sent or saved work calls it). */

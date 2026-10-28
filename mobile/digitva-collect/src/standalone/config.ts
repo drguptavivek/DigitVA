@@ -10,3 +10,6 @@ export const BACKUP_REMINDER_DAYS = 7;
 
 /** DigitVA extensions a standalone interview enables; the owner default is none (equity joins once it ships). */
 export const STANDALONE_DEFAULT_EXTENSIONS: readonly string[] = [];
+
+/** SmartVA form options are explicit and fixed for standalone interviews. */
+export const STANDALONE_SMARTVA_DEFAULTS = { hce: true, freetext: true } as const;

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "options": {
+    "country": "IND",
+    "hiv": true,
+    "malaria": true,
+    "hce": true,
+    "freetext": true
+  },
+  "source_mapping": "vendor/smartva-analyze/rust/src/data/who_data.rs",
+  "cases": [
+    {
+      "id": "adult",
+      "input": {
+        "sid": "SYNTHETIC-adult",
+        "Id10013": "yes",
+        "Id10019": "male",
+        "ageInYears": "62",
+        "Id10147": "yes",
+        "Id10148": "14",
+        "Id10134": "yes"
+      }
+    },
+    {
+      "id": "child",
+      "input": {
+        "sid": "SYNTHETIC-child",
+        "Id10013": "yes",
+        "Id10019": "male",
+        "ageInYears": "4",
+        "Id10147": "yes",
+        "Id10148": "14",
+        "Id10267": "yes"
+      }
+    },
+    {
+      "id": "neonate",
+      "input": {
+        "sid": "SYNTHETIC-neonate",
+        "Id10013": "yes",
+        "Id10019": "male",
+        "ageInDaysNeonate": "7",
+        "Id10147": "yes",
+        "Id10148": "14",
+        "Id10159": "yes",
+        "Id10286": "yes"
+      }
+    }
+  ]
+}

@@ -97,4 +97,25 @@ describe("stage-engine source selection", () => {
     const out = execFileSync(process.execPath, [STAGE, "--list", spike], { encoding: "utf8" });
     expect(out.trim().split("\n")).toEqual(engineFiles(spike));
   });
+
+  it("keeps native initialization and update requests bundled-only", () => {
+    const android = path.join(__dirname, "..", "modules", "digitva-icd11", "android", "src", "main", "java", "expo", "modules", "digitvaicd11");
+    const host = fs.readFileSync(path.join(android, "EngineHost.kt"), "utf8");
+    const data = fs.readFileSync(path.join(android, "EngineData.kt"), "utf8");
+    const service = fs.readFileSync(path.join(android, "Icd11Service.kt"), "utf8");
+    expect(data).toContain('const val DATA_VERSION = "2026-01-17-doris-1.2.0-v4"');
+    expect(data).toContain("fun repair(context: Context, root: File, shipped: Map<String, WhoFile>): Repair");
+    expect(host).toContain("guardNetwork()\n      val recordSetup");
+    expect(host).not.toMatch(/loadOpenSsl|initWithBudget|isOnline\(/);
+    expect(host.indexOf("      guardNetwork()")).toBeLessThan(host.indexOf("EngineJni.initEngine("));
+    expect(service).toContain('mapOf("ok" to false, "error" to "bundled_only")');
+    expect(service).not.toMatch(/requestRefresh|refreshWhoFiles|Process\.killProcess/);
+  });
+
+  it("keeps the engine diagnostic run and removes the WHO update action", () => {
+    const screen = fs.readFileSync(path.join(__dirname, "..", "src", "nativeRoutes", "engineCheck.tsx"), "utf8");
+    expect(screen).toContain("engineCheckAutoRun(run, smartva)");
+    expect(screen).toContain("WHO ICD-11 and DORIS data are included with app updates.");
+    expect(screen).not.toMatch(/updateWhoFiles|Update WHO files|\?update=1|update ===/);
+  });
 });

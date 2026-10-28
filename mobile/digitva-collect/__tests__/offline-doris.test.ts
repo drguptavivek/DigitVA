@@ -144,6 +144,7 @@ describe("onCodeInfo / onSelectionCheck", () => {
         uri: "http://id.who.int/icd/entity/1334938734",
         release: "2026-01",
         postcoordination: false,
+        primary_stem: "BA41.Z",
       },
     });
   });
@@ -156,6 +157,16 @@ describe("onCodeInfo / onSelectionCheck", () => {
     }), memoryStore());
     const reply = await editor.onCodeInfo("1B12.2&XA0G74");
     expect(reply.item.uri).toBe("http://id.who.int/icd/entity/1 & http://id.who.int/icd/entity/2");
+  });
+
+  it("exposes WHO's causing-condition primary stem for a slash cluster", async () => {
+    const editor = createOfflineDorisEditor(engineWithCodeinfo({
+      "1A00/GB00": { code: "1A00/GB00", stemCode: "1A00", stemId: "http://id.who.int/icd/entity/1", title: "Cluster", hasCausingCondition: ["GB00"] },
+      "1A00": { code: "1A00", stemId: "http://id.who.int/icd/entity/1", title: "A" },
+      "GB00": { code: "GB00", stemId: "http://id.who.int/icd/entity/2", title: "B" },
+    }), memoryStore());
+    const reply = await editor.onCodeInfo("1A00/GB00");
+    expect(reply.item.primary_stem).toBe("GB00");
   });
 
   it("throws an unknown-code error when WHO does not know the code, the title, or the URI", async () => {

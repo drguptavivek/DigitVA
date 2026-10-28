@@ -387,10 +387,12 @@ the form menus label the questionnaire language separately.
 The native app blocks screenshots and screen recording (`FLAG_SECURE`, applied
 at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
 
-- Temporary, owner decision 2026-10-23: builds made with
-  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL=2026-10-30` allow screenshots for field
-  testing until that date (exclusive, device clock). The same installed APK
-  blocks again automatically afterwards. A date more than 14 days past app
+- Temporary, owner update 2026-10-28 (`digitva-hs7e.14`): standard and Plus
+  Android builds made with
+  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL=2026-11-25T08:12:11Z` allow screenshots for
+  four weeks, until that instant (exclusive, device clock). This supersedes
+  the earlier 30 October expiry and fourteen-day cap. The same installed APK
+  blocks again automatically afterwards. A date more than 28 days past app
   start, or an invalid or unset value, keeps the block. Remove the setting from
   builds after expiry.
 

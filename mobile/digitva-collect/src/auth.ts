@@ -24,6 +24,7 @@
  * and biometric entries (owner decision 2026-10-27).
  */
 import * as SecureStore from "expo-secure-store";
+import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
@@ -40,7 +41,9 @@ import {
   type RawApiResponse,
 } from "./api";
 import { accountServerChanged, lacksServer, UNKNOWN_SERVER } from "./accountServer";
-import { AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { accountStoreIdentityIsInSelectedMode, accountStoreIdentityMode, assertAccountIdentityCanBeStored, assertAccountStoreIdentitySafe, loadAccountsForSlot } from "./accountStoreIdentity";
+import { acceptedServerOrigin, DEMO_SERVER, EnrolmentError } from "./enrolment";
+import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import type { UnlockResult } from "./interviewerDb";
 import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
@@ -48,7 +51,7 @@ import { attachmentMediaKind } from "./workspace/media/path";
 import { offlineCodingProjectIds } from "./codingCapabilities";
 import { flushPerformanceTelemetry } from "./performanceTelemetry";
 
-export { AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
+export { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 
 export interface Device {
   device_id: string;
@@ -71,6 +74,8 @@ export interface Account {
   coding_access?: boolean;
   /** Project ids where self-coding and an active coder grant permit local coding. */
   offline_coding_access?: string[];
+  /** Digest of the last validated coding scope; display cache only, never authorization. */
+  coding_history_access?: string;
   reviewing_access?: boolean;
   /** The server refused the refresh token without revoking: sign in again, data kept. */
   needs_sign_in?: boolean;
@@ -109,6 +114,7 @@ const ACCOUNTS_KEY = "accounts";
  */
 const ACTIVE_SLOT_KEY = "active_slot";
 export type Slot = "active" | "demo";
+let activeSlotGeneration = 0;
 const tokensKey = (userId: string) => `tokens.${userId}`;
 const OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
@@ -118,6 +124,13 @@ const termsListeners = new Set<() => void>();
 const accountListeners = new Set<() => void>();
 const accessListeners = new Set<(userId: string, access: AccessSummary) => Promise<void> | void>();
 const accessRefreshes = new Map<string, Promise<AccessSummary | undefined>>();
+let accountStorageQueue: Promise<void> = Promise.resolve();
+
+function serializeAccountStorage<T>(write: () => Promise<T>): Promise<T> {
+  const queued = accountStorageQueue.then(write);
+  accountStorageQueue = queued.then(() => undefined, () => undefined);
+  return queued;
+}
 /** Notify the native provider when a bearer response changes the terms gate. */
 export function subscribeTermsChanges(listener: () => void): () => void {
   termsListeners.add(listener);
@@ -159,10 +172,25 @@ export async function loadActiveSlot(): Promise<Slot> {
 }
 
 /** Choose the slot every reader below uses. Active deletes the key, leaving the store as before slots. */
-export const setActiveSlot = (slot: Slot) =>
-  slot === "demo"
+export const setActiveSlot = (slot: Slot) => {
+  activeSlotGeneration += 1;
+  return slot === "demo"
     ? SecureStore.setItemAsync(ACTIVE_SLOT_KEY, slot, OPTIONS)
     : SecureStore.deleteItemAsync(ACTIVE_SLOT_KEY, OPTIONS);
+};
+
+async function assertSlotGeneration(slot: Slot, generation: number): Promise<void> {
+  if (generation !== activeSlotGeneration) throw new NotInSlotError();
+  const selected = await loadActiveSlot();
+  if (generation !== activeSlotGeneration || selected !== slot) throw new NotInSlotError();
+}
+
+async function selectedSlotSnapshot(): Promise<{ slot: Slot; generation: number }> {
+  const generation = activeSlotGeneration;
+  const slot = await loadActiveSlot();
+  await assertSlotGeneration(slot, generation);
+  return { slot, generation };
+}
 
 /** `base` as the given slot stores it: Active keeps today's name, Demo prefixes `demo.`. */
 export const slotKey = (slot: Slot, base: string) => (slot === "demo" ? `demo.${base}` : base);
@@ -174,7 +202,35 @@ export const loadDevice = async (slot?: Slot) =>
 const loadDeviceSecret = async (slot?: Slot) =>
   SecureStore.getItemAsync(slotKey(slot ?? (await loadActiveSlot()), DEVICE_SECRET_KEY), OPTIONS);
 export const loadAccounts = async (slot?: Slot) =>
-  (await readJson<Account[]>(slotKey(slot ?? (await loadActiveSlot()), ACCOUNTS_KEY))) ?? [];
+  await loadAccountsForSlot(slot ?? (await loadActiveSlot())) as Account[];
+
+async function loadTokens(userId: string): Promise<Tokens | undefined> {
+  if (!(await accountStoreIdentityIsInSelectedMode(userId))) return undefined;
+  return readJson<Tokens>(tokensKey(userId));
+}
+
+/**
+ * Standalone is available only after every server account in both slots was explicitly signed out.
+ * Expiry, locking and access refusals do not count as logout; unreadable account storage refuses access.
+ */
+export async function standaloneModeAvailable(): Promise<boolean> {
+  try {
+    const stored = await Promise.all((["active", "demo"] as const)
+      .map((slot) => SecureStore.getItemAsync(slotKey(slot, ACCOUNTS_KEY), OPTIONS)));
+    return stored.every((raw) => {
+      const accounts: unknown = raw === null ? [] : JSON.parse(raw);
+      return Array.isArray(accounts) && accounts.every((account: unknown) =>
+        typeof account === "object" && account !== null &&
+        "user_id" in account && typeof account.user_id === "string" &&
+        "name" in account && typeof account.name === "string" &&
+        (("standalone" in account && account.standalone === true) ||
+          ("signed_out" in account && account.signed_out === true)),
+      );
+    });
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Read, change and write one slot's accounts, never the other's. `change`
@@ -273,8 +329,11 @@ function schedulePerformanceTelemetryFlush(userId: string): void {
 }
 
 async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary | undefined> {
+  const mode = await accountStoreIdentityMode(userId);
+  if (mode === "other") throw new NotInSlotError();
+  if (mode === "missing") return undefined;
   const device = await loadDevice();
-  const tokens = await readJson<Tokens>(tokensKey(userId));
+  const tokens = await loadTokens(userId);
   if (!device || !tokens) return undefined;
   try {
     const { body } = await authedRequest<unknown>(userId, "/api/v1/me/access");
@@ -303,8 +362,11 @@ async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary |
 
 /** Refresh access when an action depends on fresh authorization; offline is not a grant. */
 export async function refreshAccessSummaryForAction(userId: string): Promise<AccessSummary> {
+  const mode = await accountStoreIdentityMode(userId);
+  if (mode === "other") throw new NotInSlotError();
+  if (mode === "missing") throw new ApiError(401, "unauthorized");
   const device = await loadDevice();
-  const tokens = await readJson<Tokens>(tokensKey(userId));
+  const tokens = await loadTokens(userId);
   if (!device || !tokens) throw new ApiError(401, "unauthorized");
   const { body } = await authedRequest<unknown>(userId, "/api/v1/me/access");
   const access = await publishAccessSummary(userId, body);
@@ -330,6 +392,7 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
     access.roles.some((role) => role === "coder" || role === "coding_tester"),
     access.roles.includes("reviewer"),
     offlineCodingProjectIds(access),
+    await digestStringAsync(CryptoDigestAlgorithm.SHA256, JSON.stringify({ roles: access.roles, projects: access.projects })),
   );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
@@ -343,17 +406,19 @@ async function setAccountAccess(
   coding: boolean,
   reviewing: boolean,
   offlineCoding: string[],
+  codingHistoryAccess?: string,
 ): Promise<void> {
   const changed = await updateAccountsOf(userId, (accounts) => {
     if (!accounts.some((account) => account.user_id === userId &&
         (account.collection_access !== collection || account.registration_access !== registration ||
           account.registered_deaths_access !== registeredDeaths || account.coding_access !== coding ||
           account.reviewing_access !== reviewing ||
+          account.coding_history_access !== codingHistoryAccess ||
           JSON.stringify(account.offline_coding_access ?? []) !== JSON.stringify(offlineCoding)))) return undefined;
     return accounts.map((account) => account.user_id === userId
       ? { ...account, collection_access: collection, registration_access: registration,
         registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing,
-        offline_coding_access: offlineCoding }
+        offline_coding_access: offlineCoding, coding_history_access: codingHistoryAccess }
       : account);
   });
   if (!changed) return;
@@ -495,8 +560,9 @@ export async function signIn(
   password: string,
   slot?: Slot,
 ): Promise<Account> {
-  if (slot !== undefined && slot !== (await loadActiveSlot())) throw new NotInSlotError();
-  slot ??= await loadActiveSlot();
+  const snapshot = await selectedSlotSnapshot();
+  if (slot !== undefined && slot !== snapshot.slot) throw new NotInSlotError();
+  slot ??= snapshot.slot;
   const device = await loadDevice(slot);
   const secret = await loadDeviceSecret(slot);
   if (!device || !secret) throw new Error("not_enrolled");
@@ -512,10 +578,55 @@ export async function signIn(
       app_version: APP_VERSION,
     },
   });
-  return storeSession(slot, device.server, body);
+  return storeSession(slot, device.server, body, snapshot.generation);
 }
 
 type SessionBody = Tokens & { user: { user_id: string; name: string; email?: string | null }; access: unknown };
+
+/**
+ * Enrol and sign in to Active with account credentials on an accepted server.
+ * Refuses the public Demo server, an occupied Active slot or Demo mode before
+ * sending credentials; a failed or malformed reply stores nothing. The caller locks every store first.
+ */
+export async function passwordEnrolAndSignIn(
+  server: string,
+  identifier: string,
+  password: string,
+  deviceName: string,
+  appVersion: string,
+): Promise<Account> {
+  const origin = acceptedServerOrigin(server, __DEV__);
+  if (!origin || origin === DEMO_SERVER) throw new EnrolmentError("errServerNotAllowed");
+  const snapshot = await selectedSlotSnapshot();
+  if (snapshot.slot !== "active") throw new NotInSlotError();
+  await refuseEnrolled("active");
+  if (!identifier.trim() || !password) throw new ApiError(400, "invalid_request");
+  const { body } = await requestJson<EnrolReply & SessionBody>(origin, `${AUTH_API}/password-enroll`, {
+    method: "POST",
+    body: {
+      identifier: identifier.trim(),
+      password,
+      device_name: deviceName,
+      platform: Platform.OS === "ios" ? "ios" : "android",
+      app_version: appVersion,
+      ...(await clientDeviceUuid()),
+    },
+  });
+  if (!body || typeof body.device_id !== "string" || !body.device_id ||
+    typeof body.device_secret !== "string" || !body.device_secret ||
+    typeof body.project?.project_id !== "string" || typeof body.project.name !== "string" ||
+    typeof body.user?.user_id !== "string" || !body.user.user_id || typeof body.user.name !== "string" ||
+    typeof body.access_token !== "string" || !body.access_token ||
+    typeof body.refresh_token !== "string" || !body.refresh_token ||
+    typeof body.access_expires_at !== "string" || !Number.isFinite(Date.parse(body.access_expires_at)) ||
+    typeof body.refresh_expires_at !== "string" || !Number.isFinite(Date.parse(body.refresh_expires_at)) ||
+    (body.terms_required !== undefined && typeof body.terms_required !== "boolean")) {
+    throw new ApiError(200, "malformed_response");
+  }
+  const access = parseAccessSummary(body.access);
+  if (access.user.user_id !== body.user.user_id) throw new ApiError(200, "malformed_response");
+  return storeEnrolledSession("active", origin, { ...body, access }, snapshot);
+}
 
 /**
  * POST /sign-in-qr/redeem: one scan enrols this phone and opens the QR's user's
@@ -529,6 +640,7 @@ export async function redeemSignInQr(
   deviceName: string,
   appVersion: string,
 ): Promise<Account> {
+  const snapshot = await selectedSlotSnapshot();
   // Before the request, so a refusal does not spend the one-time token.
   await refuseEnrolled("active");
   const { body } = await requestJson<EnrolReply & SessionBody>(server, `${AUTH_API}/sign-in-qr/redeem`, {
@@ -541,8 +653,7 @@ export async function redeemSignInQr(
       ...(await clientDeviceUuid()),
     },
   });
-  await storeEnrolment("active", server, body);
-  return storeSession("active", server, body);
+  return storeEnrolledSession("active", server, body, snapshot);
 }
 
 /**
@@ -550,20 +661,64 @@ export async function redeemSignInQr(
  * sign-in QR redeem alike) in `slot`, the account bound to `server`. Throws
  * NotInSlotError and keeps nothing when `slot` is no longer the chosen one.
  */
-async function storeSession(slot: Slot, server: string, body: SessionBody): Promise<Account> {
-  if ((await loadActiveSlot()) !== slot) throw new NotInSlotError();
+async function storeSession(slot: Slot, server: string, body: SessionBody, generation: number): Promise<Account> {
+  return serializeAccountStorage(() => storeSessionSerialized(slot, server, body, generation));
+}
+
+async function storeEnrolledSession(
+  slot: Slot,
+  server: string,
+  body: EnrolReply & SessionBody,
+  snapshot: { slot: Slot; generation: number },
+): Promise<Account> {
+  return serializeAccountStorage(async () => {
+    await assertSlotGeneration(snapshot.slot, snapshot.generation);
+    const userId = String(body.user.user_id);
+    const accounts = await loadAccounts(slot);
+    await assertAccountIdentityCanBeStored(userId, slot, server, false);
+    if (!accounts.some((item) => item.user_id === userId) &&
+      await SecureStore.getItemAsync(tokensKey(userId), OPTIONS) !== null) {
+      throw new AccountStoreCollisionError();
+    }
+    await assertSlotGeneration(snapshot.slot, snapshot.generation);
+    const generationAfterEnrolment = activeSlotGeneration + 1;
+    await storeEnrolment(slot, server, body);
+    if (generationAfterEnrolment !== activeSlotGeneration) throw new NotInSlotError();
+    return storeSessionSerialized(slot, server, body, generationAfterEnrolment);
+  });
+}
+
+async function storeSessionSerialized(slot: Slot, server: string, body: SessionBody, generation: number): Promise<Account> {
+  await assertSlotGeneration(slot, generation);
+  const device = await loadDevice(slot);
   const account: Account = {
     user_id: String(body.user.user_id),
     name: body.user.name,
     server,
     ...(body.terms_required ? { terms_required: true } : {}),
   };
+  await assertAccountIdentityCanBeStored(account.user_id, slot, server, false, device?.server);
   let existingAccounts: Account[] = [];
-  await saveTokens(account.user_id, body);
+  const beforeWrite = await loadAccounts(slot);
+  if (!beforeWrite.some((item) => item.user_id === account.user_id) &&
+    await SecureStore.getItemAsync(tokensKey(account.user_id), OPTIONS) !== null) {
+    throw new AccountStoreCollisionError();
+  }
+  await assertSlotGeneration(slot, generation);
   await updateAccounts(slot, (accounts) => {
     existingAccounts = accounts;
-    return [...accounts.filter((a) => a.user_id !== account.user_id), account];
+    const pending = { ...account, needs_sign_in: true, signed_out: true };
+    return [...accounts.filter((a) => a.user_id !== account.user_id), pending];
   });
+  await assertSlotGeneration(slot, generation);
+  await assertAccountIdentityCanBeStored(account.user_id, slot, server, false, device?.server);
+  await assertSlotGeneration(slot, generation);
+  await writeTokensUnchecked(account.user_id, body);
+  await updateAccounts(slot, (accounts) =>
+    accounts.some((item) => item.user_id === account.user_id)
+      ? accounts.map((item) => item.user_id === account.user_id ? account : item)
+      : undefined,
+  );
   await Promise.all(
     [...new Set([...existingAccounts.map(({ user_id }) => user_id), account.user_id])]
       .map((userId) => resetNotificationState(userId)),
@@ -572,59 +727,89 @@ async function storeSession(slot: Slot, server: string, body: SessionBody): Prom
   return account;
 }
 
-function saveTokens(userId: string, t: Tokens): Promise<void> {
+async function writeTokensUnchecked(userId: string, t: Tokens): Promise<void> {
   const tokens: Tokens = {
     access_token: t.access_token,
     access_expires_at: t.access_expires_at,
     refresh_token: t.refresh_token,
     refresh_expires_at: t.refresh_expires_at,
   };
-  return writeJson(tokensKey(userId), tokens);
+  await writeJson(tokensKey(userId), tokens);
+}
+
+async function saveTokens(
+  userId: string,
+  t: Tokens,
+  slot: Slot,
+  server: string,
+  expectedRefreshToken: string,
+): Promise<void> {
+  await serializeAccountStorage(async () => {
+    if (!(await loadAccounts(slot)).some((account) => account.user_id === userId)) throw new NotInSlotError();
+    await assertAccountIdentityCanBeStored(userId, slot, server, false, server);
+    const current = await readJson<Tokens>(tokensKey(userId));
+    if (current?.refresh_token !== expectedRefreshToken) throw new SignInRequiredError();
+    await writeTokensUnchecked(userId, t);
+  });
 }
 
 /**
  * Path C: keep a local standalone account (no server, no tokens) in the Active slot, and choose Active.
  * Idempotent: an existing entry is returned unchanged. Collection access is granted locally because nothing
- * can refresh it. Standalone setup is offered only while Active is chosen (src/nativeRoutes/enrol.tsx).
+ * can refresh it. Requires Active and explicit logout of every server account in both slots.
+ * Throws standalone_server_session_active before writing when a server account has not signed out.
  */
 export async function createStandaloneAccount(userId: string, name: string): Promise<Account> {
-  // Standalone accounts belong to Active; switching here would skip the lock, so Demo refuses (setup is hidden there).
-  if ((await loadActiveSlot()) === "demo") throw new NotInSlotError();
-  const account: Account = {
-    user_id: userId, name, standalone: true,
-    collection_access: true, registration_access: false, registered_deaths_access: false,
-    coding_access: false, reviewing_access: false,
-  };
-  let existing: Account | undefined;
-  await updateAccounts("active", (accounts) => {
-    existing = accounts.find((a) => a.user_id === userId);
-    return existing ? undefined : [...accounts, account];
+  return serializeAccountStorage(async () => {
+    const snapshot = await selectedSlotSnapshot();
+    // Standalone accounts belong to Active; switching here would skip the lock, so Demo refuses.
+    if (snapshot.slot === "demo") throw new NotInSlotError();
+    if (!(await standaloneModeAvailable())) throw new Error("standalone_server_session_active");
+    await assertAccountIdentityCanBeStored(userId, "active", undefined, true);
+    await assertSlotGeneration("active", snapshot.generation);
+    const account: Account = {
+      user_id: userId, name, standalone: true,
+      collection_access: true, registration_access: false, registered_deaths_access: false,
+      coding_access: false, reviewing_access: false,
+    };
+    let existing: Account | undefined;
+    await assertSlotGeneration("active", snapshot.generation);
+    await updateAccounts("active", (accounts) => {
+      existing = accounts.find((a) => a.user_id === userId);
+      return existing ? undefined : [...accounts, account];
+    });
+    if (existing) return existing;
+    for (const listener of accountListeners) listener();
+    return account;
   });
-  if (existing) return existing;
-  for (const listener of accountListeners) listener();
-  return account;
 }
 
 /** Wipe one interviewer: database, tokens, account entry. Nobody else's. */
 export async function wipeInterviewer(userId: string): Promise<void> {
-  const clearNotifications = clearNotificationState(userId);
-  const { deleteInterviewerDb } = require("./interviewerDb") as typeof import("./interviewerDb");
-  await deleteInterviewerDb(userId);
-  await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
-  await updateAccountsOf(userId, (accounts) => accounts.filter((a) => a.user_id !== userId));
-  await clearNotifications;
+  await serializeAccountStorage(async () => {
+    await assertAccountStoreIdentitySafe(userId);
+    const clearNotifications = clearNotificationState(userId);
+    const { deleteInterviewerDb } = require("./interviewerDb") as typeof import("./interviewerDb");
+    await deleteInterviewerDb(userId);
+    await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
+    await updateAccountsOf(userId, (accounts) => accounts.filter((a) => a.user_id !== userId));
+    await clearNotifications;
+  });
 }
 
 /** The server refused this interviewer's refresh without revoking: drop the dead tokens, flag the account, keep its data. */
 async function markSignInRequired(userId: string, accessRemoved = false): Promise<void> {
-  await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
-  await updateAccountsOf(userId, (accounts) =>
-    accounts.map((a) =>
-      a.user_id === userId
-        ? { ...a, needs_sign_in: true, ...(accessRemoved ? { access_removed: true } : {}) }
-        : a,
-    ),
-  );
+  await serializeAccountStorage(async () => {
+    await assertAccountStoreIdentitySafe(userId);
+    await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
+    await updateAccountsOf(userId, (accounts) =>
+      accounts.map((a) =>
+        a.user_id === userId
+          ? { ...a, needs_sign_in: true, ...(accessRemoved ? { access_removed: true } : {}) }
+          : a,
+      ),
+    );
+  });
 }
 
 /**
@@ -669,11 +854,14 @@ export async function signOut(userId: string): Promise<void> {
   // Re-enrolment signs out before it forgets the device: bind legacy accounts while the server is known.
   await bindLegacyAccounts();
   await endServerSession(userId);
-  await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
-  await updateAccountsOf(userId, (accounts) =>
-    accounts.map((a) => (a.user_id === userId ? { ...a, needs_sign_in: true, signed_out: true } : a)),
-  );
-  for (const listener of accountListeners) listener();
+  await serializeAccountStorage(async () => {
+    await assertAccountStoreIdentitySafe(userId);
+    await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
+    await updateAccountsOf(userId, (accounts) =>
+      accounts.map((a) => (a.user_id === userId ? { ...a, needs_sign_in: true, signed_out: true } : a)),
+    );
+    for (const listener of accountListeners) listener();
+  });
 }
 
 /**
@@ -741,7 +929,7 @@ export async function getAuthenticatedAttachmentSource(
   const usable = (account: Account) => !account.needs_sign_in && !account.terms_required && !account.access_blocked;
   const [first, tokens] = await Promise.all([
     deviceFor(userId).catch(() => undefined),
-    readJson<Tokens>(tokensKey(userId)),
+    loadTokens(userId),
   ]);
   if (!first || !tokens?.access_token || !usable(first.account)) throw new SignInRequiredError();
   const { device } = first;
@@ -751,14 +939,19 @@ export async function getAuthenticatedAttachmentSource(
   if (pendingRefresh) current = await pendingRefresh;
   const expiresAt = Date.parse(current.access_expires_at);
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 60_000) {
-    current = await refresh(userId, device.server);
+    try {
+      current = await refresh(userId, device.server);
+    } catch (error) {
+      if (error instanceof NotInSlotError) throw new SignInRequiredError();
+      throw error;
+    }
   }
   const refreshedExpiry = Date.parse(current.access_expires_at);
   if (!Number.isFinite(refreshedExpiry) || refreshedExpiry <= Date.now()) throw new SignInRequiredError();
 
   const [latest, latestTokens] = await Promise.all([
     deviceFor(userId).catch(() => undefined),
-    readJson<Tokens>(tokensKey(userId)),
+    loadTokens(userId),
   ]);
   if (!latest || latest.device.device_id !== device.device_id || latest.device.server !== device.server
     || !latestTokens?.access_token || !usable(latest.account)) {
@@ -783,13 +976,16 @@ function refresh(userId: string, server: string): Promise<Tokens> {
 }
 
 async function doRefresh(userId: string, server: string): Promise<Tokens> {
-  const current = await readJson<Tokens>(tokensKey(userId));
+  const snapshot = await selectedSlotSnapshot();
+  const current = await loadTokens(userId);
   if (!current) throw new SignInRequiredError();
   // Device, account and secret from one slot. A switch since the caller read the server, or an account bound
   // to another server: never send this slot's device secret or the refresh token to the wrong server.
   const { slot, device } = await deviceFor(userId);
+  if (slot !== snapshot.slot) throw new NotInSlotError();
   if (device.server !== server) throw new NotInSlotError();
   const secret = await loadDeviceSecret(slot);
+  await assertSlotGeneration(snapshot.slot, snapshot.generation);
   try {
     const { body } = await requestJson<Tokens & { access: unknown }>(
       server,
@@ -804,7 +1000,9 @@ async function doRefresh(userId: string, server: string): Promise<Tokens> {
         },
       },
     );
-    await saveTokens(userId, body);
+    // Once sent, a refresh response remains bound to the slot and origin that issued it. The queued save
+    // revalidates that binding and the rotated-token predecessor, even if the user switches slots meanwhile.
+    await saveTokens(userId, body, slot, device.server, current.refresh_token);
     refreshingAccessTokens.set(userId, body.access_token);
     await setTermsRequired(userId, body.terms_required === true);
     await publishAccessSummary(userId, body.access);
@@ -866,7 +1064,7 @@ export async function authedRequest<T>(
   } = {},
 ): Promise<{ status: number; body: T }> {
   const { device } = await deviceFor(userId);
-  const tokens = await readJson<Tokens>(tokensKey(userId));
+  const tokens = await loadTokens(userId);
   if (!tokens) throw new SignInRequiredError();
   const { bodyFactory, ...requestInit } = init;
   const initialBody = bodyFactory ? bodyFactory() : requestInit.body;
@@ -884,7 +1082,7 @@ export async function authedRequest<T>(
       throw await classifyAuthError(userId, error);
     unauthorized = error;
   }
-  const latest = await readJson<Tokens>(tokensKey(userId));
+  const latest = await loadTokens(userId);
   if (tokens.access_token === refreshingAccessTokens.get(userId)) {
     throw await classifyAuthError(userId, unauthorized);
   }
@@ -910,7 +1108,7 @@ export async function authedRawRequest(
   init: { ifNoneMatch?: string; acceptGzip?: boolean; timeoutMs?: number } = {},
 ): Promise<RawApiResponse> {
   const { device } = await deviceFor(userId);
-  const tokens = await readJson<Tokens>(tokensKey(userId));
+  const tokens = await loadTokens(userId);
   if (!tokens) throw new SignInRequiredError();
   try {
     return await requestRaw(device.server, path, { ...init, token: tokens.access_token });
@@ -918,7 +1116,7 @@ export async function authedRawRequest(
     if (!(error instanceof ApiError) || error.status !== 401) throw await classifyAuthError(userId, error);
     if (error.code === "session_revoked") throw await classifyAuthError(userId, error);
   }
-  const latest = await readJson<Tokens>(tokensKey(userId));
+  const latest = await loadTokens(userId);
   const next = latest && latest.access_token !== tokens.access_token
     ? latest
     : await refresh(userId, device.server);

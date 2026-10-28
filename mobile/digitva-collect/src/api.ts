@@ -61,15 +61,40 @@ export interface AccessProject {
   project_id: string;
   project_name: string;
   has_tree: boolean;
+  settings?: {
+    web_intake_mode: "off" | "direct" | "death_register" | "both";
+    coding_scope: { level_code: string; above_mode: string } | null;
+  };
   /** Server rule: supervisor here and the project registers deaths (mode death_register or both). */
   supervises_deaths?: boolean;
   grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean; active: boolean; source: "assigned" | "self_coding" }>;
   sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
   actions: { interview: AccessActionContext[]; register_death: AccessActionContext[] };
+  /** Exact SmartVA snapshot for authorized interview site/unit targets. */
+  smartva_targets?: SmartVaTarget[];
   /** Project-owned self-coding setting; absent on older servers/fixtures. */
-  self_coding?: { enabled: boolean; code_now?: boolean };
+  self_coding?: {
+    enabled: boolean;
+    code_now?: boolean;
+    /** Absent on older servers; local ICD-11 editing requires this explicit projection. */
+    offline_coding?: {
+      enabled: boolean;
+      project_mode: string;
+      icd_classification: string;
+    };
+  };
   units?: AccessUnit[];
   levels?: Array<{ level_code: string; level_name: string; depth: number }>;
+}
+
+export interface SmartVaTarget {
+  schema_version: 1;
+  site_id: string;
+  org_unit_id: string | null;
+  form_id: string;
+  form_updated_at: string;
+  options: { country: string; hiv: boolean; malaria: boolean; hce: boolean; freetext: boolean };
+  options_digest: `sha256:${string}`;
 }
 
 export interface AccessActionContext {
@@ -87,6 +112,21 @@ function isAccessActionContext(entry: unknown): entry is AccessActionContext {
       ["org_unit_id", "unit_code", "unit_name", "path"].every((field) => typeof unit[field] === "string"));
 }
 
+export function isSmartVaTarget(value: unknown): value is SmartVaTarget {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const target = value as Record<string, unknown>;
+  const options = target.options;
+  const timestamp = target.form_updated_at;
+  return target.schema_version === 1 && typeof target.site_id === "string" && target.site_id.length > 0 &&
+    (target.org_unit_id === null || (typeof target.org_unit_id === "string" && target.org_unit_id.length > 0)) &&
+    typeof target.form_id === "string" && target.form_id.length > 0 && typeof timestamp === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp) &&
+    Number.isFinite(Date.parse(timestamp)) && typeof options === "object" && options !== null && !Array.isArray(options) &&
+    typeof (options as Record<string, unknown>).country === "string" && !!(options as Record<string, unknown>).country &&
+    ["hiv", "malaria", "hce", "freetext"].every((key) => typeof (options as Record<string, unknown>)[key] === "boolean") &&
+    typeof target.options_digest === "string" && /^sha256:[a-f0-9]{64}$/.test(target.options_digest);
+}
+
 /** The Training sub-menus (docs/policy/training-demo-project.md); each opens for the training roles listed there. */
 export type TrainingArea = "interview" | "coding" | "review";
 
@@ -102,7 +142,7 @@ export interface TrainingAccess {
 }
 
 export interface AccessSummary {
-  user: { user_id: string; name: string };
+  user: { user_id: string; name: string; coding_languages?: string[] };
   is_admin: boolean;
   roles: string[];
   demo_coding: { available: boolean; project_ids: string[] };
@@ -126,13 +166,31 @@ export function parseAccessSummary(value: unknown): AccessSummary {
   if (!record(value) || !record(value.user) || typeof value.user.user_id !== "string" || typeof value.user.name !== "string" ||
       typeof value.is_admin !== "boolean" || !record(value.demo_coding) || typeof value.demo_coding.available !== "boolean" ||
       !strings(value.roles) || !strings(value.demo_coding.project_ids) || !Array.isArray(value.projects)) throw new ApiError(200, "malformed_response");
+  if (value.user.coding_languages !== undefined && !strings(value.user.coding_languages)) throw new ApiError(200, "malformed_response");
   for (const project of value.projects) {
     if (!record(project) || typeof project.project_id !== "string" || typeof project.project_name !== "string" ||
         typeof project.has_tree !== "boolean" || !Array.isArray(project.grants) || !Array.isArray(project.sites) ||
         !record(project.actions) || !Array.isArray(project.actions.interview) || !Array.isArray(project.actions.register_death)) throw new ApiError(200, "malformed_response");
+    if (project.settings !== undefined &&
+        (!record(project.settings) || !["off", "direct", "death_register", "both"].includes(String(project.settings.web_intake_mode)) ||
+          !(project.settings.coding_scope === null || (record(project.settings.coding_scope) &&
+            typeof project.settings.coding_scope.level_code === "string" && typeof project.settings.coding_scope.above_mode === "string")))) {
+      throw new ApiError(200, "malformed_response");
+    }
     if (project.self_coding !== undefined &&
         (!record(project.self_coding) || typeof project.self_coding.enabled !== "boolean" ||
           (project.self_coding.code_now !== undefined && typeof project.self_coding.code_now !== "boolean"))) {
+      throw new ApiError(200, "malformed_response");
+    }
+    if (project.smartva_targets !== undefined &&
+        (!Array.isArray(project.smartva_targets) || !project.smartva_targets.every(isSmartVaTarget))) {
+      throw new ApiError(200, "malformed_response");
+    }
+    if (record(project.self_coding) && project.self_coding.offline_coding !== undefined &&
+        (!record(project.self_coding.offline_coding) ||
+          typeof project.self_coding.offline_coding.enabled !== "boolean" ||
+          typeof project.self_coding.offline_coding.project_mode !== "string" ||
+          typeof project.self_coding.offline_coding.icd_classification !== "string")) {
       throw new ApiError(200, "malformed_response");
     }
     for (const grant of project.grants) {
@@ -158,6 +216,27 @@ export function parseAccessSummary(value: unknown): AccessSummary {
     }
     if (Array.isArray(project.levels)) for (const level of project.levels) {
       if (!record(level) || typeof level.level_code !== "string" || typeof level.level_name !== "string" || typeof level.depth !== "number") throw new ApiError(200, "malformed_response");
+    }
+    if (Array.isArray(project.smartva_targets)) {
+      const seenTargets = new Set<string>();
+      for (const target of project.smartva_targets as SmartVaTarget[]) {
+        const action = (project.actions.interview as AccessActionContext[]).find((entry) => entry.site_id === target.site_id);
+        const targetKey = `${target.site_id}:${target.org_unit_id ?? "-"}`;
+        if (!action || seenTargets.has(targetKey)) throw new ApiError(200, "malformed_response");
+        seenTargets.add(targetKey);
+        if (!project.has_tree) {
+          if (target.org_unit_id !== null) throw new ApiError(200, "malformed_response");
+          continue;
+        }
+        if (target.org_unit_id === null || !Array.isArray(project.units)) throw new ApiError(200, "malformed_response");
+        const unit = (project.units as Array<Record<string, unknown>>).find((entry) =>
+          entry.org_unit_id === target.org_unit_id && entry.selectable === true && Array.isArray(entry.roles) && entry.roles.includes("interviewer"));
+        const roots = action.org_units;
+        if (!unit || (roots.length > 0 &&
+            !roots.some((root) => unit.path === root.path || String(unit.path).startsWith(`${root.path}.`)))) {
+          throw new ApiError(200, "malformed_response");
+        }
+      }
     }
   }
   if (value.training !== undefined && value.training !== null) {

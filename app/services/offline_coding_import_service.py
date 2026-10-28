@@ -26,7 +26,9 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import re
+import struct
 import uuid
 from datetime import UTC, datetime
 
@@ -42,7 +44,6 @@ from app.models import (
     VaFinalAssessments,
     VaProjectMaster,
     VaStatuses,
-    VaSubmissions,
     VaSubmissionsAuditlog,
     VaUsers,
     VaWebIntakeDraft,
@@ -64,19 +65,19 @@ from app.services.icd_coding_policy import coding_context_for_submission, policy
 from app.services.icd_coding_value import extract_icd11_code_expression, extract_icd_code
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE
-from app.services.workflow_timeline_service import (
-    CODING_TIMELINE_EVENTS,
-    WorkflowTimelineError,
-    merge_timeline,
-    parse_timeline,
-    server_event,
-)
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     coder_actor,
     mark_coder_finalized,
     mark_reviewer_eligible_after_recode_window,
     system_actor,
+)
+from app.services.workflow_timeline_service import (
+    CODING_TIMELINE_EVENTS,
+    WorkflowTimelineError,
+    merge_timeline,
+    parse_timeline,
+    server_event,
 )
 
 log = logging.getLogger(__name__)
@@ -123,6 +124,38 @@ class OfflineCodingError(Exception):
 # ---------------------------------------------------------------------------
 # Parsing (no database read)
 # ---------------------------------------------------------------------------
+
+
+def coding_receipt_sha256(value) -> str:
+    """Hash exact submitted JSON with the client's tagged canonical convention.
+
+    Numbers use big-endian IEEE754 bytes (-0 equals 0), objects sort Unicode
+    code points, and ASCII JSON escaping preserves every string code unit.
+    Reject nonfinite or lossy integers instead of acknowledging altered values.
+    """
+    def tagged(item):
+        if item is None:
+            return ["null"]
+        if isinstance(item, bool):
+            return ["boolean", item]
+        if isinstance(item, str):
+            return ["string", item]
+        if isinstance(item, (int, float)):
+            try:
+                number = float(item)
+            except OverflowError:
+                _bad("offline_coding contains an unsupported number.")
+            if not math.isfinite(number) or (isinstance(item, int) and int(number) != item):
+                _bad("offline_coding contains an unsupported number.")
+            return ["number", struct.pack(">d", 0.0 if number == 0 else number).hex()]
+        if isinstance(item, list):
+            return ["array", [tagged(part) for part in item]]
+        if isinstance(item, dict) and all(isinstance(key, str) for key in item):
+            return ["object", [[key, tagged(item[key])] for key in sorted(item)]]
+        _bad("offline_coding contains an unsupported value.")
+
+    text = json.dumps(tagged(value), ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
 
 
 def _short_text(value, name: str, limit: int = _TEXT_MAX) -> str | None:
@@ -377,32 +410,41 @@ def _audit(va_sid: str, user_id, action: str, entity_id=None) -> None:
     ))
 
 
+def _lock_held(client_id: uuid.UUID, va_sid: str | None) -> VaBundlePendingCoding | None:
+    """Refresh the snapshot after the submission/workflow locks, before consuming or replacing it."""
+    if va_sid is not None:
+        coder_cod.lock_coding_submission(va_sid)
+    return db.session.scalar(sa.select(VaBundlePendingCoding).where(
+        VaBundlePendingCoding.client_id == client_id).with_for_update().execution_options(populate_existing=True))
+
+
 def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, coding: dict,
-         profile_snapshot: dict, *, enrolled_context: bool = False) -> dict:
+         profile_snapshot: dict, *, coding_sha256: str, enrolled_context: bool = False) -> dict:
     """Keep *coding* for the applier, or record why it is refused (a held row
     ``rejected`` with the code, so a resend reports the same). Returns the
-    reply's ``offline_coding`` object. Idempotent on the upload's
-    ``client_draft_id``: a second call returns the first row's status, except
-    that a still-pending coding of answers the interview no longer has (a
-    later version was pushed) is replaced by this one when it codes the
-    current answers, else refused ``coded_version_superseded`` now, so the
-    reply never acknowledges a coding that cannot apply."""
-    held = db.session.get(VaBundlePendingCoding, draft.client_draft_id)
-    digest = hashlib.sha256(json.dumps(coding, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    reply's exact coding receipt. Identical snapshots are idempotent; a changed
+    pending snapshot replaces the held result after current checks. Changed
+    terminal snapshots conflict and never overwrite authoritative history."""
+    held = _lock_held(draft.client_draft_id, draft.va_sid)
+    digest = coding_sha256
     if held is not None:
-        if held.status == "pending" and held.result["coding"]["coded_answers_sha256"] != draft.answers_sha256:
-            refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
-            if refusal is None:
-                held.result = {**held.result, "coding": coding, "enrolled_context": enrolled_context}
-                held.content_sha256 = digest
-            else:
-                held.status, held.code, held.resolved_at = "rejected", refusal, datetime.now(UTC)
-                _audit(draft.va_sid, user.user_id, f"offline coding refused ({refusal})", draft.draft_id)
+        if hmac.compare_digest(held.content_sha256, digest):
+            return status_of(held)
+        if held.status != "pending":
+            raise OfflineCodingError("This coding revision conflicts with a completed upload.", "coding_conflict", 409)
+        refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
+        held.result = {**held.result, "coding": coding, "profile_snapshot": profile_snapshot,
+                       "enrolled_context": enrolled_context}
+        held.content_sha256 = digest
+        held.status, held.code = ("rejected", refusal) if refusal else ("pending", "not_ready")
+        held.resolved_at = datetime.now(UTC) if refusal else None
+        if refusal:
+            _audit(draft.va_sid, user.user_id, f"offline coding refused ({refusal})", draft.draft_id)
         return status_of(held)
     refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
     if draft.va_sid is None:
         # A superseded copy: no case of its own to hold the coding against.
-        return {"status": "refused", "code": refusal}
+        return {"status": "refused", "code": refusal, "coding_sha256": digest}
     held = VaBundlePendingCoding(
         client_id=draft.client_draft_id, bundle_ids=[], project_id=project.project_id, va_sid=draft.va_sid,
         death_id=draft.death_id, actor_user_id=user.user_id, content_sha256=digest,
@@ -418,11 +460,12 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
 
 
 def status_of(held: VaBundlePendingCoding | None) -> dict | None:
-    """The reply's ``offline_coding``: ``{status, code}``, ``status`` one of
+    """The reply's ``offline_coding``: ``{status, code, coding_sha256}``, ``status`` one of
     ``pending`` (held until the case is ready), ``applied`` or ``refused``."""
     if held is None:
         return None
-    return {"status": _REPLY_STATUS[held.status], "code": None if held.status == "applied" else held.code}
+    return {"status": _REPLY_STATUS[held.status], "code": None if held.status == "applied" else held.code,
+            "coding_sha256": held.content_sha256}
 
 
 def coding_status(client_draft_id: uuid.UUID) -> dict | None:
@@ -438,12 +481,45 @@ def is_offline_hold(held: VaBundlePendingCoding) -> bool:
     return (held.result or {}).get("origin") == ORIGIN
 
 
-def _finish(held: VaBundlePendingCoding, status: str, code: str | None) -> str:
+def _finish(
+    client_id: uuid.UUID,
+    va_sid: str,
+    coding_sha256: str,
+    status: str,
+    code: str | None,
+    *,
+    release_actor: VaUsers | None = None,
+) -> str:
+    """Finish only the pending snapshot whose application produced this outcome.
+
+    Application failures roll back the transaction and its row locks. Reacquire
+    submission/workflow then held-row locks and compare the consumed digest so
+    a newer pending replacement is never rejected by an older attempt.
+    """
+    held = _lock_held(client_id, va_sid)
+    if held is None:
+        return "pending"
+    if held.status != "pending" or not hmac.compare_digest(held.content_sha256, coding_sha256):
+        if release_actor is not None and held.status == "rejected":
+            _release_active_allocation_for_sid(release_actor, va_sid)
+        return held.status
     held.status, held.code, held.resolved_at = status, code, datetime.now(UTC)
     if status == "rejected":
         _audit(held.va_sid, held.actor_user_id, f"offline coding refused ({code})", held.client_id)
+    if release_actor is not None:
+        # Cleanup failure must leave the receipt retryable, never terminal with
+        # a live allocation. The caller's transaction rollback preserves both.
+        _release_active_allocation_for_sid(release_actor, va_sid)
     db.session.commit()
     return status
+
+
+def _release_active_allocation_for_sid(actor: VaUsers, va_sid: str) -> bool:
+    """Release only this submission's allocation while its submission lock is held."""
+    if coder_workflow.get_active_coding_allocation(actor.user_id) != va_sid:
+        return False
+    coder_workflow.release_own_coding_allocation(actor)
+    return True
 
 
 def apply_held(held: VaBundlePendingCoding) -> str:
@@ -453,36 +529,56 @@ def apply_held(held: VaBundlePendingCoding) -> str:
     account's live coding grant; for every upload, the project's mode and the
     coded answers), takes the coder's allocation and saves the imported final.
     Commits."""
+    client_id, va_sid = held.client_id, held.va_sid
+    held = _lock_held(client_id, va_sid)
+    if held is None:
+        return "pending"
+    if held.status != "pending":
+        return held.status
+    client_id, va_sid = held.client_id, held.va_sid
+    coding_sha256 = held.content_sha256
     record = held.result
     coding = record["coding"]
     actor = db.session.get(VaUsers, held.actor_user_id)
     draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.client_draft_id == held.client_id, VaWebIntakeDraft.va_sid == held.va_sid))
+        VaWebIntakeDraft.client_draft_id == client_id, VaWebIntakeDraft.va_sid == va_sid))
     project = db.session.get(VaProjectMaster, held.project_id)
     if actor is None or actor.user_status != VaStatuses.active or draft is None:
-        return _finish(held, "rejected", "not_available")
+        return _finish(client_id, va_sid, coding_sha256, "rejected", "not_available")
     refusal = _push_refusal(actor, project, draft, coding,
                             enrolled_context=bool(record.get("enrolled_context")))
     if refusal is not None:
-        return _finish(held, "rejected", refusal)
+        return _finish(client_id, va_sid, coding_sha256, "rejected", refusal)
     try:
-        coder_workflow.allocate_pick_form(actor, held.va_sid, own_case=True)
+        coder_workflow.allocate_pick_form(actor, va_sid, own_case=True)
     except coder_workflow.AllocationError as exc:
         db.session.rollback()
         if exc.code in _STILL_PENDING:
             return "pending"
-        return _finish(held, "rejected", exc.code or "not_available")
+        return _finish(client_id, va_sid, coding_sha256, "rejected", exc.code or "not_available")
+    # Allocation commits. Reacquire both locks and consume the latest snapshot,
+    # then commit its final and receipt together so replacement cannot slip in.
+    held = _lock_held(client_id, va_sid)
+    if held is None:
+        _release_active_allocation_for_sid(actor, va_sid)
+        return "pending"
+    if held.status != "pending":
+        if held.status == "rejected":
+            _release_active_allocation_for_sid(actor, va_sid)
+        return held.status
+    coding_sha256 = held.content_sha256
+    record, coding = held.result, held.result["coding"]
+    refusal = _push_refusal(actor, project, draft, coding,
+                            enrolled_context=bool(record.get("enrolled_context")))
+    if refusal is not None:
+        return _finish(client_id, va_sid, coding_sha256, "rejected", refusal, release_actor=actor)
     try:
-        _save_imported_final(actor, held.va_sid, project, coding, record.get("profile_snapshot") or {})
+        _save_imported_final(actor, va_sid, project, coding, record.get("profile_snapshot") or {})
     except (coder_cod.CoderCodingError, WorkflowTransitionError) as exc:
         db.session.rollback()
-        try:
-            coder_workflow.release_own_coding_allocation(actor)
-            db.session.commit()
-        except coder_workflow.AllocationError:
-            db.session.rollback()
-        return _finish(held, "rejected", getattr(exc, "code", None) or "wrong_state")
-    return _finish(held, "applied", None)
+        return _finish(client_id, va_sid, coding_sha256, "rejected",
+                       getattr(exc, "code", None) or "wrong_state", release_actor=actor)
+    return _finish(client_id, va_sid, coding_sha256, "applied", None)
 
 
 def _stems(expression: str) -> list[str]:
@@ -576,10 +672,10 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
     with the device's certificate and results as imported, no DORIS
     verification, and the narrative QA and social autopsy gates not asked
     (the phone has neither). Raises ``CoderCodingError`` (no allocation, no
-    active payload) or ``WorkflowTransitionError``. Commits."""
+    active payload) or ``WorkflowTransitionError``. Caller commits with the receipt."""
+    submission = coder_cod.lock_coding_submission(va_sid)
     actiontype = coder_cod.derive_actiontype(va_sid)
     allocation = coder_cod.require_coding_session(actor, va_sid, actiontype)
-    submission = db.session.scalar(sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_sid).with_for_update())
     payload = get_active_payload_version(va_sid)
     if submission is None or payload is None:
         raise coder_cod.CoderCodingError("This submission has no active payload version.", 422, code="final_blocked")
@@ -631,7 +727,7 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
         mark_reviewer_eligible_after_recode_window(
             va_sid, reason=FORCED_REVIEW_REASON if flags else "demo_reviewer_eligible_immediately",
             actor=system_actor())
-    db.session.commit()
+    db.session.flush()
     bust_coder_dashboard_cache(actor.user_id)
     log.info("offline coding imported | sid=%s | by=%s | disagreements=%s", va_sid, actor.user_id, len(flags))
     return final

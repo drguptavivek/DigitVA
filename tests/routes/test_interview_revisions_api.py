@@ -459,7 +459,6 @@ class InterviewRevisionTests(BaseTestCase):
         loses its winner, and finishing it again restores both."""
         for name, answers, valid, outcome, case_status in (
             ("partial", _answers(interview_outcome="partially_completed"), False, "partially_completed", "paused"),
-            ("refused", _answers(Id10013="no"), True, "refused", "refused"),
             ("unavailable", _answers(interview_outcome="respondent_unavailable"), False,
              "respondent_unavailable", "not_reachable"),
         ):
@@ -487,11 +486,21 @@ class InterviewRevisionTests(BaseTestCase):
                 self.assertEqual((death.status, death.va_sid), ("submitted", va_sid))
                 self.assertEqual(len(self._versions(va_sid)), 3)
 
+    def test_refusal_cannot_replace_a_submitted_lawful_interview(self):
+        death_id, va_sid = self._submitted()
+        allocation, initial = self._start_coding(va_sid)
+        response = self._revise(va_sid, {"Id10013": "no"})
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "consent_refused"))
+        db.session.expire_all()
+        self.assertEqual(db.session.get(VaDeathRegister, death_id).va_sid, va_sid)
+        self.assertEqual(db.session.get(VaAllocations, allocation.va_allocation_id).va_allocation_status, VaStatuses.active)
+        self.assertEqual(db.session.get(VaInitialAssessments, initial.va_iniassess_id).va_iniassess_status, VaStatuses.active)
+
     def test_a_regression_from_a_case_a_teammate_won_is_still_refused(self):
         death_id, va_sid = self._partial()
         self._upload(death_id, _answers(Id10017="Other"), user_id=self.teammate_id)
         response = self._revise(va_sid, {"Id10013": "no", "Id10017": "Bina"})
-        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "case_state_conflict"))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "consent_refused"))
 
     def test_the_servers_own_reason_resubmitted_is_not_a_public_reason(self):
         _death, va_sid = self._submitted()
@@ -593,7 +602,6 @@ class InterviewRevisionTests(BaseTestCase):
     def test_changing_between_incomplete_outcomes_moves_the_case(self):
         death_id, va_sid = self._partial()
         steps = (
-            ({"Id10013": "no", "Id10017": "Bina"}, True, "refused", "refused"),
             ({"Id10013": "yes", "Id10017": "Bina", "interview_outcome": "respondent_unavailable"}, False,
              "respondent_unavailable", "not_reachable"),
             ({"Id10013": "yes", "Id10017": "Bina", "interview_outcome": "partially_completed"}, False,
@@ -617,7 +625,7 @@ class InterviewRevisionTests(BaseTestCase):
 
         response = self._revise(va_sid, {"Id10013": "no", "Id10017": "Bina"})
 
-        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "case_state_conflict"))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "consent_refused"))
         self.assertEqual(len(self._versions(va_sid)), 1)
         db.session.expire_all()
         self.assertEqual(db.session.get(VaDeathRegister, death_id).status, "submitted")

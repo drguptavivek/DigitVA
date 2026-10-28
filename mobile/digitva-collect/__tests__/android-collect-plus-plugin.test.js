@@ -29,9 +29,11 @@ describe("withAndroidCollectPlus", () => {
   it("keeps the engine module out of the plain build's autolinking, once", () => {
     const settings = "rootProject.name = 'DigitVA'\nexpoAutolinking.useExpoModules()\ninclude ':app'\n";
     const once = patchPlainSettings(settings);
-    expect(once).toContain('expoAutolinking.exclude = ["digitva-icd11"]\nexpoAutolinking.useExpoModules()');
+    expect(once).toContain('expoAutolinking.exclude = ["digitva-icd11", "digitva-smartva"]\nexpoAutolinking.useExpoModules()');
     expect(once.indexOf("exclude")).toBeLessThan(once.indexOf("useExpoModules"));
     expect(patchPlainSettings(once)).toBe(once);
+    const prior = once.replace(', "digitva-smartva"', '');
+    expect(patchPlainSettings(prior)).toContain('"digitva-icd11", "digitva-smartva"');
     expect(() => patchPlainSettings("include ':app'")).toThrow("useExpoModules");
   });
 

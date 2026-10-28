@@ -1002,11 +1002,34 @@ def _generate_option_group(
     each case is rerun alone, so one bad case does not fail its batch-mates.
     Returns the total number of result rows (successes + failures) saved.
     """
+    # Hold the submission rows until this engine run commits, so an upstream
+    # refusal cannot replace the payload between the state check and prep.
+    from app.models import VaSubmissionWorkflow
+    from app.services.workflow.definition import WORKFLOW_CONSENT_REFUSED
     from app.utils import (
         va_smartva_formatsmartvaresult,
         va_smartva_prepdata,
         va_smartva_runsmartva,
     )
+
+    batch_sids = set(db.session.scalars(
+        sa.select(VaSubmissions.va_sid)
+        .where(
+            VaSubmissions.va_sid.in_(batch_sids),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+        )
+        .order_by(VaSubmissions.va_sid)
+        .with_for_update(of=VaSubmissions)
+    ).all())
+    refused = set(db.session.scalars(
+        sa.select(VaSubmissionWorkflow.va_sid).where(
+            VaSubmissionWorkflow.va_sid.in_(batch_sids),
+            VaSubmissionWorkflow.workflow_state == WORKFLOW_CONSENT_REFUSED,
+        )
+    ).all())
+    batch_sids = batch_sids - refused
+    if not batch_sids:
+        return 0
 
     active_payload_by_sid = _active_payload_versions_by_sid(batch_sids)
 

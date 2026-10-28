@@ -81,6 +81,7 @@ TRANSITIONS: dict[tuple[str, str], str] = {
     # Direct start: identity captured by the form, or the start abandoned.
     ("draft_identity", "in_progress"): STARTER,
     ("draft_identity", "cancelled"): STARTER,
+    ("in_progress", "draft_identity"): STARTER,
     # Appointments (phase 5 drives these).
     ("registered", "scheduled"): TEAM,
     ("scheduled", "registered"): TEAM,
@@ -305,6 +306,8 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
     """
     lock_case(case)
     from_state = case.status
+    if to_state == "draft_identity" and (case.source != "direct" or case.va_sid or action != "refusal_identity_cleared"):
+        raise WebIntakeError("This case cannot return to an identity-free draft.", 409)
     kind = TRANSITIONS.get((from_state, to_state))
     if kind is None:
         raise WebIntakeError(f"A case cannot move from {from_state} to {to_state}.", 409)

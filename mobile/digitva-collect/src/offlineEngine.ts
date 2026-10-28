@@ -15,6 +15,7 @@
  */
 import { requireOptionalNativeModule } from "expo";
 import { InteractionManager } from "react-native";
+import { isIcd11DorisEnabled } from "./icd11DorisPreference";
 
 export type EngineOp = "search" | "codeinfo" | "doris" | "codedit";
 
@@ -205,7 +206,21 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
 /** The process-wide engine; resolves the native module on first use (null on web and in the plain build). */
 let shared: OfflineEngine | undefined;
 export function offlineEngine(): OfflineEngine {
-  shared ??= createOfflineEngine(requireOptionalNativeModule<NativeEngine>("DigitvaIcd11"));
+  if (!shared) {
+    const engine = createOfflineEngine(requireOptionalNativeModule<NativeEngine>("DigitvaIcd11"));
+    const disabledInit: EngineInit = { ok: false, error: "icd11_doris_disabled", ms: 0 };
+    const disabledResult: EngineResult = { ok: false, error: "icd11_doris_disabled", ms: 0 };
+    const enabled = () => isIcd11DorisEnabled();
+    shared = {
+      ...engine,
+      async init() { return await enabled() ? engine.init() : disabledInit; },
+      async updateWhoFiles() { return await enabled() ? engine.updateWhoFiles() : disabledInit; },
+      async search(query) { return await enabled() ? engine.search(query) : disabledResult; },
+      async codeinfo(code) { return await enabled() ? engine.codeinfo(code) : disabledResult; },
+      async doris(certificate) { return await enabled() ? engine.doris(certificate) : disabledResult; },
+      async codedit(certificate) { return await enabled() ? engine.codedit(certificate) : disabledResult; },
+    };
+  }
   return shared;
 }
 

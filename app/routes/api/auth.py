@@ -80,7 +80,7 @@ def _body_key(name):
         except RequestEntityTooLarge:
             value = None
         text = str(value).strip().lower()[:128] if value else ""
-        if name == "email" and text and "@" not in text:
+        if name in {"email", "identifier"} and text and "@" not in text:
             text = canonical_mobile(text) or text
         return f"device-{name}:{text}"
     return key
@@ -175,6 +175,37 @@ def open_session():
     devices.record_app_version(issued.session, p.get("app_version"))
     db.session.commit()
     return jsonify(_session_body(issued, user)), 201
+
+
+@bp.post("/password-enroll")
+@limiter.limit("10 per minute")
+@limiter.limit("20 per hour", key_func=_body_key("identifier"))
+def password_enroll():
+    """Enrol and sign in with an email/mobile identifier and password.
+
+    Accepts ``identifier, password, device_name, platform, app_version?`` and
+    ``client_device_uuid?``. Returns the combined QR enrolment/session body;
+    any refusal rolls back both device and session (mobile-sign-in.md).
+    404 on the public-demo deployment, which has its own enrolment flow.
+    """
+    if public_demo_service.enabled():
+        abort(404)
+    p = _body()
+    device, secret, issued, user = devices.enrol_with_password(
+        identifier=p.get("identifier"), password=p.get("password"),
+        device_name=p.get("device_name"), platform=p.get("platform"),
+        app_version=p.get("app_version"), client_device_uuid=p.get("client_device_uuid"),
+    )
+    project = db.session.get(VaProjectMaster, device.project_id)
+    body = {
+        "device_id": str(device.device_id),
+        "device_secret": secret,
+        "project": {"project_id": project.project_id, "name": project.project_name},
+        "server_time": datetime.now(UTC).isoformat(),
+        **_session_body(issued, user),
+    }
+    db.session.commit()
+    return jsonify(body), 201
 
 
 @bp.post("/sign-in-qr/redeem")

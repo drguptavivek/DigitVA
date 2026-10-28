@@ -18,6 +18,7 @@ import { browserSessionStore, clearScroll, resolveSection } from "./viewState";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 import { activateBrowserDraft, clearCaseBrowserDraft, draftContext } from "./doris/browserDraft";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
+import { t } from "../i18n";
 
 const VIEW_FINAL_CATEGORIES: WorkspacePayload["categories"] = [
   { code: "smartva_section", label: "SmartVA Analysis", nav_label: "SmartVA", render_mode: "table_sections", icon_name: "fa-chart-pie" },
@@ -36,17 +37,26 @@ export function CaseWorkspaceScreen({
   renderMedia,
   section,
   onSectionChange,
+  icd11DorisEnabled,
+  onIcd11DorisOpenSettings,
+  assertIcd11DorisEnabled,
 }: {
   identity: WorkspaceIdentity;
   api: WorkspaceApi;
   onExit: () => void;
   onDone?: () => void;
-  renderDoris?: (workspace: WorkspacePayload, onSaved: () => Promise<void>, onDone: () => void) => ReactNode;
+  renderDoris?: (workspace: WorkspacePayload, onSaved: () => Promise<void>, onDone: () => void, guardedApi: WorkspaceApi) => ReactNode;
   renderMedia?: (attachmentPath: string) => ReactNode;
   /** Section code from the route (`?section=`); unknown or missing falls back to the server default. */
   section?: string;
   /** Called when the user picks a section, so the route can record it (replace, not push). */
   onSectionChange?: (code: string) => void;
+  /** Native-only device preference; omitted by web callers to preserve browser coding behavior. */
+  icd11DorisEnabled?: boolean;
+  /** Native-only route action paired with the device preference guard. */
+  onIcd11DorisOpenSettings?: () => void;
+  /** Recheck the device preference at native ICD-11 processing and write boundaries. */
+  assertIcd11DorisEnabled?: () => Promise<void>;
 }) {
   const styles = useUiStyles();
   const [loadedWorkspace, setLoadedWorkspace] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: WorkspacePayload } | null>(null);
@@ -358,6 +368,14 @@ export function CaseWorkspaceScreen({
     </Screen>;
   }
 
+  if (identity.mode !== "view" && workspace.case.icd_classification === "icd11" && icd11DorisEnabled === false) {
+    return <Screen title={t("icd11DorisDisabledTitle")} headerAction={<Button label={t("icd11DorisGoBack")} kind="secondary" onPress={onExit} />}>
+      <Text accessibilityRole="alert" style={styles.text}>{t("icd11DorisDisabledBody")}</Text>
+      <Button label={t("icd11DorisOpenSettings")} onPress={onIcd11DorisOpenSettings ?? onExit} />
+      <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={onExit} />
+    </Screen>;
+  }
+
   const privateNotes = identity.mode !== "view" ? (
     <PrivateNotePanel draftContext={draftContext(workspace, identity)} key={`${identityKey}:notes`} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={scopedCallbacks.loseAllocation} onNoteChanged={noteChanged} />
   ) : null;
@@ -380,6 +398,25 @@ export function CaseWorkspaceScreen({
     <Text style={styles.text}>{!currentNote ? "Open Notes to view your saved note." : currentNote.content ? noteText(currentNote.content) : "No note saved for this submission yet."}</Text>
   </View> : undefined;
   const reviewing = identity.mode === "reviewing";
+  const assertCurrentEditorAllowed = async () => {
+    const current = workspaceRef.current;
+    if (!current || context.current.api !== api || context.current.vaSid !== identity.vaSid || context.current.mode !== identity.mode ||
+        current.case.payload_version_id !== workspace.case.payload_version_id || current.case.doris_draft_context !== workspace.case.doris_draft_context ||
+        current.step !== workspace.step) throw new Error("workspace_stale");
+    if (current.case.icd_classification === "icd11") await assertIcd11DorisEnabled?.();
+  };
+  const guardedApi: WorkspaceApi = assertIcd11DorisEnabled ? {
+    ...api,
+    async searchIcd(...args) { await assertCurrentEditorAllowed(); return api.searchIcd(...args); },
+    async searchDorisTerms(...args) { await assertCurrentEditorAllowed(); return api.searchDorisTerms(...args); },
+    async getDorisCodeInfo(...args) { await assertCurrentEditorAllowed(); return api.getDorisCodeInfo(...args); },
+    async getVaDefinitionForIcd(...args) { await assertCurrentEditorAllowed(); return api.getVaDefinitionForIcd(...args); },
+    async checkDorisSelection(...args) { await assertCurrentEditorAllowed(); return api.checkDorisSelection(...args); },
+    async processDoris(...args) { await assertCurrentEditorAllowed(); return api.processDoris(...args); },
+    async saveInitial(...args) { await assertCurrentEditorAllowed(); return api.saveInitial(...args); },
+    async saveFinal(...args) { await assertCurrentEditorAllowed(); return api.saveFinal(...args); },
+    async saveNotCodeable(...args) { await assertCurrentEditorAllowed(); return api.saveNotCodeable(...args); },
+  } : api;
   // Reviewers get the COD entry form right under the coder's COD, above the long reference content.
   const codEditor = selectedCode === "vacodassessment" && identity.mode !== "view" ? (
     <View key={`${identityKey}:cod`}>
@@ -387,9 +424,9 @@ export function CaseWorkspaceScreen({
           masked DORIS final step renders it inside its own card. */}
       {workspace.smartva !== null && !(workspace.case.project_mode === "masked_doris" && workspace.step === "final") ? <SmartVaReference value={workspace.smartva} /> : null}
       {workspace.case.project_mode.endsWith("_doris") ? (
-        renderDoris ? renderDoris(workspace, loadWorkspace, scopedCallbacks.finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
+        renderDoris ? renderDoris(workspace, loadWorkspace, scopedCallbacks.finish, guardedApi) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (
-        <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={api} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
+        <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={guardedApi} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
       )}
     </View>
   ) : null;

@@ -1,6 +1,12 @@
 import { InteractionManager } from "react-native";
 
-import { afterInteractionsOrTimeout, createOfflineEngine, scheduleEngineWarmUp, warmUpOfflineEngine, type NativeEngine } from "../src/offlineEngine";
+import type { NativeEngine } from "../src/offlineEngine";
+let mockIcd11Enabled = false;
+let mockNativeModule: NativeEngine | null = null;
+jest.mock("../src/icd11DorisPreference", () => ({ isIcd11DorisEnabled: async () => mockIcd11Enabled }));
+jest.mock("expo", () => ({ requireOptionalNativeModule: () => mockNativeModule }));
+
+import { afterInteractionsOrTimeout, createOfflineEngine, offlineEngine, scheduleEngineWarmUp, warmUpOfflineEngine } from "../src/offlineEngine";
 import { CHECK_CERTIFICATE, runEngineCheck } from "../src/offlineEngineCheck";
 
 function fakeNative(overrides: Partial<NativeEngine> = {}): NativeEngine {
@@ -86,6 +92,20 @@ describe("offlineEngine with a native module", () => {
     expect(failed.map((step) => step.name)).toEqual(["init"]);
     expect(failed[0]).toMatchObject({ ok: false, note: "load_failed" });
   });
+});
+
+it("keeps the production engine inert while the device ICD-11 preference is off", async () => {
+  const init = jest.fn(fakeNative().init);
+  const call = jest.fn(fakeNative().call);
+  mockNativeModule = fakeNative({ init, call });
+  mockIcd11Enabled = false;
+  const engine = offlineEngine();
+
+  expect(await engine.init()).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
+  expect(await engine.search("BC42.Z")).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
+  expect(await engine.updateWhoFiles()).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
+  expect(init).not.toHaveBeenCalled();
+  expect(call).not.toHaveBeenCalled();
 });
 
 describe("offlineEngine start-up sharing and recovery", () => {

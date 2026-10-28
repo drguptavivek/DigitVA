@@ -1031,6 +1031,31 @@ shown and never retried automatically; an upload refused with `demo_limit`
 stays on the phone marked `upload_issue = demo_limit` until the interviewer
 asks to send it again.
 
+### Manual native Active enrolment (2026-10-28)
+
+`POST /api/v1/auth/password-enroll` accepts the existing login identifier and
+password with device metadata. It uses the same credential resolver, native
+access checks, terms gate and three-device cap as normal native sign-in. Device
+and session issuance is one transaction, returning the combined enrolment/token
+body. Its administrative home is the first accessible collection/registration
+project in project-id order, otherwise the first native coding/review project;
+request-level project authorization remains unchanged.
+
+The phone validates the trusted server origin before sending credentials and
+rejects the canonical public Demo origin in the Active form. Demo deployment
+hides the endpoint (404), and a demo account receives generic invalid credentials.
+An occupied Active enrolment is not silently replaced. The form password stays
+in component memory and is cleared after attempts/unmount. The new endpoint
+requires a server rollout; an older server produces an explicit unsupported
+message without falling back to the Demo or another credential endpoint.
+
+The setup screen shows server, standalone and Demo choices before detailed
+login inputs. Standalone setup and access require explicit logout of every
+server account in both SecureStore slots; expired sign-in is not logout. Its
+persistent banner says `Standalone Mode - Server Disabled`; Demo screens say
+`Demo Mode`, including forms and unlock/PIN routes. Existing records are kept.
+Standalone tabs, Settings and shell action callbacks cannot invoke server sync.
+
 ## 7. Browser client access: `GET /api/v1/me/access`
 
 Expo web has no bootstrap route (`/api/v1/client/bootstrap` was removed,

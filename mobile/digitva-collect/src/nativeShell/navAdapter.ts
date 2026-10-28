@@ -21,7 +21,7 @@ export interface NativeTab {
   params?: Record<string, string>;
 }
 
-type AccessInput = Pick<Account, "collection_access" | "registration_access" | "registered_deaths_access">;
+type AccessInput = Pick<Account, "collection_access" | "registration_access" | "registered_deaths_access" | "standalone">;
 
 /** The account's access summary dressed as the browser bootstrap navEntries reads. */
 function asBootstrap(account: AccessInput): Pick<ClientBootstrap, "access" | "capabilities"> {
@@ -35,8 +35,14 @@ function asBootstrap(account: AccessInput): Pick<ClientBootstrap, "access" | "ca
   } as unknown as Pick<ClientBootstrap, "access" | "capabilities">;
 }
 
-/** Home, then Interviews and Register death by access, then Sync. Never a coding or review entry. */
+/** Standalone stays on local Home and Interviews; enrolled accounts get access-based tabs and Sync. */
 export function nativeTabs(account: AccessInput | undefined): NativeTab[] {
+  if (account?.standalone) {
+    return [
+      { key: "home", labelKey: "home", route: "/standalone" },
+      { key: "interviews", labelKey: "tabInterviews", route: "/standalone", params: { view: "interviews" } },
+    ];
+  }
   const keys = new Set(account ? navEntries(asBootstrap(account)).primary.map((entry) => entry.key) : []);
   const tabs: NativeTab[] = [{ key: "home", labelKey: "home", route: "/worklist" }];
   if (keys.has("/collection")) tabs.push({ key: "interviews", labelKey: "tabInterviews", route: "/worklist", params: { view: "interviews" } });
@@ -49,6 +55,7 @@ export function nativeTabs(account: AccessInput | undefined): NativeTab[] {
 /** The tab a screen belongs to. */
 export function activeNativeTab(pathname: string, params: { view?: string | string[] } = {}): NativeTab["key"] | undefined {
   const view = Array.isArray(params.view) ? params.view[0] : params.view;
+  if (pathname === "/standalone") return view === "interviews" ? "interviews" : "home";
   if (pathname === "/worklist") return view === "interviews" ? "interviews" : "home";
   if (pathname === "/case") return "interviews";
   if (pathname === "/register") return "register";

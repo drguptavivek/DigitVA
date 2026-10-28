@@ -1,6 +1,7 @@
 /** Enrol screen: a scanned sign-in QR is confirmed, redeemed, and leads to PIN setup; every refusal is one message. */
 import React, { type ReactNode } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { TextInput } from "react-native";
 
 const TOKEN = "SignInTokenSignInTokenSignInToken123";
 const SERVER = "https://digitva.causeofdeathindia.com";
@@ -8,6 +9,7 @@ const mockRouter = { replace: jest.fn(), push: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
 const mockRedeem = jest.fn<Promise<{ user_id: string; name: string }>, unknown[]>();
 const mockEnrol = jest.fn(async (..._args: unknown[]) => undefined);
+const mockPasswordEnrol = jest.fn<Promise<{ user_id: string; name: string }>, unknown[]>();
 const mockErrorText = jest.fn(() => "generic error");
 
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
@@ -21,6 +23,7 @@ jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: mockReload, 
 jest.mock("../src/auth", () => ({
   redeemSignInQr: (...args: unknown[]) => mockRedeem(...args),
   enrolDevice: (...args: unknown[]) => mockEnrol(...args),
+  passwordEnrolAndSignIn: (...args: unknown[]) => mockPasswordEnrol(...args),
 }));
 jest.mock("../src/api", () => ({
   ApiError: class ApiError extends Error {
@@ -62,6 +65,7 @@ const scan = (tree: ReactTestRenderer, data: string) =>
   act(() => tree.root.findByType("CameraView" as never).props.onBarcodeScanned({ data }));
 const press = (tree: ReactTestRenderer, label: string) =>
   act(async () => tree.root.findByProps({ "data-label": label }).props.onClick());
+const enterServer = (tree: ReactTestRenderer) => press(tree, "enrolTitle");
 const text = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
 
 let logs: jest.SpyInstance[];
@@ -75,6 +79,7 @@ const loggedAnything = () => logs.some((spy) => JSON.stringify(spy.mock.calls).i
 
 it("shows the server and waits for confirmation before redeeming a sign-in QR", async () => {
   const tree = await render();
+  await enterServer(tree);
   scan(tree, signInQr);
   expect(text(tree)).toContain("digitva.causeofdeathindia.com");
   expect(text(tree)).toContain("enrolConfirmSignInHint");
@@ -85,6 +90,7 @@ it("shows the server and waits for confirmation before redeeming a sign-in QR", 
 it("redeems on confirm, then goes to PIN setup through unlock with the refresh flag", async () => {
   mockRedeem.mockResolvedValue({ user_id: "u1", name: "Asha" });
   const tree = await render();
+  await enterServer(tree);
   scan(tree, signInQr);
   await press(tree, "enrolConfirm");
   expect(mockRedeem).toHaveBeenCalledWith(SERVER, TOKEN, "Pixel", "1.0.0");
@@ -98,6 +104,7 @@ it("saves and locks every store before redeeming or enrolling, and sends nothing
   mockLockNow.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
   for (const qr of [signInQr, enrolQr]) {
     const tree = await render();
+    await enterServer(tree);
     scan(tree, qr);
     await press(tree, "enrolConfirm");
     expect(text(tree)).toContain("errGeneric");
@@ -111,6 +118,7 @@ it("shows one message for every refusal and never the token", async () => {
   for (const status of [404, 400]) {
     mockRedeem.mockRejectedValueOnce(new ApiError(status, "sign_in_qr_invalid"));
     const tree = await render();
+    await enterServer(tree);
     scan(tree, signInQr);
     await press(tree, "enrolConfirm");
     expect(text(tree)).toContain("errSignInQrInvalid");
@@ -124,6 +132,7 @@ it("shows one message for every refusal and never the token", async () => {
 it("tells a rate-limited scan to wait, not that the QR is invalid", async () => {
   mockRedeem.mockRejectedValueOnce(new ApiError(429, "rate_limited"));
   const tree = await render();
+  await enterServer(tree);
   scan(tree, signInQr);
   await press(tree, "enrolConfirm");
   expect(text(tree)).toContain("errSignInQrRateLimited");
@@ -138,6 +147,7 @@ it("names expiry, prior use and another server in the invalid-QR message", () =>
 it("redeems for a coder-only account the same way and goes to unlock, where the gate picks the coding screens", async () => {
   mockRedeem.mockResolvedValue({ user_id: "coder1", name: "Coder" });
   const tree = await render();
+  await enterServer(tree);
   scan(tree, signInQr);
   await press(tree, "enrolConfirm");
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "coder1", refresh: "1" } });
@@ -146,6 +156,7 @@ it("redeems for a coder-only account the same way and goes to unlock, where the 
 it("treats a network failure as an ordinary error, not as an invalid QR", async () => {
   mockRedeem.mockRejectedValueOnce(new Error("network"));
   const tree = await render();
+  await enterServer(tree);
   scan(tree, signInQr);
   await press(tree, "enrolConfirm");
   expect(text(tree)).toContain("generic error");
@@ -154,6 +165,7 @@ it("treats a network failure as an ordinary error, not as an invalid QR", async 
 
 it("rejects a sign-in QR for a server outside the allowed domain before anything is sent", async () => {
   const tree = await render();
+  await enterServer(tree);
   scan(tree, JSON.stringify({ v: 1, server: "https://evil.io", sign_in: TOKEN }));
   expect(text(tree)).toContain("errServerNotAllowed");
   expect(text(tree)).not.toContain(TOKEN);
@@ -162,10 +174,72 @@ it("rejects a sign-in QR for a server outside the allowed domain before anything
 
 it("still enrols from an enrolment QR", async () => {
   const tree = await render();
+  await enterServer(tree);
   scan(tree, enrolQr);
   expect(text(tree)).toContain("enrolConfirmProject");
   await press(tree, "enrolConfirm");
   expect(mockEnrol).toHaveBeenCalledWith(SERVER, "AbCdEf123456_-x", "Pixel", "1.0.0");
   expect(mockRedeem).not.toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith("/");
+});
+
+async function fillManual(tree: ReactTestRenderer, password = "private-password") {
+  await enterServer(tree);
+  for (const [label, value] of [["enrolServerAddress", SERVER], ["email", "asha@example.org"], ["password", password]]) {
+    act(() => tree.root.findAllByType(TextInput).find((input) => input.props.accessibilityLabel === label)!.props.onChangeText(value));
+  }
+}
+
+it("enrols manually, clears the password and follows the QR unlock journey", async () => {
+  mockPasswordEnrol.mockResolvedValueOnce({ user_id: "u1", name: "Asha" });
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+  expect(mockLockNow).toHaveBeenCalledTimes(1);
+  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "asha@example.org", "private-password", "Pixel", "1.0.0");
+  expect(mockReload).toHaveBeenCalledTimes(1);
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+  expect(tree.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
+  expect(mockRedeem).not.toHaveBeenCalled();
+  expect(mockEnrol).not.toHaveBeenCalled();
+  expect(logs.some((spy) => JSON.stringify(spy.mock.calls).includes("private-password"))).toBe(false);
+});
+
+it("clears a refused manual password, explains an unsupported server and makes no QR fallback", async () => {
+  mockPasswordEnrol.mockRejectedValueOnce(new ApiError(404, "not_found"));
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+  expect(text(tree)).toContain("errPasswordEnrolUnsupported");
+  expect(tree.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
+  expect(mockReload).not.toHaveBeenCalled();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(mockRedeem).not.toHaveBeenCalled();
+  expect(mockEnrol).not.toHaveBeenCalled();
+});
+
+it("clears manual credentials when locking fails and when the form unmounts", async () => {
+  mockLockNow.mockResolvedValueOnce(false);
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+  expect(mockPasswordEnrol).not.toHaveBeenCalled();
+  expect(tree.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
+  await fillManual(tree);
+  act(() => tree.unmount());
+  const remounted = await render();
+  await enterServer(remounted);
+  expect(remounted.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
+});
+
+it("uses the existing canonical mobile identifier in the manual form", async () => {
+  mockPasswordEnrol.mockResolvedValueOnce({ user_id: "u1", name: "Asha" });
+  const tree = await render();
+  await enterServer(tree);
+  await press(tree, "mobile");
+  for (const [label, value] of [["enrolServerAddress", SERVER], ["mobile", "9876543210"], ["password", "pw"]]) {
+    act(() => tree.root.findAllByType(TextInput).find((input) => input.props.accessibilityLabel === label)!.props.onChangeText(value));
+  }
+  await press(tree, "enrolManualSubmit");
+  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "+919876543210", "pw", "Pixel", "1.0.0");
 });

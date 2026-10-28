@@ -8,13 +8,14 @@ const {
 } = require("@expo/config-plugins");
 
 /**
- * "DigitVA Collect Plus" (APP_VARIANT=plus): the experimental, adb-only build that runs the offline ICD-11 engine
+ * "DigitVA Collect Plus" (APP_VARIANT=plus): the experimental, adb-only build that runs the offline ICD-11 and SmartVA engines
  * (docs/policy/field-data-collection.md). Plus gets arm64 only (plugins/with-android-abi-splits.js), extracted native libraries (the engine is dlopen'ed
  * by path from nativeLibraryDir) and the engine staged from private/ into the local module
- * `modules/digitva-icd11`. The plain build gets one settings.gradle line that keeps that module out of
- * autolinking, so the plain APK carries no engine, no engine assets and no module code.
+ * `modules/digitva-icd11` and `modules/digitva-smartva`. The plain build excludes both from autolinking, so its APK
+ * carries no engine assets or module code.
  */
 const MODULE_NAME = "digitva-icd11";
+const SMARTVA_MODULE_NAME = "digitva-smartva";
 const ENGINE_LIB = "libdigitva_icd11.so";
 const SETTINGS_MARKER = "// DigitVA Collect Plus: engine module is plus-only";
 const GRADLE_MARKER = "// DigitVA Collect Plus: extracted native libraries";
@@ -66,10 +67,15 @@ function patchPlusGradleProperties(properties) {
 /** Plain build: keep the plus-only module out of Expo autolinking. */
 function patchPlainSettings(contents) {
   if (typeof contents !== "string") throw new Error("Android settings.gradle contents must be a string");
-  if (contents.includes(SETTINGS_MARKER)) return contents;
+  if (contents.includes(SETTINGS_MARKER)) {
+    const exclusion = contents.match(/expoAutolinking\.exclude\s*=\s*\[[^\]]*\]/)?.[0];
+    if (!exclusion) throw new Error("Unsupported Android settings.gradle: existing Plus exclusion is missing");
+    if (exclusion.includes(`"${SMARTVA_MODULE_NAME}"`)) return contents;
+    return contents.replace(exclusion, exclusion.replace(/\]$/, `, "${SMARTVA_MODULE_NAME}"]`));
+  }
   const call = "expoAutolinking.useExpoModules()";
   if (!contents.includes(call)) throw new Error("Unsupported Android settings.gradle: no useExpoModules() call");
-  return contents.replace(call, `${SETTINGS_MARKER}\nexpoAutolinking.exclude = ["${MODULE_NAME}"]\n${call}`);
+  return contents.replace(call, `${SETTINGS_MARKER}\nexpoAutolinking.exclude = ["${MODULE_NAME}", "${SMARTVA_MODULE_NAME}"]\n${call}`);
 }
 
 module.exports = function withAndroidCollectPlus(config) {
@@ -97,12 +103,14 @@ module.exports = function withAndroidCollectPlus(config) {
     config.modResults.contents = patchPlusGradle(config.modResults.contents);
     return config;
   });
-  // Copies the engine out of private/ (never committed); throws a plain message when private/ is missing.
+  // Stage private Plus binaries; fail clearly when either source is absent.
   return withDangerousMod(config, [
     "android",
     (config) => {
       const { stageEngine } = require(path.join(config.modRequest.projectRoot, "modules", MODULE_NAME, "scripts", "stage-engine"));
       stageEngine();
+      const { stageSmartva } = require(path.join(config.modRequest.projectRoot, "modules", SMARTVA_MODULE_NAME, "scripts", "stage-engine"));
+      stageSmartva();
       return config;
     },
   ]);
@@ -114,3 +122,4 @@ module.exports.patchPlusGradleProperties = patchPlusGradleProperties;
 module.exports.patchPlainSettings = patchPlainSettings;
 module.exports.addProfileable = addProfileable;
 module.exports.MODULE_NAME = MODULE_NAME;
+module.exports.SMARTVA_MODULE_NAME = SMARTVA_MODULE_NAME;

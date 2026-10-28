@@ -10,6 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { ApiError } from "../api";
+import { accountStoreIdentityIsInSelectedMode } from "../accountStoreIdentity";
+import { loadAccounts, loadActiveSlot } from "../auth";
 import { useAppState } from "../AppState";
 import { isPlusVariant } from "../appVariant";
 import { canUseOfflineCoding } from "../codingCapabilities";
@@ -17,9 +19,11 @@ import type { Account } from "../auth";
 import {
   getOfflineCoding,
   getOfflineCodingCase,
+  getMeta,
   listDrafts,
   listOfflineCodingCases,
   saveOfflineCoding,
+  setMeta,
   type Db,
   type DeviceTimedDraft,
   type OfflineCodingCase,
@@ -29,19 +33,31 @@ import {
 import { isUnlocked, openInterviewerDb, StoreLockedError } from "../interviewerDb";
 import { getOrCreatePlusDeviceIdentity } from "../offlineIdentity";
 import { getOfflineProfile } from "../offlineProfile";
+import { getCachedReferenceData } from "../sync";
 import allowabilityPack from "../../assets/icd11-allowability-2026-01.json";
-import { codingContextFromInterview, createAllowabilityIndex, type AllowabilityPack } from "../coding/icd11Allowability";
+import { codingContextFromInterview, createAllowabilityIndex, extractIcd11CodeExpression, isCluster, type AllowabilityPack } from "../coding/icd11Allowability";
+import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
 import { errorText, Button, Screen, useUiStyles } from "../ui";
+import { t } from "../i18n";
 import { createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
 import type { JsonRequester, WorkspaceApi } from "../workspace/api";
 import type { CodingWriteReply, DorisProcessReply, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
 import { offlineEngine } from "../offlineEngine";
+import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { draftAnswersSha256 } from "../sync";
 import { recordCodingTimeline } from "../draftSync";
 import { acquireLocalCodingEditor } from "../localCodingLeases";
 import { localDateTimeWithOffset } from "../client/localDateTime";
 import { appendWorkflowEvent, workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
+import { isSmartVaOptionsSnapshot, projectSmartVaSnapshot, standaloneSmartVaSnapshot, type SmartVaOptionsSnapshot, type SmartVaTarget } from "../smartva/options";
+import { getLocalSmartVa, isLocalSmartVaCurrent, type LocalSmartVaRow } from "../smartva/localStore";
+import { runLocalSmartVa } from "../smartva/localApi";
+import { ensureLocalSmartVa } from "../smartva/ensureLocal";
+import { offlineSmartvaEngine } from "../smartva/nativeEngine";
+import { SmartVaReference } from "../workspace/SmartVaReference";
+import { DEFAULT_COVERED_FIELDS, consentForDraft } from "../consentStore";
+import { isRefused } from "../refusalBoundary";
 
 type Params = { userId?: string | string[]; caseId?: string | string[] };
 
@@ -151,11 +167,20 @@ function offlineWorkspaceApi(
     saveFinal: () => unavailable("saveFinal"),
     saveNotCodeable: () => unavailable("saveNotCodeable"),
     async searchDorisTerms(_vaSid, query, options) {
+      await assertAllowed();
       return editor.onTerms(query, options?.limit, options?.subtreeUris);
     },
-    getDorisCodeInfo: (_vaSid, code) => editor.onCodeInfo(code),
-    checkDorisSelection: (_vaSid, code, uri) => editor.onSelectionCheck(code, uri),
-    getVaDefinitionForIcd: async () => null,
+    async getDorisCodeInfo(_vaSid, code) { await assertAllowed(); return editor.onCodeInfo(code); },
+    async checkDorisSelection(_vaSid, code, uri) { await assertAllowed(); return editor.onSelectionCheck(code, uri); },
+    async getVaDefinitionForIcd(code) {
+      await assertAllowed();
+      const expression = extractIcd11CodeExpression(code);
+      if (expression && isCluster(expression)) {
+        const info = await editor.onCodeInfo(expression);
+        return getBundledVaDefinition(expression, info.item.primary_stem ?? undefined);
+      }
+      return getBundledVaDefinition(code);
+    },
     async processDoris(_vaSid, _role, clientRevision, certificate) {
       await assertAllowed();
       const processed = await editor.onProcess(clientRevision, certificate);
@@ -219,7 +244,13 @@ const packIndex = () => (allowabilityIndex ??= createAllowabilityIndex(allowabil
 function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; userId: string; clientDraftId: string; account: Account; onDone: () => Promise<void> }) {
   const styles = useUiStyles();
   const engine = offlineEngine();
-  const [loaded, setLoaded] = useState<{ row: OfflineCodingCase; draft: DeviceTimedDraft; coding: OfflineCodingRow | null; projectId: string } | undefined>();
+  const [loaded, setLoaded] = useState<{ row: OfflineCodingCase; draft: DeviceTimedDraft; coding: OfflineCodingRow | null; projectId: string; smartvaOptions: SmartVaOptionsSnapshot | null } | undefined>();
+  const [smartvaCache, setSmartvaCache] = useState<LocalSmartVaRow | null>(null);
+  const [smartvaAnswersHash, setSmartvaAnswersHash] = useState<string | null>(null);
+  const [smartvaBusy, setSmartvaBusy] = useState(false);
+  const [smartvaFailure, setSmartvaFailure] = useState("");
+  const [smartvaAvailable, setSmartvaAvailable] = useState<boolean | undefined>(undefined);
+  const [smartvaVersion, setSmartvaVersion] = useState<string | null>(null);
   const [failed, setFailed] = useState("");
   const [busy, setBusy] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
@@ -230,21 +261,49 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   accountRef.current = account;
   const releaseLease = useRef<(() => void) | null>(null);
   const initStarted = useRef(false);
+  const smartvaEntryStarted = useRef(false);
   const allowed = !!loaded && canUseOfflineCoding(account, loaded.projectId);
-  const assertAllowed = useCallback(async () => {
-    const draft = await db.getFirstAsync<{ project_id: string | null }>("SELECT project_id FROM drafts WHERE id = ?", [clientDraftId]);
-    if (!draft?.project_id || !canUseOfflineCoding(accountRef.current, draft.project_id)) throw new Error("offline_case_access_revoked");
+  const assertNotRefused = useCallback(async () => {
+    const row = await db.getFirstAsync<{ envelope: string; death_id: string | null; client_death_id: string | null }>(
+      "SELECT envelope, death_id, client_death_id FROM drafts WHERE id = ?", [clientDraftId],
+    );
+    if (!row) throw new Error("offline_case_missing");
+    const consent = await consentForDraft(db, { id: clientDraftId, death_id: row.death_id, client_death_id: row.client_death_id });
+    if (await getMeta<boolean>(db, `consent:server-refused:${clientDraftId}`) === true || isRefused((JSON.parse(row.envelope) as DeviceTimedDraft).data, consent?.record.envelope.decision)) throw new Error("consent_refused");
   }, [db, clientDraftId]);
+  const assertAllowed = useCallback(async () => {
+    await assertNotRefused();
+    if (!await isIcd11DorisEnabled()) throw new Error("icd11_doris_disabled");
+    const slot = await loadActiveSlot();
+    if (!await accountStoreIdentityIsInSelectedMode(userId)) throw new Error("offline_case_access_revoked");
+    const currentAccount = (await loadAccounts(slot)).find((item) => item.user_id === userId);
+    const draft = await db.getFirstAsync<{ project_id: string | null }>("SELECT project_id FROM drafts WHERE id = ?", [clientDraftId]);
+    if (!currentAccount || !draft?.project_id || !canUseOfflineCoding(currentAccount, draft.project_id) || await loadActiveSlot() !== slot) {
+      throw new Error("offline_case_access_revoked");
+    }
+  }, [db, clientDraftId, userId, assertNotRefused]);
 
   useEffect(() => {
     let live = true;
     (async () => {
       try {
         if (releaseLease.current) return;
-        const draft = await db.getFirstAsync<{ project_id: string | null }>("SELECT project_id FROM drafts WHERE id = ?", [clientDraftId]);
+        const draft = await db.getFirstAsync<{ project_id: string | null; site_id: string }>("SELECT project_id, site_id FROM drafts WHERE id = ?", [clientDraftId]);
         if (!draft?.project_id || !canUseOfflineCoding(accountRef.current, draft.project_id)) {
           if (live) setFailed("offline_case_access_revoked");
           return;
+        }
+        await assertNotRefused();
+        if (!smartvaEntryStarted.current) {
+          smartvaEntryStarted.current = true;
+          try {
+            const result = await ensureLocalSmartVa({ db, userId, draftId: clientDraftId });
+            if (result.status === "skipped" && result.reason === "busy") smartvaEntryStarted.current = false;
+            if (result.status === "failed" && live) setSmartvaFailure(t("localSmartVaFailed"));
+          } catch {
+            if (live) setSmartvaFailure(t("localSmartVaFailed"));
+          }
+          if (!live) return;
         }
         const release = acquireLocalCodingEditor(userId, clientDraftId);
         if (!release) {
@@ -278,9 +337,17 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
           timeline.current = codingTimeline(appendWorkflowEvent(timeline.current, "coding_opened", openedAt));
           const persisted = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [clientDraftId]);
           if (!persisted) throw new Error("offline_case_missing");
-          envelope.codingTimelineV1 = codingTimeline((JSON.parse(persisted.envelope) as Record<string, unknown>).codingTimelineV1);
+          const persistedEnvelope = JSON.parse(persisted.envelope) as Record<string, unknown>;
+          envelope.codingTimelineV1 = codingTimeline(persistedEnvelope.codingTimelineV1);
           timeline.current = envelope.codingTimelineV1;
-          setLoaded({ row, draft: envelope, coding, projectId: draft.project_id });
+          const configKey = `draft-config:${clientDraftId}`;
+          const draftConfig = await getMeta<Record<string, unknown>>(db, configKey);
+          const options = isSmartVaOptionsSnapshot(draftConfig?.smartva) ? draftConfig.smartva : null;
+          const answersHash = await draftAnswersSha256(db, clientDraftId);
+          const cached = await getLocalSmartVa(db, clientDraftId);
+          setSmartvaAnswersHash(answersHash);
+          setSmartvaCache(cached);
+          setLoaded({ row, draft: envelope, coding, projectId: draft.project_id, smartvaOptions: options });
         }
       } catch (error) {
         releaseLease.current?.();
@@ -292,6 +359,19 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   }, [db, clientDraftId, retry, userId]);
 
   useEffect(() => () => { releaseLease.current?.(); releaseLease.current = null; }, []);
+
+  // This capability probe does not initialize or load the SmartVA model; scoring remains an explicit action.
+  useEffect(() => {
+    let live = true;
+    if (!loaded?.smartvaOptions) {
+      setSmartvaAvailable(false);
+      return () => { live = false; };
+    }
+    void offlineSmartvaEngine().init().then((result) => {
+      if (live) { setSmartvaAvailable(result.ok && !!result.version); setSmartvaVersion(result.version ?? null); }
+    });
+    return () => { live = false; };
+  }, [loaded?.smartvaOptions]);
 
   // Start only after the selected draft passes its project check and holds the editor lease.
   useEffect(() => {
@@ -350,6 +430,79 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   );
   const request = offlineRequester(db);
 
+  const smartvaIsCurrent = smartvaAvailable === true && !!loaded?.smartvaOptions &&
+    isLocalSmartVaCurrent(smartvaCache, smartvaAnswersHash, loaded.smartvaOptions.optionsDigest, smartvaVersion);
+  const repairSmartVaOptions = async () => {
+    if (!loaded || smartvaBusy) return;
+    setSmartvaBusy(true);
+    setSmartvaFailure("");
+    try {
+      await assertAllowed();
+      const draft = await db.getFirstAsync<{ project_id: string; site_id: string }>("SELECT project_id, site_id FROM drafts WHERE id = ?", [clientDraftId]);
+      if (!draft || draft.project_id !== loaded.projectId) throw new Error("offline_case_access_revoked");
+      let options: SmartVaOptionsSnapshot | null;
+      if (accountRef.current.standalone) {
+        options = await standaloneSmartVaSnapshot(await getOfflineProfile(), loaded.draft.instrumentId, loaded.draft.instrumentVersion);
+      } else {
+        const references = await getCachedReferenceData(db);
+        const project = references?.projects.find((item) => item.project.project_id === draft.project_id)?.project;
+        options = projectSmartVaSnapshot((project as (typeof project & { smartva_targets?: SmartVaTarget[] }) | undefined)?.smartva_targets,
+          { siteId: draft.site_id, orgUnitId: loaded.row.org_unit_id });
+      }
+      if (!options) throw new Error("options_unavailable");
+      await assertAllowed();
+      const key = `draft-config:${clientDraftId}`;
+      const config = await getMeta<Record<string, unknown>>(db, key);
+      if (config?.smartva != null) {
+        if (!isSmartVaOptionsSnapshot(config.smartva)) throw new Error("options_unavailable");
+        options = config.smartva;
+      } else {
+        await setMeta(db, key, { ...config, smartva: options });
+      }
+      setLoaded((current) => current ? { ...current, smartvaOptions: options } : current);
+    } catch {
+      setSmartvaFailure(t("localSmartVaOptionsNeeded"));
+    } finally {
+      setSmartvaBusy(false);
+    }
+  };
+  const runSmartVa = async () => {
+    if (!loaded || smartvaBusy) return;
+    setSmartvaBusy(true);
+    setSmartvaFailure("");
+    try {
+      await assertNotRefused();
+      const draftConsentKeys = await db.getFirstAsync<{ death_id: string | null; client_death_id: string | null }>(
+        "SELECT death_id, client_death_id FROM drafts WHERE id = ?",
+        [clientDraftId],
+      );
+      const consent = await consentForDraft(db, {
+        id: clientDraftId,
+        death_id: draftConsentKeys?.death_id,
+        client_death_id: draftConsentKeys?.client_death_id,
+      });
+      const row = await runLocalSmartVa({
+        db,
+        draftId: clientDraftId,
+        envelope: JSON.stringify(loaded.draft),
+        options: loaded.smartvaOptions,
+        sealedFields: !consent || consent.record.envelope.decision === "refused"
+          ? consent?.record.covered_fields ?? [...DEFAULT_COVERED_FIELDS]
+          : [],
+        answersHash: () => draftAnswersSha256(db, clientDraftId),
+        engine: offlineSmartvaEngine(),
+        assertAllowed,
+      });
+      setSmartvaCache(row);
+      setSmartvaAnswersHash(await draftAnswersSha256(db, clientDraftId));
+    } catch (error) {
+      setSmartvaFailure(t("localSmartVaFailed"));
+      setSmartvaCache(await getLocalSmartVa(db, clientDraftId));
+    } finally {
+      setSmartvaBusy(false);
+    }
+  };
+
   if (failed) {
     return (
       <Screen title="Offline coding">
@@ -385,6 +538,26 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         <Text style={styles.muted}>Instrument: {loaded.draft.instrumentId} {loaded.draft.instrumentVersion}</Text>
         <Text style={styles.muted}>Coding: {coding ? `${statusLabel(coding.status)}${coding.ucod_code ? ` — ${coding.ucod_code}` : ""}` : statusLabel(null)}</Text>
       </View>
+      {loaded.smartvaOptions ? <View style={[styles.card, { gap: 8 }]}>
+        <Text style={styles.text}>{t("localSmartVaTitle")}</Text>
+        <Text style={styles.muted}>{t("localSmartVaNote")}</Text>
+        {smartvaIsCurrent && smartvaCache?.status === "ready" && smartvaCache.result_json
+          ? <>
+            <Text style={styles.muted}>{t("localSmartVaUpdated", { date: new Date(smartvaCache.updated_at).toLocaleString() })} · {t("localSmartVaVersion", { version: smartvaCache.engine_version ?? "—" })}</Text>
+            <SmartVaReference value={JSON.parse(smartvaCache.result_json)} />
+          </>
+          : smartvaIsCurrent && smartvaCache?.status === "error"
+            ? <Text accessibilityRole="alert" style={styles.error}>{t("localSmartVaFailed")}</Text>
+            : null}
+        {smartvaFailure ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+        <Button kind="secondary" label={t(smartvaIsCurrent && smartvaCache?.status === "ready" ? "localSmartVaRegenerate" : "localSmartVaRun")} onPress={() => { void runSmartVa(); }} disabled={smartvaBusy || smartvaAvailable !== true} />
+        {smartvaBusy ? <Text style={styles.muted}>{t("localSmartVaWorking")}</Text> : null}
+        {smartvaAvailable === false ? <Text style={styles.muted}>{t("localSmartVaUnavailable")}</Text> : null}
+      </View> : <View style={[styles.card, { gap: 8 }]}>
+        <Text style={styles.muted}>{t("localSmartVaOptionsNeeded")}</Text>
+        {smartvaFailure ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+        <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
+      </View>}
       <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
         <DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={onDone} onDone={onDone} />
       </View>
@@ -444,6 +617,8 @@ export default function OfflineCoding() {
   const styles = useUiStyles();
   const { caseId } = useLocalSearchParams<Params>();
   const { accounts } = useAppState();
+  const icd11Preference = useIcd11DorisPreference();
+  const [enabledOnEntry, setEnabledOnEntry] = useState<boolean | undefined>(undefined);
   const userId = useOfflineUserId();
   const account = accounts.find((item) => item.user_id === userId);
   const canOpenOffline = account ? canUseOfflineCoding(account) : false;
@@ -452,10 +627,28 @@ export default function OfflineCoding() {
   const [db, setDb] = useState<Db | undefined>(undefined);
   const [storeMissing, setStoreMissing] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  useEffect(() => {
+    if (enabledOnEntry === undefined && icd11Preference.ready) setEnabledOnEntry(icd11Preference.enabled);
+  }, [enabledOnEntry, icd11Preference.enabled, icd11Preference.ready]);
+  useEffect(() => {
+    if (icd11Preference.ready && !icd11Preference.enabled) {
+      setEnabledOnEntry(false);
+    }
+  }, [icd11Preference.enabled, icd11Preference.ready]);
+  useEffect(() => {
+    // Turning the preference on from Settings must not start the native engine as a side effect.
+    // Return to the local case list; opening a case again is the explicit coding action.
+    if (icd11Preference.ready && icd11Preference.enabled && enabledOnEntry === false) {
+      if (selected) setSelected(null);
+      setReloadTick((tick) => tick + 1);
+      setEnabledOnEntry(true);
+    }
+  }, [enabledOnEntry, icd11Preference.enabled, icd11Preference.ready, selected]);
+  const canEnterCoding = icd11Preference.enabled && enabledOnEntry === true;
 
   useEffect(() => {
-    // The gate above still mounts these hooks (they run before its return), so the store is only ever opened on Plus.
-    if (!isPlusVariant() || !userId || !account || (!canOpenOffline && !selected) || db) return;
+    // Do not open the interviewer database or enumerate local cases while ICD-11/DORIS is off.
+    if (!isPlusVariant() || !canEnterCoding || !userId || !account || (!canOpenOffline && !selected) || db) return;
     let live = true;
     setStoreMissing(false);
     openInterviewerDb(userId)
@@ -467,10 +660,20 @@ export default function OfflineCoding() {
         else setStoreMissing(true);
       });
     return () => { live = false; };
-  }, [account, canOpenOffline, db, reloadTick, router, selected, userId]);
+  }, [account, canEnterCoding, canOpenOffline, db, reloadTick, router, selected, userId]);
 
   if (!isPlusVariant()) return <Redirect href="/" />;
   if (!userId || !account || (!canOpenOffline && !selected)) return <Redirect href="/" />;
+  if (!canEnterCoding) {
+    return <Screen title={t("icd11DorisDisabledTitle")}>
+      <Text accessibilityRole="alert" style={styles.text}>{t("icd11DorisDisabledBody")}</Text>
+      <Button label={t("icd11DorisOpenSettings")} onPress={() => router.push({ pathname: "/settings", params: { userId } })} />
+      <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={() => {
+        setSelected(null);
+        setReloadTick((tick) => tick + 1);
+      }} />
+    </Screen>;
+  }
   if (storeMissing) {
     return (
       <Screen title="Offline coding">

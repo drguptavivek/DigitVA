@@ -790,6 +790,46 @@ describe("server draft store on a dead session (digitva-fvbc)", () => {
     });
   });
 
+  it("discards a kept snapshot after refusal and a later grant changed the server draft", async () => {
+    memory.set("digitva-kept-draft:d1", JSON.stringify({ data: { Id10007: "private answer" }, baseUpdatedAt: "2026-10-03T00:00:00Z" }));
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(loaded());
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+    expect((await store.load("d1"))?.data).toEqual({});
+    expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+  });
+
+  it("does not restore an old prefill if the server changed before the form loaded", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(loaded());
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map(), initialData: { Id10007: "old prefill" }, initialDataVersion: "2026-10-03T00:00:00Z" });
+    expect((await store.load("d1"))?.data).toEqual({});
+  });
+
+  it("clears a signed-out snapshot immediately when refusal is recorded", async () => {
+    let requests = 0;
+    jest.spyOn(globalThis, "fetch").mockImplementation(async () => ++requests === 1 ? loaded() : response({ status: 401, body: { code: "unauthorized" } }));
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+    await store.load("d1");
+    const save = store.save(draft);
+    await expect(store.flush()).rejects.toBeInstanceOf(ClientApiError);
+    await expect(save).rejects.toBeInstanceOf(ClientApiError);
+    expect(memory.get("digitva-kept-draft:d1")).toContain("typed");
+    store.enterRefusal();
+    expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+  });
+
+  it("acknowledges a DP consent grant using the current server version without inventing WHO consent", async () => {
+    const requests: Array<{ method: string; body?: Record<string, unknown> }> = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      requests.push({ method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return requests.length < 3 ? loaded() : response({ status: 200, body: {} });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map() });
+    await store.load("d1");
+    await store.resumeAfterConsentGrant();
+    expect(requests[2]).toMatchObject({ method: "PATCH", body: { sections: {}, resume_refused: true, if_updated_at: "2026-10-03T00:01:00Z" } });
+    expect(requests[2].body?.sections).toEqual({});
+  });
+
   for (const [label, dead] of [
     ["401", { status: 401, body: { code: "unauthorized" } }],
     ["csrf_failed after the refresh also fails", { status: 400, body: { code: "csrf_failed" } }],

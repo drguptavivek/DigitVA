@@ -19,6 +19,7 @@ jest.mock("../src/interviewerDb", () => ({
 
 import { ApiError } from "../src/api";
 import {
+  AccountStoreCollisionError,
   AlreadyEnrolledError,
   authedRawRequest,
   authedRequest,
@@ -37,6 +38,7 @@ import {
   signIn,
   SignInRequiredError,
   signOut,
+  standaloneModeAvailable,
   slotKey,
   wipeInterviewer,
 } from "../src/auth";
@@ -150,12 +152,53 @@ it("enrolDevice on a phone without slots writes exactly today's keys", async () 
   expect([...mockSecure.keys()].sort()).toEqual(["device", "device_secret"]);
 });
 
-it("keeps a standalone account in Active", async () => {
+it("keeps a standalone account in Active after both server slots are explicitly signed out", async () => {
   seedBoth();
+  const signedOutDemo = demoAccounts.map((account) => ({ ...account, signed_out: true, needs_sign_in: true }));
+  mockSecure.set("accounts", JSON.stringify(liveAccounts.map((account) => ({ ...account, signed_out: true, needs_sign_in: true }))));
+  mockSecure.set("demo.accounts", JSON.stringify(signedOutDemo));
   await createStandaloneAccount("local-1", "Local");
   expect(JSON.parse(mockSecure.get("accounts")!).map((a: { user_id: string }) => a.user_id))
     .toEqual(["live-user", "local-1"]);
-  expect(JSON.parse(mockSecure.get("demo.accounts")!)).toEqual(demoAccounts);
+  expect(JSON.parse(mockSecure.get("demo.accounts")!)).toEqual(signedOutDemo);
+});
+
+describe("standalone eligibility across both server slots", () => {
+  it("allows empty slots and existing standalone accounts without changing storage", async () => {
+    expect(await standaloneModeAvailable()).toBe(true);
+    mockSecure.set("accounts", JSON.stringify([{ user_id: "local-1", name: "Local", standalone: true }]));
+    const before = new Map(mockSecure);
+    expect(await standaloneModeAvailable()).toBe(true);
+    expect(mockSecure).toEqual(before);
+  });
+
+  it.each(["accounts", "demo.accounts"])("requires explicit signed_out in %s, regardless of session gates", async (key) => {
+    for (const flags of [{}, { needs_sign_in: true }, { access_removed: true, needs_sign_in: true }, { terms_required: true }, { signed_out: false }]) {
+      mockSecure.set(key, JSON.stringify([{ ...liveAccounts[0], ...flags }]));
+      expect(await standaloneModeAvailable()).toBe(false);
+    }
+    mockSecure.set(key, JSON.stringify([{ ...liveAccounts[0], signed_out: true, needs_sign_in: true }]));
+    expect(await standaloneModeAvailable()).toBe(true);
+  });
+
+  it.each(["accounts", "demo.accounts"])("refuses direct account creation for a server account in %s without writing", async (key) => {
+    mockSecure.set(key, JSON.stringify(liveAccounts));
+    const before = new Map(mockSecure);
+    await expect(createStandaloneAccount("local-1", "Local")).rejects.toThrow("standalone_server_session_active");
+    expect(mockSecure).toEqual(before);
+  });
+
+  it.each(["not-json", "null", "{}", "[null]", '[{"signed_out":true}]', '[{"user_id":"u","name":"N","signed_out":"true"}]'])
+    ("fails closed for invalid account storage %s", async (raw) => {
+      mockSecure.set("demo.accounts", raw);
+      expect(await standaloneModeAvailable()).toBe(false);
+    });
+
+  it("fails closed when either slot cannot be read", async () => {
+    const read = jest.requireMock("expo-secure-store").getItemAsync as jest.Mock;
+    read.mockRejectedValueOnce(new Error("secure storage locked"));
+    expect(await standaloneModeAvailable()).toBe(false);
+  });
 });
 
 it("refuses a standalone account while Demo is chosen and writes nothing", async () => {
@@ -302,6 +345,34 @@ describe("enrolment and sign-in fill their own slot", () => {
     await expect(signIn("demo.asha", "pw", "demo")).rejects.toBeInstanceOf(NotInSlotError);
     expect(urls).toEqual([]);
   });
+
+  it.each([DEMO, LIVE])("refuses a sign-in when the ID is already retained in Demo on %s", async (existingServer) => {
+    mockSecure.set("device", JSON.stringify(liveDevice));
+    mockSecure.set("device_secret", "live-secret");
+    const existing = [{ user_id: USER_LIVE, name: "Saved", server: existingServer, signed_out: true }];
+    mockSecure.set("demo.accounts", JSON.stringify(existing));
+    mockSecure.set(`tokens.${USER_LIVE}`, "retained-token-record");
+    serve({ "/sessions": () => reply(201, sessionBody(USER_LIVE)) });
+
+    await expect(signIn("asha@example.org", "pw")).rejects.toBeInstanceOf(AccountStoreCollisionError);
+
+    expect(mockSecure.get(`tokens.${USER_LIVE}`)).toBe("retained-token-record");
+    expect(mockSecure.get("accounts")).toBeUndefined();
+    expect(mockSecure.get("demo.accounts")).toBe(JSON.stringify(existing));
+  });
+});
+
+it("fails closed on legacy Active/Demo ID collisions before loading or using tokens", async () => {
+  seedBoth();
+  mockSecure.set("demo.accounts", JSON.stringify([{ user_id: "live-user", name: "Saved", server: LIVE, signed_out: true }]));
+  mockSecure.set("tokens.live-user", "retained-token-record");
+  serve({});
+
+  await expect(loadAccounts("active")).rejects.toBeInstanceOf(AccountStoreCollisionError);
+  await expect(authedRequest("live-user", "/api/v1/me/access")).rejects.toBeInstanceOf(AccountStoreCollisionError);
+
+  expect(urls).toEqual([]);
+  expect(mockSecure.get("tokens.live-user")).toBe("retained-token-record");
 });
 
 describe("an enrolment never overwrites an enrolment", () => {

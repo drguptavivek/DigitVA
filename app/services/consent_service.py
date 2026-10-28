@@ -36,6 +36,7 @@ from app.models import (
     VaConsentRecordPurpose,
     VaDeathRegister,
     VaProjectMaster,
+    VaWebIntakeDraft,
 )
 from app.models.va_consent import (
     CONSENT_CHANNELS,
@@ -480,6 +481,57 @@ def _latest_record(death_id: uuid.UUID, client_draft_id: uuid.UUID | None) -> Va
         .order_by(VaConsentRecord.received_at.desc(), VaConsentRecord.recorded_at.desc())
         .limit(1)
     )
+
+
+REFUSAL_ANSWERS = {
+    "Id10013": {"yes", "no"},
+    "refusal_age_group": {"neonate", "child", "15_49y", "50_64y", "65_plus", "unknown"},
+    "refusal_sex": {"male", "female", "unknown"},
+}
+
+
+def interview_refused(*, death, client_draft_id, answers: dict, consent=None, include_case_hold: bool = True,
+                      known_case_hold: bool | None = None) -> bool:
+    """WHO and respondent consent independently stop an interview."""
+    if str(answers.get("Id10013") or "").strip().lower() == "no":
+        return True
+    if include_case_hold and death is not None and (case_refusal_hold(death) if known_case_hold is None else known_case_hold):
+        return True
+    if isinstance(consent, dict) and consent.get("decision") in ("granted", "refused"):
+        return consent["decision"] == "refused"
+    if death is None:
+        return False
+    if client_draft_id:
+        record = db.session.scalar(
+            sa.select(VaConsentRecord).where(
+                VaConsentRecord.death_id == death.death_id,
+                sa.or_(VaConsentRecord.client_draft_id == client_draft_id, VaConsentRecord.client_draft_id.is_(None)),
+            ).order_by(VaConsentRecord.client_draft_id.is_not(None).desc(),
+                       VaConsentRecord.received_at.desc(), VaConsentRecord.recorded_at.desc()).limit(1)
+        )
+    else:
+        record = _latest_record(death.death_id, None)
+    return bool(record and record.event == "refused")
+
+
+def case_refusal_hold(death) -> bool:
+    return bool(db.session.scalar(sa.select(sa.exists().where(
+        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status.in_(("draft", "submitted")),
+        VaWebIntakeDraft.meta["caseRefusalHold"].astext == "true",
+    ))))
+
+
+def refusal_answers(answers: dict) -> dict:
+    """Keep only validated refusal answers, never arbitrary embedded values."""
+    return {key: value for key, value in answers.items()
+            if key in REFUSAL_ANSWERS and isinstance(value, str)
+            and value in REFUSAL_ANSWERS[key]}
+
+
+def check_refusal_answers(answers: dict) -> None:
+    if refusal_answers(answers) != answers:
+        raise ConsentError("Consent was refused; remove interview answers and files before sending.",
+                           "consent_refused", fields=[])
 
 
 def _covered_by(record: VaConsentRecord) -> list:
@@ -991,8 +1043,22 @@ def record_draft_consent(user, draft, consent: object) -> dict:
     submit gate then finds). Returns ``draft_consent_status``."""
     if draft.death_id is None:
         raise ConsentError("A consent is recorded on a case; this interview has none.")
+    from app.services import web_intake_service
+
+    draft = web_intake_service.lock_draft_for_browser_write(draft)
     death = db.session.get(VaDeathRegister, draft.death_id)
-    record_consent(user, project_id=draft.project_id, death=death, consent=consent,
-                   client_draft_id=draft.client_draft_id, channel="web")
+    releasing = isinstance(consent, dict) and consent.get("decision") == "granted"
+    if case_refusal_hold(death) and not (draft.meta or {}).get("caseRefusalHold"):
+        raise ConsentError("Another interview holds this case after a refusal.", "consent_refused", 409, fields=[])
+    record, _ = record_consent(user, project_id=draft.project_id, death=death, consent=consent,
+                               client_draft_id=draft.client_draft_id, channel="web")
+    if (releasing and (draft.meta or {}).get("caseRefusalHold") and
+            str(web_intake_service._answers_of(draft).get("Id10013") or "").lower() != "no"):
+        draft.meta = {**draft.meta, "caseRefusalHold": False}
+    if record.event == "refused":
+        web_intake_service.clear_direct_identity_for_refusal(draft, user)
+        web_intake_service.scrub_refused_draft(draft)
+        if draft.answers_sha256 and (draft.meta or {}).get("lastSync"):
+            draft.meta = {**draft.meta, "lastSync": {**draft.meta["lastSync"], "refusal": True}}
     db.session.flush()
     return draft_consent_status(draft)

@@ -261,21 +261,23 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("on the web, a refusal keeps the informant fields closed and empty and is sent with the registration", async () => {
+  it("on the web, a refusal stops registration without sending identity", async () => {
     mockFetchConsentConfig.mockResolvedValue(requiredConfig);
+    const request = jest.spyOn(sharedApi, "requestClientJson").mockImplementation(async (_path, options) => ({ client_draft_id: (options?.json as { client_draft_id: string }).client_draft_id }) as never);
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
     await fillDeceased(tree!);
     await act(async () => tree!.root.findByProps({ "data-web-decision": "refused" }).props.onClick());
     expect(tree!.root.findAllByProps({ "data-field": "informant_name" })).toHaveLength(0);
-    expect(JSON.stringify(tree!.toJSON())).toContain("consentRecordedRefused");
-    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
-    await settle();
-    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
-    const body = mockRegisterDeath.mock.calls[0][1];
-    expect(body.consent).toEqual({ client_id: "w2", decision: "refused" });
-    expect(body).not.toHaveProperty("informant_name");
+    expect(JSON.stringify(tree!.toJSON())).toContain("Interview refused");
+    expect(tree!.root.findAllByProps({ "data-field": "deceased_name" })).toHaveLength(0);
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
+    await act(async () => tree!.root.findByProps({ "data-label": "Save refusal" }).props.onClick());
+    const [path, options] = request.mock.calls.find(([url]) => url === "/api/v1/intake/refusals")!;
+    expect(path).toBe("/api/v1/intake/refusals");
+    expect(options?.json).toMatchObject({ project_id: "P1", site_id: "S1", consent: { decision: "refused" } });
+    expect(options?.json).not.toHaveProperty("deceased_name");
     await act(async () => tree!.unmount());
   });
 

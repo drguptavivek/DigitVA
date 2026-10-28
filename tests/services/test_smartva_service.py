@@ -437,6 +437,22 @@ class GenerateForSubmissionTests(BaseTestCase):
         result = generate_for_submission(sub.va_sid)
         self.assertEqual(result, 0)
 
+    def test_option_group_rechecks_refusal_before_reading_payload(self):
+        from app.services.smartva_service import _generate_option_group
+
+        sub = self._make_submission("uuid:gen-raced-refusal")
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_CONSENT_REFUSED, reason="test", by_role="test"
+        )
+        db.session.commit()
+        form = db.session.get(VaForms, self.FORM_ID)
+        with patch("app.utils.va_smartva_prepdata") as prep:
+            saved = _generate_option_group(
+                form, {sub.va_sid}, run_options={}, run_metadata_by_sid={},
+            )
+        self.assertEqual(saved, 0)
+        prep.assert_not_called()
+
     def test_skips_finalized_upstream_changed_submission(self):
         sub = self._make_submission("uuid:gen-skip-revoked")
         set_submission_workflow_state(

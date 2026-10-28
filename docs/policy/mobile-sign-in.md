@@ -56,6 +56,28 @@ everything not said here.
   a code (section 3), or when the account's email is verified (onboarding
   policy section 5.1).
 
+### Manual native device enrolment
+
+Owner decision 2026-10-28 (`digitva-hs7e.6`): "Enroll This Device with
+Server" offers both QR enrolment and a manual server address, username
+(the existing email/mobile identifier) and password form. Demo enrolment
+remains a distinct flow and target. The manual Active flow must not reuse
+the demo enrolment endpoint or silently change the selected target server.
+
+The native credential endpoint creates the device and session atomically,
+using existing credential validation, native-role/grant authorization,
+terms gates, rate limits and the three-active-device limit. Failure creates
+neither a device nor a session; it never evicts another phone. Return the
+existing combined enrolment/session shape. Passwords, tokens and device
+secrets must not enter logs, diagnostics or persisted form state.
+
+With no project picker, use the first active native-access project in
+project-id order, preferring collection/registration projects, as the
+device's administrative home. This home does not grant or narrow data
+access: every request still checks its named project and scope. Server
+addresses use the existing trusted-origin validation, with existing exact
+debug-only local exceptions; credentials are never sent to a rejected URL.
+
 ## 3. Server-generated password, released by a one-time code
 
 Owner decision 2026-10-03: mobile-only accounts never choose their own

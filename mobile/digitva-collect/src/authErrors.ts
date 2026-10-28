@@ -37,3 +37,11 @@ export class AlreadyEnrolledError extends Error {
     this.name = "AlreadyEnrolledError";
   }
 }
+
+/** The same local store identity is retained in more than one server or mode. */
+export class AccountStoreCollisionError extends Error {
+  constructor() {
+    super("account_store_collision");
+    this.name = "AccountStoreCollisionError";
+  }
+}

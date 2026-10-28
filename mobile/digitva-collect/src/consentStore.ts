@@ -15,7 +15,8 @@ import {
   type ConsentRecordEnvelope,
   type ProjectConsentConfig,
 } from "./consent";
-import { getMeta, setMeta, type Db } from "./drafts";
+import { clearRefusedDraftInTransaction, getMeta, setMeta, type Db } from "./drafts";
+import { runInTransaction } from "./dbTransaction";
 
 const CONFIG_KEY = "consentConfig";
 
@@ -100,10 +101,36 @@ export function storedConsent(envelope: ConsentRecordEnvelope, config: ProjectCo
 const refusedInheritedKey = (draftId: string) => `consentRefused:${draftId}`;
 
 export async function saveDraftConsent(db: Db, draftId: string, record: StoredConsent): Promise<void> {
-  await setMeta(db, draftKey(draftId), record);
-  await db.runAsync("DELETE FROM meta WHERE key = ?", [refusedInheritedKey(draftId)]);
+  await runInTransaction(db, async (tx) => {
+    await setMeta(tx, draftKey(draftId), record);
+    await tx.runAsync("DELETE FROM meta WHERE key = ?", [refusedInheritedKey(draftId)]);
+    if (record.envelope.decision === "refused") await clearRefusedDraftInTransaction(tx, draftId);
+    else {
+      await tx.runAsync("DELETE FROM meta WHERE key = ?", [`consent:server-refused:${draftId}`]);
+      await tx.runAsync("UPDATE drafts SET upload_issue = NULL, completed = 0, completion = NULL WHERE id = ? AND upload_issue = 'consent_refused'", [draftId]);
+    }
+  });
 }
-export const saveRegistrationConsent = (db: Db, clientDeathId: string, record: StoredConsent) => setMeta(db, registrationKey(clientDeathId), record);
+
+export async function holdServerRefusal(db: Db, draftId: string): Promise<void> {
+  await runInTransaction(db, async (tx) => {
+    await setMeta(tx, `consent:server-refused:${draftId}`, true);
+    await clearRefusedDraftInTransaction(tx, draftId);
+    await tx.runAsync("UPDATE drafts SET upload_issue = 'consent_refused' WHERE id = ?", [draftId]);
+  });
+}
+export async function saveRegistrationConsent(db: Db, clientDeathId: string, record: StoredConsent): Promise<void> {
+  await runInTransaction(db, async (tx) => {
+    await setMeta(tx, registrationKey(clientDeathId), record);
+    if (record.envelope.decision === "refused") {
+      const drafts = await tx.getAllAsync<{ id: string }>("SELECT id FROM drafts WHERE client_death_id = ?", [clientDeathId]);
+      for (const { id } of drafts) {
+        const own = await getMeta<StoredConsent>(tx, draftKey(id));
+        if (!own || own.envelope.decision === "refused") await clearRefusedDraftInTransaction(tx, id);
+      }
+    }
+  });
+}
 export const getRegistrationConsent = (db: Db, clientDeathId: string) => getMeta<StoredConsent>(db, registrationKey(clientDeathId));
 
 export type ConsentIndex = Map<string, StoredConsent>;

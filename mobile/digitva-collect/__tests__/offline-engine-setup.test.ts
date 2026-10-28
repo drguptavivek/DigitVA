@@ -1,5 +1,5 @@
 import { createOfflineEngine, parseSetup, type NativeEngine, type NativeInit } from "../src/offlineEngine";
-import { describeProgress, describeSetup, describeUpdate, runEngineCheck } from "../src/offlineEngineCheck";
+import { describeProgress, describeSetup, runEngineCheck } from "../src/offlineEngineCheck";
 
 type ProgressListener = Parameters<NonNullable<NativeEngine["addListener"]>>[1];
 
@@ -96,17 +96,6 @@ describe("first-setup record", () => {
   it("lists only the WHO files the record names, never engine-built ones", () => {
     const text = JSON.stringify({ mode: "downloaded", files: [{ path: "data/DORIS_v2.1_1.2.0/Rules.json", size: 1, sha256: "a" }] });
     expect(describeSetup(parseSetup(text)!)).toBe("downloaded 1 files: data/DORIS_v2.1_1.2.0/Rules.json (1 B)");
-  });
-
-  it("describes the update result: changed files, no newer files, no connection, or a failure", () => {
-    expect(describeUpdate({ ok: false, error: "no_connection", ms: 0 })).toBe("No connection; kept the current WHO files.");
-    expect(describeUpdate({ ok: false, error: "native_error", ms: 0 })).toBe("Failed; kept the shipped copies.");
-    expect(
-      describeUpdate({ ok: true, ms: 1, copyMs: 0, initMs: 0, cached: false, setup: { mode: "downloaded", files: [{ path: "x", size: 2 }] } })
-    ).toBe("downloaded 1 files: x (2 B)");
-    expect(describeUpdate({ ok: true, ms: 1, copyMs: 0, initMs: 0, cached: false, setup: { mode: "shipped", files: [] } })).toBe(
-      "shipped copies (no newer WHO files)"
-    );
   });
 
   it("adds a setup step to the check, after init, when init reports one", async () => {

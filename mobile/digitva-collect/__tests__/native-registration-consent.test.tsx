@@ -169,18 +169,15 @@ it("shows the cached notice, opens the informant fields only on a grant, and sto
   expect(stored).toMatchObject({ envelope: envelope("granted"), covered_fields: ["informant_name", "informant_phone", "address"], recorded_by: "u1" });
 });
 
-it("under a refusal keeps the informant fields closed and saves the registration without them", async () => {
+it("under a refusal starts a separate direct refusal draft without registering identity", async () => {
   await open(config);
   await act(async () => { (mockPanel!.onDecision as (e: unknown) => void)(envelope("refused")); });
   await settle();
   expect(fields()).not.toContain("informant_name");
-  expect(text()).toContain("consentRecordedRefused");
-  await fillRequired();
-  await press("save");
-  await settle();
-  const [row] = await queued();
-  expect(JSON.parse(row.fields)).not.toHaveProperty("informant_name");
-  expect(await getMeta<{ envelope: { decision: string } }>(mockDb, `consent:reg:${row.client_death_id}`)).toMatchObject({ envelope: { decision: "refused" } });
+  expect(await queued()).toHaveLength(0);
+  expect(mockRouter.replace).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/form", params: expect.objectContaining({ projectId: "P1", siteId: "S1" }) }));
+  const consents = await loadConsents(mockDb);
+  expect([...consents.values()]).toEqual([expect.objectContaining({ envelope: expect.objectContaining({ decision: "refused" }) })]);
 });
 
 it("refuses to save informant details typed without a granted decision (a copy kept before consent existed)", async () => {
@@ -241,23 +238,22 @@ it("Change on a queued registration keeps the stored decision until a new one re
   await act(async () => { (mockPanel!.onDecision as (e: unknown) => void)({ ...envelope("refused"), client_id: "c2" }); });
   await settle();
   const [{ key }] = await keys();
-  expect(await getMeta(mockDb, key)).toMatchObject({ envelope: { client_id: "c2", decision: "refused" } });
+  expect(await getMeta(mockDb, key)).toMatchObject({ envelope: { client_id: "c1", decision: "granted" } });
+  expect(mockRouter.replace).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/form" }));
 });
 
-it("an online registration hands its decision to the case, so the interview reuses a refusal", async () => {
+it("a registration-only user cannot create a registration after refusal", async () => {
   (getDeathRegistrationAccess as jest.Mock).mockResolvedValue({ projects: [{ project_id: "P1", project_name: "P1", has_tree: false, actions: { interview: [], register_death: [{ site_id: "S1", site_name: "S1", org_units: [] }] } }] });
   (postNativeDeathRegistration as jest.Mock).mockResolvedValueOnce({ death_id: "d9", unique_id: "u9" });
   await open(config);
   await act(async () => { (mockPanel!.onDecision as (e: unknown) => void)(envelope("refused")); });
   await settle();
-  await fillRequired();
-  await press("save");
-  await settle();
   (getDeathRegistrationAccess as jest.Mock).mockResolvedValue(undefined);
-  expect(postNativeDeathRegistration).toHaveBeenCalledWith("u1", expect.objectContaining({ consent: envelope("refused") }));
-  const consents = await loadConsents(mockDb);
-  expect([...consents.keys()]).toEqual(["consent:death:d9"]);
-  expect(consentFor(consents, { id: "draft-1", death_id: "d9" })).toMatchObject({
-    own: false, record: { envelope: { decision: "refused" }, covered_fields: ["informant_name", "informant_phone", "address"] },
-  });
+  expect(postNativeDeathRegistration).not.toHaveBeenCalled();
+  expect(fields()).toHaveLength(0);
+  await press("Save refusal");
+  await settle();
+  const [row] = await queued();
+  expect(JSON.parse(row.fields)).toEqual({ refusal_only: true });
+  expect(await getMeta(mockDb, `consent:reg:${row.client_death_id}`)).toMatchObject({ envelope: { decision: "refused" } });
 });

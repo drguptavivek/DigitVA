@@ -8,6 +8,8 @@ export {
   Register,
   Revision,
   Settings,
+  ProfileAccess,
+  OpenSourceLicenses,
   SignIn,
   Unlock,
   Worklist

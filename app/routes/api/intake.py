@@ -161,6 +161,8 @@ def _project_or_client_error(exc):
 @bp.errorhandler(intake_svc.WebIntakeError)
 def _intake_error(exc):
     db.session.rollback()
+    if exc.code == "refusal_stale" and getattr(exc, "draft_id", None):
+        return error(str(exc), exc.code, exc.status_code, draft_id=exc.draft_id)
     return intake_error(exc)
 
 
@@ -570,6 +572,8 @@ def register_death():
     client_death_id = _client_id(p, "client_death_id")
     site_id = _site_id(p)
     project_id = request_project_id(p, roles=DEATH_REGISTERING_ROLES)
+    if isinstance(p.get("consent"), dict) and p["consent"].get("decision") == "refused":
+        return error("Consent was refused; record the refusal through an interview draft.", "consent_refused", 422)
 
     if client_death_id is not None:
         existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
@@ -638,7 +642,7 @@ def update_death(death_id):
             raise intake_svc.WebIntakeError("Fields must be text or numbers.")
         death = intake_svc.update_death(
             current_user, death_id, changes, if_updated_at=p.get("if_updated_at"),
-            identifiers=_identifiers_arg(p), warnings=warnings,
+            identifiers=_identifiers_arg(p), warnings=warnings, consent=p.get("consent"),
         )
     consent_svc.apply_registration_consent(
         current_user, death, p.get("consent"), fields=changes, channel=_consent_channel())
@@ -758,24 +762,52 @@ def save_draft(draft_id):
     draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, require_open=True))
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
         return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
+    if p.get("resume_refused") is True and p.get("if_updated_at") is None:
+        return error("Reload the draft before changing the refusal decision.", "draft_stale", 409)
     sections = p.get("sections") or {}
     if isinstance(sections, dict):
-        # No covered answer is stored without a granted consent on file (as the phone sync).
+        if len(sections) > 128:
+            raise intake_svc.WebIntakeError("Too many draft sections.", 422, "invalid_interview")
         death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+        combined = {}
+        for answers in sections.values():
+            if isinstance(answers, dict):
+                for name, value in answers.items():
+                    if name not in combined or consent_svc._filled(value):
+                        combined[name] = value
+        allowed, _ = consent_svc.strip_unconsented_answers(
+            project_id=draft.project_id, death=death, client_draft_id=draft.client_draft_id, answers=combined,
+        )
         sections = {
-            name: consent_svc.strip_unconsented_answers(
-                project_id=draft.project_id, death=death, client_draft_id=draft.client_draft_id, answers=answers,
-            )[0] if isinstance(answers, dict) else answers
+            name: {key: value for key, value in answers.items() if key in allowed}
+            if isinstance(answers, dict) else answers
             for name, answers in sections.items()
         }
+        combined = intake_svc._answers_of(draft)
+        for answers in sections.values():
+            if isinstance(answers, dict):
+                combined.update(answers)
+        if death is not None and consent_svc.case_refusal_hold(death) and not (draft.meta or {}).get("caseRefusalHold"):
+            raise intake_svc.WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
+        released = intake_svc.release_who_refusal_hold(
+            draft, answers=combined, base_updated_at=p.get("if_updated_at"),
+            resume_refused=p.get("resume_refused") is True,
+        )
+        if not consent_svc.interview_refused(death=death, client_draft_id=draft.client_draft_id, answers=combined):
+            if not released:
+                intake_svc.check_refusal_resume(
+                    draft, base_updated_at=p.get("if_updated_at"), resume_refused=p.get("resume_refused") is True,
+                )
     written = intake_svc.save_draft_sections(
         draft,
         sections=sections,
         meta=p.get("meta") or None,
         current_section=p.get("current_section"),
         actor=current_user,
+        resume_refused=p.get("resume_refused") is True,
     )
     db.session.commit()
+    attachments_svc.delete_committed_blobs()
     return jsonify({"saved_sections": written, "draft": intake_svc.serialize_draft(draft)})
 
 
@@ -811,8 +843,10 @@ def sync_draft():
         death_id=p.get("death_id") or None, client_draft_id=client_draft_id, envelope=envelope,
         data=data, answers_sha256=answers_sha256, saved_at=p.get("savedAt"),
         device_clock_at=p.get("deviceClockAt"), base_updated_at=p.get("base_updated_at"),
+        resume_refused=p.get("resume_refused") is True,
     )
     db.session.commit()
+    attachments_svc.delete_committed_blobs()
     return jsonify(reply)
 
 
@@ -949,7 +983,13 @@ def submit_draft(draft_id):
             death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
             client_draft_id=draft.client_draft_id, consent=None, answers=completion["data"], channel="web",
         )
+        death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+        if consent_svc.interview_refused(death=death, client_draft_id=draft.client_draft_id,
+                                         answers=completion["data"]):
+            consent_svc.check_refusal_answers(completion["data"])
     if draft.status == "submitted":
+        if (draft.meta or {}).get("interviewOutcome") == "refused":
+            return error("A submitted refusal cannot be changed here.", "consent_refused", 422)
         # A stale tab, or a second completion of an interview the phone or
         # this page already submitted: the later completion is a correction
         # (last completed version wins), decided before the draft write lock,
@@ -961,6 +1001,17 @@ def submit_draft(draft_id):
     # version must not submit its own silently.
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
         return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
+    if isinstance(completion, dict) and isinstance(completion.get("data"), dict):
+        death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+        if not consent_svc.interview_refused(death=death, client_draft_id=draft.client_draft_id,
+                                             answers=completion["data"]):
+            intake_svc.check_refusal_resume(
+                draft, base_updated_at=p.get("if_updated_at"), resume_refused=p.get("resume_refused") is True,
+            )
+    if (str(intake_svc._answers_of(draft).get("Id10013") or "").lower() == "no"
+            and isinstance(completion, dict) and isinstance(completion.get("data"), dict)
+            and str(completion["data"].get("Id10013") or "").lower() != "no"):
+        return error("Record the new consent decision before resuming the interview.", "consent_refused", 422)
     # The case's winner is the caller's own earlier draft: this completion is a
     # correction of it (decided under the case lock), not a teammate's copy.
     folded = intake_svc.fold_into_own_submission(current_user, draft, completion=p.get("completion") or {})
@@ -976,6 +1027,7 @@ def submit_draft(draft_id):
         )
     validation_err = _validation_err(submission.va_sid)
     db.session.commit()
+    attachments_svc.delete_committed_blobs()
     return jsonify(
         {
             "va_sid": submission.va_sid,
@@ -1035,7 +1087,7 @@ def _upload_reply(draft, *, kept, received_sha256, locked, status, offline_codin
     case closed (``locked``), and ``can_code_now`` (a self-coding project's
     coder may code this case now: ``POST /coding/submissions/<va_sid>/code-now``).
     A standalone push with offline coding adds ``offline_coding``
-    (``{status, code}``, contract section 17)."""
+    (``{status, code, coding_sha256}``, contract section 17)."""
     body = {
         **intake_svc.serialize_device_upload(draft), "kept": kept, "received_sha256": received_sha256, "locked": locked,
         "can_code_now": intake_svc.can_code_now(current_user, draft),
@@ -1105,6 +1157,18 @@ def submit_interview():
         enrolled_context = True
         standalone_device = offline_import.require_session_device(
             g.get("device_session"), uuid.UUID(coding["device_uuid"]), coding)
+    coding_sha256 = offline_import.coding_receipt_sha256(p["offline_coding"]) if coding is not None else None
+    existing = intake_svc.find_device_upload(current_user, client_draft_id)
+    death = db.session.get(VaDeathRegister, existing.death_id) if existing is not None and existing.death_id else None
+    decision = p.get("consent")
+    if standalone is not None and standalone["consent"] is not None:
+        decision = standalone["consent"].get("envelope") if isinstance(standalone["consent"], dict) else None
+    refused = consent_svc.interview_refused(
+        death=death, client_draft_id=client_draft_id, answers=data, consent=decision,
+    )
+    same_final = existing is not None and existing.status != "draft" and existing.answers_sha256 == answers_sha256
+    if refused and (coding is not None or (not same_final and consent_svc.refusal_answers(data) != data)):
+        return error("Consent was refused; remove interview answers, files and coding before sending.", "consent_refused", 422)
     try:
         intake_svc.check_device_times(envelope)
     except intake_svc.WebIntakeError as exc:
@@ -1126,7 +1190,8 @@ def submit_interview():
         project = db.session.get(VaProjectMaster, draft.project_id)
         profile_snapshot = standalone["profile_snapshot"] if standalone is not None else {}
         return offline_import.hold(
-            current_user, project, draft, coding, profile_snapshot, enrolled_context=enrolled_context
+            current_user, project, draft, coding, profile_snapshot, coding_sha256=coding_sha256,
+            enrolled_context=enrolled_context,
         )
 
     def resend(existing):
@@ -1137,6 +1202,23 @@ def submit_interview():
         if standalone_device is not None and (existing.meta or {}).get("deviceId") != str(standalone_device.device_id):
             # A backup restored on a second phone: never a new case.
             return error("This interview was sent from another device.", "conflict", 409)
+        if existing.death_id:
+            intake_svc.cases.lock_case(db.session.get(VaDeathRegister, existing.death_id))
+            db.session.refresh(existing)
+        current_death = db.session.get(VaDeathRegister, existing.death_id) if existing.death_id else None
+        now_refused = consent_svc.interview_refused(
+            death=current_death, client_draft_id=client_draft_id, answers=data, consent=decision,
+        )
+        if now_refused and existing.status != "draft" and existing.answers_sha256 != answers_sha256:
+            raise consent_svc.ConsentError("A submitted interview cannot be changed to a refusal here.",
+                                           "consent_refused", fields=[])
+        if ((existing.meta or {}).get("interviewOutcome") == "refused"
+                and existing.answers_sha256 != answers_sha256):
+            raise consent_svc.ConsentError("A submitted refusal cannot be changed here.", "consent_refused", fields=[])
+        if now_refused and (coding is not None or
+                            (existing.answers_sha256 != answers_sha256 and consent_svc.refusal_answers(data) != data)):
+            raise consent_svc.ConsentError("Consent was refused; remove interview answers, files and coding before sending.",
+                                           "consent_refused", fields=[])
         if existing.answers_sha256 == answers_sha256:
             closed = existing.status == "superseded"
             timeline_meta = intake_svc.merge_incoming_timeline_meta(
@@ -1151,16 +1233,15 @@ def submit_interview():
                 existing, kept="server" if closed else "incoming", received_sha256=answers_sha256, locked=closed,
                 status=200, offline_coding=held,
             )
+        _apply_interview_consent(existing)
         kept, locked = intake_svc.resubmit_device_interview(
             current_user, existing, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
         )
-        _apply_interview_consent(existing)
         held = _hold_coding(existing)
         db.session.commit()
         return _upload_reply(existing, kept=kept, received_sha256=answers_sha256, locked=locked, status=200,
                              offline_coding=held)
 
-    existing = intake_svc.find_device_upload(current_user, client_draft_id)
     if existing is not None and not intake_svc.is_attachment_draft(existing):
         return resend(existing)
     session = g.get("device_session")
@@ -1182,13 +1263,22 @@ def submit_interview():
             completion=completion,
             device_id=device.device_id if device else None,
             unrouted_ok=standalone is not None,
+            resume_refused=p.get("resume_refused") is True,
+            base_updated_at=p.get("base_updated_at"),
+            incoming_consent=decision,
         )
         if standalone is not None:
             draft.meta = {**(draft.meta or {}), "standalone": offline_import.interview_provenance(
                 standalone, coding, org_unit_id)}
         _apply_interview_consent(draft)
+        if coding is not None:
+            current_death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+            if consent_svc.interview_refused(death=current_death, client_draft_id=client_draft_id,
+                                             answers=data, consent=decision):
+                raise consent_svc.ConsentError("Consent was refused; coding cannot be sent.", "consent_refused", fields=[])
         held = _hold_coding(draft)
         db.session.commit()
+        attachments_svc.delete_committed_blobs()
     except IntegrityError:
         # A concurrent resend of the same client_draft_id won the unique index.
         db.session.rollback()
@@ -1240,6 +1330,12 @@ def revise_submission(va_sid):
     # submission: the service's 404, never a consent refusal.
     draft = intake_svc.find_own_submission(current_user, va_sid)
     if draft is not None:
+        if (draft.meta or {}).get("interviewOutcome") == "refused":
+            return error("A submitted refusal cannot be changed here.", "consent_refused", 422)
+        death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+        if consent_svc.interview_refused(death=death, client_draft_id=draft.client_draft_id,
+                                         answers=data, consent=p.get("consent")):
+            return error("A submitted interview cannot be changed to a refusal here.", "consent_refused", 422)
         consent_svc.apply_interview_consent(
             current_user, project_id=draft.project_id,
             death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
@@ -1513,3 +1609,6 @@ def reopen_for_revision(va_sid):
     reply = send_back_svc.reopen_for_revision(current_user, va_sid, reason_code=parse_body().get("reason_code"))
     db.session.commit()
     return jsonify(reply)
+
+
+from app.routes.api import intake_refusals  # noqa: E402,F401

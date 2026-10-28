@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { isTrainingProject, TRAINING_INTERVIEW_HOME } from "../training";
-import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestRaw, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
+import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
@@ -34,6 +34,9 @@ import { RespondentConsentPanel } from "./StationConsentPanel";
 import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
 import { loadWhoCoreRuntime, loadWhoWebRuntime, type WhoWebRuntime } from "./whoRuntimeLoader";
 import type { WhoCoreRuntime } from "../whoCoreRuntime";
+import { RefusalPanel } from "../RefusalPanel";
+import { ConfirmDialog } from "../ConfirmDialog";
+import { isRefused, refusalAnswers } from "../refusalBoundary";
 
 /**
  * The package's own UI strings (en, plus its built-in Hindi and French packs)
@@ -305,6 +308,11 @@ export default function InterviewScreen() {
   const [caseStripHeight, setCaseStripHeight] = useState(0);
   const [formOptions, setFormOptions] = useState<FormOptions>();
   const [liveAnswers, setLiveAnswers] = useState<Record<string, unknown>>({});
+  const [whoRefused, setWhoRefused] = useState(false);
+  const [refusalAge, setRefusalAge] = useState("");
+  const [refusalSex, setRefusalSex] = useState("");
+  const [changingConsent, setChangingConsent] = useState(false);
+  const [confirmWhoGrant, setConfirmWhoGrant] = useState(false);
   const [saveInfo, setSaveInfo] = useState<{ savedSections: number; updatedAt?: string }>({ savedSections: 0 });
   const [welcomePending, setWelcomePending] = useState(false);
   const [loadedBootstrap, setLoadedBootstrap] = useState(bootstrap);
@@ -551,6 +559,7 @@ export default function InterviewScreen() {
           csrf: requestCsrf,
           sectionOf,
           initialData,
+          initialDataVersion: nextDraft.draft.updated_at,
           definitionPin: resolved.pin,
           identity: {
             instrumentId: nextInstrument.id,
@@ -656,7 +665,15 @@ export default function InterviewScreen() {
       const config = status.consent_required && !status.decision
         ? await fetchProjectConsentConfig(draft.draft.project_id, requestCsrf!)
         : null;
-      if (live) setConsentGate({ status, config });
+      if (live) {
+        if (status.decision === "refused" && store instanceof ServerDraftStore) store.enterRefusal();
+        setConsentGate({ status, config });
+        const saved = draft.envelope.data;
+        setWhoRefused(saved?.Id10013 === "no");
+        if (saved?.Id10013 === "no" && store instanceof ServerDraftStore) store.enterRefusal();
+        setRefusalAge(typeof saved?.refusal_age_group === "string" ? saved.refusal_age_group : "");
+        setRefusalSex(typeof saved?.refusal_sex === "string" ? saved.refusal_sex : "");
+      }
     })().catch((error) => { if (live) setMessage(interviewErrorText(error)); });
     return () => { live = false; };
   }, [bootstrap, draftId, draft, revision, consentCheck]);
@@ -667,7 +684,13 @@ export default function InterviewScreen() {
     setMessage("");
     try {
       const status = await postDraftConsent(bootstrap.links.intakeDrafts, draftId, envelope, requestCsrf!);
+      if (status.decision === "refused" && store instanceof ServerDraftStore) store.enterRefusal();
+      if (status.decision === "granted" && consentRefused && store instanceof ServerDraftStore) {
+        await store.resumeAfterConsentGrant();
+      }
       setConsentGate({ ...consentGate, status });
+      setChangingConsent(false);
+      if (status.decision === "granted" && typeof window !== "undefined") window.location.reload();
     } catch (error) {
       setMessage(interviewErrorText(error));
     } finally {
@@ -1030,6 +1053,11 @@ export default function InterviewScreen() {
     });
   }, []);
   const handleFormChange = useCallback((data: SubmissionData) => {
+    if (!(store instanceof RevisionMemoryStore) && isRefused(data)) {
+      if (store instanceof ServerDraftStore) store.enterRefusal();
+      setWhoRefused(true);
+      void controller?.saveDraft().catch(() => undefined);
+    }
     if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
     setNeedsNewSnapshot(false);
     dirtyRef.current = true;
@@ -1038,7 +1066,7 @@ export default function InterviewScreen() {
     if (!(store instanceof RevisionMemoryStore) && loadedBootstrap) {
       writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
     }
-  }, [loadedBootstrap, store, updateLiveAnswers]);
+  }, [controller, loadedBootstrap, store, updateLiveAnswers]);
   const handleDraftSaved = useCallback((saved?: { data?: SubmissionData }) => {
     if (!(store instanceof ServerDraftStore)) return;
     saveFailedRef.current = false;
@@ -1065,6 +1093,46 @@ export default function InterviewScreen() {
       setBusy(false);
     }
   }, [store]);
+
+  async function saveRefusal() {
+    if (!bootstrap || !draftId || !(store instanceof ServerDraftStore)) return;
+    setBusy(true);
+    try {
+      await store.flush();
+      const current = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
+      const data = refusalAnswers({ ...current.envelope.data, ...(whoRefused ? { Id10013: "no" } : {}), refusal_age_group: refusalAge, refusal_sex: refusalSex }) as SubmissionData;
+      await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: true, issues: [], data }, requestCsrf!, current.draft.updated_at);
+      dirtyRef.current = false;
+      router.replace({ pathname: collectionPath as never, params: { submitted: "1" } });
+    } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); }
+  }
+
+  async function changeRefusal() {
+    if (!bootstrap || !draftId || !draft || !consentGate) return;
+    if (consentRefused) {
+      try {
+        const config = await fetchProjectConsentConfig(draft.draft.project_id, requestCsrf!);
+        setConsentGate({ ...consentGate, config });
+        setChangingConsent(true);
+      } catch (error) { setMessage(interviewErrorText(error)); }
+      return;
+    }
+    setConfirmWhoGrant(true);
+  }
+
+  async function grantWhoConsent() {
+    if (!bootstrap || !draftId || !(store instanceof ServerDraftStore)) return;
+    setBusy(true);
+    try {
+      await store.flush();
+      const current = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
+      await requestClientJson(`${bootstrap.links.intakeDrafts}/${encodeURIComponent(draftId)}`, {
+        method: "PATCH", csrf: requestCsrf!, json: { sections: { _other: { Id10013: "yes" } }, resume_refused: true, if_updated_at: current.draft.updated_at },
+      });
+      dirtyRef.current = false;
+      if (typeof window !== "undefined") window.location.reload();
+    } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); setConfirmWhoGrant(false); }
+  }
 
   return (
     <WebShell
@@ -1104,7 +1172,7 @@ export default function InterviewScreen() {
           <View style={styles.row}>
             <Button kind="secondary" label={t("backToCollection")} onPress={() => guardedNavigate(() => router.replace(collectionPath as never))} />
           </View>
-          {showCaseStrip ? (
+          {showCaseStrip && !consentRefused && !whoRefused ? (
             <InterviewCaseStrip
               prefill={stripPrefill}
               onHeight={setCaseStripHeight}
@@ -1173,7 +1241,7 @@ export default function InterviewScreen() {
             </View>
           ) : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
-          {consentPending ? (
+          {consentPending || changingConsent ? (
             consentGate ? (
               <RespondentConsentPanel
                 config={consentGate.config}
@@ -1184,8 +1252,9 @@ export default function InterviewScreen() {
               />
             ) : <Text style={styles.muted}>{t("loading")}</Text>
           ) : null}
-          {consentRefused ? <Text style={styles.muted} testID="consent-refused-note">{t("consentRefusedInterview")}</Text> : null}
-          {!consentPending && welcomePending && formOptions?.intake_note?.trim() ? (
+          {(consentRefused || whoRefused) && !changingConsent ? <RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={() => void changeRefusal()} onNew={() => { dirtyRef.current = false; router.replace(collectionPath as never); }} /> : null}
+          {confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}
+          {!consentPending && !changingConsent && !consentRefused && !whoRefused && welcomePending && formOptions?.intake_note?.trim() ? (
             <View
               testID="interview-welcome-card"
               style={[
@@ -1223,7 +1292,7 @@ export default function InterviewScreen() {
               </View>
             </View>
           ) : null}
-          {consentPending || welcomePending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
+          {consentPending || changingConsent || consentRefused || whoRefused || welcomePending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaFormComponent
               theme={whoTheme}
               key={`${draftId}:${locale}`}

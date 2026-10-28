@@ -1452,7 +1452,11 @@ class IntakeApiTests(BaseTestCase):
         self.assertIs(offered.get_json()["can_code_now"], True)
 
         # No valid consent: the case never enters coding, nothing to offer.
-        refused = self._browser_submit(Id10013="no")
+        draft = self._start_draft(death_id=self._case())
+        refused = self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit", headers=self._csrf_headers(),
+            json={"completion": {"valid": True, "issues": [], "data": {"Id10013": "no"}}},
+        )
         self.assertEqual(refused.status_code, 201, refused.get_json())
         self.assertIsNotNone(refused.get_json()["va_sid"])
         self.assertIs(refused.get_json()["can_code_now"], False)
@@ -1557,7 +1561,7 @@ class IntakeApiTests(BaseTestCase):
     # Statements one device upload of a registered case issues (digitva-anzv):
     # 77 before the interviewer context and the locked case were passed down;
     # 72 with the project-country stamp on the web form and the submission.
-    DEVICE_SUBMIT_MAX_STATEMENTS = 72
+    DEVICE_SUBMIT_MAX_STATEMENTS = 76  # Includes the locked consent lookup and checking existing draft answers.
 
     def test_a_device_submit_issues_no_more_statements_than_the_recorded_ceiling(self):
         death_id = self._case()

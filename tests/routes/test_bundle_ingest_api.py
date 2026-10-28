@@ -37,6 +37,7 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
     VaUserAccessGrants,
+    VaWebIntakeAttachment,
     VaWebIntakeDraft,
 )
 from app.services import bundle_ingest_service as service
@@ -638,7 +639,7 @@ class BundleIngestApiTests(BaseTestCase):
         response = self._post(self._bundle([without, refused_reg, refused]))
         records = self._by_id(response)
         self.assertEqual(records[without["client_id"]]["code"], "consent_required")
-        self.assertEqual(records[refused_reg["client_id"]]["code"], "consent_required")
+        self.assertEqual(records[refused_reg["client_id"]]["code"], "consent_refused")
         self.assertEqual(records[refused["client_id"]]["outcome"], "rejected")
         self.assertFalse(db.session.scalar(sa.select(VaConsentRecord).where(
             VaConsentRecord.client_consent_id == uuid.UUID(refused["client_id"]))))
@@ -650,6 +651,69 @@ class BundleIngestApiTests(BaseTestCase):
         records = self._by_id(self._post(self._bundle([registration, interview])))
         self.assertEqual(records[registration["client_id"]]["outcome"], "accepted")
         self.assertEqual(records[interview["client_id"]]["code"], "consent_required")
+
+    def test_submitted_attempt_rejects_later_refusal_without_changing_consent(self):
+        registration = self._registration()
+        ref = {"client_death_id": registration["client_id"]}
+        interview = self._interview(ref)
+        records = self._by_id(self._post(self._bundle([registration, interview])))
+        self.assertEqual(records[interview["client_id"]]["outcome"], "accepted")
+        refused = self._consent(ref, draft_id=interview["client_id"], granted=False)
+        records = self._by_id(self._post(self._bundle([refused], bundle_seq=2)))
+        self.assertEqual(records[refused["client_id"]]["code"], "consent_refused")
+        self.assertIsNone(db.session.scalar(sa.select(VaConsentRecord).where(
+            VaConsentRecord.client_consent_id == uuid.UUID(refused["client_id"]))))
+
+    def test_accepted_refusal_replay_is_duplicate_after_submission(self):
+        registration = self._registration()
+        ref = {"client_death_id": registration["client_id"]}
+        interview = self._interview(ref, answers={"Id10013": "no", "refusal_sex": "male"})
+        refused = self._consent(ref, draft_id=interview["client_id"], granted=False)
+        records = self._by_id(self._post(self._bundle([registration, refused, interview])))
+        self.assertEqual(records[refused["client_id"]]["outcome"], "accepted")
+        self.assertEqual(records[interview["client_id"]]["outcome"], "accepted")
+        records = self._by_id(self._post(self._bundle([refused], bundle_seq=2)))
+        self.assertEqual(records[refused["client_id"]]["outcome"], "duplicate")
+
+    def test_bundle_attempt_refusal_scrubs_a_synced_phone_draft_and_attachment(self):
+        registration = self._registration()
+        ref = {"client_death_id": registration["client_id"]}
+        records = self._by_id(self._post(self._bundle([registration])))
+        death_id = records[registration["client_id"]]["death_id"]
+        attempt = str(uuid.uuid4())
+        now = datetime.now(UTC).isoformat()
+        answers = json.dumps({"Id10013": "yes", "Id10017": "Bina"})
+        self._login(str(self.interviewer.user_id))
+        synced = self.client.post("/api/v1/intake/drafts/sync", headers=self._csrf_headers(), json={
+            "project_id": PROJECT, "site_id": SITE, "death_id": death_id, "client_draft_id": attempt,
+            "draft": {"currentSection": "consent"}, "answers_json": answers,
+            "answers_sha256": hashlib.sha256(answers.encode()).hexdigest(), "savedAt": now,
+            "deviceClockAt": now, "base_updated_at": None,
+        })
+        self.assertEqual(synced.status_code, 200, synced.get_json())
+        draft_id = synced.get_json()["draft"]["draft_id"]
+        attachment_id = str(uuid.uuid4())
+        uploaded = self.client.put(f"/api/v1/intake/drafts/{draft_id}/attachments/{attachment_id}",
+            headers=self._csrf_headers(), content_type="application/octet-stream", data=b"%PDF-1.4 synthetic")
+        self.assertEqual(uploaded.status_code, 201, uploaded.get_json())
+        self.assertIsNotNone(db.session.get(VaWebIntakeAttachment, (uuid.UUID(draft_id), uuid.UUID(attachment_id))))
+        refused = self._consent(ref, draft_id=attempt, granted=False)
+        records = self._by_id(self._post(self._bundle([refused], bundle_seq=2)))
+        self.assertEqual(records[refused["client_id"]]["outcome"], "accepted")
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        self.assertEqual({k: v for row in draft.sections for k, v in row.data.items()}, {"Id10013": "yes"})
+        self.assertIsNone(db.session.get(VaWebIntakeAttachment, (uuid.UUID(draft_id), uuid.UUID(attachment_id))))
+        self._login(str(self.interviewer.user_id))
+        retry = self.client.post("/api/v1/intake/drafts/sync", headers=self._csrf_headers(), json={
+            "project_id": PROJECT, "site_id": SITE, "death_id": death_id, "client_draft_id": attempt,
+            "draft": {"currentSection": "consent"}, "answers_json": answers,
+            "answers_sha256": hashlib.sha256(answers.encode()).hexdigest(), "savedAt": now,
+            "deviceClockAt": now, "base_updated_at": None,
+        })
+        self.assertEqual(retry.status_code, 200, retry.get_json())
+        self.assertEqual(retry.get_json()["kept"], "server")
+        self.assertEqual(retry.get_json()["envelope"]["data"], {"Id10013": "yes"})
 
     # ── partial acceptance and dependencies ────────────────────────────────
 

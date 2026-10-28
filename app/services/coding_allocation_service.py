@@ -1,7 +1,7 @@
 """Helpers for coding allocation lifecycle."""
 
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 
@@ -17,19 +17,20 @@ from app.models import (
     VaReviewerReview,
     VaSocialAutopsyAnalysis,
     VaStatuses,
-    VaSubmissionWorkflow,
+    VaSubmissions,
     VaSubmissionsAuditlog,
+    VaSubmissionWorkflow,
 )
 from app.models.va_allocations import ACTIVE_ALLOCATION_INDEX
-from app.services.final_cod_authority_service import (
-    abandon_active_recode_episode,
-    get_active_recode_episode,
-    upsert_final_cod_authority,
-)
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.demo_project_service import (
     DEMO_CODING_ALLOCATION_TIMEOUT_MINUTES,
     demo_sids_among_actively_allocated,
+)
+from app.services.final_cod_authority_service import (
+    abandon_active_recode_episode,
+    get_active_recode_episode,
+    upsert_final_cod_authority,
 )
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_narrative_assessments_for_submission,
@@ -42,6 +43,11 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
 )
+from app.services.workflow.state_store import (
+    get_submission_workflow_record,
+    get_submission_workflow_state,
+    sync_submission_workflow_from_legacy_records,
+)
 from app.services.workflow.transitions import (
     WorkflowActor,
     coder_actor,
@@ -52,10 +58,23 @@ from app.services.workflow.transitions import (
     reset_incomplete_reviewer_session,
     system_actor,
 )
-from app.services.workflow.state_store import (
-    get_submission_workflow_state,
-    sync_submission_workflow_from_legacy_records,
-)
+
+
+def lock_coding_submission(va_sid: str) -> VaSubmissions | None:
+    """Lock and refresh a coding case before its workflow or allocation rows.
+
+    Returns None for a missing submission. Callers must recheck ownership and
+    authorization after this lock, which may have waited for a release/save.
+    """
+    submission = db.session.scalar(
+        sa.select(VaSubmissions)
+        .where(VaSubmissions.va_sid == va_sid)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if submission is not None:
+        get_submission_workflow_record(va_sid, for_update=True)
+    return submission
 
 
 class ActiveAllocationHeld(Exception):
@@ -86,7 +105,7 @@ def active_allocation_savepoint():
 
 def _naive_utc_now() -> datetime:
     """Return current UTC as a naive datetime to match legacy DB columns."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _deactivate_stale_initial_assessments(
@@ -168,7 +187,7 @@ def _deactivate_first_pass_analysis_artifacts(
 
 
 def _release_coding_allocation(record: VaAllocations, *, cause: str, reason: str,
-                               audit_action: str, actor: WorkflowActor | None = None) -> None:
+                               audit_action: str, actor: WorkflowActor | None = None) -> bool:
     """Release one active coding allocation without discarding coding work.
 
     First pass: unfinished drafts and first-pass analyses are deactivated and
@@ -177,8 +196,21 @@ def _release_coding_allocation(record: VaAllocations, *, cause: str, reason: str
     authoritative final COD intact (docs/policy/coding-allocation-timeouts.md).
     *cause* words the artifact audit rows ("reverted due to <cause>"). *actor*
     is who released it (the allocation's coder, for a coder release); the
-    timeout release is the system's.
+    timeout release is the system's. Returns False if another request already
+    closed it while this release waited for the submission lock.
     """
+    lock_coding_submission(record.va_sid)
+    record = db.session.scalar(
+        sa.select(VaAllocations)
+        .where(
+            VaAllocations.va_allocation_id == record.va_allocation_id,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if record is None:
+        return False
     actor = actor or system_actor()
     recode_episode = get_active_recode_episode(record.va_sid)
     record.va_allocation_status = VaStatuses.deactive
@@ -204,6 +236,7 @@ def _release_coding_allocation(record: VaAllocations, *, cause: str, reason: str
             va_audit_action=audit_action,
         )
     )
+    return True
 
 
 def return_tester_coding_to_pool(record: VaAllocations, *, reason: str) -> None:
@@ -251,7 +284,7 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
             VaAllocations.va_allocation_status == VaStatuses.active,
             VaAllocations.va_allocation_for == VaAllocation.coding,
             VaAllocations.va_allocation_createdat < max(normal_cutoff, demo_cutoff),
-        )
+        ).order_by(VaAllocations.va_sid, VaAllocations.va_allocation_id)
     ).all()
     demo_sids = demo_sids_among_actively_allocated(
         {record.va_sid for record in stale_allocations}
@@ -263,13 +296,13 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
         if record.va_allocation_createdat >= cutoff:
             continue
 
-        _release_coding_allocation(
+        released_now = _release_coding_allocation(
             record,
             cause="timeout",
             reason="allocation_timeout_release",
             audit_action="va_allocation_released_due_to_timeout",
         )
-        released += 1
+        released += int(released_now)
 
     if released:
         db.session.commit()

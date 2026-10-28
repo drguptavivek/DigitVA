@@ -18,6 +18,7 @@ from app import db, limiter
 from app.decorators import role_required
 from app.routes.api.request_helpers import browser_session_only, error, intake_error, parse_body
 from app.services import consent_service
+from app.services import web_intake_attachment_service as attachments_svc
 from app.services import training_scope
 from app.services import web_intake_service as intake_svc
 
@@ -63,4 +64,5 @@ def post_draft_consent(draft_id):
     draft = intake_svc.get_draft(current_user, draft_id, require_open=True)
     status = consent_service.record_draft_consent(current_user, draft, parse_body().get("consent"))
     db.session.commit()
+    attachments_svc.delete_committed_blobs()
     return jsonify(status), 201

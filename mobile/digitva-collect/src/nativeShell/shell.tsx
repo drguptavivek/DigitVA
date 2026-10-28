@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Keyboard, Linking } from "react-native";
 
 import { useAppState } from "../AppState";
+import { UNKNOWN_SERVER } from "../accountServer";
 import { isPlayDistribution } from "../appVariant";
 import { installErrorLog } from "../errorLogDb";
 import { flushErrors, setErrorRoute } from "../errorLog";
@@ -53,11 +54,13 @@ export function ShellProvider({ children }: { children: ReactNode }) {
 
   const requested = first(params.userId);
   const userId = requested && accounts.some((account) => account.user_id === requested) ? requested : undefined;
+  const account = accounts.find((account) => account.user_id === userId);
+  const standalone = account?.standalone === true;
+  const server = account && !standalone && !account.signed_out && account.server !== UNKNOWN_SERVER && account.server === device?.server ? account.server : undefined;
   const unlocked = userId ? isUnlocked(userId) : false;
 
   // Once per app start (and at most once a day, src/updateCheck.ts): tell, never install. Silent when nothing is known.
   // The Google Play build never checks: Play updates it and forbids offering the hosted APK.
-  const server = device?.server;
   const updateAsked = useRef(false);
   useEffect(() => {
     if (!server || updateAsked.current || isPlayDistribution()) return;
@@ -119,20 +122,27 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   }, [userId, toast, dataChanged, reload]);
 
   const sendNow = useCallback(async () => {
+    if (standalone) return void toast.show({ kind: "info", text: t("standaloneWarning") });
     // Offline: no request, no error; the work is already saved on the phone.
     if (isOffline()) return void toast.show({ kind: "info", text: t("offlineSendNow") });
     await run(async (id, db) => {
     const { sync } = await syncAccount(id, db);
     return { text: t("syncResult", { sent: sync.sent, failed: sync.failed, remaining: sync.remaining }), failed: sync.failed > 0 };
     });
-  }, [run, syncAccount, toast]);
+  }, [run, standalone, syncAccount, toast]);
 
-  const refreshNow = useCallback(() => run(async (id, db) => {
-    const fresh = await refreshReferenceData(id, db, { force: true });
-    await refreshAuthorizedProjectDefinitions(id, db, fresh);
-    await refreshCases(id, db);
-    return { text: t("refreshed") };
-  }), [run]);
+  const refreshNow = useCallback(() => {
+    if (standalone) {
+      toast.show({ kind: "info", text: t("standaloneWarning") });
+      return Promise.resolve();
+    }
+    return run(async (id, db) => {
+      const fresh = await refreshReferenceData(id, db, { force: true });
+      await refreshAuthorizedProjectDefinitions(id, db, fresh);
+      await refreshCases(id, db);
+      return { text: t("refreshed") };
+    });
+  }, [run, standalone, toast]);
 
   const header = showNativeHeader(pathname) || isPreLoginRoute(pathname);
   const tabs = showNativeTabs({ pathname, userId, unlocked, keyboardOpen });
@@ -142,13 +152,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     openSheet: setSheet,
     closeSheet: () => setSheet(null),
     userId,
+    server,
     sync,
     sendNow,
     recount,
     refreshNow,
     header,
     tabs,
-  }), [sheet, userId, sync, sendNow, recount, refreshNow, header, tabs]);
+  }), [sheet, userId, server, sync, sendNow, recount, refreshNow, header, tabs]);
   return (
     <ShellContext.Provider value={value}>
       {children}

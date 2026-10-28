@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-28
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -261,8 +261,7 @@ that question, not the split ones.
 
 ### Equity extension: refusal profile (owner decision 2026-10-27)
 
-When consent is refused (`Id10013` = no, interview outcome
-`consent_refused`), the equity layer records two fields only, so refusals
+When WHO consent is refused (`Id10013` = no) or respondent data protection consent is refused, the equity layer records two fields only, so refusals
 can be compared with completed interviews. Refusal bias is an equity
 question in its own right: refusals that cluster in one group skew that
 group's cause-of-death picture.
@@ -279,8 +278,7 @@ group's cause-of-death picture.
     these two things if the family is willing.
   - "Unknown" is always allowed. Nothing is required.
 - **Nothing else is recorded:** no name, identifier, illness question or free
-  text. The refusal visit note (`visit_address`, `visit_date`,
-  `visit_remarks`) keeps its existing rules.
+  text, visit note, attachment or coding. Essential consent and system audit metadata are retained; a data protection refusal does not fabricate `Id10013 = no`. An explicit later grant allows an unsent draft to resume with removed answers empty. Historic lawfully finalised submissions are not altered; withdrawal is separate.
 - **Basis:** the respondent has refused consent, so this rests on minimal,
   non-identifying statistical recording of the deceased, not on the
   respondent's consent. It is flagged for the project's legal review

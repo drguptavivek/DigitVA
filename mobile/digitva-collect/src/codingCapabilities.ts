@@ -4,7 +4,11 @@ import type { Account } from "./auth";
 /** Server-authoritative projects where this account may use local coding tools. */
 export function offlineCodingProjectIds(access: AccessSummary): string[] {
   return access.projects
-    .filter((project) => project.self_coding?.enabled === true && project.grants.some((grant) =>
+    .filter((project) => project.self_coding?.enabled === true &&
+      project.self_coding.offline_coding?.enabled === true &&
+      project.self_coding.offline_coding.project_mode === "unmasked_doris" &&
+      project.self_coding.offline_coding.icd_classification === "icd11" &&
+      project.grants.some((grant) =>
       grant.active && grant.codes === true && grant.role === "coder"))
     .map((project) => project.project_id);
 }

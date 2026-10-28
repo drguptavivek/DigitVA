@@ -10,6 +10,7 @@ import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
 import type { WorkspaceApi } from "./api";
 import type { QueueView } from "./viewState";
+import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
 import type {
   AllocationSnapshot,
   CoderAvailableCase,
@@ -52,6 +53,7 @@ type QueueData = {
   coderHistory?: CoderHistory;
   available?: ReviewerQueue;
   history?: ReviewerHistory;
+  cachedHistoryAt?: string;
 };
 
 type AllocationData = { api: WorkspaceApi; mode: "coding" | "reviewing"; generation: number; verified: boolean; snapshot: AllocationSnapshot | null };
@@ -261,6 +263,8 @@ export function QueueScreen({
   initialView,
   onViewChange,
   Shell,
+  historyCache,
+  historyIdentity,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -272,6 +276,9 @@ export function QueueScreen({
   onViewChange?: (view: { projectId?: string; showHistory: boolean; offset: number }) => void;
   /** Optional shell component (e.g. WebShell on web) to wrap the queue with left navigation and language switcher. */
   Shell?: ComponentType<{ title: string; headerAction?: ReactNode; children: ReactNode }>;
+  /** Native only; web leaves this unset. */
+  historyCache?: CodingHistoryCache;
+  historyIdentity?: CodingHistoryIdentity;
 }) {
   const ActiveShell = Shell ?? Screen;
   const styles = useUiStyles();
@@ -300,6 +307,7 @@ export function QueueScreen({
   // Same for random mode, so the card title does not flip while a project's stats load.
   const lastRandomMode = useRef<boolean | null>(null);
   const actionInFlight = useRef(false);
+  const cachedHistoryOnly = useRef(false);
   const actionError = useRef<QueueMessage | null>(null);
   const scopeRef = useRef<QueueScope>({ api, mode, projectId, offset, showHistory });
   scopeRef.current = { api, mode, projectId, offset, showHistory };
@@ -338,6 +346,7 @@ export function QueueScreen({
     const requestScope = { api, mode, projectId, offset, showHistory };
     if (!isCurrent(generation.current, requestScope) || !catalogReady) return;
     const requestGeneration = ++generation.current;
+    cachedHistoryOnly.current = false;
     setAllocationData({ api, mode, generation: requestGeneration, verified: false, snapshot: null });
     setLoading(true);
     const allocationRequest = mode === "coding" ? api.getCodingAllocation() : api.getReviewerAllocation();
@@ -348,7 +357,7 @@ export function QueueScreen({
     }).catch((error: unknown) => {
       if (isCurrent(requestGeneration, requestScope)) {
         setAllocationData(null);
-        if (!actionError.current) setMessage({ scope: requestScope, text: errorText(error) });
+        if (!actionError.current && !cachedHistoryOnly.current) setMessage({ scope: requestScope, text: errorText(error) });
       }
     });
     try {
@@ -397,9 +406,39 @@ export function QueueScreen({
           ...(showHistory ? { history: page as ReviewerHistory } : { available: page as ReviewerQueue }),
         };
       }
-      if (isCurrent(requestGeneration, requestScope)) setData(next);
+      if (isCurrent(requestGeneration, requestScope)) {
+        setData(next);
+        if (mode === "coding" && showHistory && projectId && historyCache && historyIdentity) {
+          const fingerprint = historyCache.fingerprintForProject(projectId);
+          if (fingerprint) void historyCache.writePage(historyIdentity, projectId, next.coderHistory!, fingerprint).catch(() => undefined);
+        }
+      }
     } catch (error) {
       if (isCurrent(requestGeneration, requestScope)) {
+        let cached: Awaited<ReturnType<CodingHistoryCache["readPage"]>> = null;
+        if (error instanceof TypeError && mode === "coding" && showHistory && projectId && historyCache && historyIdentity) {
+          try {
+            cached = await historyCache.readPage(historyIdentity, projectId, offset);
+          } catch {
+            cached = null;
+          }
+        } else if (mode === "coding" && projectId && historyCache && historyIdentity) {
+          // Authorization, malformed-response, and server errors must never fall back to old rows.
+          try { await historyCache.invalidateProject(historyIdentity, projectId); } catch { /* cache cleanup is best effort */ }
+        }
+        if (cached && isCurrent(requestGeneration, requestScope)) {
+          cachedHistoryOnly.current = true;
+          setSearchQuery("");
+          setGenderFilter("all");
+          setSiteFilter(undefined);
+          setRecodeableOnly(false);
+          setData({
+            api, mode, projectId, offset, showHistory, coderHistory: cached.page,
+            cachedHistoryAt: cached.fetchedAt,
+          });
+          setMessage(null);
+          return;
+        }
         setData(null);
         const previousError = actionError.current;
         if (!previousError || previousError.scope.api !== requestScope.api || previousError.scope.mode !== requestScope.mode
@@ -412,7 +451,7 @@ export function QueueScreen({
     } finally {
       if (isCurrent(requestGeneration, requestScope)) setLoading(false);
     }
-  }, [api, catalogReady, mode, offset, projectId, showHistory]);
+  }, [api, catalogReady, historyCache, historyIdentity, mode, offset, projectId, showHistory]);
 
   // Load the project catalogue once per api and mode. Default: the URL's project, else the last project
   // when still offered, else (reviewers) the first project with cases to review, else All projects.
@@ -437,15 +476,29 @@ export function QueueScreen({
         return fallback;
       });
       setCatalog({ api, mode, projects });
-    }).catch(() => {
+    }).catch(async (error) => {
       if (!active) return;
+      if (error instanceof TypeError && mode === "coding" && historyCache && historyIdentity) {
+        const cachedProjects: string[] = await historyCache.cachedProjects(historyIdentity).catch((): string[] => []);
+        if (!active) return;
+        if (cachedProjects.length) {
+          const options = cachedProjects.map((projectId) => ({ project_id: projectId, project_name: projectId }));
+          const cachedCatalog: CoderProjects = { project_options: options, projects: cachedProjects, last_project_id: cachedProjects[0] };
+          const cachedProject = cachedProjects[0];
+          setProjectId((current) => current && cachedProjects.includes(current) ? current : cachedProject);
+          setShowHistory(true);
+          setCatalog({ api, mode, projects: cachedCatalog });
+          lastPickMode.current = false;
+          return;
+        }
+      }
       setProjectId(undefined);
       setCatalog({ api, mode });
     });
     return () => {
       active = false;
     };
-  }, [api, mode]);
+  }, [api, historyCache, historyIdentity, mode]);
 
   useEffect(() => {
     setData(null);
@@ -969,7 +1022,7 @@ export function QueueScreen({
       {loading ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole="alert" style={styles.error}>{currentMessage}</Text> : null}
 
-      {allocation ? (
+      {allocation && !currentData?.cachedHistoryAt ? (
         <View style={styles.card}>
           <Text style={styles.headline}>{`You have an active ${mode === "coding" ? "coding" : "review"} case`}</Text>
           {heldText ? <Text style={styles.text}>{heldText}</Text> : null}
@@ -1033,13 +1086,14 @@ export function QueueScreen({
               ) : null}
             </View>
           ) : null}
-          {randomMode ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
+          {randomMode && !currentData?.cachedHistoryAt ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
           {pickMode ? (
             <View style={q.segmentedTrack}>
               <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
               <Button label="My coded cases" size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
             </View>
           ) : <Text style={styles.muted}>My coded cases</Text>}
+          {currentData?.cachedHistoryAt ? <Text style={styles.muted} testID="cached-coding-history">Saved on this phone · last updated {formatDisplayTimestamp(currentData.cachedHistoryAt)} · read only</Text> : null}
           {renderFilterControls()}
           {showHistory ? filteredCoderHistory.map((item) => (
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
@@ -1066,10 +1120,10 @@ export function QueueScreen({
               <CaseCardDetails item={item} />
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               {recodeDeadlineText(item) ? <Text style={styles.muted} testID={`recode-deadline-${item.va_sid}`}>{recodeDeadlineText(item)}</Text> : null}
-              <View style={q.actions}>
+              {!currentData?.cachedHistoryAt ? <View style={q.actions}>
                 <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
                 {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
-              </View>
+              </View> : null}
             </View>
           )) : filteredCoderAvailable.map((item) => (
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>

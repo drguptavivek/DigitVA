@@ -5,9 +5,12 @@
  * account "sign in again" and keeps its data.
  */
 const mockSecure = new Map<string, string>();
+let mockSecureReadOverride: ((key: string) => Promise<string | null>) | undefined;
 jest.mock("expo-secure-store", () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
-  getItemAsync: jest.fn(async (key: string) => mockSecure.get(key) ?? null),
+  getItemAsync: jest.fn(async (key: string) => mockSecureReadOverride
+    ? mockSecureReadOverride(key)
+    : mockSecure.get(key) ?? null),
   setItemAsync: jest.fn(
     async (key: string, value: string) => void mockSecure.set(key, value),
   ),
@@ -29,6 +32,7 @@ jest.mock("../src/offlineIdentity", () => ({
 
 import {
   acceptDeviceTerms,
+  AlreadyEnrolledError,
   authedRawRequest,
   authedRequest,
   decommissionMyDevice,
@@ -36,11 +40,15 @@ import {
   getAuthenticatedAttachmentSource,
   listMyDevices,
   loadAccounts,
+  NotInSlotError,
+  passwordEnrolAndSignIn,
   redeemSignInQr,
   refreshAccessSummary,
+  setActiveSlot,
   SessionRevokedError,
   signIn,
   SignInRequiredError,
+  standaloneModeAvailable,
   subscribeAccountChanges,
   subscribeAccessChanges,
   subscribeTermsChanges,
@@ -48,10 +56,15 @@ import {
 import { APP_VERSION } from "../src/appVersion";
 import { recordNotificationPoll } from "../src/notificationState";
 import { parseAccessSummary } from "../src/api";
+import { AccountStoreCollisionError } from "../src/authErrors";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
 const ACCESS = { user: { user_id: USER, name: "A" }, is_admin: false, roles: [], demo_coding: { available: false, project_ids: [] }, projects: [] };
+const historyAccessHash = (value: unknown) => {
+  const access = parseAccessSummary(value);
+  return `hash-${JSON.stringify({ roles: access.roles, projects: access.projects })}`;
+};
 const interviewAccess = (webIntakeMode: "direct" | "death_register" | "both" = "both") => ({
   ...ACCESS,
   roles: ["interviewer"],
@@ -122,6 +135,7 @@ function mockServer(handler: (call: Call) => Response | Promise<Response>) {
 
 beforeEach(() => {
   mockSecure.clear();
+  mockSecureReadOverride = undefined;
   mockDeleteDb.mockClear();
 });
 
@@ -309,8 +323,8 @@ it("validates self-coding settings and persists only same-project offline access
     ...ACCESS,
     roles: ["coder"],
     projects: [
-      { ...interviewAccess().projects[0], project_id: "SELF", self_coding: { enabled: true }, grants: [{ role: "coder", scope: "project", active: true, source: "assigned", codes: true }] },
-      { ...interviewAccess().projects[0], project_id: "OTHER", self_coding: { enabled: false }, grants: [{ role: "coder", scope: "project", active: true, source: "assigned", codes: true }] },
+      { ...interviewAccess().projects[0], project_id: "SELF", self_coding: { enabled: true, offline_coding: { enabled: true, project_mode: "unmasked_doris", icd_classification: "icd11" } }, grants: [{ role: "coder", scope: "project", active: true, source: "assigned", codes: true }] },
+      { ...interviewAccess().projects[0], project_id: "OTHER", self_coding: { enabled: false, offline_coding: { enabled: false, project_mode: "masked_simple", icd_classification: "icd10" } }, grants: [{ role: "coder", scope: "project", active: true, source: "assigned", codes: true }] },
     ],
   };
   mockServer(() => json(200, access));
@@ -325,6 +339,13 @@ it("rejects malformed self-coding capability fields at the access boundary", () 
   expect(() => parseAccessSummary({
     ...ACCESS,
     projects: [{ ...interviewAccess().projects[0], self_coding: { enabled: "yes" } }],
+  })).toThrow("malformed_response");
+  expect(() => parseAccessSummary({
+    ...ACCESS,
+    projects: [{ ...interviewAccess().projects[0], self_coding: {
+      enabled: true,
+      offline_coding: { enabled: "yes", project_mode: "unmasked_doris", icd_classification: "icd11" },
+    } }],
   })).toThrow("malformed_response");
 });
 
@@ -470,6 +491,21 @@ it("persists global access gates and clears them after a fresh summary", async (
   mockServer((call) => call.url.endsWith("/me/access") ? json(200, ACCESS) : json(200, {}));
   await refreshAccessSummary(USER);
   expect((await loadAccounts())[0].access_blocked).toBeUndefined();
+});
+
+it("changes the coded-history scope when validated project access changes", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, interviewAccess()) : json(200, {}));
+  await refreshAccessSummary(USER);
+  const first = (await loadAccounts())[0].coding_history_access;
+  expect(first).toBeTruthy();
+  await refreshAccessSummary(USER);
+  expect((await loadAccounts())[0].coding_history_access).toBe(first);
+  const narrowed = { ...ACCESS, projects: [] };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, narrowed) : json(200, {}));
+  await refreshAccessSummary(USER);
+  expect((await loadAccounts())[0].coding_history_access).toBeTruthy();
+  expect((await loadAccounts())[0].coding_history_access).not.toBe(first);
 });
 
 it.each(["terms_required", "forbidden"])(
@@ -724,6 +760,7 @@ it("clears the sign-in-again flag when the interviewer signs in again", async ()
     coding_access: false,
     reviewing_access: false,
     offline_coding_access: [],
+    coding_history_access: historyAccessHash(ACCESS),
   });
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
@@ -751,7 +788,7 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   const account = await signIn("+919876543210", "pw");
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
   expect(account).toEqual({ user_id: USER, name: "A", server: SERVER });
-  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false, offline_coding_access: [] }]);
+  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false, offline_coding_access: [], coding_history_access: historyAccessHash(ACCESS) }]);
 });
 
 it("persists only explicit coder and reviewer roles, never admin demo coding", async () => {
@@ -779,6 +816,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
     coding_access: true,
     reviewing_access: true,
     offline_coding_access: [],
+    coding_history_access: historyAccessHash(login.access),
   }]);
 
   mockServer((call) => call.url.endsWith("/me/access")
@@ -795,6 +833,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
     coding_access: false,
     reviewing_access: false,
     offline_coding_access: [],
+    coding_history_access: historyAccessHash(ACCESS),
   }]);
 });
 
@@ -955,5 +994,197 @@ describe("redeemSignInQr", () => {
     expect(error).toMatchObject({ status: 404, code: "sign_in_qr_invalid" });
     expect(JSON.stringify([error.message, error.path, error.method])).not.toContain(TOKEN);
     expect(mockSecure.size).toBe(0);
+  });
+});
+
+it("serializes competing Active/Demo session bindings before writing their shared token key", async () => {
+  const demoServer = "https://digitvademo.causeofdeathindia.com";
+  mockSecure.set("device", JSON.stringify({ device_id: "active", server: SERVER, project_id: "P", project_name: "Active" }));
+  mockSecure.set("device_secret", "active-secret");
+  mockSecure.set("accounts", "[]");
+  mockSecure.set("demo.device", JSON.stringify({ device_id: "demo", server: demoServer, project_id: "D", project_name: "Demo" }));
+  mockSecure.set("demo.device_secret", "demo-secret");
+  mockSecure.set("demo.accounts", "[]");
+
+  const session = (accessToken: string, refreshToken: string) => ({
+    access: ACCESS,
+    access_token: accessToken,
+    access_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    refresh_token: refreshToken,
+    refresh_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    user: { user_id: USER, name: "Asha" },
+  });
+  let activeRequestStarted!: () => void;
+  let demoRequestStarted!: () => void;
+  const activeRequested = new Promise<void>((resolve) => { activeRequestStarted = resolve; });
+  const demoRequested = new Promise<void>((resolve) => { demoRequestStarted = resolve; });
+  mockServer((call) => {
+    if (call.url.startsWith(SERVER)) {
+      activeRequestStarted();
+      return json(201, session("active-access", "active-refresh"));
+    }
+    demoRequestStarted();
+    return json(201, session("demo-access", "demo-refresh"));
+  });
+
+  let releaseActiveIdentityRead!: () => void;
+  let notifyIdentityRead!: () => void;
+  let heldActiveRead = false;
+  let accountReads = 0;
+  const identityRead = new Promise<void>((resolve) => { notifyIdentityRead = resolve; });
+  mockSecureReadOverride = async (key) => {
+    if (key === "demo.accounts") {
+      accountReads += 1;
+      if (!heldActiveRead) {
+        heldActiveRead = true;
+        notifyIdentityRead();
+        return new Promise<string | null>((resolve) => {
+          releaseActiveIdentityRead = () => resolve(mockSecure.get(key) ?? null);
+        });
+      }
+    }
+    return mockSecure.get(key) ?? null;
+  };
+
+  const activeLogin = signIn("asha@example.org", "pw", "active");
+  await activeRequested;
+  await identityRead;
+  await setActiveSlot("demo");
+  const demoLogin = signIn("demo.asha", "pw", "demo");
+  await demoRequested;
+  expect(accountReads).toBe(1);
+
+  releaseActiveIdentityRead();
+  const [activeResult, demoResult] = await Promise.allSettled([activeLogin, demoLogin]);
+
+  expect(activeResult).toMatchObject({ status: "rejected", reason: expect.any(NotInSlotError) });
+  expect(demoResult).toMatchObject({ status: "fulfilled", value: { user_id: USER, server: demoServer } });
+  expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!)).toMatchObject({
+    access_token: "demo-access", refresh_token: "demo-refresh",
+  });
+  expect(JSON.parse(mockSecure.get("accounts")!)).toEqual([]);
+  expect(JSON.parse(mockSecure.get("demo.accounts")!)).toEqual([expect.objectContaining({ user_id: USER, server: demoServer })]);
+  expect(calls.map(({ url }) => url)).toEqual([
+    `${SERVER}/api/v1/auth/sessions`,
+    `${demoServer}/api/v1/auth/sessions`,
+  ]);
+});
+
+describe("passwordEnrolAndSignIn", () => {
+  const reply = {
+    device_id: "manual-device",
+    device_secret: "manual-secret",
+    project: { project_id: "P9", name: "Nine" },
+    access_token: "manual-access",
+    access_expires_at: "2026-10-29T00:00:00Z",
+    refresh_token: "manual-refresh",
+    refresh_expires_at: "2026-11-29T00:00:00Z",
+    user: { user_id: USER, name: "Asha" },
+    terms_required: true,
+    access: ACCESS,
+  };
+
+  it("uses one combined Active request with the Plus UUID and preserves Demo and standalone work", async () => {
+    mockSecure.set("demo.device", JSON.stringify({ device_id: "demo", server: "https://digitvademo.causeofdeathindia.com" }));
+    mockSecure.set("demo.accounts", JSON.stringify([{ user_id: "demo-user", name: "Demo", signed_out: true }]));
+    mockSecure.set("tokens.demo-user", "demo-tokens");
+    mockSecure.set("accounts", JSON.stringify([{ user_id: "local-user", name: "Local", standalone: true }]));
+    expect(await standaloneModeAvailable()).toBe(true);
+    mockServer(() => json(201, reply));
+    const account = await passwordEnrolAndSignIn(`${SERVER}/`, " asha@example.org ", "private-password", "Pixel", "1.2.3");
+    expect(account).toMatchObject({ user_id: USER, name: "Asha", terms_required: true, server: SERVER });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/password-enroll`);
+    expect(JSON.parse(calls[0].body!)).toEqual({ identifier: "asha@example.org", password: "private-password", device_name: "Pixel", platform: "ios", app_version: "1.2.3", client_device_uuid: "plus-install-uuid" });
+    expect(JSON.parse(mockSecure.get("device")!)).toMatchObject({ device_id: "manual-device", server: SERVER });
+    expect(mockSecure.get("device_secret")).toBe("manual-secret");
+    expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!)).toMatchObject({ access_token: "manual-access", refresh_token: "manual-refresh" });
+    expect((await loadAccounts()).map((entry) => entry.user_id)).toEqual(["local-user", USER]);
+    expect(mockSecure.get("demo.accounts")).toBe(JSON.stringify([{ user_id: "demo-user", name: "Demo", signed_out: true }]));
+    expect(JSON.parse(mockSecure.get("demo.device")!).device_id).toBe("demo");
+    expect(mockSecure.get("tokens.demo-user")).toBe("demo-tokens");
+    expect(await standaloneModeAvailable()).toBe(false);
+    expect([...mockSecure.values()].some((value) => value.includes("private-password"))).toBe(false);
+    expect(mockDeleteDb).not.toHaveBeenCalled();
+  });
+
+  it("rejects a retained same-server Demo identity before persisting the Active device or tokens", async () => {
+    mockSecure.set("demo.accounts", JSON.stringify([{ user_id: USER, name: "Saved", server: SERVER, signed_out: true }]));
+    mockSecure.set(`tokens.${USER}`, "retained-token-record");
+    mockServer(() => json(201, reply));
+
+    await expect(passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3"))
+      .rejects.toBeInstanceOf(AccountStoreCollisionError);
+
+    expect(mockSecure.get(`tokens.${USER}`)).toBe("retained-token-record");
+    expect(mockSecure.has("device")).toBe(false);
+    expect(mockSecure.has("device_secret")).toBe(false);
+    expect(mockSecure.has("active_slot")).toBe(false);
+  });
+
+  it.each([
+    "https://outside.invalid", "https://causeofdeathindia.com.evil.io", "https://evilcauseofdeathindia.com",
+    "https://user:password@digitva.causeofdeathindia.com", "https://digitva.causeofdeathindia.com/path",
+    "https://digitva.causeofdeathindia.com?query=1", "https://digitva.causeofdeathindia.com#fragment",
+    "https://digitva.causeofdeathindia.com:8443", "http://digitva.causeofdeathindia.com", "http://localhost:8052",
+  ])("rejects the unsafe server %s before fetch or storage", async (server) => {
+    mockServer(() => json(201, reply));
+    await expect(passwordEnrolAndSignIn(server, "asha@example.org", "private-password", "Pixel", "1.2.3"))
+      .rejects.toMatchObject({ key: "errServerNotAllowed" });
+    expect(calls).toHaveLength(0);
+    expect(mockSecure.size).toBe(0);
+  });
+
+  it.each([
+    "https://digitvademo.causeofdeathindia.com",
+    " HTTPS://DIGITVADEMO.CAUSEOFDEATHINDIA.COM/ ",
+  ])("rejects the public Demo origin %s before sending staff credentials", async (server) => {
+    mockServer(() => json(201, reply));
+    await expect(passwordEnrolAndSignIn(server, "asha@example.org", "private-password", "Pixel", "1.2.3"))
+      .rejects.toMatchObject({ name: "EnrolmentError", key: "errServerNotAllowed" });
+    expect(calls).toHaveLength(0);
+    expect(mockSecure.size).toBe(0);
+  });
+
+  it.each([["", "pw"], ["  ", "pw"], ["asha@example.org", ""]])("rejects empty credentials before fetch", async (identifier, password) => {
+    mockServer(() => json(201, reply));
+    await expect(passwordEnrolAndSignIn(SERVER, identifier, password, "Pixel", "1.2.3"))
+      .rejects.toMatchObject({ code: "invalid_request" });
+    expect(calls).toHaveLength(0);
+    expect(mockSecure.size).toBe(0);
+  });
+
+  it.each([401, 404, 429, 500])("stores nothing and makes no fallback request after HTTP %s", async (status) => {
+    mockServer(() => json(status, { code: "refused" }));
+    await expect(passwordEnrolAndSignIn(SERVER, "asha@example.org", "private-password", "Pixel", "1.2.3"))
+      .rejects.toMatchObject({ status });
+    expect(calls).toHaveLength(1);
+    expect(mockSecure.size).toBe(0);
+  });
+
+  it.each([null, {}, { ...reply, access_token: "" }, { ...reply, access: {} }, { ...reply, user: { user_id: "other", name: "Other" } }])
+    ("does not retain a malformed combined reply", async (body) => {
+      mockServer(() => json(201, body));
+      await expect(passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3")).rejects.toThrow();
+      expect(mockSecure.size).toBe(0);
+    });
+
+  it("preserves an existing Active enrollment and its session before network", async () => {
+    seed({ access: "kept-access", refresh: "kept-refresh" });
+    const before = [...mockSecure];
+    mockServer(() => json(201, reply));
+    await expect(passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3"))
+      .rejects.toBeInstanceOf(AlreadyEnrolledError);
+    expect(calls).toHaveLength(0);
+    expect([...mockSecure]).toEqual(before);
+  });
+
+  it("refuses Demo mode without switching slots or using the demo endpoint", async () => {
+    mockSecure.set("active_slot", "demo");
+    mockServer(() => json(201, reply));
+    await expect(passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3"))
+      .rejects.toMatchObject({ name: "NotInSlotError" });
+    expect(calls).toHaveLength(0);
+    expect([...mockSecure]).toEqual([["active_slot", "demo"]]);
   });
 });

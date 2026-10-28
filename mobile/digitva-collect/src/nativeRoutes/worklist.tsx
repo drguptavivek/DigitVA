@@ -31,6 +31,8 @@ import {
 } from "../cases";
 import { sendRefusals, type SendRefusal } from "../unsentWork";
 import { deleteUnsentDraft, listDrafts, retryHeldDraft, type Db, type DraftRow } from "../drafts";
+import { codingNotices, dismissCodingNotices, type CodingNotice } from "../codingUploadNotices";
+import { codingNoticeText } from "../standalone/adopt";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { FirstDownloadModal } from "../FirstDownloadModal";
 import { t } from "../i18n";
@@ -121,6 +123,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   >([]);
   const [canCodeNowUniqueIds, setCanCodeNowUniqueIds] = useState<string[]>([]);
   const [draftConflict, setDraftConflict] = useState(false);
+  const [codingUploadNotices, setCodingUploadNotices] = useState<CodingNotice[]>([]);
   const [deleting, setDeleting] = useState<DraftRow | undefined>();
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
@@ -198,6 +201,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     setServerKeptUploads([]);
     setCanCodeNowUniqueIds([]);
     setDraftConflict(false);
+    setCodingUploadNotices([]);
   }, []);
 
   useEffect(() => {
@@ -215,7 +219,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       current: () => boolean = () => true,
       caseFlagsAuthoritative = false,
     ) => {
-      const [d, c, r, a, localRevisions, reference, lastRefusals] = await Promise.all([
+      const [d, c, r, a, localRevisions, reference, lastRefusals, codingNoticesForAccount] = await Promise.all([
         listDrafts(handle),
         listCases(handle),
         listRegistrations(handle),
@@ -223,6 +227,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         listLocalRevisions(handle),
         getCachedReferenceData(handle),
         sendRefusals(handle),
+        codingNotices(handle),
       ]);
       const paused = await listPausedProjects(
         handle,
@@ -231,6 +236,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       if (!current()) return;
       setDrafts(d);
       setRefusals(lastRefusals);
+      setCodingUploadNotices(codingNoticesForAccount);
       setRevisions(localRevisions);
       setCases(c);
       if (caseFlagsAuthoritative) {
@@ -854,10 +860,31 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     await loadLocal(handle);
   }
 
+  async function dismissCodingUploadNotices() {
+    const handle = dbRef.current;
+    if (!handle) return;
+    try {
+      await dismissCodingNotices(handle);
+      setCodingUploadNotices([]);
+    } catch (error) {
+      setMessage(errorText(error));
+    }
+  }
+
   // Sync outcomes the old list showed under its buttons; kept as notices on both tabs.
   const notices = (
     <>
       {draftConflict ? <Notice>{t("draftConflictNotice")}</Notice> : null}
+      {codingUploadNotices.length ? (
+        <>
+          {codingUploadNotices.map((notice, index) => (
+            <Notice key={`${notice.draftId}-${notice.codingSha256 ?? notice.at}-${index}`}>
+              {codingNoticeText(notice.code)}
+            </Notice>
+          ))}
+          <Button kind="secondary" size="sm" label={t("dismiss")} onPress={() => void dismissCodingUploadNotices()} />
+        </>
+      ) : null}
       {canCodeNowUniqueIds
         .filter((uniqueId) =>
           !cases.some((row) => row.unique_id === uniqueId && row.code_now === true) &&

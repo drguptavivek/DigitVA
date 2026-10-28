@@ -120,6 +120,8 @@ const draftIssueLines = (draft: DraftRow, refusal?: SendRefusal): InterviewItem[
   ...(draft.draft_sync_blocked ? [{ text: t("draftSyncBlockedAttention"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "demo_limit" ? [{ text: t("demoDraftLimit"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "case_conflict" ? [...refusalLine(refusal), { text: t("refusalCaseConflict"), tone: "error" as const }] : []),
+  ...(draft.upload_issue === "consent_refused" ? [{ text: t("consentRefusedHeld"), tone: "error" as const }] : []),
+  ...(draft.upload_issue === "refusal_stale" ? [{ text: t("consentRefusedHeld"), tone: "error" as const }] : []),
   ...(draft.upload_issue == null ? refusalLine(refusal) : []),
 ];
 
@@ -163,7 +165,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       caseId: known?.name ? known.unique_id : draft.unique_id ? undefined : draft.id.slice(0, 8),
       ageYears: known?.age, sex: known?.sex, dateOfDeath: dateOnly(known?.died), unit: known?.unit_name ?? undefined,
       badge: ready ? { label: t("draftReady"), tone: "accent" } : { label: t("badgeDraft"), tone: "warning" },
-      action: ready ? undefined : { type: "resume", draft, label: t("actionResume") },
+      action: ready && draft.upload_issue !== "consent_refused" && draft.upload_issue !== "refusal_stale" ? undefined : { type: "resume", draft, label: t("actionResume") },
       timeText: ready
         ? whenText("interviewCompleted", draft.completed_at ?? draft.updated_at)
         : whenText("interviewStarted", draft.started_at) ?? whenText("interviewLastSaved", draft.updated_at),
@@ -177,11 +179,12 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
   }
   for (const reg of src.registrations) {
     const attention = reg.state === "needs_edit";
+    const refusalOnly = (reg.fields as unknown as Record<string, unknown>).refusal_only === true;
     items.push({
-      key: `registration-${reg.client_death_id}`, kind: "drafts", title: reg.fields.deceased_name,
+      key: `registration-${reg.client_death_id}`, kind: "drafts", title: refusalOnly ? t("outcome_refused") : reg.fields.deceased_name,
       sex: reg.fields.deceased_sex, dateOfDeath: reg.fields.date_of_death,
       badge: { label: attention ? t("needsEdit") : t("pendingSend"), tone: attention ? "warning" : "neutral" },
-      action: { type: "registration", clientDeathId: reg.client_death_id, label: t("viewDetails") },
+      action: refusalOnly ? undefined : { type: "registration", clientDeathId: reg.client_death_id, label: t("viewDetails") },
       timeText: whenText("interviewSaved", reg.created_at),
       lines: attention ? refusalLine(src.refusals?.get(reg.client_death_id)) : [], search: [reg.fields.deceased_name], updatedAt: reg.created_at,
     });

@@ -69,6 +69,7 @@ jest.mock("expo-screen-capture", () => ({ preventScreenCaptureAsync: jest.fn() }
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
+  useSafeAreaInsets: () => ({ top: 24, bottom: 12, left: 0, right: 0 }),
 }));
 
 import RootLayout from "../app/_layout";

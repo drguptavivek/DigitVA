@@ -153,6 +153,7 @@ describe("passphrase and PIN rules", () => {
 describe("store setup, unlock and lock", () => {
   it("sets a busy timeout on the keyed handle after the key", async () => {
     mockExecLog.length = 0;
+    seedAccounts();
     await createInterviewerDb(A, PIN);
     const key = mockExecLog.findIndex((sql) => sql.startsWith("PRAGMA key"));
     expect(key).toBeGreaterThanOrEqual(0);

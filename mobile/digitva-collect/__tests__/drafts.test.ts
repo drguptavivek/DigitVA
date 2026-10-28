@@ -5,6 +5,8 @@
 import { DatabaseSync } from "node:sqlite";
 
 import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
+import { saveDraftConsent, type StoredConsent } from "../src/consentStore";
+import { draftAttachments, saveAttachment } from "../src/attachmentStore";
 
 import {
   completedDrafts,
@@ -59,6 +61,19 @@ describe("draft store", () => {
     db = memoryDb();
     await migrate(db);
     await migrate(db); // idempotent
+  });
+
+  it("clears a refused draft and blocks a later stale save from restoring answers", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", binding: { projectId: "PROJECT1", prefill: { deceased: { name: "Private" } } } });
+    await store.save(draft("refused", "2026-09-30T01:00:00Z", { Id10013: "yes", Id10007: "Private", Id10476: "Narrative" }));
+    await saveAttachment(db, { id: "11111111-1111-4111-8111-111111111111", draftId: "refused", projectId: "PROJECT1", question: "Id10476", kind: "audio", mimeType: "audio/mp4", ext: "m4a", bytes: new Uint8Array([1]) });
+    await saveDraftConsent(db, "refused", { envelope: { decision: "refused" }, project_id: "PROJECT1", covered_fields: [], recorded_by: "u" } as unknown as StoredConsent);
+    const row = await db.getFirstAsync<{ envelope: string; prefill: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", ["refused"]);
+    expect(JSON.parse(row!.envelope).data).toEqual({ Id10013: "yes" });
+    expect(row!.prefill).toBeNull();
+    expect(await draftAttachments(db, "refused")).toEqual([]);
+    await store.save(draft("refused", "2026-09-30T02:00:00Z", { Id10013: "yes", Id10007: "stale" }));
+    expect((await store.load!("refused"))!.data).toEqual({ Id10013: "yes" });
   });
 
   it("stores the national ID reduced to its last three digits", async () => {
@@ -294,7 +309,7 @@ describe("draft store", () => {
     const readStarted = new Promise<void>((resolve) => { startedRead = resolve; });
     const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
     db.getFirstAsync = async <T,>(sql: string, params: Array<string | number | null>) => {
-      if (sql === "SELECT project_id, envelope FROM drafts WHERE id = ?") {
+      if (sql === "SELECT project_id, envelope, updated_at, death_id, client_death_id FROM drafts WHERE id = ?") {
         startedRead();
         await readGate;
       }

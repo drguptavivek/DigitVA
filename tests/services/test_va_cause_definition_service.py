@@ -258,3 +258,19 @@ class FindVaDefinitionForIcdTests(BaseTestCase):
         row = db.session.scalar(sa.select(MasVaCauseDefinition).where(MasVaCauseDefinition.va_code == "VAs-01.04"))
         svc.update_va_definition(row.id, {"is_active": False}, user_id=self.base_admin_id)
         self.assertIsNone(self._va("A04"))
+
+    def test_inactive_scheme_or_node_is_not_returned(self):
+        scheme = db.session.scalar(sa.select(MasCodBucketScheme).where(
+            MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026"))
+        node = db.session.scalar(sa.select(MasCodBucketNode).where(
+            MasCodBucketNode.scheme_id == scheme.scheme_id,
+            MasCodBucketNode.node_code == "vas_01_04"))
+        self.assertEqual(self._va("1A00", "icd11"), "VAs-01.04")
+        for row in (scheme, node):
+            with self.subTest(reference=type(row).__name__):
+                row.is_active = False
+                db.session.flush()
+                self.assertIsNone(self._va("1A00", "icd11"))
+                row.is_active = True
+                db.session.flush()
+                self.assertEqual(self._va("1A00", "icd11"), "VAs-01.04")

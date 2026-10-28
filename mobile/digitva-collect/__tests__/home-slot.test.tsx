@@ -29,7 +29,7 @@ jest.mock("../src/browserScreens", () => ({ WorkspaceScreen: () => null }));
 jest.mock("../src/ui", () => {
   const R = jest.requireActual("react") as typeof React;
   return {
-    Button: ({ label }: { label: string }) => R.createElement("button", null, label),
+    Button: ({ label, onPress }: { label: string; onPress?: () => void }) => R.createElement("button", { onPress }, label),
     Screen: ({ children }: { children: ReactNode }) => R.createElement("main", null, children),
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, card: {} }),
   };
@@ -73,6 +73,15 @@ it("shows an enrolled Demo slot as usual", async () => {
   expect(mockSwitchSlot).not.toHaveBeenCalled();
   expect(redirects(tree)).toEqual([]);
   expect(JSON.stringify(tree.toJSON())).toContain("Demo project");
+});
+
+it("opens Settings in the standalone account context from the locked accounts list", async () => {
+  mockPush.mockClear();
+  mockState = { ready: true, device: undefined, accounts: [{ user_id: "offline", name: "EngineBenchmark", standalone: true }], slot: "active", switchSlot: mockSwitchSlot };
+  const tree = await render();
+  const settings = tree.root.findAll((node) => (node.type as unknown) === "button" && node.props.children === "settings")[0];
+  await act(async () => settings.props.onPress());
+  expect(mockPush).toHaveBeenCalledWith({ pathname: "/settings", params: { userId: "offline" } });
 });
 
 it("shows a signed-out profile as kept and sends it to sign-in, then its PIN", async () => {

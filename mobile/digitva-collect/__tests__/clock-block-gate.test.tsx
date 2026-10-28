@@ -6,7 +6,8 @@ let mockPathname = "/form";
 let mockLevel = "block";
 const mockState = {
   ready: true,
-  accounts: [{ user_id: "w", name: "W", collection_access: true, registration_access: true }],
+  standaloneAvailable: true,
+  accounts: [{ user_id: "w", name: "W", collection_access: true, registration_access: true, standalone: false }],
   reload: jest.fn(),
 };
 
@@ -40,6 +41,15 @@ function render() {
 
 beforeEach(() => {
   mockLevel = "block";
+  mockState.accounts[0].standalone = false;
+});
+
+it.each(["/form", "/revision", "/interview"])("does not block standalone %s with a retained server clock", (route) => {
+  mockPathname = route;
+  mockState.accounts[0].standalone = true;
+  const tree = render();
+  expect(tree.root.findAllByType("child-screen" as never)).toHaveLength(1);
+  expect(tree.root.findAllByType("clock-block" as never)).toHaveLength(0);
 });
 
 it.each(["/form", "/revision", "/register", "/interview", "/death-registration"])("covers %s but keeps it mounted", (route) => {

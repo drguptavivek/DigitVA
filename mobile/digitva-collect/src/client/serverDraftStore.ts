@@ -2,6 +2,7 @@ import type { SubmissionData, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/
 
 import { ClientApiError, isSignedOutError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "../formDefinitionRuntime";
+import { refusalAnswers } from "../refusalBoundary";
 import {
   appendWorkflowEvent,
   workflowTimeline,
@@ -32,6 +33,7 @@ export interface ServerDraftStoreOptions {
   csrf: ClientCsrf;
   sectionOf: ReadonlyMap<string, string>;
   initialData?: SubmissionData;
+  initialDataVersion?: string;
   identity?: { instrumentId: string; instrumentVersion: string; firstSection: string };
   definitionPin?: DefinitionPin | null;
   locale?: string;
@@ -53,6 +55,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private readonly csrf: ClientCsrf;
   private readonly sectionOf: ReadonlyMap<string, string>;
   private readonly initialData?: SubmissionData;
+  private readonly initialDataVersion?: string;
   private readonly identity?: ServerDraftStoreOptions["identity"];
   private definitionPin: DefinitionPin | null;
   private readonly onError?: (error: unknown) => void;
@@ -84,12 +87,23 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private writing: Promise<void> = Promise.resolve();
   private loaded = false;
+  private refusalMode = false;
+
+  enterRefusal(): void {
+    this.refusalMode = true;
+    this.retained = {};
+    const id = this.draftId ?? this.pending?.id ?? this.latestDraft?.id;
+    if (id) forgetKeptDraft(id);
+    if (this.pending) this.pending = { ...this.pending, data: refusalAnswers(this.pending.data) as SubmissionData };
+    if (this.latestDraft) this.latestDraft = { ...this.latestDraft, data: refusalAnswers(this.latestDraft.data) as SubmissionData };
+  }
 
   constructor(options: ServerDraftStoreOptions) {
     this.endpoint = options.endpoint.replace(/\/$/, "");
     this.csrf = options.csrf;
     this.sectionOf = options.sectionOf;
     this.initialData = options.initialData;
+    this.initialDataVersion = options.initialDataVersion;
     this.identity = options.identity;
     this.definitionPin = options.definitionPin ?? null;
     this.locale = options.locale;
@@ -110,6 +124,19 @@ export class ServerDraftStore implements WhoVaDraftStore {
 
   getServerUpdatedAt(): string | undefined {
     return this.serverUpdatedAt;
+  }
+
+  /** A newly granted DP decision acknowledges the latest cleared draft before editing resumes. */
+  async resumeAfterConsentGrant(): Promise<void> {
+    if (!this.draftId) throw new Error("Draft must load before consent can be resumed.");
+    const path = `${this.endpoint}/${encodeURIComponent(this.draftId)}`;
+    const current = await requestClientJson<DraftResponse>(path, { csrf: this.csrf });
+    if (!current.draft.updated_at) throw new ClientApiError(200, "malformed_response");
+    // A WHO refusal is a separate decision and needs its own explicit correction.
+    if (current.envelope.data?.Id10013 === "no") return;
+    await requestClientJson(path, { method: "PATCH", csrf: this.csrf, json: {
+      sections: {}, resume_refused: true, if_updated_at: current.draft.updated_at,
+    } });
   }
 
   restoreLocaleMetadata(metadata: DraftLocaleMetadata): void {
@@ -150,9 +177,9 @@ export class ServerDraftStore implements WhoVaDraftStore {
     // Apply those defaults underneath the saved answers so a partial draft is
     // completed without ever replacing an answer already stored on the server.
     // Answers kept on this tab after a dead session come back over the server's (digitva-fvbc).
-    const kept = readKeptDraft(id);
+    const kept = readKeptDraft(id, response.draft.updated_at);
     const mergedData = {
-      ...(this.initialData ? (this.initialData as Record<string, unknown>) : {}),
+      ...(this.initialData && (!this.initialDataVersion || this.initialDataVersion === response.draft.updated_at) ? (this.initialData as Record<string, unknown>) : {}),
       ...savedData,
       ...(kept ?? {}),
     };
@@ -191,11 +218,12 @@ export class ServerDraftStore implements WhoVaDraftStore {
 
   save(draft: WhoVaDraft): Promise<void> {
     if (!this.loaded) return Promise.reject(new Error("Draft must load before it can be saved."));
+    if (this.refusalMode) draft = { ...draft, data: refusalAnswers(draft.data) as SubmissionData };
     this.latestDraft = draft;
     this.noteWorkflowMilestones(draft);
     this.pending = draft;
     if (this.signedOut) {
-      keepDraft(draft);
+      keepDraft(draft, this.serverUpdatedAt);
       return Promise.reject(new ClientApiError(401, "unauthorized"));
     }
     const settled = new Promise<void>((resolve, reject) => this.waiters.push({ resolve, reject }));
@@ -236,7 +264,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
         if (isSignedOutError(error)) {
           // A dead session cannot be revived by retrying: stop, keep the answers, ask for sign-in.
           this.signedOut = true;
-          keepDraft(this.pending);
+          keepDraft(this.pending, this.serverUpdatedAt);
           this.onSignedOut?.();
         } else {
           this.onError?.(error);
@@ -366,20 +394,26 @@ function keptStorage(): Storage | undefined {
 }
 
 /** Mirror unsent answers to this tab's sessionStorage (cleared when the tab closes, survives a reload). */
-function keepDraft(draft: WhoVaDraft | undefined): void {
-  if (!draft) return;
+function keepDraft(draft: WhoVaDraft | undefined, baseUpdatedAt: string | undefined): void {
+  if (!draft || !baseUpdatedAt) return;
   try {
-    keptStorage()?.setItem(KEPT_PREFIX + draft.id, JSON.stringify(draft.data));
+    keptStorage()?.setItem(KEPT_PREFIX + draft.id, JSON.stringify({ data: draft.data, baseUpdatedAt }));
   } catch {
     // Storage full or blocked: the open tab still holds the answers.
   }
 }
 
-function readKeptDraft(id: string): Record<string, unknown> | undefined {
+function readKeptDraft(id: string, serverUpdatedAt: string): Record<string, unknown> | undefined {
   try {
     const raw = keptStorage()?.getItem(KEPT_PREFIX + id);
     const value: unknown = raw ? JSON.parse(raw) : undefined;
-    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const kept = value as { data?: unknown; baseUpdatedAt?: unknown };
+    if (kept.baseUpdatedAt !== serverUpdatedAt || !kept.data || typeof kept.data !== "object" || Array.isArray(kept.data)) {
+      forgetKeptDraft(id);
+      return undefined;
+    }
+    return kept.data as Record<string, unknown>;
   } catch {
     return undefined;
   }

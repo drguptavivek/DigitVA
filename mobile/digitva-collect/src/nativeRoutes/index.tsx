@@ -23,7 +23,8 @@ export default function Home() {
     if (emptyDemo) void switchSlot?.("active");
   }, [emptyDemo, switchSlot]);
   if (!ready || emptyDemo) return <ActivityIndicator style={{ flex: 1 }} />;
-  const standalone = accounts.some((account) => account.standalone);
+  const standaloneAccount = accounts.find((account) => account.standalone);
+  const standalone = standaloneAccount !== undefined;
   if (!device && !standalone) return <Redirect href="/enrol" />;
   return (
     <Screen title={t("accountsTitle")}>
@@ -64,7 +65,11 @@ export default function Home() {
       ))}
       <View style={{ gap: 8 }}>
         {device ? <Button label={t("addInterviewer")} onPress={() => router.push("/sign-in")} /> : <Button label={t("standaloneEnrol")} onPress={() => router.push("/enrol")} />}
-        <Button kind="secondary" label={t("settings")} onPress={() => router.push("/settings")} />
+        <Button kind="secondary" label={t("settings")} onPress={() => router.push(
+          standaloneAccount && !device
+            ? { pathname: "/settings", params: { userId: standaloneAccount.user_id } }
+            : "/settings",
+        )} />
       </View>
     </Screen>
   );

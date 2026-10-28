@@ -955,18 +955,15 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(case.status, "cancelled")
         self.assertIsNone(case.deceased_name)
         self.assertEqual(get_submission_workflow_state(submission.va_sid), WORKFLOW_CONSENT_REFUSED)
-        # The visit note is the only record of which household it was.
         version = db.session.scalar(
             sa.select(VaSubmissionPayloadVersion).where(
                 VaSubmissionPayloadVersion.va_sid == submission.va_sid,
                 VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
             )
         )
-        self.assertEqual(
-            {k: version.payload_data.get(k) for k in self.VISIT_NOTE},
-            {"visit_address": "12 Mill Road, Ward 4", "visit_date": "2026-09-30", "visit_remarks": "Family away"},
-        )
-        self.assertEqual(draft.meta["visitNote"]["visit_address"], "12 Mill Road, Ward 4")
+        for key in self.VISIT_NOTE:
+            self.assertNotIn(key, version.payload_data)
+        self.assertNotIn("visitNote", draft.meta)
 
     VISIT_NOTE = {
         "visit_address": "  12 Mill Road, Ward 4 ",
@@ -974,7 +971,7 @@ class WebIntakeServiceTests(BaseTestCase):
         "visit_remarks": "Family away",
     }
 
-    def test_an_identity_less_refusal_requires_a_valid_visit_note(self):
+    def test_an_identity_less_refusal_does_not_keep_a_visit_note(self):
         future = (date.today() + timedelta(days=1)).isoformat()
         for label, note in (
             ("none", {}),
@@ -987,23 +984,16 @@ class WebIntakeServiceTests(BaseTestCase):
                 draft = intake_svc.start_draft(
                     self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
                 )
-                with self.assertRaises(intake_svc.WebIntakeError) as ctx:
-                    intake_svc.submit_draft(
-                        draft, self.interviewer, completion=self._no_identity(Id10013="no", **note)
-                    )
-                self.assertEqual(ctx.exception.status_code, 422)
+                submission = intake_svc.submit_draft(
+                    draft, self.interviewer, completion=self._no_identity(Id10013="no", **note)
+                )
+                self.assertEqual(self._stored_outcome(submission), "refused")
+                self.assertNotIn("visitNote", draft.meta)
 
-    def test_a_name_without_sex_or_date_still_needs_the_visit_note(self):
-        # The case stays draft_identity until name, sex and date of death are
-        # all present, so the note is required exactly as for no identity.
+    def test_refusal_does_not_keep_partial_identity_or_visit_note(self):
         draft = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
         )
-        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
-            intake_svc.submit_draft(
-                draft, self.interviewer, completion=self._no_identity(Id10013="no", Id10017="Asha")
-            )
-        self.assertEqual(ctx.exception.status_code, 422)
         submission = intake_svc.submit_draft(
             draft,
             self.interviewer,
@@ -1012,6 +1002,8 @@ class WebIntakeServiceTests(BaseTestCase):
         case = db.session.get(VaDeathRegister, draft.death_id)
         self.assertEqual(self._stored_outcome(submission), "refused")
         self.assertEqual(case.status, "cancelled")
+        self.assertIsNone(case.deceased_name)
+        self.assertNotIn("visitNote", draft.meta)
 
     def test_remarks_are_optional_and_a_register_case_needs_no_visit_note(self):
         draft = intake_svc.start_draft(
@@ -1226,13 +1218,10 @@ class WebIntakeServiceTests(BaseTestCase):
         death = self._register_death()
         draft, submission = self._submit_for_new_draft(death, self._completion(data={"Id10013": "no"}))
         self.assertEqual(self._stored_outcome(submission), "refused")
-        # The client sends the stored answers back, the server's outcome included.
-        self._resubmit(draft, self._completion(data={"interview_outcome": "refused"})["data"])
-        self.assertEqual(self._stored_outcome(submission), "completed")
-        # Once completed, refused with consent yes is the interviewer's own pick.
         with self.assertRaises(intake_svc.WebIntakeError) as ctx:
             self._resubmit(draft, self._completion(data={"interview_outcome": "refused"})["data"])
-        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (422, "outcome_conflicts_consent"))
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (422, "consent_refused"))
+        self.assertEqual(self._stored_outcome(submission), "refused")
 
     # -- a second draft on a case the caller's own earlier draft won (digitva-9kqk) --
 

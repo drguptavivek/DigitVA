@@ -6,12 +6,15 @@ let mockParams: Record<string, string> = { userId: "worker" };
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
 const mockUnsentCount = jest.fn<Promise<number | undefined>, [string]>(async () => 0);
 let mockUnlocked = true;
+let mockCodingEnabled = true;
+jest.mock("../src/icd11DorisPreference", () => ({ useIcd11DorisPreference: () => ({ ready: true, answered: true, enabled: mockCodingEnabled }) }));
 const mockUpload = jest.fn(async () => ({ sent: 2, failed: 0, supersededUniqueIds: [], serverKeptUploads: [], canCodeNowUniqueIds: [] }));
 const mockRefreshAccess = jest.fn<Promise<unknown>, [string]>(async () => undefined);
 const mockReload = jest.fn(async () => undefined);
 const mockSignOut = jest.fn<Promise<void>, [string]>(async () => undefined);
 const mockState = {
   ready: true,
+  standaloneAvailable: true,
   authenticated: true,
   bootstrap: { user: { user_id: "worker", name: "Worker" }, csrf: "csrf", access: { roles: [] }, capabilities: { intake: false, registerDeath: false, registeredDeaths: false } },
   accounts: [{ user_id: "worker", name: "Worker", collection_access: false as boolean | undefined, registration_access: false as boolean | undefined } as Record<string, unknown>],
@@ -87,6 +90,7 @@ beforeEach(() => {
   mockPlus = false;
   mockUnlocked = true;
   mockState.ready = true;
+  mockState.standaloneAvailable = true;
   mockPathname = "/case";
   mockParams = { userId: "worker" };
   mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false }];
@@ -111,6 +115,63 @@ it("keeps mixed-role native collection routes available", async () => {
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<NativeCollectionGate>collection screen</NativeCollectionGate>); });
   expect(JSON.stringify(tree.toJSON())).toContain("collection screen");
+  await act(async () => tree.unmount());
+});
+
+it("redirects standalone worklist visits locally before rendering children or refreshing access", async () => {
+  mockPathname = "/worklist";
+  mockParams = { userId: "worker", view: "interviews" };
+  mockState.accounts = [{ user_id: "worker", name: "Worker", standalone: true }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>enrolled worklist</NativeCollectionGate>); });
+  expect(tree.toJSON()).toMatchObject({
+    type: "redirect",
+    props: { href: { pathname: "/standalone", params: { userId: "worker", view: "interviews" } } },
+  });
+  expect(JSON.stringify(tree.toJSON())).not.toContain("enrolled worklist");
+  expect(mockRefreshAccess).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
+});
+
+it("blocks standalone setup before it can render without an account id while a server session is active", async () => {
+  mockState.standaloneAvailable = false;
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate routeName="standalone-setup">standalone setup</NativeCollectionGate>); });
+  const output = JSON.stringify(tree.toJSON());
+  expect(output).toContain("standaloneLogoutRequired");
+  expect(output).not.toContain("standalone setup");
+  expect(tree.root.findByProps({ label: "accounts" })).toBeTruthy();
+  await act(async () => tree.unmount());
+});
+
+it.each(["/standalone", "/form", "/unlock", "/pin-setup", "/settings", "/offline-coding"])(
+  "blocks a standalone account route %s before rendering children and preserves its user id", async (pathname) => {
+    mockPathname = pathname;
+    mockState.standaloneAvailable = false;
+    mockState.accounts = [{ user_id: "worker", name: "Worker", standalone: true }];
+    let tree!: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(
+        <NativeCollectionGate routeName={pathname.slice(1)} routeParams={{ userId: "worker" }}>
+          {`standalone ${pathname}`}
+        </NativeCollectionGate>,
+      );
+    });
+    const output = JSON.stringify(tree.toJSON());
+    expect(output).toContain("standaloneLogoutRequired");
+    expect(output).not.toContain(`standalone ${pathname}`);
+    expect(mockRefreshAccess).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  },
+);
+
+it("allows a standalone account after every server account is explicitly signed out", async () => {
+  mockPathname = "/standalone";
+  mockState.standaloneAvailable = true;
+  mockState.accounts = [{ user_id: "worker", name: "Worker", standalone: true }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>standalone home</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("standalone home");
   await act(async () => tree.unmount());
 });
 
@@ -194,6 +255,20 @@ it("disables online cases while offline but leaves local cases available", async
   expect(tree.root.findByProps({ label: "onlineCases" }).props.disabled).toBe(true);
   expect(tree.root.findByProps({ label: "localCases" }).props.disabled).toBe(false);
   await act(async () => tree.unmount());
+});
+
+it("keeps local coding disabled after the user chooses Not now", async () => {
+  mockCodingEnabled = false;
+  mockPathname = "/worklist";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", coding_access: true, offline_coding_access: ["SELF"] }];
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+    expect(tree.root.findByProps({ label: "localCases" }).props.disabled).toBe(true);
+  } finally {
+    mockCodingEnabled = true;
+    if (tree) await act(async () => tree.unmount());
+  }
 });
 
 it("blocks registration routes for interviewers without registration access", async () => {

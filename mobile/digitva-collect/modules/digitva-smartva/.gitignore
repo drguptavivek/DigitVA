@@ -1,0 +1,4 @@
+# Staged/generated native binaries and build intermediates stay local.
+/android/src/main/jniLibs/
+/android/.cxx/
+/android/build/

@@ -5,11 +5,13 @@
  * language is chosen in the form's menu. Account also has Delete my account and the privacy and data-requests
  * links (docs/policy/public-privacy-and-data-requests.md section 8): on the Demo slot it deletes the account at
  * once after the password; otherwise it sends a deletion request the programme team confirms.
+ * Server controls belong only to the selected server account; standalone ignores retained enrolment.
  */
 import { useRouter } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
+import Constants from "expo-constants";
 import { canUseBiometricAuthentication } from "expo-secure-store";
-import { Alert, Linking, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Switch, Text, TextInput, View } from "react-native";
 
 import { ApiError, type AccessSummary, type AccountDevice } from "../api";
 import { decommissionMyDevice, deleteDemoAccount, listMyDevices, refreshAccessSummary, requestAccountDeletion, type Slot } from "../auth";
@@ -17,6 +19,7 @@ import { useAppState } from "../AppState";
 import type { Db } from "../drafts";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { DataActions } from "../standalone/DataActions";
+import StandaloneConsentNoticeSettings from "../standalone/StandaloneConsentNoticeSettings";
 import { APP_VERSION } from "../appVersion";
 import { isPlayDistribution, isPlusVariant } from "../appVariant";
 import { canUseOfflineCoding } from "../codingCapabilities";
@@ -31,6 +34,7 @@ import { checkForUpdate, type UpdateResult } from "../updateCheck";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { CodingCaseChips } from "../ui/CodingCaseChips";
 import { TelemetrySettings } from "../TelemetrySettings";
+import { setIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
 import { biometricEnabled, screenLockAvailable, screenLockEnabled, turnOffBiometric, turnOffScreenLock } from "../vault";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -70,6 +74,8 @@ export default function NativeSettings() {
   /** Delete my account: undefined = closed; on the Demo slot, the password field is open. */
   const [deletePassword, setDeletePassword] = useState<string>();
   const [deleteMessage, setDeleteMessage] = useState("");
+  const icd11DorisPreference = useIcd11DorisPreference();
+  const [icd11DorisError, setIcd11DorisError] = useState("");
   useEffect(() => {
     let active = true;
     void Promise.all(accounts.map(async (account) => [account.user_id, await biometricEnabled(account.user_id)] as const))
@@ -96,7 +102,7 @@ export default function NativeSettings() {
   useEffect(() => {
     let active = true;
     const userId = account?.user_id;
-    if (!userId || account?.standalone || account?.needs_sign_in || account?.signed_out) {
+    if (!shell.server || !userId || account?.needs_sign_in) {
       setDevices(undefined);
       setDevicesError("");
       return () => { active = false; };
@@ -112,7 +118,11 @@ export default function NativeSettings() {
       if (active) setDevicesBusy(false);
     });
     return () => { active = false; };
-  }, [account?.user_id, account?.standalone, account?.needs_sign_in, account?.signed_out]);
+  }, [shell.server, account?.user_id, account?.needs_sign_in]);
+  useEffect(() => {
+    setUpdate(undefined);
+    setAccessSummary(undefined);
+  }, [shell.server]);
   useEffect(() => {
     let active = true;
     void readDevicePermissions().then((permissions) => {
@@ -201,6 +211,14 @@ export default function NativeSettings() {
       setBusy(false);
     }
   }
+  async function changeIcd11DorisPreference(enabled: boolean) {
+    setIcd11DorisError("");
+    try {
+      await setIcd11DorisEnabled(enabled);
+    } catch {
+      setIcd11DorisError(t("icd11DorisPreferenceSaveError"));
+    }
+  }
   async function shareErrors() {
     setExporting(true);
     try {
@@ -213,11 +231,30 @@ export default function NativeSettings() {
     }
   }
   async function checkNow() {
+    if (!shell.server) return;
     setChecking(true);
     try {
-      setUpdate(await checkForUpdate(device?.server));
+      setUpdate(await checkForUpdate(shell.server));
     } finally {
       setChecking(false);
+    }
+  }
+  async function openPlayListing() {
+    setError("");
+    const packageName = Constants.expoConfig?.android?.package;
+    if (!packageName) {
+      setError(t("errGeneric"));
+      return;
+    }
+    const listing = `https://play.google.com/store/apps/details?id=${encodeURIComponent(packageName)}`;
+    try {
+      await Linking.openURL(`market://details?id=${encodeURIComponent(packageName)}`);
+    } catch {
+      try {
+        await Linking.openURL(listing);
+      } catch {
+        setError(t("errGeneric"));
+      }
     }
   }
   function accessStatus(value: boolean | undefined): string {
@@ -236,7 +273,7 @@ export default function NativeSettings() {
       if (shell.sync.offline || account?.standalone) {
         setAccessSummary(undefined);
         setPermissionsMessage(t("permissionsOffline"));
-      } else if (!shell.userId) {
+      } else if (!shell.server || !shell.userId) {
         setAccessSummary(undefined);
         setPermissionsMessage(t("permissionsStatusUnknown"));
       } else {
@@ -273,7 +310,7 @@ export default function NativeSettings() {
   }
   async function retryDevices() {
     const userId = account?.user_id;
-    if (!userId || account?.standalone || account?.needs_sign_in || account?.signed_out) return;
+    if (!shell.server || !userId || account?.needs_sign_in) return;
     setDevicesBusy(true);
     setDevicesError("");
     try {
@@ -285,7 +322,7 @@ export default function NativeSettings() {
     }
   }
   async function removeDevice(deviceToRemove: AccountDevice) {
-    if (!account) return;
+    if (!shell.server || !account) return;
     setDeviceBusyId(deviceToRemove.device_id);
     setDevicesError("");
     try {
@@ -378,7 +415,7 @@ export default function NativeSettings() {
       { text: t("deleteAccountDelete"), style: "destructive", onPress: () => void deleteDemo(userId, password) },
     ]);
   }
-  const canDelete = account && !account.standalone && !account.signed_out && !account.needs_sign_in;
+  const canDelete = shell.server && account && !account.needs_sign_in;
   const { sync } = shell;
   const activeProject = accessSummary?.projects.find((project) => project.project_id === device?.project_id);
   const projectCollectionAccess = activeProject ? activeProject.actions.interview.length > 0 : undefined;
@@ -389,14 +426,15 @@ export default function NativeSettings() {
     <Screen title={t("settings")}>
       <Section title={t("settingsAccount")}>
         {account ? <Text style={styles.text}>{account.name}</Text> : accounts.map((item) => <Text key={item.user_id} style={styles.text}>{item.name}</Text>)}
-        {device ? (
+        {account && shell.userId ? <Button kind="secondary" label={t("profileAccessTitle")} onPress={() => router.push({ pathname: "/profile-access", params: { userId: shell.userId } })} /> : null}
+        {shell.server && device ? (
           <>
             <Text style={styles.muted}>{t("enrolledServer")}</Text>
-            <Text style={styles.text} selectable>{device.server}</Text>
+            <Text style={styles.text} selectable>{shell.server}</Text>
             <Text style={styles.muted}>{t("deviceLabel")}</Text>
             <Text style={styles.text} selectable>{device.device_id}</Text>
-            <Button kind="secondary" label={t("privacyPolicy")} onPress={() => void Linking.openURL(`${device.server}/privacy`).catch(() => undefined)} />
-            <Button kind="secondary" label={t("dataRequests")} onPress={() => void Linking.openURL(`${device.server}/data-requests`).catch(() => undefined)} />
+            <Button kind="secondary" label={t("privacyPolicy")} onPress={() => void Linking.openURL(`${shell.server}/privacy`).catch(() => undefined)} />
+            <Button kind="secondary" label={t("dataRequests")} onPress={() => void Linking.openURL(`${shell.server}/data-requests`).catch(() => undefined)} />
           </>
         ) : null}
         {account && canDelete ? (
@@ -422,7 +460,12 @@ export default function NativeSettings() {
           </>
         ) : null}
       </Section>
-      {account && !account.standalone && !account.needs_sign_in && !account.signed_out ? (
+      {account?.standalone ? (
+        <Section title={t("standaloneConsentNoticeTitle")}>
+          <StandaloneConsentNoticeSettings />
+        </Section>
+      ) : null}
+      {shell.server && account && !account.needs_sign_in ? (
         <Section title={t("devicesTitle")}>
           {devices ? <Text style={styles.muted}>{t("devicesCount", { count: devices.length })}</Text> : null}
           {devicesBusy && !devices ? <Text style={styles.muted}>{t("devicesLoading")}</Text> : null}
@@ -450,20 +493,22 @@ export default function NativeSettings() {
           />
         </Section>
       ) : null}
-      <Section title={t("settingsSlot")}>
-        {(["active", "demo"] as const).map((option) => (
-          <Button
-            key={option}
-            kind={option === slot ? "primary" : "secondary"}
-            label={t(option === "active" ? "slotActive" : "slotDemo")}
-            disabled={busy}
-            onPress={() => {
-              if (option !== slot) void chooseSlot(option);
-            }}
-          />
-        ))}
-        <Text style={styles.muted}>{t("slotNote")}</Text>
-      </Section>
+      {!account?.standalone ? (
+        <Section title={t("settingsSlot")}>
+          {(["active", "demo"] as const).map((option) => (
+            <Button
+              key={option}
+              kind={option === slot ? "primary" : "secondary"}
+              label={t(option === "active" ? "slotActive" : "slotDemo")}
+              disabled={busy}
+              onPress={() => {
+                if (option !== slot) void chooseSlot(option);
+              }}
+            />
+          ))}
+          <Text style={styles.muted}>{t("slotNote")}</Text>
+        </Section>
+      ) : null}
       <Section title={t("settingsLanguage")}>
         <Text style={styles.muted}>{t("appLanguage")}</Text>
         {UI_LOCALES.map((locale) => (
@@ -510,11 +555,25 @@ export default function NativeSettings() {
           />
         ) : null)}
       </Section>
+      <Section title={t("icd11DorisPreferenceSection")}>
+        <Text style={styles.text}>{t("icd11DorisPreferenceDescription")}</Text>
+        <Text style={styles.muted}>{t("icd11DorisPreferenceScope")}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text style={[styles.text, { flex: 1 }]}>{t("icd11DorisPreferenceTitle")}</Text>
+          <Switch
+            accessibilityLabel={t("icd11DorisPreferenceTitle")}
+            value={icd11DorisPreference.enabled}
+            disabled={!icd11DorisPreference.ready}
+            onValueChange={(value) => void changeIcd11DorisPreference(value)}
+          />
+        </View>
+        {icd11DorisError ? <Text accessibilityRole="alert" style={styles.error}>{icd11DorisError}</Text> : null}
+      </Section>
       <Section title={t("settingsPermissions")}>
         <Text style={styles.muted}>{t("permissionsHint")}</Text>
         <Text style={styles.text}>{t("permissionsCollectionAccess", { status: accessStatus(activeProject ? projectCollectionAccess : account?.collection_access) })}</Text>
         <Text style={styles.text}>{t("permissionsCodingAccess", { status: accessStatus(activeProject ? projectCodingAccess : account?.coding_access) })}</Text>
-        {activeProject ? <Text style={styles.muted}>{t("permissionsProject", { project: activeProject.project_name })}</Text> : device ? <Text style={styles.muted}>{t("permissionsProjectCached", { project: device.project_name })}</Text> : null}
+        {activeProject ? <Text style={styles.muted}>{t("permissionsProject", { project: activeProject.project_name })}</Text> : shell.server && device ? <Text style={styles.muted}>{t("permissionsProjectCached", { project: device.project_name })}</Text> : null}
         <Text style={styles.text}>{t("permissionsCamera", { status: devicePermissionStatus(devicePermissions?.camera) })}</Text>
         {devicePermissions?.camera && !devicePermissions.camera.granted ? (
           <Button
@@ -548,11 +607,13 @@ export default function NativeSettings() {
       <Section title={t("telemetryTitle")}>
         <TelemetrySettings />
       </Section>
-      <Section title={t("tabSync")}>
-        <Text style={styles.text}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
-        <Text style={styles.text}>{sync.work === undefined ? t("syncUnsentUnknown") : t("syncUnsentScoped", { count: sync.work.unsent })}</Text>
-        <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
-      </Section>
+      {account && !account.standalone ? (
+        <Section title={t("tabSync")}>
+          <Text style={styles.text}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
+          <Text style={styles.text}>{sync.work === undefined ? t("syncUnsentUnknown") : t("syncUnsentScoped", { count: sync.work.unsent })}</Text>
+          <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
+        </Section>
+      ) : null}
       {backupDb && backupUserId ? (
         <Section title={t("settingsBackup")}>
           <Text style={styles.muted}>{t("dataBackupUnsentNote")}</Text>
@@ -563,6 +624,7 @@ export default function NativeSettings() {
         <Section title="Collect Plus (experimental)">
           {account?.coding_access && shell.userId ? <CodingCaseChips userId={shell.userId} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={sync.offline} /> : null}
           {account?.reviewing_access && shell.userId ? <Button kind="secondary" label={t("reviewCases")} onPress={() => router.push({ pathname: "/reviewing", params: { userId: shell.userId } })} /> : null}
+          {account && shell.userId && canUseOfflineCoding(account) ? <Button kind="secondary" label="Offline engine check" onPress={() => router.push({ pathname: "/engine-check", params: { userId: shell.userId } })} /> : null}
           <Button kind="secondary" label="Offline profile" onPress={() => router.push("/offline-profile")} />
         </Section>
       ) : null}
@@ -573,20 +635,24 @@ export default function NativeSettings() {
       </Section>
       <Section title={t("settingsAbout")}>
         <Text style={styles.text}>{t("appVersionLabel", { version: APP_VERSION })}</Text>
+        <Button kind="secondary" label={t("openSourceLicensesTitle")} onPress={() => router.push("/open-source-licenses")} />
         {isPlayDistribution() ? (
-          // Play's Device and Network Abuse policy forbids updating outside Play: no check, no APK link.
-          <Text style={styles.muted}>{t("updatePlayStore")}</Text>
-        ) : (
+          // Play's Device and Network Abuse policy forbids updating outside Play; send users to this build's listing.
+          <>
+            <Text style={styles.muted}>{t("updatePlayStore")}</Text>
+            <Button kind="secondary" label={t("updateCheck")} onPress={() => void openPlayListing()} />
+          </>
+        ) : shell.server ? (
           <>
             {update ? <Text style={styles.muted}>{update.status === "available" ? t("updateAvailable", { version: update.version }) : update.status === "current" ? t("updateCurrent") : t("updateUnknown")}</Text> : null}
             {update?.status === "available" ? <Button label={t("updateDownload")} onPress={() => void Linking.openURL(update.url).catch(() => undefined)} /> : null}
             <Button kind="secondary" label={t("updateCheck")} loading={checking} disabled={checking} onPress={() => void checkNow()} />
           </>
-        )}
+        ) : null}
         <Button kind="secondary" label={t("home")} onPress={() => router.back()} />
       </Section>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {device ? <Button kind="danger" label={t("reEnrol")} loading={busy} disabled={busy} onPress={requestReEnrol} /> : null}
+      {shell.server ? <Button kind="danger" label={t("reEnrol")} loading={busy} disabled={busy} onPress={requestReEnrol} /> : null}
     </Screen>
   );
 }

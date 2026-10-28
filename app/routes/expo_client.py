@@ -52,6 +52,8 @@ _SPA_ROUTE_ROOTS = frozenset(
         "users",
         "worklist",
         "workspace",
+        "open-source-licenses",
+        "profile-access",
     }
 )
 

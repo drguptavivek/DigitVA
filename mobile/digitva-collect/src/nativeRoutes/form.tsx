@@ -15,7 +15,9 @@
 import { deleteCoveredAttachments } from "../attachmentStore";
 import {
   createWhoVa2022Instrument,
+  WHO_VA_FORM_VERSION,
   type InstrumentDefinition,
+  type SubmissionData,
   type SubmissionValidationResult,
 } from "@drguptavivek/who-2022-va";
 import {
@@ -31,9 +33,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
 import { getOfflineProfile } from "../offlineProfile";
-import { standaloneConsentConfig } from "../standalone/consent";
+import { standaloneConsentConfigWithSavedNotice } from "../standalone/noticeSettings";
 import { STANDALONE_DEFAULT_EXTENSIONS } from "../standalone/config";
 import { STANDALONE_SITE_ID, standaloneDefinition, standaloneProject, standaloneProjectId } from "../standalone/project";
+import { standaloneTranslationsForDraft, standaloneTranslationVersion } from "../standalone/translations";
 import { saveStandaloneConsent } from "../standaloneConsentStore";
 import { useStableAccount } from "../useStableAccount";
 import {
@@ -47,6 +50,7 @@ import {
 } from "../cases";
 import {
   createDraftStore,
+  clearRefusedDraft,
   deleteUnsentDraft,
   getDraftRow,
   getMeta,
@@ -85,7 +89,7 @@ import {
   type ProjectSettings,
   type ReferenceData,
 } from "../sync";
-import { recordDraftMilestones, recordDraftTimeline, reconcileCaseDraft } from "../draftSync";
+import { recoverRefusalDraft, recordDraftMilestones, recordDraftTimeline, reconcileCaseDraft } from "../draftSync";
 import { applyTranslations } from "../translations";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { useLeaveGuard } from "../leaveGuard";
@@ -112,6 +116,11 @@ import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
 import { coalesceLatest } from "../coalesceSaves";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { useWhoFormTheme } from "../whoWebTheme";
+import { isSmartVaOptionsSnapshot, projectSmartVaSnapshot, standaloneSmartVaSnapshot, type SmartVaOptionsSnapshot, type SmartVaTarget } from "../smartva/options";
+import { RefusalPanel } from "../RefusalPanel";
+import { isRefused, refusalAnswers } from "../refusalBoundary";
+import { runInTransaction } from "../dbTransaction";
+import { ensureLocalSmartVa } from "../smartva/ensureLocal";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -136,6 +145,8 @@ interface DraftConfig {
   instrumentCode: string;
   translationVersion?: number;
   intakeNote?: string | null;
+  /** Exact SmartVA form/site options captured at draft creation; null freezes a missing target. */
+  smartva?: SmartVaOptionsSnapshot | null;
 }
 
 type ConsentDecision = "granted" | "refused" | "none";
@@ -184,7 +195,8 @@ function isDraftConfig(value: unknown): value is DraftConfig {
       typeof config.translationVersion === "number") &&
     (config.intakeNote === undefined ||
       config.intakeNote === null ||
-      typeof config.intakeNote === "string")
+      typeof config.intakeNote === "string") &&
+    (!Object.prototype.hasOwnProperty.call(value, "smartva") || config.smartva === null || isSmartVaOptionsSnapshot(config.smartva))
   );
 }
 
@@ -323,6 +335,14 @@ export default function Form() {
   const [consentView, setConsentView] = useState<ConsentView>({ kind: "checking" });
   // The consent screen opened from the top bar to change the decision on file (the form is closed meanwhile).
   const [changingConsent, setChangingConsent] = useState(false);
+  const [whoRefused, setWhoRefused] = useState(false);
+  const [serverRefused, setServerRefused] = useState(false);
+  const [refusalRecoveryError, setRefusalRecoveryError] = useState(false);
+  const [refusalRecoveryAttempt, setRefusalRecoveryAttempt] = useState(0);
+  const [refusalRecovered, setRefusalRecovered] = useState(false);
+  const [confirmWhoGrant, setConfirmWhoGrant] = useState(false);
+  const [refusalAge, setRefusalAge] = useState("");
+  const [refusalSex, setRefusalSex] = useState("");
   // "Delete draft": offered only while the draft was never sent; `deleted` stops any later autosave re-creating the row.
   const [canDelete, setCanDelete] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -390,17 +410,27 @@ export default function Form() {
           let config: DraftConfig = isDraftConfig(savedConfig) && savedConfig.projectId === projectId
             ? savedConfig
             : { projectId, locale: "en", enabledExtensions: [...STANDALONE_DEFAULT_EXTENSIONS], instrumentCode: "WHO_2022_VA" };
+          const definition = standaloneDefinition(config.enabledExtensions);
+          const needsSmartVaSnapshot = !Object.prototype.hasOwnProperty.call(config, "smartva");
+          if (needsSmartVaSnapshot) {
+            const profile = await getOfflineProfile().catch(() => null);
+            config = {
+              ...config,
+              smartva: await standaloneSmartVaSnapshot(profile, config.instrumentCode, definition.instrument.version),
+            };
+          }
           if (row) {
             const stored = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
             if (!stored) throw new Error("draft_missing");
             config = withEnvelopeLocale(config, JSON.parse(stored.envelope));
           }
+          if (!row || needsSmartVaSnapshot) await setMeta(db, draftConfigKey(draftId), config);
           if (!active || generation !== loadGeneration.current) return;
           setLoaded({
             db,
             project: standaloneProject(projectId),
             config,
-            definition: standaloneDefinition(config.enabledExtensions),
+            definition,
             accessVersion: lockVersion,
             hasStartedSection: Boolean(row),
             recall,
@@ -578,6 +608,14 @@ export default function Form() {
           isDraftConfig(savedConfig) && savedConfig.projectId === hostProjectId
             ? savedConfig
             : configFromReference(project!);
+        const needsSmartVaSnapshot = !hasSavedConfig && !Object.prototype.hasOwnProperty.call(config, "smartva");
+        if (needsSmartVaSnapshot) {
+          const targets = (project as ProjectSettings & { smartva_targets?: SmartVaTarget[] }).smartva_targets;
+          config = {
+            ...config,
+            smartva: projectSmartVaSnapshot(targets, { siteId: host.siteId, orgUnitId: host.orgUnitId }),
+          };
+        }
         const serverEnvelopeChanged = Boolean(
           existingDraft?.server_draft_id &&
             existingDraft.base_updated_at !== localDraft?.base_updated_at,
@@ -669,7 +707,7 @@ export default function Form() {
                 markProjectDefinitionServed(account.user_id, db!, hostProjectId),
             });
         if (!active || generation !== loadGeneration.current) return;
-        if (!hasSavedConfig || importedDraft || draftConflict || serverEnvelopeChanged || hasServerBase) {
+        if (!hasSavedConfig || needsSmartVaSnapshot || importedDraft || draftConflict || serverEnvelopeChanged || hasServerBase) {
           await setMeta(db, draftConfigKey(draftId), config);
         }
         if (!active || generation !== loadGeneration.current) return;
@@ -740,19 +778,40 @@ export default function Form() {
     if (!loaded || !draftId) return undefined;
     let live = true;
     void (async () => {
-      const row = await getDraftRow(loaded.db, draftId);
+      let row = await getDraftRow(loaded.db, draftId);
+      if (row?.upload_issue === "refusal_stale") {
+        try {
+          if (!account) throw new Error("refusal_server_draft_unavailable");
+          await recoverRefusalDraft(account.user_id, loaded.db, row);
+          row = await getDraftRow(loaded.db, draftId);
+          setLoaded((current) => current ? { ...current, prefill: undefined, binding: { ...current.binding, prefill: undefined } } : current);
+          if (live) { setRefusalRecovered(true); setRefusalRecoveryError(false); }
+        } catch {
+          if (live) setRefusalRecoveryError(true);
+          return;
+        }
+      }
+      const saved = await loaded.db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
+      const answers = saved ? (JSON.parse(saved.envelope) as { data?: Record<string, unknown> }).data : undefined;
+      if (live) {
+        setServerRefused(row?.upload_issue === "consent_refused");
+        setWhoRefused(answers?.Id10013 === "no");
+        setRefusalAge(typeof answers?.refusal_age_group === "string" ? answers.refusal_age_group : "");
+        setRefusalSex(typeof answers?.refusal_sex === "string" ? answers.refusal_sex : "");
+      }
       const applied = await consentForDraft(loaded.db, {
         id: draftId,
         death_id: row?.death_id ?? loaded.binding.deathId,
         client_death_id: row?.client_death_id ?? loaded.binding.clientDeathId,
       });
+      if (isRefused(answers, applied?.record.envelope.decision)) await clearRefusedDraft(loaded.db, draftId);
       const last = await sendRefusal(loaded.db, draftId);
       // The server refused the decision this draft inherited: ask for a new attempt-level one.
       const inheritedRefused = applied && !applied.own && await inheritedConsentRefused(loaded.db, draftId);
       let gateConfig: ProjectConsentConfig | undefined;
       if (loaded.standalone) {
         const profile = await getOfflineProfile().catch(() => null);
-        gateConfig = standaloneConsentConfig(loaded.projectId, loaded.config.locale, { organisation: profile?.facility_name }) ?? undefined;
+        gateConfig = (await standaloneConsentConfigWithSavedNotice(loaded.projectId, loaded.config.locale, { organisation: profile?.facility_name })) ?? undefined;
         if (!gateConfig && !applied) {
           if (live) setConsentView({ kind: "blocked" });
           return;
@@ -763,7 +822,7 @@ export default function Form() {
       const gate = interviewConsentGate(gateConfig);
       if (!live) return;
       setRefusal(last?.message || last?.status === 422 ? last : undefined);
-      const config = gate.state === "ask" ? gate.config : undefined;
+      const config = gate.state === "ask" ? gate.config : gate.state === "off" ? gateConfig : undefined;
       if (applied && !inheritedRefused) {
         const refused = applied.record.envelope.decision === "refused";
         setConsentView({ kind: "ready", covered: refused ? applied.record.covered_fields : [], decision: refused ? "refused" : "granted", required: gate.state !== "off", config });
@@ -780,7 +839,7 @@ export default function Form() {
     });
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- a language switch re-creates `loaded`; consent is decided once per interview
-  }, [loaded?.db, loaded?.projectId, draftId]);
+  }, [loaded?.db, loaded?.projectId, draftId, refusalRecoveryAttempt]);
 
   // Delete draft is offered while the draft was never sent (the store checks again when it deletes).
   useEffect(() => {
@@ -797,19 +856,24 @@ export default function Form() {
     const version = loaded.config.translationVersion;
     void (async () => {
       try {
-        // Standalone has no server to fetch translations from: the bundled English instrument only.
-        const translations = loaded.standalone ? null : await translationsForDraft(
-          account.user_id,
-          loaded.db,
-          loaded.project.project_id,
-          code,
-          locale,
-          version,
-          loaded.project.form_options.translation_versions?.[locale],
-        );
+        // Standalone uses only its version-pinned APK pack and SQLite cache.
+        const standalonePack = loaded.standalone
+          ? await standaloneTranslationsForDraft(loaded.db, loaded.project.project_id, code, locale, version)
+          : undefined;
+        const translations = loaded.standalone
+          ? standalonePack!.translations
+          : await translationsForDraft(
+              account.user_id,
+              loaded.db,
+              loaded.project.project_id,
+              code,
+              locale,
+              version,
+              loaded.project.form_options.translation_versions?.[locale],
+            );
         if (!active) return;
         await chooseUiLocale(locale);
-        setTranslationFallback(locale !== "en" && !translations);
+        setTranslationFallback(standalonePack?.partial ?? (locale !== "en" && !translations));
         setInstrument(applyTranslations(baseInstrument, translations ?? null, locale));
         setMessage("");
       } catch (error) {
@@ -951,6 +1015,7 @@ export default function Form() {
     );
   }
   if (!loaded || !draftStore) return <ActivityIndicator style={{ flex: 1 }} />;
+  if (refusalRecoveryError) return <Screen title={t("appName")}><Text style={styles.error} accessibilityRole="alert">{locale.startsWith("hi") ? "सर्वर से इनकार की स्थिति नहीं मिल सकी। इंटरनेट जाँचें और फिर प्रयास करें।" : "Could not refresh the server's refusal. Check the connection and try again."}</Text><Button label={t("retry")} onPress={() => { setRefusalRecoveryError(false); setRefusalRecoveryAttempt((n) => n + 1); }} /><Button kind="secondary" label={t("cancel")} onPress={() => router.back()} /></Screen>;
   if (!instrument) {
     return (
       <Screen title={t("appName")}>
@@ -976,6 +1041,12 @@ export default function Form() {
         const record = storedConsent(envelope, config, account!.user_id);
         // Replaces the decision on file: only this record travels with the interview (the server keeps the newest).
         await saveDraftConsent(loaded!.db, draftId!, record);
+        if (envelope.decision === "granted" && (serverRefused || (changing && consentView.kind === "ready" && consentView.decision === "refused"))) {
+          await setMeta(loaded!.db, `consent:resume-who:${draftId}`, true);
+        }
+        if (envelope.decision === "refused") {
+          setLoaded((current) => current ? { ...current, prefill: undefined, binding: { ...current.binding, prefill: undefined } } : current);
+        }
         if (loaded!.standalone) {
           // The exact text the respondent saw travels with the record on the later push (contract section 17).
           const notice = config.notice_versions.find((version) => version.notice_version_id === envelope.notice_version_id) as
@@ -992,6 +1063,7 @@ export default function Form() {
           kind: "ready", covered: granted ? [] : record.covered_fields, decision: granted ? "granted" : "refused", required: true, config,
         });
         setChangingConsent(false);
+        if (granted && serverRefused) { setServerRefused(false); setWhoRefused(true); }
         toast.show({
           kind: granted ? "success" : "info",
           text: t(changing ? (granted ? "consentChangedAgreed" : "consentChangedRefused") : granted ? "consentRecordedForInterview" : "consentRefusedInterview"),
@@ -1016,6 +1088,51 @@ export default function Form() {
     );
   }
   if (consentView.kind !== "ready") return <ActivityIndicator style={{ flex: 1 }} />;
+
+  if (whoRefused || serverRefused || consentView.decision === "refused") {
+    const saveRefusal = async () => {
+      try {
+        const now = new Date().toISOString();
+        const existing = await draftStore.load?.(draftId);
+        const data = refusalAnswers({ ...(existing?.data ?? {}), ...(whoRefused ? { Id10013: "no" } : {}), refusal_age_group: refusalAge, refusal_sex: refusalSex }) as SubmissionData;
+        await draftStore.save(existing ? { ...existing, updatedAt: now, data } : {
+          schemaVersion: 1, formVersion: WHO_VA_FORM_VERSION, id: draftId, instrumentId: instrument.id,
+          instrumentVersion: instrument.version, currentSection: instrument.sections[0].name, createdAt: now, updatedAt: now, data,
+        });
+        await markCompleted(loaded.db, draftId, { valid: true, issues: [] });
+        leaveGuard.release();
+        router.back();
+      } catch (error) { setMessage(errorText(error)); }
+    };
+    const changeRefusal = async () => {
+      if (serverRefused || consentView.decision === "refused") {
+        if (consentView.config) setChangingConsent(true);
+        else setMessage(t("consentUnavailableInterview"));
+        return;
+      }
+      setConfirmWhoGrant(true);
+    };
+    const grantWhoConsent = async () => {
+      try {
+        await controller.current?.saveDraft();
+        await clearRefusedDraft(loaded.db, draftId);
+        await runInTransaction(loaded.db, async (tx) => {
+          const row = await tx.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
+          if (row) {
+            const draft = JSON.parse(row.envelope) as { data: Record<string, unknown> };
+            draft.data = { Id10013: "yes" };
+            const result = await tx.runAsync("UPDATE drafts SET envelope = ?, completed = 0, completion = NULL, upload_issue = NULL, draft_sync_dirty = 1 WHERE id = ? AND envelope = ?", [JSON.stringify(draft), draftId, row.envelope]);
+            if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) !== 1) throw new Error("draft_conflict");
+            await setMeta(tx, `consent:resume-who:${draftId}`, true);
+          }
+        });
+        setLoaded((current) => current ? { ...current, prefill: undefined, binding: { ...current.binding, prefill: undefined } } : current);
+        setWhoRefused(false);
+        setConfirmWhoGrant(false);
+      } catch (error) { setMessage(errorText(error)); }
+    };
+    return <Screen title={t("appName")}>{refusalRecovered ? <Text style={styles.text}>{locale.startsWith("hi") ? "सर्वर पर इनकार दर्ज है। पुराने उत्तर हटा दिए गए हैं; आगे बढ़ने के लिए सहमति की फिर पुष्टि करें।" : "The server recorded a refusal. Previous answers were removed; confirm consent again to continue."}</Text> : null}<RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={() => void changeRefusal()} onNew={() => { leaveGuard.release(); router.back(); }} />{confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}{message ? <Text style={styles.error}>{message}</Text> : null}</Screen>;
+  }
 
   const intakeNote = (loaded.config.intakeNote ?? loaded.project.form_options?.intake_note ?? "").trim();
   const showWelcome =
@@ -1112,14 +1229,15 @@ export default function Form() {
             current.definition.pin &&
             current.definition.pin.instrumentVersion !== current.project.form_options.instrument_version
               ? undefined
-              : current.project.form_options?.translation_versions?.[code],
+              : current.project.form_options?.translation_versions?.[code] ??
+                (current.standalone ? standaloneTranslationVersion(code) : undefined),
         },
       };
     });
     setLocale(code);
   }
 
-  async function complete(result: SubmissionValidationResult) {
+  async function complete(result: SubmissionValidationResult, autoRunSmartVa = true) {
     if (!loaded || !draftId) return;
     const completion = { valid: result.valid, issues: result.issues };
     if (!isUploadable(result.data, completion)) {
@@ -1150,6 +1268,9 @@ export default function Form() {
         // The answer save is already durable; a concurrent milestone write must not strand it.
       }
       await markCompleted(loaded.db, draftId, completion);
+      if (autoRunSmartVa && completion.valid && !isRefused(result.data, consentView.kind === "ready" ? consentView.decision : undefined)) {
+        void ensureLocalSmartVa({ db: loaded.db, userId: account!.user_id, draftId }).catch(() => undefined);
+      }
       await clearSendError(loaded.db, draftId);
     } catch (error) {
       // Stay on the form with the answers intact; say what went wrong (digitva-jish).
@@ -1163,7 +1284,7 @@ export default function Form() {
   /** Finish without the form's own "complete": allowed for an incomplete outcome only. */
   function finishIncomplete() {
     const result = session.current?.validate();
-    if (result) void complete(result);
+    if (result) void complete(result, false);
   }
 
   const locales = questionnaireLocales(
@@ -1180,7 +1301,7 @@ export default function Form() {
   ];
   const consentChip = consentView.required
     ? {
-        label: t(consentView.decision === "granted" ? "consentChipAgreed" : consentView.decision === "refused" ? "consentChipRefused" : "consentChipNotRecorded"),
+        label: t(consentView.decision === "granted" ? "consentChipAgreed" : "consentChipNotRecorded"),
         decision: consentView.decision,
         ...(consentView.config ? { onPress: () => void changeConsent() } : {}),
       }
@@ -1226,7 +1347,7 @@ export default function Form() {
           onCancel={() => setConfirmDelete(false)}
         />
       ) : null}
-      {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1}>{t("questionnaireEnglishFallback")}</Text> : null}
+      {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1} testID={loaded.standalone ? "standalone-translation-fallback" : undefined}>{t(loaded.standalone ? "questionnairePartialEnglishFallback" : "questionnaireEnglishFallback")}</Text> : null}
       {consentView.unavailable ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} testID="consent-unavailable">{t("consentUnavailableInterview")}</Text> : null}
       <Sheet
         visible={languageOpen}
@@ -1251,6 +1372,12 @@ export default function Form() {
           safeInsets={{ top: insets.top, bottom: insets.bottom }}
           {...(serverProblems ? { serverProblems } : {})}
           onProblemsChange={setProblemCount}
+          onChange={(data) => {
+            if (isRefused(data)) {
+              setWhoRefused(true);
+              void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
+            }
+          }}
           autoSaveDraftOnChange
           onDraftController={(next) => {
             if (loaded.accessVersion === lockVersionRef.current) {

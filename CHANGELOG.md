@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-28
 
+- **Staging web input** (`digitva-hs7e.17`): pin the matched
+  `expo-web-v2026.10.28.1` export from `efe8bd636`, verified against its app and
+  WHO questionnaire checksums. Release run `40678407080` passed all 3,322 mobile
+  tests, types and bundle gates. Android, SmartVA and server ICD image pins stay
+  unchanged; server publication/deployment follows separately.
 - **Matched web release input** (`digitva-hs7e.17`): fetch the pinned SmartVA
   source before mobile tests so generated symptom checks also work in a clean
   release checkout. No native engine artifact is added to the web release.

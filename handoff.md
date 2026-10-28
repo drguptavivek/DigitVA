@@ -6,18 +6,21 @@ Continue field acceptance of the owner-approved 2026-10-28 Plus release candidat
 All implementation and combined gates are recorded in CHANGELOG.md. Read AGENTS.md
 and the consent/collection policies. Owner allowed local APK/web builds in this
 session and now authorizes staging deployment (hs7e.17), lifting the earlier freeze.
-AWS browser sign-in is pending; no deployment has occurred yet. No Play upload or
-public WHO engine publication was authorized. Preserve unrelated loadtest, manuscript,
+AWS sign-in succeeded; staging is clean/healthy at c8b749f7b. No deployment yet.
+No Play upload or public WHO engine publication was authorized. Preserve loadtest, manuscript,
 tool-config and unreviewed Play artwork edits. Do not reset or stash.
 
 ## Ranked next steps
 
-1. digitva-hs7e.17: commit/push reviewed source, publish matched web release,
-   update Compose web pins, build Server images and deploy through
-   deploy-staging.sh after AWS sign-in. Compatibility review finds additive
+1. digitva-hs7e.17: source 71566ecd and web-check fix efe8bd636 are pushed.
+   Web expo-web-v2026.10.28.1 passed; pins pushed as 3147fc3a4. Server images
+   run 40679243131 awaits owner approval of GitHub server-images environment.
+   After it succeeds deploy 3147fc3a43b8db0e504bd1e8f029395e9a30dab0 only
+   through deploy-staging.sh. Compatibility review finds additive
    receipts safe for old APKs; refusal-held work needs updated app and three-
    device accounts may need admin decommission. Existing public APK must stay.
-   Proper release-signed Plus APK is building locally for controlled sharing.
+   Signed Plus 0.3.12/code3122 APK is verified and in phone Downloads for
+   controlled sharing; do not install over the different-signature test copy.
 2. digitva-hs7e.15.2: design an authorized, audited release for a submitted
    shared-case refusal hold. Current behavior safely blocks other open attempts;
    no in-app release exists. Prior lawful submissions and identity stay intact.
@@ -31,9 +34,9 @@ tool-config and unreviewed Play artwork edits. Do not reset or stash.
    software redistribution and bundled Hindi review/redistribution remain open.
    Software notices inventory identifies missing local texts and excludes the
    separate Android/Maven/runtime inventory; complete that release review too.
-5. New password-enrolment and refusal APIs are not deployed yet. Recheck live
-   staging SHA (recorded c8b749f7b) after AWS authentication; use the verified
-   backup/migration/health path and retain rollback. Compatibility review is done.
+5. New password-enrolment/refusal APIs await deployment; staging was verified
+   at c8b749f7b. Use backup/migration/health path and retain rollback.
+   Compatibility review is done; shared refusal resolution remains separate.
 6. Other prior backlog: 07lz DB-test memory, uf9j huge upload queues, yeg3.1
    own-collector exclusion outside self-coding, 5bzf.11/.12 translations/form
    pinning, qwvt AI follow-ups, ydnl correction loop; discuss bx43/ve8n.
@@ -84,12 +87,13 @@ tool-config and unreviewed Play artwork edits. Do not reset or stash.
   WHO830.3MiB; steady59.5/525.9MiB. Earlier clean setup reached1191MiB WHO.
 - Logs/APKs/screenshots/CSVs/JSON stay PRIVATE/ignored under
   private/engine-measurements/20261028-sm-e146b/. No binaries published.
+  Pilot: digitva-collect-plus-0.3.12-arm64-v8a-signed.apk, release cert verified;
+  SHA256 1879fdd0f1564f6e7c0b07d6e148868b4373645b7de4cf5abdb0e01e969c5eaf.
   SmartVA mobile-core source790af12 pushed to owner fork vg-work/android-mobile-core.
 - Phone synthetic profile EngineBenchmark; emulator EngineBenchmark13. Unlock
   details stay in the private test context. Preserve current profiles/drafts;
   OLD Plus data alone was cleared
   earlier with owner permission. Recheck/restore phone airplane0/WiFi1/data1 and
   stay_on_while_plugged_in15 before leaving further tests.
-- Tests used own modes_20261028 (+gw0/gw1), consent_boundary_20261028,
-  coding_refusal_20261028 and refusal_register_20261028 databases. Cleanup only
-  these after confirming idle; never touch minerva_test or another session's DB.
+- All six session test databases were verified idle and dropped after commit;
+  no other database was touched.

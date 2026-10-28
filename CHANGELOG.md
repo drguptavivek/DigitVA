@@ -5,6 +5,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-28
 
+- **Matched web release input** (`digitva-hs7e.17`): fetch the pinned SmartVA
+  source before mobile tests so generated symptom checks also work in a clean
+  release checkout. No native engine artifact is added to the web release.
 - **Bundled native coding** (`digitva-hs7e.3`, `.5`, `.12`, `.13`, `.13.1`):
   Plus includes SmartVA and WHO ICD-11/DORIS code/data in its installed package.
   SmartVA runs after valid local completion, fills missing/stale results on

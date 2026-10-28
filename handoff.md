@@ -41,10 +41,11 @@ Migration head: `b4e7c2a9d6f3` (additive account-deletion requests).
 
 ## Caveats still true
 
-- Validation baseline: backend 6750 passed / 6 skipped / 5401 subtests with
+- Validation baseline (`1daa556f9`): backend 6750 passed / 6 skipped / 5401 subtests with
   `-n2`; mobile 207 suites / 3025 tests and TypeScript passed. Final telemetry
   bounded-reader/logger checks: 25 tests / 3 subtests passed. One Luna low
-  runner owns private DB `minerva_test_merge_20261028`; no competing tests.
+  runner at a time; use a private DB. The completed run's base
+  `minerva_test_merge_20261028` and four worker DBs were removed after validation.
   Four-worker migration run exhausted the 1 GB Postgres limit and recovered;
   two-worker full run passed. Do not weaken query ceilings or assertions.
 - Plus debug APK is installed on arm64 `emulator-5554`; HMR was verified with

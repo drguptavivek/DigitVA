@@ -36,9 +36,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 - **Worktree reconciliation** (`digitva-vks8`): all seven old worktree directories
   retired; branch refs and verified private source archives/older phonefix APKs
   retained (596 MB). Only the active main checkout remains.
-- **Validation:** full backend 6,750 passed, 6 skipped, 5,401 subtests with
+- **Validation** (`1daa556f9`): full backend 6,750 passed, 6 skipped, 5,401 subtests with
   two workers; mobile 207 suites / 3,025 tests and TypeScript passed; real
-  emulator HMR verified. The four-worker migration run exceeded PostgreSQL's
+  emulator HMR and normal pre-commit web export verified. The four-worker
+  migration run exceeded PostgreSQL's
   1 GB limit; resource follow-up is `digitva-07lz`. Final audit found no
   material issues after fixes. Final bounded telemetry-reader/logger regression:
   25 tests / 3 subtests passed; diagnostics payloads are not parsed by the request

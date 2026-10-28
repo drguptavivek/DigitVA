@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-28
 
+- **Final staging verification** (`digitva-hs7e.17`, `.18`): deployed
+  `36c30e3f35c033216f46844ff64bbb8c71264c86` through the verified-backup wrapper
+  after owner-approved image run `40690687725`. Public API reports compatibility
+  1 and that exact build. Populated the hosted override only after variant-safe
+  code was live; both public APK downloads matched size and SHA-256, the page
+  shows both sizes, and older APKs remain. Migrations at head and services
+  healthy. Verified S3 backup `pg_dump_minerva_20261028T125120Z.dump`;
+  rollback image `3147fc3a43b8db0e504bd1e8f029395e9a30dab0`. Four session test
+  databases were dropped only after confirming idle. No Play submission.
 - **Public APKs and matched deployment pins** (`digitva-hs7e.17`): published
   signed arm64 Collect 0.3.13 (67,927,662 bytes) and Collect Plus 0.3.13
   (141,184,458 bytes, prerelease). Fresh public downloads matched their build

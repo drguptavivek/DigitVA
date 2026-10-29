@@ -17,12 +17,24 @@ session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
 
+## Public 0.3.15 APKs (2026-10-29)
+
+Built on CI from `d8a3a9149` (both variants), pinned in `docker-compose.yml`
+with web release `expo-web-v2026.10.29.2`. Release certificate, versionCode
+3152 (arm64); checksums verified after download. They show only what the build
+and the account state allow (`798d40952`; `CHANGELOG.md`, 2026-10-29).
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.15` | 67,972,726 | `b1c85220469463dc7cf4312f582144e27a67f028ceb3874b6e297b0a6bc46ad9` |
+| Collect Plus | `collect-plus-v0.3.15-plus.1` (prerelease) | 141,228,810 | `89b7fc111372f3150447d1e35ca49e1b38c0153b44f9591f5ddd0e0f59f95286` |
+
 ## Public 0.3.14 APKs (2026-10-29)
 
 Built on CI from `20f65ba57` (Collect) and `140ead14e` (Collect Plus, the first
 CI build with the bundled SmartVA engine), with web release
 `expo-web-v2026.10.29.2` from `a4d7bce83`; the three are pinned in
-`docker-compose.yml`. Both use the release certificate; versionCode 3142 (arm64).
+`docker-compose.yml` until 0.3.15. Both use the release certificate; versionCode 3142 (arm64).
 Checksums verified after download from the releases. The phone acceptance
 fixes in them are listed under 2026-10-29 in `CHANGELOG.md` (`digitva-7amd`).
 

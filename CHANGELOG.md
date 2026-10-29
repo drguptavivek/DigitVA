@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-29
 
+- **Pinned Collect 0.3.14, Collect Plus 0.3.14 and web `expo-web-v2026.10.29.1`**
+  in `docker-compose.yml` for the staging image (checksums verified after
+  download; `docs/current-state/android-release-builds.md`). A pre-deploy audit
+  of the server diff since staging's `cede1270c` found no break for phones on
+  Collect 0.3.6 to 0.3.13.
 - **Collect-based project defaults and consent notice defaults**
   (`digitva-7amd.25`, `.26`; owner decisions 2026-10-29). A new project
   defaults to Web Intake `direct` (migration `c7a3f9e1b5d2` changes only the

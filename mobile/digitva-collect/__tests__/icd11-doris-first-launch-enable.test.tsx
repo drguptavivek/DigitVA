@@ -5,6 +5,7 @@ import { Text } from "react-native";
 const mockSecureStore = new Map<string, string>();
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/nativeShell/ModeBanner", () => ({ ModeBanner: () => null }));
+jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: [] }) }));
 jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn(async (key: string) => mockSecureStore.get(key) ?? null),
   setItemAsync: jest.fn(async (key: string, value: string) => { mockSecureStore.set(key, value); }),

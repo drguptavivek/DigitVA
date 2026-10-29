@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 
 import { accessProfileDisplayText, loadAccessProfile, profileAccountAvailable, profileQuestionnaireLanguages, type LoadedAccessProfile } from "../accessProfile";
 import { useAppState } from "../AppState";
+import { isPlusVariant } from "../appVariant";
 import { useIcd11DorisPreference } from "../icd11DorisPreference";
 import { isUnlocked } from "../interviewerDb";
 import { useShell } from "../nativeShell/shellContext";
@@ -73,7 +74,7 @@ export default function ProfileAccess() {
             <Text style={styles.text}>{t("profileClassification")}: {accessProfileDisplayText(project.classification)}</Text>
             <Text style={styles.text}>{t("profileCodingScope")}: {accessProfileDisplayText(project.codingScope)}</Text>
             <Text style={styles.text}>{t("profileProjectSelfCoding")}: {accessProfileDisplayText(project.selfCoding)}</Text>
-            <Text style={styles.text}>{t("profileLocalCoding")}: {accessProfileDisplayText(project.localCoding)}</Text>
+            {isPlusVariant() ? <Text style={styles.text}>{t("profileLocalCoding")}: {accessProfileDisplayText(project.localCoding)}</Text> : null}
             <Text style={styles.text}>{languages ? `${t("profileQuestionnaireLanguages")}: ${accessProfileDisplayText(languages)}` : t("profileQuestionnaireLanguagesNotSaved")}</Text>
           </View>;
         })}

@@ -53,6 +53,8 @@ jest.mock("../src/errorExport", () => ({ exportErrors: () => mockExport() }));
 let mockPlay = false;
 let mockPlus = false;
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus, isPlayDistribution: () => mockPlay }));
+let mockUnlocked = true;
+jest.mock("../src/interviewerDb", () => ({ ...jest.requireActual("../src/interviewerDb"), isUnlocked: () => mockUnlocked }));
 const mockCheckForUpdate = jest.fn<Promise<UpdateResult>, [server?: string]>(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
 const mockCheckServerCompatibility = jest.fn(async (_server: string) => ({ status: "compatible", buildRevision: "abcdef0123456789abcdef0123456789abcdef01" }));
 jest.mock("../src/updateCheck", () => ({ checkForUpdate: (server?: string) => mockCheckForUpdate(server), checkServerCompatibility: (server: string) => mockCheckServerCompatibility(server) }));
@@ -137,6 +139,7 @@ beforeEach(() => {
   mockSlot = "active";
   mockPlay = false;
   mockPlus = false;
+  mockUnlocked = true;
   shell.server = "https://digitvav3.causeofdeathindia.com";
   shell.userId = "a";
   mockReadDevicePermissions.mockReset();
@@ -275,6 +278,15 @@ it("shows the device-wide ICD-11 / DORIS choice in Settings and saves changes wi
   expect(shell.sync.work?.unsent).toBe(2);
 });
 
+it.each([[false, "icd11DorisPreferenceScopeOnline", "offline"], [true, "icd11DorisPreferenceScope", "needs a connection"]] as const)(
+  "describes ICD-11 / DORIS coding by what the build carries (Plus %s)", async (plus, shown, absent) => {
+    mockPlus = plus;
+    const text = out(await render());
+    expect(text).toContain(en[shown]);
+    expect(text).not.toContain(absent);
+    expect(text).not.toContain(en.icd11DorisPreferenceChangeLater);
+  });
+
 it("hides server sync controls for standalone and keeps its eligible engine check", async () => {
   mockPlus = true;
   mockAccounts[0].standalone = true;
@@ -307,7 +319,7 @@ it.each(["standalone", "unrecognized account"])("ignores retained enrolment for 
     expect(text).not.toContain("https://digitvav3.causeofdeathindia.com");
     expect(text).not.toContain("dev-1");
     expect(text).not.toContain(en.permissionsProjectCached.replace("{project}", "Project"));
-    await pressLabel(tree, en.permissionsCheck);
+    expect(text).not.toContain(`"${en.permissionsCheck}"`);
     await pressLabel(tree, en.helpGuide);
     expect(mockReadDevicePermissions).toHaveBeenCalled();
     expect(shell.openSheet).toHaveBeenCalledWith("help");
@@ -405,6 +417,48 @@ it("offers phone settings when a device permission cannot be requested again", a
     expect(mockRequestDevicePermission).not.toHaveBeenCalled();
   } finally {
     openSettings.mockRestore();
+  }
+});
+
+it("shows project access and its check only after the PIN unlocks the account", async () => {
+  mockUnlocked = false;
+  const text = out(await render());
+  expect(text).toContain(en.permissionsCamera.split("{")[0]);
+  for (const hidden of [en.permissionsCheck, en.permissionsHint]) expect(text).not.toContain(hidden);
+  expect(text).not.toContain(en.permissionsCollectionAccess.split("{")[0]);
+  expect(text).not.toContain(en.permissionsCodingAccess.split("{")[0]);
+  expect(mockRefreshAccessSummary).not.toHaveBeenCalled();
+});
+
+it("offers Send now and Profile and project access only after the PIN unlocks the account", async () => {
+  const labelled = (tree: ReactTestRenderer, label: string) => tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function");
+  const unlockedTree = await render();
+  expect(labelled(unlockedTree, "Send now")).toHaveLength(1);
+  expect(labelled(unlockedTree, en.profileAccessTitle)).toHaveLength(1);
+  mockUnlocked = false;
+  const lockedTree = await render();
+  expect(labelled(lockedTree, "Send now")).toHaveLength(0);
+  expect(labelled(lockedTree, en.profileAccessTitle)).toHaveLength(0);
+});
+
+it("standalone shows no project access lines or refresh check, keeps device permissions, and uses the standalone ICD-11 scope", async () => {
+  const original = mockAccounts[0];
+  mockAccounts[0] = { user_id: "a", name: "Asha", standalone: true };
+  shell.server = undefined;
+  mockPlus = true;
+  try {
+    const tree = await render();
+    const text = out(tree);
+    expect(text).toContain(en.permissionsCamera.split("{")[0]);
+    expect(text).toContain(en.icd11DorisPreferenceScopeStandalone);
+    expect(text).not.toContain(en.icd11DorisPreferenceScope);
+    expect(text).not.toContain(en.permissionsHint);
+    expect(text).not.toContain(en.permissionsCollectionAccess.split("{")[0]);
+    expect(text).not.toContain(en.permissionsCodingAccess.split("{")[0]);
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === en.permissionsCheck)).toHaveLength(0);
+  } finally {
+    mockAccounts[0] = original;
+    shell.server = "https://digitvav3.causeofdeathindia.com";
   }
 });
 

@@ -2,7 +2,9 @@ import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppState } from "./AppState";
 import { setIcd11DorisEnabled, useIcd11DorisPreference } from "./icd11DorisPreference";
+import { isPlusVariant } from "./appVariant";
 import { t } from "./i18n";
 import { Button, Screen, useUiStyles } from "./ui";
 import { useShell } from "./nativeShell/shellContext";
@@ -13,6 +15,7 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const shell = useShell();
+  const { accounts } = useAppState();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,6 +32,8 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
     }
   }
 
+  // The gate sits above the routes, so the account is known only once a route names one.
+  const account = accounts.find((item) => item.user_id === shell.userId);
   if (preference.ready && preference.answered) return children;
   return (
     <View style={{ flex: 1 }}>
@@ -40,7 +45,7 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
         <Screen title={t("icd11DorisPreferenceTitle")}>
           {!preference.ready ? <ActivityIndicator accessibilityLabel={t("loading")} /> : null}
           <Text style={styles.text}>{t("icd11DorisPreferenceDescription")}</Text>
-          <Text style={styles.muted}>{t("icd11DorisPreferenceScope")}</Text>
+          <Text style={styles.muted}>{t(account?.standalone ? "icd11DorisPreferenceScopeStandalone" : isPlusVariant() ? "icd11DorisPreferenceScope" : "icd11DorisPreferenceScopeOnline")} {t("icd11DorisPreferenceChangeLater")}</Text>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Button label={t("icd11DorisPreferenceEnable")} loading={busy} disabled={busy || !preference.ready} onPress={() => void answer(true)} />
           <Button kind="secondary" label={t("icd11DorisPreferenceNotNow")} loading={busy} disabled={busy || !preference.ready} onPress={() => void answer(false)} />

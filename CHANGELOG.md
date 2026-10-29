@@ -5,6 +5,23 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-29
 
+- **Collect shows only what the app and the account state allow** (owner rule
+  2026-10-29, after the staging phone check; audit of every native screen).
+  Plain Collect no longer mentions or offers offline coding: its ICD-11 / DORIS
+  card says coding uses the server and needs a connection, and the "Local
+  cases" chip and "Local coding" profile row appear only in Collect Plus.
+  Project access, its refresh button, Send now (Settings and the Sync sheet) and
+  "Profile and project access" appear only after the PIN unlocks an account, so
+  Settings opened from the lock screen no longer offers buttons that answer "Not
+  checked" or a generic error. A coder who cannot reach coding is told the real
+  reason (unlock, sign in, accept terms, access blocked) instead of "coding is
+  done on the web". Standalone accounts get their own wording for the ICD-11
+  card, Help (no Sync or server lines) and PIN screens (a forgotten PIN cannot
+  be recovered). Help hides the full-guide button without a server and its
+  Settings shortcut on Settings. Hard-coded English labels moved to the string
+  files; Hindi added for them and for the coding queue's `codingDoneOnServer`
+  and `codingRefused_*` messages (owner review pending). Reaches phones with the
+  next APK.
 - **Web interview: consent no longer loops.** After a granted consent (or
   resuming a refused interview) the web interview reloaded its own address, which
   for a new interview names only the project and site, so each reload started a

@@ -65,7 +65,7 @@ export default function PinSetup() {
   return (
     <Screen title={t("pinSetupTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
-      <Text style={styles.text}>{t("pinSetupHint")}</Text>
+      <Text style={styles.text}>{t(account.standalone ? "pinSetupHintStandalone" : "pinSetupHint")}</Text>
       <Text style={styles.muted}>{t("pin")}</Text>
       <PinBoxes value={pin} onChange={setPin} label={t("pin")} />
       <Text style={styles.muted}>{t("pinConfirm")}</Text>

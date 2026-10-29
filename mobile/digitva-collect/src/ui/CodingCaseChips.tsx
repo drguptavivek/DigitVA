@@ -11,14 +11,16 @@ export function CodingCaseChips({ userId, canLocal, offline }: { userId: string;
   const preference = useIcd11DorisPreference();
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="tablist">
-      <Button
-        size="sm"
-        kind="secondary"
-        label={t("localCases")}
-        disabled={!canLocal || !preference.enabled}
-        style={{ flexGrow: 1, minWidth: 140 }}
-        onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })}
-      />
+      {canLocal ? (
+        <Button
+          size="sm"
+          kind="secondary"
+          label={t("localCases")}
+          disabled={!preference.enabled}
+          style={{ flexGrow: 1, minWidth: 140 }}
+          onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })}
+        />
+      ) : null}
       <Button
         size="sm"
         label={t("onlineCases")}
@@ -29,7 +31,7 @@ export function CodingCaseChips({ userId, canLocal, offline }: { userId: string;
       <Button
         size="sm"
         kind="secondary"
-        label="My coded cases"
+        label={t("myCodedCases")}
         style={{ flexGrow: 1, minWidth: 140 }}
         onPress={() => router.push({ pathname: "/coding", params: { userId, initialHistory: "1" } })}
       />

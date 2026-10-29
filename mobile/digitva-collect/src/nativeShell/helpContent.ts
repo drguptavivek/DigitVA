@@ -43,12 +43,16 @@ export interface HelpContent {
   slug: string;
 }
 
-export function helpContent(screen: HelpScreen, state: { offline?: boolean; unsent?: number }): HelpContent {
+/** To-do lines about the server, Sync or re-enrolling: a standalone account has none of those. */
+const ENROLLED_ONLY_TODO = new Set(["help_worklist_do2", "help_worklist_do3", "help_settings_do3", "help_register_do3"]);
+
+export function helpContent(screen: HelpScreen, state: { offline?: boolean; unsent?: number; standalone?: boolean }): HelpContent {
   const key = (part: string) => `help_${screen}_${part}` as StringKey;
   const lines: string[] = [];
   if (state.offline) lines.push(t("helpOffline"));
-  if (state.unsent) lines.push(t("helpUnsent", { count: state.unsent }));
-  return { what: t(key("what")), todo: [t(key("do1")), t(key("do2")), t(key("do3"))], state: lines, slug: HELP_SLUGS[screen] };
+  if (state.unsent) lines.push(t(state.standalone ? "helpUnsentStandalone" : "helpUnsent", { count: state.unsent }));
+  const todo = [key("do1"), key("do2"), key("do3")].filter((item) => !(state.standalone && ENROLLED_ONLY_TODO.has(item)));
+  return { what: t(key("what")), todo: todo.map((item) => t(item)), state: lines, slug: HELP_SLUGS[screen] };
 }
 
 /** The full guide on the enrolled server. */

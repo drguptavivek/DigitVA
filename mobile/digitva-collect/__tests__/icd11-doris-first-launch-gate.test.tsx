@@ -5,6 +5,7 @@ import { Pressable, Text, View } from "react-native";
 const mockSecureStore = new Map<string, string>();
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 24, bottom: 12, left: 0, right: 0 }) }));
 jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ header: {}, tabs: {} }) }));
+jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: [] }) }));
 jest.mock("../src/nativeShell/ModeBanner", () => ({ ModeBanner: () => null }));
 jest.mock("expo-secure-store", () => ({
   getItemAsync: jest.fn(async (key: string) => mockSecureStore.get(key) ?? null),

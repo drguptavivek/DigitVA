@@ -21,6 +21,7 @@ const mockRefreshCases = jest.fn(async (_userId: string, _db: unknown) => undefi
 const mockConfirmSignOut = jest.fn(async (_userId: string, onConfirmed: () => void) => onConfirmed());
 const mockSignOut = jest.fn(async (_userId: string) => undefined);
 let mockAccount: Record<string, unknown> = { user_id: "u1", name: "Asha Sharma", collection_access: true, registration_access: true, coding_access: true, reviewing_access: true };
+let mockIsUnlocked = true;
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
@@ -44,7 +45,7 @@ jest.mock("../src/AppState", () => ({
 }));
 jest.mock("../src/auth", () => ({ signOut: (userId: string) => mockSignOut(userId) }));
 jest.mock("../src/signOutConfirm", () => ({ confirmSignOut: (userId: string, cb: () => void) => mockConfirmSignOut(userId, cb) }));
-jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true, openInterviewerDb: (userId: string) => mockOpenInterviewerDb(userId), unsentWork: (userId: string) => mockUnsentWork(userId) }));
+jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => mockIsUnlocked, openInterviewerDb: (userId: string) => mockOpenInterviewerDb(userId), unsentWork: (userId: string) => mockUnsentWork(userId) }));
 jest.mock("../src/sync", () => ({
   refreshAuthorizedProjectDefinitions: (userId: string, db: unknown, fresh: unknown) => mockRefreshAuthorizedProjectDefinitions(userId, db, fresh),
   refreshCases: (userId: string, db: unknown) => mockRefreshCases(userId, db),
@@ -98,6 +99,7 @@ beforeEach(() => {
   mockRefreshAuthorizedProjectDefinitions.mockClear();
   mockRefreshCases.mockClear();
   mockAccount = { user_id: "u1", name: "Asha Sharma", collection_access: true, registration_access: true, coding_access: true, reviewing_access: true };
+  mockIsUnlocked = true;
 });
 
 describe("navigation adapter", () => {
@@ -321,8 +323,7 @@ describe("help", () => {
       const tree = await render(<HelpSheet />, shellValue({ sheet: "help", server: undefined }));
       expect(texts(tree)).toContain(en.help_worklist_what);
       expect(texts(tree)).toContain(en.faq_language_q);
-      expect(byLabel(tree, en.helpOpenGuide)[0].props.disabled).toBe(true);
-      await press(tree, en.helpOpenGuide);
+      expect(byLabel(tree, en.helpOpenGuide)).toHaveLength(0);
       expect(open).not.toHaveBeenCalled();
     } finally {
       open.mockRestore();
@@ -342,6 +343,14 @@ describe("sync sheet", () => {
     await press(tree, "Refresh");
     expect(value.sendNow).toHaveBeenCalledTimes(1);
     expect(value.refreshNow).toHaveBeenCalledTimes(1);
+  });
+  it("offers neither Send now nor Refresh while the account is locked", async () => {
+    const unlockedTree = await render(<SyncSheet />, shellValue({ sheet: "sync" }));
+    expect(byLabel(unlockedTree, "Send now")).toHaveLength(1);
+    mockIsUnlocked = false;
+    const tree = await render(<SyncSheet />, shellValue({ sheet: "sync" }));
+    expect(byLabel(tree, "Send now")).toHaveLength(0);
+    expect(byLabel(tree, "Refresh")).toHaveLength(0);
   });
   it("lists each unsent item with its state and last error, and links to the drafts in progress", async () => {
     const work = {
@@ -480,6 +489,43 @@ describe("common questions (Help)", () => {
       await search(tree, "app language");
       expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Open account menu" && typeof n.props.onPress === "function")).toHaveLength(1);
     }
+  });
+
+  it("offers the full guide only when the phone has a server", async () => {
+    const withServer = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    expect(byLabel(withServer, en.helpOpenGuide)).toHaveLength(1);
+    const withoutServer = await render(<HelpSheet />, shellValue({ sheet: "help", server: undefined }));
+    expect(byLabel(withoutServer, en.helpOpenGuide)).toHaveLength(0);
+  });
+
+  it("does not offer the go button for the screen Help was opened on", async () => {
+    mockPathname = "/worklist";
+    const worklist = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    await search(worklist, "error log to support");
+    expect(byLabel(worklist, "Open Settings")).toHaveLength(1);
+    mockPathname = "/settings";
+    const settings = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    await search(settings, "error log to support");
+    expect(byLabel(settings, "Open Settings")).toHaveLength(0);
+  });
+
+  it("keeps Open Drafts on the worklist even when the address names drafts (the list may have switched in place)", async () => {
+    mockParams = { userId: "u1", filter: "drafts" };
+    mockPathname = "/worklist";
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    await search(tree, "continue an interview");
+    expect(byLabel(tree, "Open Drafts")).toHaveLength(1);
+  });
+
+  it("standalone Help leaves out the answers about Sync and says the unsent count without Send now", async () => {
+    mockAccount = { user_id: "u1", name: "Asha Sharma", standalone: true };
+    mockPathname = "/worklist";
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    expect(JSON.stringify(texts(tree))).toContain(en.help_worklist_do1);
+    for (const line of [en.help_worklist_do2, en.help_worklist_do3]) expect(JSON.stringify(texts(tree))).not.toContain(line);
+    expect(texts(tree)).toContain(en.helpUnsentStandalone.replace("{count}", "3"));
+    expect(texts(tree)).not.toContain(en.helpUnsent.replace("{count}", "3"));
+    expect(tree.root.findAll((n) => n.props.testID === "faq-entry" && n.type === View)).toHaveLength(FAQ.filter((item) => !item.enrolledOnly).length);
   });
 
   it("buttons open the screen the answer names", async () => {

@@ -102,6 +102,8 @@ export default function NativeSettings() {
   }, [accounts, optionsVersion]);
   const biometricAvailable = canUseBiometricAuthentication();
   const account = accounts.find((item) => item.user_id === shell.userId);
+  // Project access is read only after the PIN unlocks an account; before that Settings shows the phone's own permissions.
+  const unlocked = Boolean(account && isUnlocked(account.user_id));
   useEffect(() => {
     let active = true;
     const userId = account?.user_id;
@@ -448,7 +450,7 @@ export default function NativeSettings() {
     <Screen title={t("settings")}>
       <Section title={t("settingsAccount")}>
         {account ? <Text style={styles.text}>{account.name}</Text> : accounts.map((item) => <Text key={item.user_id} style={styles.text}>{item.name}</Text>)}
-        {account && shell.userId ? <Button kind="secondary" label={t("profileAccessTitle")} onPress={() => router.push({ pathname: "/profile-access", params: { userId: shell.userId } })} /> : null}
+        {unlocked && shell.userId ? <Button kind="secondary" label={t("profileAccessTitle")} onPress={() => router.push({ pathname: "/profile-access", params: { userId: shell.userId } })} /> : null}
         {shell.server && device ? (
           <>
             <Text style={styles.muted}>{t("enrolledServer")}</Text>
@@ -579,7 +581,7 @@ export default function NativeSettings() {
       </Section>
       <Section title={t("icd11DorisPreferenceSection")}>
         <Text style={styles.text}>{t("icd11DorisPreferenceDescription")}</Text>
-        <Text style={styles.muted}>{t("icd11DorisPreferenceScope")}</Text>
+        <Text style={styles.muted}>{t(account?.standalone ? "icd11DorisPreferenceScopeStandalone" : isPlusVariant() ? "icd11DorisPreferenceScope" : "icd11DorisPreferenceScopeOnline")}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <Text style={[styles.text, { flex: 1 }]}>{t("icd11DorisPreferenceTitle")}</Text>
           <Switch
@@ -592,10 +594,14 @@ export default function NativeSettings() {
         {icd11DorisError ? <Text accessibilityRole="alert" style={styles.error}>{icd11DorisError}</Text> : null}
       </Section>
       <Section title={t("settingsPermissions")}>
-        <Text style={styles.muted}>{t("permissionsHint")}</Text>
-        <Text style={styles.text}>{t("permissionsCollectionAccess", { status: accessStatus(activeProject ? projectCollectionAccess : account?.collection_access) })}</Text>
-        <Text style={styles.text}>{t("permissionsCodingAccess", { status: accessStatus(activeProject ? projectCodingAccess : account?.coding_access) })}</Text>
-        {activeProject ? <Text style={styles.muted}>{t("permissionsProject", { project: activeProject.project_name })}</Text> : shell.server && device ? <Text style={styles.muted}>{t("permissionsProjectCached", { project: device.project_name })}</Text> : null}
+        {unlocked && !account?.standalone ? (
+          <>
+            <Text style={styles.muted}>{t("permissionsHint")}</Text>
+            <Text style={styles.text}>{t("permissionsCollectionAccess", { status: accessStatus(activeProject ? projectCollectionAccess : account?.collection_access) })}</Text>
+            <Text style={styles.text}>{t("permissionsCodingAccess", { status: accessStatus(activeProject ? projectCodingAccess : account?.coding_access) })}</Text>
+            {activeProject ? <Text style={styles.muted}>{t("permissionsProject", { project: activeProject.project_name })}</Text> : shell.server && device ? <Text style={styles.muted}>{t("permissionsProjectCached", { project: device.project_name })}</Text> : null}
+          </>
+        ) : null}
         <Text style={styles.text}>{t("permissionsCamera", { status: devicePermissionStatus(devicePermissions?.camera) })}</Text>
         {devicePermissions?.camera && !devicePermissions.camera.granted ? (
           <Button
@@ -618,13 +624,15 @@ export default function NativeSettings() {
         ) : null}
         {permissionsMessage ? <Text style={styles.muted}>{permissionsMessage}</Text> : null}
         {permissionsError ? <Text accessibilityRole="alert" style={styles.error}>{permissionsError}</Text> : null}
-        <Button
-          kind="secondary"
-          label={t("permissionsCheck")}
-          loading={permissionsBusy}
-          disabled={permissionsBusy}
-          onPress={() => void checkPermissions()}
-        />
+        {unlocked && !account?.standalone ? (
+          <Button
+            kind="secondary"
+            label={t("permissionsCheck")}
+            loading={permissionsBusy}
+            disabled={permissionsBusy}
+            onPress={() => void checkPermissions()}
+          />
+        ) : null}
       </Section>
       <Section title={t("telemetryTitle")}>
         <TelemetrySettings />
@@ -633,7 +641,7 @@ export default function NativeSettings() {
         <Section title={t("tabSync")}>
           <Text style={styles.text}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
           <Text style={styles.text}>{sync.work === undefined ? t("syncUnsentUnknown") : t("syncUnsentScoped", { count: sync.work.unsent })}</Text>
-          <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
+          {unlocked ? <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} /> : null}
         </Section>
       ) : null}
       {backupDb && backupUserId ? (
@@ -643,11 +651,11 @@ export default function NativeSettings() {
         </Section>
       ) : null}
       {isPlusVariant() ? (
-        <Section title="Collect Plus (experimental)">
+        <Section title={t("collectPlusSection")}>
           {account?.coding_access && shell.userId ? <CodingCaseChips userId={shell.userId} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={sync.offline} /> : null}
           {account?.reviewing_access && shell.userId ? <Button kind="secondary" label={t("reviewCases")} onPress={() => router.push({ pathname: "/reviewing", params: { userId: shell.userId } })} /> : null}
-          {account && shell.userId && canUseOfflineCoding(account) ? <Button kind="secondary" label="Offline engine check" onPress={() => router.push({ pathname: "/engine-check", params: { userId: shell.userId } })} /> : null}
-          <Button kind="secondary" label="Offline profile" onPress={() => router.push("/offline-profile")} />
+          {account && shell.userId && canUseOfflineCoding(account) ? <Button kind="secondary" label={t("offlineEngineCheck")} onPress={() => router.push({ pathname: "/engine-check", params: { userId: shell.userId } })} /> : null}
+          <Button kind="secondary" label={t("offlineProfileTitle")} onPress={() => router.push("/offline-profile")} />
         </Section>
       ) : null}
       <Section title={t("settingsHelp")}>

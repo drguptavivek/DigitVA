@@ -48,6 +48,13 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
   const [sending, setSending] = useState(false);
   const account = accounts.find((item) => item.user_id === userId);
   const unlocked = isUnlocked(userId);
+  // Both builds code online, so a coder is told what blocks coding; reviewing-only accounts still get the web-app line.
+  const codingBlocker = account?.needs_sign_in ? "codingBlockedSignIn"
+    : account?.terms_required ? "termsRequired"
+    : account?.access_blocked ? "codingBlockedAccess"
+    : unlocked ? undefined : "codingBlockedLocked";
+  const codingNotice = account?.coding_access && codingBlocker ? codingBlocker
+    : account?.coding_access || account?.reviewing_access ? "codingOnWeb" : "codingReviewPending";
 
   const recount = useCallback(async () => {
     try {
@@ -93,7 +100,7 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       {account && canUseOnlineCoding(account) && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
         <CodingCaseChips userId={userId} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={offline} />
       ) : (
-        <Text style={styles.text}>{t(account?.coding_access || account?.reviewing_access ? "codingOnWeb" : "codingReviewPending")}</Text>
+        <Text style={styles.text}>{t(codingNotice)}</Text>
       )}
       {message ? <Text style={styles.error}>{message}</Text> : null}
     </Screen>

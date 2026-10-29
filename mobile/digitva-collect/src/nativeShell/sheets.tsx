@@ -99,16 +99,22 @@ export function AccountSheet() {
 export function HelpSheet() {
   const shell = useShell();
   const pathname = usePathname();
+  const { accounts } = useAppState();
   const toast = useToast();
   const { ui } = useTheme();
   const screen = helpScreenFor(pathname);
-  const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.work?.unsent });
+  // Standalone has no server and no Sync tab, so its Help never points at either.
+  const standalone = accounts.find((item) => item.user_id === shell.userId)?.standalone === true;
+  const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.work?.unsent, standalone });
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string>();
-  const entries = faqEntries(query);
+  const entries = faqEntries(query, standalone);
   // Leaving the open form from here would skip its save, so the "go" buttons that navigate are not offered on it.
   const leavesForm = screen === "form" || screen === "revision";
+  // A "go" button for the screen Help was opened on would only push a duplicate of it.
+  // (Worklist filters are left out: the list changes its filter in place, so the address can be stale.)
+  const onTargetScreen = (target: FaqTarget) => target === "settings" && screen === "settings";
   /** The two sheets swap in place; the others close Help and open their screen. */
   function goTo(target: FaqTarget) {
     if (target === "account" || target === "sync") return shell.openSheet(target);
@@ -129,9 +135,11 @@ export function HelpSheet() {
       {[...help.state, ...help.todo].map((line) => (
         <Text key={line} style={{ ...typography.body, color: ui.popoverForeground, marginTop: spacing.xxs }}>{`• ${line}`}</Text>
       ))}
-      <View style={{ marginTop: spacing.md }}>
-        <Button label={t("helpOpenGuide")} disabled={!shell.server} onPress={openGuide} />
-      </View>
+      {shell.server ? (
+        <View style={{ marginTop: spacing.md }}>
+          <Button label={t("helpOpenGuide")} onPress={openGuide} />
+        </View>
+      ) : null}
       <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, marginTop: spacing.lg }}>{t("faqTitle")}</Text>
       <TextInput
         accessibilityLabel={t("faqSearch")}
@@ -148,7 +156,7 @@ export function HelpSheet() {
           {openId === entry.id || query.trim() ? (
             <View style={{ paddingBottom: spacing.sm, gap: spacing.xs }}>
               <Text style={{ ...typography.body, color: ui.popoverForeground }}>{entry.answer}</Text>
-              {entry.target && (entry.target === "account" || entry.target === "sync" || (shell.userId && !leavesForm)) ? (
+              {entry.target && (entry.target === "account" || entry.target === "sync" || (shell.userId && !leavesForm && !onTargetScreen(entry.target))) ? (
                 <Button kind="secondary" label={entry.goLabel!} onPress={() => goTo(entry.target!)} />
               ) : null}
             </View>
@@ -189,7 +197,7 @@ export function SyncSheet() {
       {work?.inProgress ? <SheetRow label={t("syncDraftsLink", { count: work.inProgress })} onPress={openDrafts} /> : null}
       {standalone ? <Button kind="secondary" label={t("standaloneEnrol")} onPress={() => { shell.closeSheet(); router.push("/enrol"); }} /> : null}
       {sync.result ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("syncLastResult", { text: sync.result })}</Text> : null}
-      {account && !standalone ? (
+      {account && !standalone && isUnlocked(account.user_id) ? (
         <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
           <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
           <Button kind="secondary" label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />

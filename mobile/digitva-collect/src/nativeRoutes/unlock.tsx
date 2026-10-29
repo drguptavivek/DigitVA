@@ -103,7 +103,7 @@ export default function Unlock() {
         setPin("");
         setShake((n) => n + 1);
         if (result.wipe) {
-          Alert.alert(t(result.revoked ? "sessionRevoked" : "pinWiped"));
+          Alert.alert(t(result.revoked ? "sessionRevoked" : account?.standalone ? "pinWipedStandalone" : "pinWiped"));
           await reload();
           router.replace("/");
           return;
@@ -186,7 +186,7 @@ export default function Unlock() {
     );
   }
   if (storeMissing) {
-    const resetStore = () => Alert.alert(t("storeMissingTitle"), t("storeMissingConfirm"), [
+    const resetStore = () => Alert.alert(t("storeMissingTitle"), t(account.standalone ? "storeMissingConfirmStandalone" : "storeMissingConfirm"), [
       { text: t("cancel"), style: "cancel" },
       {
         text: t("storeMissingReset"),
@@ -201,7 +201,7 @@ export default function Unlock() {
     return (
       <Screen title={t("unlockTitle")}>
         <Text style={styles.muted}>{account.name}</Text>
-        <Text style={styles.error} testID="store-missing">{t("storeMissing")}</Text>
+        <Text style={styles.error} testID="store-missing">{t(account.standalone ? "storeMissingStandalone" : "storeMissing")}</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button kind="danger" label={t("storeMissingReset")} onPress={resetStore} />
       </Screen>

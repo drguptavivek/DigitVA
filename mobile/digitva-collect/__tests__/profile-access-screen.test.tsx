@@ -14,6 +14,7 @@ let mockSlot = "active";
 let mockServer: string | undefined = "https://digitvav3.causeofdeathindia.com";
 let mockUserId: string | undefined = "U";
 let mockOffline = false;
+let mockPlus = false;
 jest.mock("expo-router", () => ({ useFocusEffect: (effect: () => void) => require("react").useEffect(effect, [effect]) }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: [mockAccount], slot: mockSlot, lockVersion: 0 }) }));
 jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ userId: mockUserId, server: mockServer, sync: { offline: mockOffline } }) }));
@@ -25,6 +26,7 @@ jest.mock("../src/drafts", () => ({}));
 jest.mock("../src/sync", () => ({}));
 jest.mock("../src/offlineProfile", () => ({}));
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => mockUnlocked }));
+jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus }));
 jest.mock("../src/icd11DorisPreference", () => ({ useIcd11DorisPreference: () => ({ ready: true, enabled: false }) }));
 jest.mock("../src/ui", () => ({
   Screen: ({ title, children }: { title: string; children: React.ReactNode }) => {
@@ -63,6 +65,7 @@ beforeEach(() => {
   mockServer = mockAccount.server;
   mockUnlocked = true;
   mockOffline = false;
+  mockPlus = false;
   mockLoad.mockResolvedValue(serverResult());
 });
 
@@ -74,7 +77,13 @@ test("shows project access, current status and device preference separately with
   expect(text(tree)).toContain("Current");
   expect(text(tree)).toContain("North district");
   expect(text(tree)).toContain("Questionnaire languages are not saved on this phone");
-  expect(text(tree)).toContain("ICD-11 / DORIS tools on this phone");
+  expect(text(tree)).toContain("ICD-11 / DORIS coding in this app");
+});
+
+test("shows the local-coding row only in the Plus build", async () => {
+  expect(text(await render())).not.toContain("Local coding");
+  mockPlus = true;
+  expect(text(await render())).toContain("Local coding");
 });
 
 test("labels saved rights with a timestamp", async () => {

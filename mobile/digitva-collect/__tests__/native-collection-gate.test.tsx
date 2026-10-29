@@ -215,7 +215,8 @@ it("sends a locked offline route to unlock without starting the engine", async (
   await act(async () => tree.unmount());
 });
 
-it("shows both local and online case sources for a coder-only account", async () => {
+it("shows both local and online case sources for a coder-only account on Collect Plus", async () => {
+  mockPlus = true;
   mockPathname = "/worklist";
   mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: true, offline_coding_access: ["SELF"] }];
   let tree!: ReturnType<typeof create>;
@@ -226,6 +227,56 @@ it("shows both local and online case sources for a coder-only account", async ()
   expect(output).not.toContain("worklist");
   expect(tree.root.findAllByType("button").filter((node) => node.props.label === "localCases")).toHaveLength(1);
   expect(tree.root.findAllByType("button").filter((node) => node.props.label === "onlineCases")).toHaveLength(1);
+  expect(tree.root.findAllByType("button").filter((node) => node.props.label === "myCodedCases")).toHaveLength(1);
+  await act(async () => tree.unmount());
+});
+
+it("shows only online cases for a coder-only account in the plain build, which has no local coding", async () => {
+  mockPathname = "/worklist";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, offline_coding_access: ["SELF"] }];
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+  expect(tree.root.findAllByType("button").filter((node) => node.props.label === "onlineCases")).toHaveLength(1);
+  expect(tree.root.findAllByType("button").filter((node) => node.props.label === "localCases")).toHaveLength(0);
+  await act(async () => tree.unmount());
+});
+
+it("names the locked account instead of the web app for a coder", async () => {
+  mockUnlocked = false;
+  mockPathname = "/worklist";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true }];
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+  const output = JSON.stringify(tree.toJSON());
+  expect(output).toContain("codingBlockedLocked");
+  expect(output).not.toContain("codingOnWeb");
+  await act(async () => tree.unmount());
+});
+
+it("names the sign-in, terms and access blocks for a coder instead of the web app", async () => {
+  const blocks: Array<[Record<string, unknown>, string]> = [
+    [{ needs_sign_in: true }, "codingBlockedSignIn"],
+    [{ terms_required: true }, "termsRequired"],
+    [{ access_blocked: true }, "codingBlockedAccess"],
+  ];
+  for (const [block, key] of blocks) {
+    mockPathname = "/worklist";
+    mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, ...block }];
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+    const output = JSON.stringify(tree.toJSON());
+    expect(output).toContain(key);
+    expect(output).not.toContain("codingOnWeb");
+    await act(async () => tree.unmount());
+  }
+});
+
+it("keeps the web-app line for a reviewing-only account, which cannot code on the phone", async () => {
+  mockPathname = "/worklist";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: false, reviewing_access: true }];
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("codingOnWeb");
   await act(async () => tree.unmount());
 });
 
@@ -258,6 +309,7 @@ it("disables online cases while offline but leaves local cases available", async
 });
 
 it("keeps local coding disabled after the user chooses Not now", async () => {
+  mockPlus = true;
   mockCodingEnabled = false;
   mockPathname = "/worklist";
   mockState.accounts = [{ user_id: "worker", name: "Worker", coding_access: true, offline_coding_access: ["SELF"] }];

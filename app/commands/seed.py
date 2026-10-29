@@ -307,6 +307,14 @@ def _seed_test_users():
 TEST_PROJECT_ID = "TST001"
 TEST_PROJECT_PASSWORD = "Aiims@123"
 
+# ICD-11 pairs with DORIS entry (the project check constraint).
+_TST_ICD_CLASSIFICATION = "icd11"
+_TST_COD_ENTRY_MODE = "doris"
+#: Central-office answers for Id10002 (HIV) and Id10003 (malaria), set on the
+#: root unit so the whole tree inherits them. Id10004 (season) stays asked.
+_TST_PRESET_UNIT = "DH01"
+_TST_VA_PRESET = "low"
+
 #: Levels, cadres and grid come from the district reference model
 #: (organization_service.seed_default_organization). TST001 has no villages,
 #: so its village level is deactivated (it was mandatory in older templates
@@ -447,7 +455,7 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         MasOrgUnitWorker, VaAccessRoles, VaAccessScopeTypes, VaProjectMaster,
         VaStatuses, VaUserAccessGrants, VaUsers,
     )
-    from app.routes.admin import _with_web_project_defaults
+    from app.routes.admin import _project_has_in_progress_coding, _with_web_project_defaults
 
     summary = {}
     roster = _TST_USERS
@@ -474,8 +482,8 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
             project_structure_mode="organization",
             web_intake_mode="both",
             web_intake_form_type_id=uuid.UUID(form_type_id) if form_type_id else None,
-            icd_classification="icd10",
-            cod_entry_mode="simple",
+            icd_classification=_TST_ICD_CLASSIFICATION,
+            cod_entry_mode=_TST_COD_ENTRY_MODE,
             masked_cod_required=True,
             reviewer_social_autopsy_enabled=False,
             **defaults,
@@ -486,6 +494,20 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
     else:
         project.project_status = VaStatuses.active
         summary["project"] = "exists"
+        # A rerun moves an older ICD-10 TST001 to ICD-11 + DORIS, under the
+        # admin route's own guard: never while coding is in progress.
+        if (project.icd_classification, project.cod_entry_mode) != (
+            _TST_ICD_CLASSIFICATION, _TST_COD_ENTRY_MODE,
+        ):
+            if _project_has_in_progress_coding(TEST_PROJECT_ID):
+                summary["cod"] = (
+                    f"kept {project.icd_classification}/{project.cod_entry_mode} "
+                    "(coding in progress)"
+                )
+            else:
+                project.icd_classification = _TST_ICD_CLASSIFICATION
+                project.cod_entry_mode = _TST_COD_ENTRY_MODE
+                summary["cod"] = "updated to icd11/doris"
     org.require_organization_mode(TEST_PROJECT_ID)
     site = org.ensure_organization_site(TEST_PROJECT_ID)
     summary["site"] = site.site_id
@@ -527,6 +549,24 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         f"{len(levels)} levels, {len(units)} units, "
         f"{len(org.list_level_cadres(TEST_PROJECT_ID))} grid rows"
     )
+
+    # Central-office area presets (Id10002/Id10003) on the root unit, which
+    # every descendant inherits. Only an unset field is filled, so a value
+    # an admin set by hand survives a rerun.
+    own = org.get_unit_va_presets(TEST_PROJECT_ID, units[_TST_PRESET_UNIT].org_unit_id)
+    hiv = own.hiv_mortality if own else None
+    malaria = own.malaria_mortality if own else None
+    if hiv is None or malaria is None:
+        org.set_unit_va_presets(
+            TEST_PROJECT_ID,
+            units[_TST_PRESET_UNIT].org_unit_id,
+            hiv_mortality=hiv or _TST_VA_PRESET,
+            malaria_mortality=malaria or _TST_VA_PRESET,
+            actor_id=actor.user_id,
+        )
+        summary["presets"] = f"{_TST_PRESET_UNIT}: Id10002/Id10003 = {_TST_VA_PRESET}"
+    else:
+        summary["presets"] = f"{_TST_PRESET_UNIT}: already set"
 
     # Users: created like _seed_test_users (verified, onboarded, no forced
     # reset). An existing user keeps password, profile and status: a

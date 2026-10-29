@@ -5,6 +5,19 @@ import type { CategoryPayload, JsonValue } from "../contracts";
 import { useWebStyles, type WebPalette } from "../webPalette";
 import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
 
+// react-dom ships without types here (no @types/react-dom); same hand-typed call as WorkspaceLayout.web.tsx.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createPortal } = require("react-dom") as { createPortal: (children: React.ReactNode, container: Element) => React.ReactElement };
+
+/**
+ * The lightbox mounts under document.body: react-native-web Views create stacking contexts, so inside the
+ * workspace its z-index cannot beat the sticky header. Without a DOM (native-style test renderer) it is inline.
+ */
+function BodyPortal({ children }: { children: React.ReactNode }) {
+  const body = typeof document === "undefined" ? undefined : document.body;
+  return body?.nodeType === 1 ? createPortal(children, body) : <>{children}</>;
+}
+
 type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];
 type GalleryAttachment = { path: string; label: string; kind: "image" | "audio" | "document" };
 
@@ -109,6 +122,10 @@ export function AttachmentGallery({
   const lastFocus = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  // Read by the native wheel listener, which is attached once per open and must not see stale zoom.
+  const view = useRef({ zoom: 1, offset: { x: 0, y: 0 } });
+  view.current = { zoom, offset };
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistance = useRef<number | null>(null);
@@ -181,6 +198,30 @@ export function AttachmentGallery({
     setZoom(1);
     setOffset({ x: 0, y: 0 });
   }, [lightboxOpen, selected?.path]);
+
+  // React's onWheel is passive, so its preventDefault is ignored and the page scrolls under the lightbox.
+  // Zoom keeps the point under the cursor fixed (offsets are measured from the viewport centre).
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!lightboxOpen || !viewport) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const { zoom: current, offset: at } = view.current;
+      const next = Math.min(6, Math.max(1, current + (event.deltaY < 0 ? 0.25 : -0.25)));
+      if (next === current) return;
+      const rect = viewport.getBoundingClientRect();
+      const cx = event.clientX - (rect.left + rect.width / 2);
+      const cy = event.clientY - (rect.top + rect.height / 2);
+      const ratio = next / current;
+      const nextOffset = next === 1 ? { x: 0, y: 0 } : { x: cx - ratio * (cx - at.x), y: cy - ratio * (cy - at.y) };
+      // Updated here too: wheel events can arrive several times before React re-renders.
+      view.current = { zoom: next, offset: nextOffset };
+      setZoom(next);
+      setOffset(nextOffset);
+    };
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, [lightboxOpen]);
 
   if (!visible || !attachments.length || !selected) return null;
   const rotation = rotations[selected.path] ?? 0;
@@ -289,17 +330,18 @@ export function AttachmentGallery({
           : attachment.kind === "image" ? <span aria-hidden="true">▧</span> : attachment.kind === "audio" ? <span aria-hidden="true">♫</span> : <span aria-hidden="true">PDF</span>}
       </button>)}
     </div> : null}
-    {lightboxOpen && image ? <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${selected.label || "Attachment"} full screen`} style={styles.lightbox}>
+    {lightboxOpen && image ? <BodyPortal><div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${selected.label || "Attachment"} full screen`} style={styles.lightbox}>
       <button ref={closeRef} type="button" onClick={closeLightbox} aria-label="Close full screen" style={styles.close}>×</button>
       <div
+        ref={viewportRef}
         style={styles.lightboxViewport}
-        onWheel={(event) => { event.preventDefault(); setZoom((current) => Math.min(6, Math.max(1, current + (event.deltaY < 0 ? 0.25 : -0.25)))); }}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
         onPointerCancel={pointerUp}
       >
-        <img src={selected.path} alt={selected.label || "Expanded attachment"} style={imageStyle} />
+        {/* A native image drag would cancel the pointer stream that pans a zoomed image. */}
+        <img src={selected.path} alt={selected.label || "Expanded attachment"} draggable={false} onDragStart={(event) => event.preventDefault()} style={imageStyle} />
       </div>
       <div style={styles.lightboxControls}>
         <button type="button" onClick={() => moveLightbox(-1)} aria-label="Previous attachment" style={styles.control}>‹</button>
@@ -310,7 +352,7 @@ export function AttachmentGallery({
         <button type="button" onClick={() => rotate(90)} aria-label="Rotate right" style={styles.control}>↷</button>
         <button type="button" onClick={() => moveLightbox(1)} aria-label="Next attachment" style={styles.control}>›</button>
       </div>
-    </div> : null}
+    </div></BodyPortal> : null}
   </section>;
 }
 

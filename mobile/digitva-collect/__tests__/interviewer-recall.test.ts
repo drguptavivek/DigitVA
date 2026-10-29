@@ -14,6 +14,14 @@ describe("interviewer recall", () => {
     expect(withInterviewerRecall({}, undefined, " Asha K ")).toEqual({ Id10010: "Asha K" });
     expect(withInterviewerRecall({}, undefined)).toEqual({});
   });
+  it("prefills only a name Id10010 accepts (letters and spaces)", () => {
+    expect(withInterviewerRecall({}, undefined, "Test CHO SC01")).toEqual({ Id10010: "Test CHO SC" });
+    expect(withInterviewerRecall({}, undefined, "Dr. A.K. Rao")).toEqual({ Id10010: "Dr AK Rao" });
+    expect(withInterviewerRecall({}, undefined, "Asha  Kumar")).toEqual({ Id10010: "Asha Kumar" });
+    expect(withInterviewerRecall({}, undefined, "José Rao")).toEqual({ Id10010: "Jose Rao" });
+    expect(withInterviewerRecall({}, undefined, "cho_123")).toEqual({ Id10010: "cho" });
+    expect(withInterviewerRecall({}, undefined, "1234 .-")).toEqual({});
+  });
   it("keeps only the four interviewer answers", () => {
     expect(recallFromData({ ...last, Id10017: "Ravi", Id10010a: "" })).toEqual({ Id10010: "Asha", Id10010b: "female", Id10010c: "A-7" });
     expect(recallFromData({ Id10017: "Ravi" })).toBeUndefined();

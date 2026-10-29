@@ -40,6 +40,8 @@ export interface DmSubmissionRow {
   va_uniqueid_masked: string | null;
   project_id: string;
   site_id: string;
+  /** "web" for a phone or web interview (no ODK review state, sync or edit page); "odk" or absent (older server) otherwise. */
+  form_source?: "odk" | "web";
   va_submission_date: string | null;
   /** Null for a redacted viewer. */
   va_data_collector: string | null;

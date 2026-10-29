@@ -67,6 +67,8 @@ const utcDay = (part: DatePart, edge: "start" | "end"): number => {
   return edge === "start" ? Date.UTC(part.year, 0, 1) / MS_PER_DAY : Date.UTC(part.year, 11, 31) / MS_PER_DAY;
 };
 
+export type AgeUnit = "days" | "months" | "years";
+
 export interface DerivedAge {
   /** exact: both dates to the day; months: a month is approximate; years: a year is approximate. */
   precision: "exact" | "months" | "years";
@@ -74,6 +76,32 @@ export interface DerivedAge {
   group?: AgeGroupCode;
   days?: number;
   years?: number;
+  /** Shortest and longest age in days the dates allow (not set for exact dates). */
+  minDays?: number;
+  maxDays?: number;
+  /** The age as one whole number in the group's unit, when the whole range falls inside it. */
+  estimate?: { unit: AgeUnit; value: number };
+}
+
+/** A child's age unit: days up to 60 days, months under 24 months, else years. */
+function childUnitOfDays(days: number): AgeUnit {
+  return days <= 60 ? "days" : days < 24 * DAYS_PER_MONTH ? "months" : "years";
+}
+
+/**
+ * The age as a whole number when every age in [minDays, maxDays] rounds down
+ * to it: neonate days, adult years, and a child's unit by the same rule as
+ * exact dates (days up to 60 days, months under 24 months, else years).
+ * Undefined when the range spans two values, two units or two groups.
+ */
+function wholeUnitEstimate(minDays: number, maxDays: number): DerivedAge["estimate"] {
+  const group = ageGroupOfDays(minDays);
+  if (group !== ageGroupOfDays(maxDays)) return undefined;
+  if (group === "child" && childUnitOfDays(minDays) !== childUnitOfDays(maxDays)) return undefined;
+  const unit: AgeUnit = group === "neonate" ? "days" : group === "adult" ? "years" : childUnitOfDays(minDays);
+  const length = unit === "years" ? DAYS_PER_YEAR : unit === "months" ? DAYS_PER_MONTH : 1;
+  const value = Math.floor(minDays / length);
+  return Math.floor(maxDays / length) === value ? { unit, value } : undefined;
 }
 
 /**
@@ -92,22 +120,73 @@ export function deriveAge(data: SubmissionData): DerivedAge | undefined {
     if (!Number.isFinite(days) || days < 0) return undefined;
     return { precision: "exact", days, group: ageGroupOfDays(days) };
   }
-  if (birth.precision === "year" || death.precision === "year") {
-    const years = death.year - birth.year;
-    if (years < 0) return undefined;
-    const group: AgeGroupCode | undefined = years >= 13 ? "adult" : years >= 1 && years <= 11 ? "child" : undefined;
-    return { precision: "years", years, ...(group ? { group } : {}) };
-  }
   const shortest = utcDay(death, "start") - utcDay(birth, "end");
   const longest = utcDay(death, "end") - utcDay(birth, "start");
-  if (longest < 0) return undefined;
-  const low = ageGroupOfDays(Math.max(0, shortest));
-  return low === ageGroupOfDays(longest) ? { precision: "months", group: low } : { precision: "months" };
+  if (!Number.isFinite(longest) || longest < 0) return undefined;
+  const minDays = Math.max(0, shortest);
+  if (birth.precision === "year" || death.precision === "year") {
+    const years = death.year - birth.year;
+    const group: AgeGroupCode | undefined = years >= 13 ? "adult" : years >= 1 && years <= 11 ? "child" : undefined;
+    return { precision: "years", years, ...(group ? { group } : {}), minDays, maxDays: longest };
+  }
+  // A month on either side: every day in the range decides the group and, when
+  // the range sits inside one whole unit, the number.
+  const low = ageGroupOfDays(minDays);
+  const estimate = wholeUnitEstimate(minDays, longest);
+  return {
+    precision: "months",
+    minDays,
+    maxDays: longest,
+    ...(low === ageGroupOfDays(longest) ? { group: low } : {}),
+    ...(estimate ? { estimate } : {})
+  };
 }
 
 export interface AgeSuggestion {
   value: AnswerValue;
   kind: AssistKind;
+}
+
+type AddSuggestion = (name: string, value: AnswerValue, kind: AssistKind) => void;
+
+function addFromExactDays(age: DerivedAge, data: SubmissionData, add: AddSuggestion): void {
+  const days = age.days ?? 0;
+  if (age.group === "neonate") add("age_neonate_days", days, "calculated");
+  else if (age.group === "adult") add("age_adult", Math.floor(days / DAYS_PER_YEAR), "calculated");
+  else if (age.group === "child") {
+    const unit = childUnitOfDays(days);
+    add("age_child_unit", unit, "calculated");
+    // The number follows the unit the interviewer has chosen, if they chose one.
+    const active = data.age_child_unit === "days" || data.age_child_unit === "months" || data.age_child_unit === "years"
+      ? data.age_child_unit
+      : unit;
+    if (active === "days") add("age_child_days", days, "calculated");
+    else if (active === "months") add("age_child_months", Math.floor(days / DAYS_PER_MONTH), "calculated");
+    else add("age_child_years", Math.floor(days / DAYS_PER_YEAR), "calculated");
+  }
+}
+
+/** A month on either side: the number only when the whole range agrees on it. */
+function addFromRangeEstimate(age: DerivedAge, data: SubmissionData, add: AddSuggestion): void {
+  if (!age.estimate) return;
+  const { unit, value } = age.estimate;
+  if (age.group === "neonate") add("age_neonate_days", value, "estimate");
+  else if (age.group === "adult") add("age_adult", value, "estimate");
+  else if (age.group === "child") {
+    add("age_child_unit", unit, "estimate");
+    if (data.age_child_unit === undefined || data.age_child_unit === unit) {
+      add(unit === "days" ? "age_child_days" : unit === "months" ? "age_child_months" : "age_child_years", value, "estimate");
+    }
+  }
+}
+
+/** Years only: an estimate for years, never days. */
+function addFromYears(age: DerivedAge, data: SubmissionData, add: AddSuggestion): void {
+  if (age.group === "adult") add("age_adult", age.years ?? 0, "estimate");
+  else if (age.group === "child") {
+    add("age_child_unit", "years", "estimate");
+    if (data.age_child_unit === undefined || data.age_child_unit === "years") add("age_child_years", age.years ?? 0, "estimate");
+  }
 }
 
 /** The answers the dates suggest, by question name; only for questions in `shown`. */
@@ -118,40 +197,19 @@ export function ageSuggestions(
   const age = deriveAge(data);
   const found: Record<string, AgeSuggestion> = {};
   if (!age) return found;
-  const add = (name: string, value: AnswerValue, kind: AssistKind) => {
+  const add: AddSuggestion = (name, value, kind) => {
     if (shown.has(name)) found[name] = { value, kind };
   };
   if (age.group) add("age_group", age.group, "suggested");
-  if (age.precision === "exact" && age.days !== undefined) {
-    const days = age.days;
-    if (age.group === "neonate") add("age_neonate_days", days, "calculated");
-    else if (age.group === "adult") add("age_adult", Math.floor(days / DAYS_PER_YEAR), "calculated");
-    else if (age.group === "child") {
-      const unit = days <= 60 ? "days" : days < 24 * DAYS_PER_MONTH ? "months" : "years";
-      add("age_child_unit", unit, "calculated");
-      // The number follows the unit the interviewer has chosen, if they chose one.
-      const active = data.age_child_unit === "days" || data.age_child_unit === "months" || data.age_child_unit === "years"
-        ? data.age_child_unit
-        : unit;
-      if (active === "days") add("age_child_days", days, "calculated");
-      else if (active === "months") add("age_child_months", Math.floor(days / DAYS_PER_MONTH), "calculated");
-      else add("age_child_years", Math.floor(days / DAYS_PER_YEAR), "calculated");
-    }
-  } else if (age.precision === "years" && age.years !== undefined) {
-    // Years only: an estimate for years, never days.
-    if (age.group === "adult") add("age_adult", age.years, "estimate");
-    else if (age.group === "child") {
-      add("age_child_unit", "years", "estimate");
-      if (data.age_child_unit === undefined || data.age_child_unit === "years") {
-        add("age_child_years", age.years, "estimate");
-      }
-    }
-  }
+  if (age.precision === "exact") addFromExactDays(age, data, add);
+  else if (age.precision === "months") addFromRangeEstimate(age, data, add);
+  else addFromYears(age, data, add);
   return found;
 }
 
 /** A short description of the derived age for the confirmation ("4 years"); undefined when none. */
-export function ageDetail(age: DerivedAge, unit: (key: "days" | "months" | "years", count: number) => string): string | undefined {
+export function ageDetail(age: DerivedAge, unit: (key: AgeUnit, count: number) => string): string | undefined {
+  if (age.estimate) return unit(age.estimate.unit, age.estimate.value);
   if (age.precision === "exact" && age.days !== undefined) {
     if (age.days <= 60) return unit("days", age.days);
     if (age.days < 24 * DAYS_PER_MONTH) return unit("months", Math.floor(age.days / DAYS_PER_MONTH));
@@ -159,6 +217,40 @@ export function ageDetail(age: DerivedAge, unit: (key: "days" | "months" | "year
   }
   if (age.precision === "years" && age.years !== undefined) return unit("years", age.years);
   return undefined;
+}
+
+/** "4 years 3 months", "5 months" or "20 days": an age in days, rounded down. */
+function spanText(days: number, unit: (key: AgeUnit, count: number) => string): string {
+  const years = Math.floor(days / DAYS_PER_YEAR);
+  const months = Math.floor((days - years * DAYS_PER_YEAR) / DAYS_PER_MONTH);
+  if (years > 0) return months > 0 ? `${unit("years", years)} ${unit("months", months)}` : unit("years", years);
+  return months > 0 ? unit("months", months) : unit("days", Math.floor(days));
+}
+
+/**
+ * The range the dates allow ("4 years 3 months", "4 years 4 months") for the
+ * note shown when no single number can be suggested; undefined for exact
+ * dates, or when the range is one value (the estimate already says it).
+ */
+export function ageRange(
+  age: DerivedAge,
+  unit: (key: AgeUnit, count: number) => string
+): { from: string; to: string } | undefined {
+  if (age.minDays === undefined || age.maxDays === undefined) return undefined;
+  const from = spanText(age.minDays, unit);
+  const to = spanText(age.maxDays, unit);
+  return from === to ? undefined : { from, to };
+}
+
+/**
+ * The questions that carry the range note: none when a number is suggested;
+ * the group question while the group is open, else the number question.
+ */
+export function rangeNoteNames(age: DerivedAge): string[] {
+  if (age.estimate || (age.precision === "years" && age.group)) return [];
+  return age.group
+    ? ["age_neonate_days", "age_child_days", "age_child_months", "age_child_years", "age_adult"]
+    : ["age_group"];
 }
 
 /** How far a typed age may sit from the calculated one before it is called a disagreement. */

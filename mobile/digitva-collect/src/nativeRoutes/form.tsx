@@ -109,7 +109,7 @@ import {
   withoutCovered,
 } from "../consentStore";
 import type { ConsentRecordEnvelope, ProjectConsentConfig } from "../consent";
-import { recordError } from "../errorLog";
+import { describeError, recordError } from "../errorLog";
 import { refusalProblems } from "../refusalText";
 import { preSendIssues } from "../submissionChecks";
 import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
@@ -1396,7 +1396,9 @@ export default function Form() {
               }
             }
           }}
-          onDraftError={() => {
+          onDraftError={(error) => {
+            // The failure code only (e.g. draft_conflict); describeError scrubs the rest, and answers never reach it.
+            recordError(`draft ${describeError(error)}`);
             setSaveState("unsaved");
             setMessage(t("errGeneric"));
           }}

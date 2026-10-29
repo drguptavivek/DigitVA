@@ -19,7 +19,7 @@ import { openServerPage } from "./roleHome";
 import { CausesList } from "./stats/CausesList";
 import { ChoiceRow, SelectRow, StatPressable, TextAction } from "./stats/controls";
 import {
-  canDrill, formatDays, hasDeathRegister, parseSelection, pipelineScale, PROJECT_BUTTONS_MAX, selectionParams,
+  canDrill, formatDays, hasDeathRegister, parseSelection, pipelineScale, PROJECT_BUTTONS_MAX, selectionParams, soleOpenUnit,
   type AreaSelection,
 } from "./stats/pipeline";
 import { PipelineRow } from "./stats/PipelineRow";
@@ -54,6 +54,7 @@ export default function StatisticsScreen() {
   const [loaded, setLoaded] = useState<{ selection: AreaSelection; data: AreaSummary } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [soleRoot, setSoleRoot] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [staffOpen, setStaffOpen] = useState(false);
   const [staff, setStaff] = useState<AreaStaff | null>(null);
@@ -98,7 +99,17 @@ export default function StatisticsScreen() {
     const wanted: AreaSelection = { project, unit, site, period };
     getAreaSummary(request, wanted)
       .then((reply) => {
-        if (active) setLoaded({ selection: wanted, data: reply });
+        if (!active) return;
+        // A district-level user's one root opens at once, so the first level is the units below it.
+        const first = soleOpenUnit(reply, wanted);
+        if (first) {
+          // Its "All areas" crumb would only reopen the same root, so the path starts at the root.
+          setSoleRoot(first);
+          router.replace({ pathname: "/statistics", params: selectionParams({ ...wanted, unit: first }) });
+        } else {
+          if (!wanted.unit && !wanted.site) setSoleRoot(null);
+          setLoaded({ selection: wanted, data: reply });
+        }
       })
       .catch((caught) => {
         if (!active) return;
@@ -228,14 +239,16 @@ export default function StatisticsScreen() {
         <View accessibilityState={{ busy }} style={{ gap: spacing.md, opacity: busy ? 0.55 : 1 }}>
           {crumbs.length ? (
             <View accessibilityRole="toolbar" accessibilityLabel={t("statsPath")} style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.xxs }}>
-              <StatPressable label={t("statsAllAreas")} onPress={() => drill({})} style={{ minHeight: 44, justifyContent: "center" }}>
-                <Text style={{ fontSize: fontSize.body, color: ui.primary, textDecorationLine: "underline" }}>{t("statsAllAreas")}</Text>
-              </StatPressable>
+              {soleRoot ? null : (
+                <StatPressable label={t("statsAllAreas")} onPress={() => drill({})} style={{ minHeight: 44, justifyContent: "center" }}>
+                  <Text style={{ fontSize: fontSize.body, color: ui.primary, textDecorationLine: "underline" }}>{t("statsAllAreas")}</Text>
+                </StatPressable>
+              )}
               {crumbs.map((crumb, index) => {
                 const last = index === crumbs.length - 1;
                 return (
                   <View key={crumb.id} style={{ flexDirection: "row", alignItems: "center", columnGap: spacing.xxs }}>
-                    <Text style={muted}>{"›"}</Text>
+                    {index > 0 || !soleRoot ? <Text style={muted}>{"›"}</Text> : null}
                     {last ? (
                       <Text accessibilityState={{ selected: true }} style={{ fontSize: fontSize.body, fontWeight: "600", color: ui.foreground }}>{crumb.name}</Text>
                     ) : (

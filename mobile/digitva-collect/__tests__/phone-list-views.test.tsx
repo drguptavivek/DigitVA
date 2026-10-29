@@ -98,6 +98,14 @@ describe("Home", () => {
     expect(tree.root.findAllByProps({ testID: "state-offline" }).length).toBeGreaterThan(0);
   });
 
+  it("shows attached files beside the record count, not inside it", async () => {
+    await render(<HomeView {...base} unsent={1} unsentFiles={2} />);
+    expect(text(tree)).toContain("Attached files also waiting: 2");
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={1} unsentFiles={0} />);
+    expect(text(tree)).not.toContain("attached files");
+  });
+
   it("shows skeleton rows, not a spinner, while the local store loads", async () => {
     await render(<HomeView {...base} loaded={false} />);
     expect(tree.root.findAllByProps({ testID: "state-loading" }).length).toBeGreaterThan(0);
@@ -162,6 +170,20 @@ describe("Interviews", () => {
     expect(tree.root.findAllByProps({ testID: "state-offline" }).length).toBeGreaterThan(0);
     expect(labelled(tree, "Refresh")[0].props.disabled).toBe(true);
     expect(text(tree)).toContain("Refresh needs a connection.");
+  });
+});
+
+describe("Interviews revisions load failure", () => {
+  const items = buildInterviewItems(sources({ cases: [caseRow("C1", "Ramesh Kumar")] }));
+  it("says Revisions need a connection when offline, and keeps the Retry + Ref text for a real error", async () => {
+    await render(<InterviewsView {...interviewsProps(items, { loadFailed: true, offline: true })} />);
+    expect(text(tree)).toContain("Revisions need a connection.");
+    expect(text(tree)).not.toContain("Retry revision");
+    await act(async () => tree.unmount());
+    await render(<InterviewsView {...interviewsProps(items, { loadFailed: true, loadFailedText: "Retry revision\nRef: HTTP 500 server_error" })} />);
+    expect(text(tree)).toContain("Retry revision");
+    expect(text(tree)).toContain("Ref: HTTP 500 server_error");
+    expect(text(tree)).not.toContain("Revisions need a connection.");
   });
 });
 

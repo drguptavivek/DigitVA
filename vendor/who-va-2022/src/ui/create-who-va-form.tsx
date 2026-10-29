@@ -30,18 +30,22 @@ import { localeFromLanguageName, resolveUiMessages, type WhoVaUiTranslations } f
 import { WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "../languages/ui.js";
 import { WHO_VA_FORM_VERSION } from "../version.js";
 import { englishAlongside, plainText } from "./localize.js";
+import { focusDomQuestion } from "./dom-element.js";
 import { createRichText } from "./rich-text-view.js";
 import { FormThemeContext, type FormTheme } from "./theme.js";
 import { createSectionNavigation, type SectionNavItem } from "./section-navigation.js";
 import { createProblemsDialog, type ProblemRow } from "./problems-dialog.js";
 import {
   ageDetail,
+  ageRange,
+  rangeNoteNames,
   agreesWithSuggestion,
   boundaryFix,
   deriveAge,
   ageSuggestions,
   narrationLanguageSuggestion,
   type AgeSuggestion,
+  type DerivedAge,
   type AssistKind
 } from "./assists.js";
 import {
@@ -1279,12 +1283,7 @@ export function createWhoVaForm(
     };
 
     const focusQuestion = (node: unknown) => {
-      if (typeof HTMLElement !== "undefined" && node instanceof HTMLElement) {
-        node
-          .querySelector<HTMLElement>("input, textarea, select, button, [tabindex]")
-          ?.focus?.({ preventScroll: true });
-        return;
-      }
+      if (focusDomQuestion(node)) return;
       primitives.focusNode?.(node);
     };
 
@@ -1371,20 +1370,29 @@ export function createWhoVaForm(
     }, [assistSuggestions, draftRestoreState, session, snapshot.data, snapshot.lockedQuestionNames, view]);
 
     const unitWord = (key: "days" | "months" | "years", count: number): string =>
-      `${count} ${key === "days" ? messages.unitDays : key === "months" ? messages.unitMonths : messages.unitYears}`;
+      count === 1
+        ? `1 ${key === "days" ? messages.unitDay : key === "months" ? messages.unitMonth : messages.unitYear}`
+        : `${count} ${key === "days" ? messages.unitDays : key === "months" ? messages.unitMonths : messages.unitYears}`;
     const choiceLabelOf = (name: string, value: AnswerValue | undefined): string => {
       const choice = runtimeIndex.questionsByName.get(name)?.choices?.find((candidate) => candidate.value === value);
       return choice ? localized(choice.label, locale, choice.value) : String(value ?? "");
     };
     const assistNotices = useMemo(() => {
       const notices: Record<string, AssistNotice> = {};
-      const hintFor = (kind: AssistKind) =>
-        kind === "calculated"
-          ? messages.assistCalculated
-          : kind === "estimate"
-            ? messages.assistEstimate
-            : messages.assistSuggested;
       const age = deriveAge(snapshot.data);
+      const estimateHint = age?.precision === "years" ? messages.assistEstimate : messages.assistEstimatedFromDates;
+      const numberText = (name: string, value: number) =>
+        unitWord(name === "age_neonate_days" || name === "age_child_days" ? "days" : name === "age_child_months" ? "months" : "years", value);
+      const fixText = (fix: NonNullable<ReturnType<typeof boundaryFix>>) =>
+        fix.messageKey === "fixToNeonate"
+          ? messages.fixToNeonate(fix.count)
+          : fix.messageKey === "fixToAdult"
+            ? messages.fixToAdult(fix.count)
+            : fix.messageKey === "fixToChild"
+              ? messages.fixToChild(fix.count)
+              : messages.fixToMonths;
+      const hintFor = (kind: AssistKind) =>
+        kind === "calculated" ? messages.assistCalculated : kind === "estimate" ? estimateHint : messages.assistSuggested;
       for (const [name, suggestion] of Object.entries(assistSuggestions)) {
         const current = snapshot.data[name];
         if (current == null || name === "narr_language") continue;
@@ -1396,11 +1404,7 @@ export function createWhoVaForm(
           const suggested =
             name === "age_group"
               ? `${choiceLabelOf(name, suggestion.value)}${detail ? ` (${messages.assistAbout(detail)})` : ""}`
-              : name === "age_neonate_days" || name === "age_child_days"
-                ? unitWord("days", suggestion.value as number)
-                : name === "age_child_months"
-                  ? unitWord("months", suggestion.value as number)
-                  : unitWord("years", suggestion.value as number);
+              : numberText(name, suggestion.value as number);
           const entered = name === "age_group" ? choiceLabelOf(name, current) : String(current);
           notices[name] = {
             key: `confirm:${suggestion.value}:${current}`,
@@ -1412,18 +1416,21 @@ export function createWhoVaForm(
           };
         }
       }
+      // No single number to fill in: say what the dates allow.
+      const addRangeNotes = (found: DerivedAge) => {
+        const range = ageRange(found, unitWord);
+        if (!range) return;
+        const text = messages.assistRange(range.from, range.to);
+        for (const name of rangeNoteNames(found)) {
+          if (shownNames.has(name) && !notices[name]) notices[name] = { key: `range:${text}`, hint: text };
+        }
+      };
+      if (age) addRangeNotes(age);
       for (const name of ["age_child_days", "age_child_years", "age_neonate_days"]) {
         if (!shownNames.has(name)) continue;
         const fix = boundaryFix(name, snapshot.data[name]);
         if (!fix) continue;
-        const text =
-          fix.messageKey === "fixToNeonate"
-            ? messages.fixToNeonate(fix.count)
-            : fix.messageKey === "fixToAdult"
-              ? messages.fixToAdult(fix.count)
-              : fix.messageKey === "fixToChild"
-                ? messages.fixToChild(fix.count)
-                : messages.fixToMonths;
+        const text = fixText(fix);
         const confirmKey = notices[name]?.key ?? "";
         notices[name] = { ...notices[name], key: `${confirmKey}|fix:${fix.messageKey}:${fix.count}`, fix: { text, action: messages[fix.actionKey] } };
       }

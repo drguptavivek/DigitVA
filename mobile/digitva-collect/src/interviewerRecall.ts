@@ -32,8 +32,17 @@ export const recallChanged = (stored: InterviewerRecall | undefined, next: Inter
   JSON.stringify(stored ?? null) !== JSON.stringify(next ?? null);
 
 /**
+ * The account display name reduced to what Id10010 accepts: the instrument's constraint is regex(., '^[A-Za-z ]+$'),
+ * kept explicit here because the callers have no instrument in hand. Accents are removed ("José" becomes "Jose"), other
+ * disallowed characters are dropped ("Test CHO SC01" becomes "Test CHO SC", "Dr. A.K. Rao" becomes "Dr AK Rao") and
+ * spaces collapse; empty when nothing is left.
+ */
+export const interviewerNameFromAccount = (name: string): string =>
+  name.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^A-Za-z ]/g, "").replace(/ +/g, " ").trim();
+
+/**
  * Initial answers with the recalled ones in the empty slots; with no recall,
- * the account's display name for Id10010. Never overwrites an answer.
+ * the account's display name for Id10010 (reduced to a valid name). Never overwrites an answer.
  */
 export function withInterviewerRecall(
   data: SubmissionData | undefined,
@@ -41,7 +50,8 @@ export function withInterviewerRecall(
   accountName?: string,
 ): SubmissionData {
   const out: SubmissionData = { ...(data ?? {}) };
-  const source: InterviewerRecall = recall ?? (accountName?.trim() ? { Id10010: accountName.trim() } : {});
+  const accountValue = accountName ? interviewerNameFromAccount(accountName) : "";
+  const source: InterviewerRecall = recall ?? (accountValue ? { Id10010: accountValue } : {});
   for (const name of RECALL_NAMES) {
     const value = source[name];
     if (!filled(out[name]) && filled(value)) out[name] = value;

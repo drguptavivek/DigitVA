@@ -244,7 +244,8 @@ export function CaseWorkspaceScreen({
     }
   }, [api, canReadPrivateData, identity.mode, identity.vaSid, loadCategory, loadEvents, loseAllocation]);
 
-  // Keeps the section the coder is in (VA COD Assessment after Save Step 1), not the first section.
+  // Keeps the section the coder is in (VA COD Assessment after Save Step 1), not the first section. Both COD
+  // editors (simple and DORIS) reload through this; a bare loadWorkspace() falls back to default_category.
   const reloadAfterCodSave = useCallback(async (blockedMessage?: string) => {
     await loadWorkspace(selectedCategory.current || undefined);
     if (blockedMessage && !suspended.current) setQualityError(blockedMessage);
@@ -424,7 +425,7 @@ export function CaseWorkspaceScreen({
           masked DORIS final step renders it inside its own card. */}
       {workspace.smartva !== null && !(workspace.case.project_mode === "masked_doris" && workspace.step === "final") ? <SmartVaReference value={workspace.smartva} /> : null}
       {workspace.case.project_mode.endsWith("_doris") ? (
-        renderDoris ? renderDoris(workspace, loadWorkspace, scopedCallbacks.finish, guardedApi) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
+        renderDoris ? renderDoris(workspace, reloadAfterCodSave, scopedCallbacks.finish, guardedApi) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (
         <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={guardedApi} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
       )}

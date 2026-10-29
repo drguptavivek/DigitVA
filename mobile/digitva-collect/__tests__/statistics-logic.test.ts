@@ -1,6 +1,6 @@
 import { activeTab } from "../src/web/navTabs";
 import { areaCsvUrl, getAreaProjects, getAreaStaff, getAreaSummary } from "../src/area/api";
-import { canDrill, formatDays, formatPercent, hasDeathRegister, parseSelection, pipelineScale, selectionParams, stageWidths } from "../src/web/stats/pipeline";
+import { canDrill, formatDays, formatPercent, hasDeathRegister, parseSelection, pipelineScale, selectionParams, soleOpenUnit, stageWidths } from "../src/web/stats/pipeline";
 
 const counts = (deaths_reported: number, submitted: number, final_cod: number) => ({ deaths_reported, submitted, final_cod });
 
@@ -94,4 +94,23 @@ describe("area api client", () => {
 
 test("the Statistics menu item stays current on its route", () => {
   expect(activeTab("/statistics")).toBe("/statistics");
+});
+
+describe("a district-level user's first level", () => {
+  const top = { mode: "organization", project_wide: false, unit: null };
+  const unitRow = (has_children: boolean) => ({ kind: "unit" as const, key: "u1", has_children });
+  const none = { unit: null, site: null };
+
+  test("a lone root with units below it opens at once", () => {
+    expect(soleOpenUnit({ ...top, rows: [unitRow(true)] }, none)).toBe("u1");
+  });
+
+  test("not for a project-wide user, several roots, a leaf root, a chosen unit or a sites project", () => {
+    expect(soleOpenUnit({ ...top, project_wide: true, rows: [unitRow(true)] }, none)).toBeNull();
+    expect(soleOpenUnit({ ...top, rows: [unitRow(true), { ...unitRow(true), key: "u2" }] }, none)).toBeNull();
+    expect(soleOpenUnit({ ...top, rows: [unitRow(false)] }, none)).toBeNull();
+    expect(soleOpenUnit({ ...top, rows: [unitRow(true)] }, { unit: "u0", site: null })).toBeNull();
+    expect(soleOpenUnit({ ...top, unit: { org_unit_id: "u0" }, rows: [unitRow(true)] }, none)).toBeNull();
+    expect(soleOpenUnit({ ...top, mode: "sites", rows: [unitRow(true)] }, none)).toBeNull();
+  });
 });

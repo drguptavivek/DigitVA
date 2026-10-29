@@ -6,7 +6,8 @@
  * queued contact attempts and visits, and queued (ready) revisions. Drafts still being filled in are NOT unsent;
  * they are counted apart as `inProgress`. Work Send cannot move on its own (refused, needs an edit) is listed as
  * `attention` with its last error and is not in the unsent count, so a Send that succeeds always brings the
- * count down. Counts are exact; the item list is capped at MAX_ITEMS.
+ * count down. Counts are exact; the item list is capped at MAX_ITEMS. `unsent` counts records (an interview with
+ * two photos is 1); its files are counted apart as `unsentFiles` and stay separate items with their own Ref line.
  */
 import { ApiError } from "./api";
 import { describeError, recordError } from "./errorLog";
@@ -39,8 +40,10 @@ export interface UnsentItem {
 }
 
 export interface WorkSummary {
-  /** Ready to send (ready + waiting items). */
+  /** Interviews, registrations, visits and revisions ready to send (ready + waiting). Files are counted apart in `unsentFiles`. */
   unsent: number;
+  /** Attached files of those interviews not yet confirmed by the server (ready + waiting); each is still its own item in `items`. */
+  unsentFiles?: number;
   /** Refused or needing an edit; Send now does not clear these. */
   attention: number;
   /** Drafts and revisions still being filled in; never part of unsent. */
@@ -187,7 +190,8 @@ export async function summariseWork(db: Db): Promise<WorkSummary> {
   const attention = items.filter((item) => item.state === "attention");
   const sendable = items.filter((item) => item.state !== "attention");
   return {
-    unsent: sendable.length,
+    unsent: sendable.filter((item) => item.kind !== "attachment").length,
+    unsentFiles: sendable.filter((item) => item.kind === "attachment").length,
     attention: attention.length,
     inProgress: Number(inProgressDrafts?.n ?? 0) + revisionsEditing,
     items: [...attention, ...sendable].slice(0, MAX_ITEMS),

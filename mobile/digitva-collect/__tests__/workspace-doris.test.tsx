@@ -927,31 +927,35 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => ({ icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case <b>text</b></p>" })) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
     await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-    expect(allText(tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    // A suggestion carries no banner of its own: the mapping shows once the coder chooses it.
+    expect(allText(tree)).not.toContain("Associated VA codes");
     await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
     await act(async () => flush());
     expect(api.getVaDefinitionForIcd).toHaveBeenCalledWith("CA40");
     expect(api.getVaDefinitionForIcd).toHaveBeenCalledTimes(1);
     expect(allText(tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
     expect(allText(tree)).toContain("Case text");
-    expect(hostNodesWithTestId(tree, "associated-va-codes")).toHaveLength(2);
+    expect(hostNodesWithTestId(tree, "associated-va-codes")).toHaveLength(0);
     expect(hostNodesWithTestId(tree, "va-definition-note")).toHaveLength(1);
     expect(allText(tree)).toContain("DigitVA addition — not from WHO");
     await act(async () => tree.unmount());
   });
 
   it("shows VA mapping directly under concrete suggestions in Step 1 and masked Step 2, without duplicate selected notes", async () => {
-    const definition = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case definition</p>" };
+    const definition = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Severe chest pain…</p>" };
     const initialApi = apiFor({ getVaDefinitionForIcd: jest.fn(async () => definition) });
     const initial = renderPanel(makeWorkspace({ seed: whoSeed }), initialApi);
     await act(async () => { byLabel(initial.tree, "Process current certificate").props.onPress(); await flush(); });
     await act(async () => flush());
-    expect(allText(initial.tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    expect(hostNodesWithTestId(initial.tree, "va-definition-note")).toHaveLength(0);
+    expect(hostNodesWithTestId(initial.tree, "associated-va-codes")).toHaveLength(0);
     await act(async () => quickButton(initial.tree, "Use DORIS result").props.onPress());
     await act(async () => flush());
-    expect(hostNodesWithTestId(initial.tree, "associated-va-codes")).toHaveLength(2);
+    expect(hostNodesWithTestId(initial.tree, "associated-va-codes")).toHaveLength(0);
     expect(hostNodesWithTestId(initial.tree, "va-definition-note")).toHaveLength(1);
     expect(allText(initial.tree)).toContain("Case definition");
+    expect(allText(initial.tree)).toContain("Severe chest pain…");
+    expect(allText(initial.tree).match(/Associated VA codes:/g)).toHaveLength(1);
     await act(async () => initial.tree.unmount());
 
     const maskedBase = makeWorkspace({ step: "final", masked: true });
@@ -960,12 +964,72 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     const masked = renderPanel(maskedWorkspace, maskedApi);
     await act(async () => flush());
     expect(allText(masked.tree)).toContain("DORIS suggests: |CA40");
-    expect(allText(masked.tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    // The information card keeps the one banner until the same code is chosen; quick choices carry none.
+    expect(hostNodesWithTestId(masked.tree, "associated-va-codes")).toHaveLength(1);
+    expect(hostNodesWithTestId(masked.tree, "va-definition-note")).toHaveLength(0);
     await act(async () => quickButton(masked.tree, "Use Step 1 underlying cause").props.onPress());
     await act(async () => flush());
-    expect(hostNodesWithTestId(masked.tree, "associated-va-codes")).toHaveLength(3);
+    expect(hostNodesWithTestId(masked.tree, "associated-va-codes")).toHaveLength(0);
     expect(hostNodesWithTestId(masked.tree, "va-definition-note")).toHaveLength(1);
     await act(async () => masked.tree.unmount());
+  });
+
+  it("labels the chosen cause and swaps the matching quick choice for plain text (Step 1)", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).not.toContain("Your choice");
+    expect(quickButton(tree, "Use DORIS result")).toBeDefined();
+    await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+    await act(async () => flush());
+    expect(allText(tree)).toContain("Your choice: CA40 — Selected cause");
+    expect(allText(tree)).toContain("Your choice matches the DORIS result.");
+    expect(quickButton(tree, "Use DORIS result")).toBeUndefined();
+    await act(async () => byLabel(tree, "Clear chosen cause CA40").props.onPress());
+    expect(allText(tree)).not.toContain("Your choice");
+    expect(quickButton(tree, "Use DORIS result")).toBeDefined();
+    await act(async () => tree.unmount());
+  });
+
+  it("masked Step 2 shows one banner for the chosen cause and marks the matching Step 1 choice, keeping SmartVA a button", async () => {
+    const definition = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case definition</p>" };
+    const base = makeWorkspace({ step: "final", masked: true });
+    const workspace = {
+      ...base,
+      assessments: { ...base.assessments, initial: { immediate_cod: "Pneumonia", antecedent_cod: "CA40" } },
+      smartva: { age: "40", gender: "Male", key_symptoms: [null, null, null], causes: [{ rank: 1, cause: "Stroke", icd10: "I64", icd11: "8B20", likelihood: null }], symptoms: [] },
+    } as unknown as WorkspacePayload;
+    const { tree } = renderPanel(workspace, apiFor({ getVaDefinitionForIcd: jest.fn(async () => definition) }));
+    await act(async () => flush());
+    expect(allText(tree)).not.toContain("Your choice");
+    await act(async () => quickButton(tree, "Use Step 1 underlying cause").props.onPress());
+    await act(async () => flush());
+    expect(allText(tree)).toContain("Your choice: CA40 — Selected cause");
+    expect(allText(tree)).toContain("Your choice matches your Step 1 underlying cause.");
+    expect(quickButton(tree, "Use Step 1 underlying cause")).toBeUndefined();
+    expect(quickButton(tree, "Use SmartVA result")).toBeDefined();
+    // One banner for the chosen cause; the Step 1 information card and the suggestions add none.
+    expect(hostNodesWithTestId(tree, "va-definition-note")).toHaveLength(1);
+    expect(hostNodesWithTestId(tree, "associated-va-codes")).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("keeps the DORIS button when only the stem is chosen, and swaps it only for the primary code", async () => {
+    const api = apiFor({ processDoris: jest.fn(async () => ({ ...processReply, doris: { status: "completed", result: { code: "CA40.1", stemCode: "CA40", title: "Pneumonia" } } })) as WorkspaceApi["processDoris"] });
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Confirm Step 1 underlying cause open search").props.onPress());
+    await pickViaPicker("CA40");
+    await act(async () => flush());
+    expect(allText(tree)).toContain("Your choice: CA40 — Selected cause");
+    expect(allText(tree)).not.toContain("Your choice matches the DORIS result.");
+    expect(quickButton(tree, "Use DORIS result: CA40.1")).toBeDefined();
+    await act(async () => quickButton(tree, "Use DORIS result: CA40.1").props.onPress());
+    await act(async () => flush());
+    expect(allText(tree)).toContain("Your choice: CA40.1");
+    expect(allText(tree)).toContain("Your choice matches the DORIS result.");
+    expect(quickButton(tree, "Use DORIS result")).toBeUndefined();
+    await act(async () => tree.unmount());
   });
 
   it("retries a rejected VA mapping lookup instead of caching the transient failure", async () => {
@@ -978,10 +1042,12 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     }) });
     const first = renderPanel(makeWorkspace({ seed: whoSeed }), api);
     await act(async () => { byLabel(first.tree, "Process current certificate").props.onPress(); await flushAll(); });
+    await act(async () => { quickButton(first.tree, "Use DORIS result").props.onPress(); await flushAll(); });
     expect(allText(first.tree)).not.toContain("Associated VA codes");
     await act(async () => first.tree.unmount());
     const second = renderPanel(makeWorkspace({ seed: whoSeed }), api);
     await act(async () => { byLabel(second.tree, "Process current certificate").props.onPress(); await flushAll(); });
+    await act(async () => { quickButton(second.tree, "Use DORIS result").props.onPress(); await flushAll(); });
     expect(attempts).toBe(2);
     expect(allText(second.tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
     await act(async () => second.tree.unmount());

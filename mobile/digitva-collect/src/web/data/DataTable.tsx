@@ -48,7 +48,11 @@ function smartvaBadge(row: DmSubmissionRow) {
 const reviewComments = (row: DmSubmissionRow): string =>
   row.va_odk_reviewstate === "hasIssues" ? (row.va_odk_reviewcomments ?? []).map((comment) => comment.body ?? "").filter(Boolean).join(" | ") : "";
 
+/** A phone or web interview never came from ODK: it has no ODK review state, sync or edit page. Rows from an older server (no form_source) count as ODK. */
+const fromOdk = (row: DmSubmissionRow): boolean => row.form_source !== "web";
+
 function odkBadge(row: DmSubmissionRow) {
+  if (!fromOdk(row)) return dash;
   if (row.va_odk_reviewstate === "hasIssues") return <Badge text={t("dataOdk_hasIssues")} tone="warn" />;
   return <Badge text={t(row.va_odk_reviewstate === "approved" ? "dataOdk_approved" : "dataOdk_no_review_state")} />;
 }
@@ -80,7 +84,7 @@ function cell(row: DmSubmissionRow, key: ColumnKey): ReactNode {
     case "va_odk_reviewstate": return odkBadge(row);
     case "analytics_age_band": return row.analytics_age_band ? t(`dataAge_${row.analytics_age_band}` as StringKey) : dash;
     case "va_deceased_gender": return row.va_deceased_gender || dash;
-    case "odk_sync_status": return <Badge text={t(row.odk_sync_status === "missing_in_odk" ? "dataSync_missing_in_odk" : "dataSync_in_sync")} tone={row.odk_sync_status === "missing_in_odk" ? "bad" : undefined} />;
+    case "odk_sync_status": return !fromOdk(row) ? dash : <Badge text={t(row.odk_sync_status === "missing_in_odk" ? "dataSync_missing_in_odk" : "dataSync_in_sync")} tone={row.odk_sync_status === "missing_in_odk" ? "bad" : undefined} />;
     case "workflow_state": return workflowBadge(row);
     case "coded_on": return dateTime(row.coded_on);
     case "coded_by": return row.coded_by || dash;
@@ -94,8 +98,9 @@ function cell(row: DmSubmissionRow, key: ColumnKey): ReactNode {
 export function rowActions(row: DmSubmissionRow, manage: boolean): { action: RowAction; label: StringKey }[] {
   const actions: { action: RowAction; label: StringKey }[] = [{ action: "view", label: "dataActionView" }];
   if (!manage) return actions;
-  if (row.workflow_state !== "finalized_upstream_changed") actions.push({ action: "edit", label: "dataActionEdit" });
-  else actions.push(row.revision_requested ? { action: "cancel", label: "dataActionCancel" } : { action: "changes", label: "dataActionChanges" });
+  if (row.workflow_state !== "finalized_upstream_changed") {
+    if (fromOdk(row)) actions.push({ action: "edit", label: "dataActionEdit" });
+  } else actions.push(row.revision_requested ? { action: "cancel", label: "dataActionCancel" } : { action: "changes", label: "dataActionChanges" });
   return actions;
 }
 

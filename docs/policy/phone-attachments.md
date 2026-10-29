@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-29
 ---
 
 # Phone Attachments
@@ -113,10 +113,14 @@ is the phone's side. Server caps and accepted types are not restated here:
      stays an ordinary open draft under the existing rules. The phone offers
      the attachment controls on every interview, direct starts included.
 5. **Unsent work.** `src/unsentWork.ts`: each file of a completed interview
-   that the server has not confirmed counts as unsent (kind `attachment`, ready
-   to send); one held for needing attention shows in the attention list with
-   its Ref line (status, code, route; never a name or content). Files of an
-   interview still being filled in are in progress, like the interview.
+   that the server has not confirmed is unsent work listed on its own (kind
+   `attachment`, ready to send); one held for needing attention shows in the
+   attention list with its Ref line (status, code, route; never a name or
+   content). Files of an interview still being filled in are in progress, like
+   the interview. The unsent count (Home, the Sync badge) counts interviews and
+   other records, not files: an interview with two photos is "1 ready to send"
+   with a note that 2 attached files are also waiting (`unsentFiles`;
+   digitva-7amd.15, owner acceptance 2026-10-29).
 6. **Consent refusal.** A refusal strips the covered answers from the draft
    (`stripDraftCovered`); that now also deletes the files of those questions
    from the store (one helper, `deleteCoveredAttachments`, used by the

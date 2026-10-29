@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-29
 ---
 
 # Area Dashboard Policy
@@ -93,7 +93,11 @@ are not added.
 
 The page opens at the user's grant roots and drills down one level at a time
 (the selected unit's direct children, with a breadcrumb back up). Each row
-is the unit's whole subtree, counted once.
+is the unit's whole subtree, counted once. A user whose scope is a single unit
+with children (a district data manager on the district unit) opens that unit at
+once, so the first level shows the units below it; the breadcrumb then starts
+at that unit, with no "All areas" step that would only reopen it
+(`digitva-7amd.17`, owner acceptance 2026-10-29).
 
 ### Period
 
@@ -143,7 +147,8 @@ disagree on the page.
 
 **Unrouted submissions** (no org unit) fall outside every subtree, so child
 rows do not sum to the project total. Users with a project-wide scope see an
-"Unrouted" row at the project root so the totals reconcile.
+"Unrouted" row at the project root so the totals reconcile. The row is left out
+when every count in it is zero.
 
 ### Area card
 

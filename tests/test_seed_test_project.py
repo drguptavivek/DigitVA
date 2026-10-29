@@ -3,6 +3,7 @@
 Roster and grid: docs/current-state/test-project-tst001.md.
 """
 from datetime import UTC, datetime
+from unittest import mock
 
 import sqlalchemy as sa
 
@@ -19,6 +20,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services import org_grant_service
 from app.services import organization_service as org
 from app.services.web_intake_readiness_service import assess_web_intake_readiness
 from tests.base import BaseTestCase
@@ -127,6 +129,57 @@ class SeedTestProjectTests(BaseTestCase):
             sa.select(sa.func.count()).where(MasOrgUnitWorker.project_id == TEST_PROJECT_ID)
         )
         self.assertEqual(workers, len({spec[0] for spec in _TST_USERS if spec[2]}))
+
+    def _seed(self):
+        result = self.app.test_cli_runner().invoke(args=["seed", "test-project"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        return result.output
+
+    def _set_cod(self, icd, mode):
+        project = db.session.get(VaProjectMaster, TEST_PROJECT_ID)
+        project.icd_classification, project.cod_entry_mode = icd, mode
+        db.session.commit()
+
+    def _cod(self):
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, TEST_PROJECT_ID)
+        return project.icd_classification, project.cod_entry_mode, project.masked_cod_required
+
+    def test_fresh_seed_is_icd11_doris_with_area_presets_inherited_by_every_unit(self):
+        self._seed()
+        self.assertEqual(self._cod(), ("icd11", "doris", True))
+        sc01 = db.session.scalar(sa.select(MasOrgUnit).where(
+            MasOrgUnit.project_id == TEST_PROJECT_ID, MasOrgUnit.unit_code == "SC01"))
+        self.assertEqual(org_grant_service.resolve_va_presets(sc01.org_unit_id),
+                         {"Id10002": "low", "Id10003": "low"})
+
+    def test_rerun_moves_an_icd10_project_to_icd11_doris(self):
+        self._seed()
+        self._set_cod("icd10", "simple")
+        self.assertEqual(self._cod(), ("icd10", "simple", True))
+        self.assertIn("updated to icd11/doris", self._seed())
+        self.assertEqual(self._cod(), ("icd11", "doris", True))
+
+    def test_rerun_keeps_cod_settings_while_coding_is_in_progress(self):
+        self._seed()
+        self._set_cod("icd10", "simple")
+        with mock.patch("app.routes.admin._project_has_in_progress_coding", return_value=True) as guard:
+            output = self._seed()
+        guard.assert_called_once_with(TEST_PROJECT_ID)
+        self.assertIn("kept icd10/simple (coding in progress)", output)
+        self.assertEqual(self._cod(), ("icd10", "simple", True))
+
+    def test_rerun_keeps_a_hand_set_preset_and_fills_an_unset_one(self):
+        self._seed()
+        dh01 = db.session.scalar(sa.select(MasOrgUnit).where(
+            MasOrgUnit.project_id == TEST_PROJECT_ID, MasOrgUnit.unit_code == "DH01"))
+        org.set_unit_va_presets(TEST_PROJECT_ID, dh01.org_unit_id,
+                                hiv_mortality="high", malaria_mortality=None)
+        db.session.commit()
+        self._seed()
+        row = org.get_unit_va_presets(TEST_PROJECT_ID, dh01.org_unit_id)
+        self.assertEqual((row.hiv_mortality, row.malaria_mortality), ("high", "low"))
+        self.assertIn("already set", self._seed())
 
     def test_roster_roles_are_known_and_test_all_holds_every_surface(self):
         known = {role.value for role in VaAccessRoles}

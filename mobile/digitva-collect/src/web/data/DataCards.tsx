@@ -18,8 +18,8 @@ const ITEM_WIDTH = 104;
 /**
  * The counts of the current filters as one wrapping strip, a number over its name. A card with a filter is a button:
  * its filter joins the view, and the active one is underlined and marked selected (a second press lifts it). The
- * counts come from a view rebuilt every five minutes, so they can trail the list: the note says so and, for a data
- * manager, Refresh rebuilds it. The number is always written; nothing is carried by colour alone.
+ * counts come from a view rebuilt about every hour, so they can trail the list: the note says so and, for a data
+ * manager, Refresh rebuilds it now (the server rate-limits that). The number is always written; nothing is carried by colour alone.
  */
 export function DataCards({ kpi, query, loadedAt, busy, canRefresh, refreshing, onQuery, onRefresh }: {
   kpi: DmKpi | null;

@@ -50,7 +50,7 @@ describe("age assists in the form", () => {
     Id10022: "no",
     Id10024: "2021-01-01"
   };
-  const open = (data: Record<string, string>) => {
+  const open = (data: Record<string, string | number>) => {
     const session = createWhoVaSession(instrument, { initialData: data, initialSection: "info_on_deceased" });
     return { session, element: <WhoVaForm instrument={instrument} session={session} /> };
   };
@@ -65,6 +65,38 @@ describe("age assists in the form", () => {
     });
     expect(byId("assist-hint-age_group")?.textContent).toBe("Suggested from the dates");
     expect(byId("assist-hint-age_child_years")?.textContent).toBe("Estimate from the years");
+  });
+
+  const monthBirth = {
+    Id10013: "yes",
+    Id10020: "no",
+    dob_precision: "month_year",
+    dob_month_year: "2022-06-01",
+    Id10022: "yes",
+    Id10023_b: "2026-10-06"
+  };
+
+  it("estimates the age for a month of birth and says it comes from the dates", async () => {
+    const { session, element } = open(monthBirth);
+    await mount(element);
+    expect(session.getSnapshot().data).toMatchObject({ age_group: "child", age_child_unit: "years", age_child_years: 4 });
+    expect(byId("assist-hint-age_child_years")?.textContent).toBe("Estimated from the dates");
+  });
+
+  it("keeps an age the interviewer typed over the month-based estimate", async () => {
+    const { session, element } = open({ ...monthBirth, age_group: "child", age_child_unit: "years", age_child_years: 7 });
+    await mount(element);
+    expect(session.getSnapshot().data.age_child_years).toBe(7);
+    expect(byId("assist-confirm-age_child_years")?.textContent).toContain("The dates suggest 4 years. Keep 7?");
+  });
+
+  it("shows the range, and fills no number, when the dates span two ages", async () => {
+    const { session, element } = open({ ...monthBirth, dob_month_year: "2026-09-01", Id10023_b: "2026-10-28" });
+    await mount(element);
+    expect(session.getSnapshot().data.age_group).toBe("child");
+    expect(session.getSnapshot().data.age_child_days).toBeUndefined();
+    await click(byId("question-age_child_unit-choice-days"));
+    expect(byId("assist-hint-age_child_days")?.textContent).toBe("The dates suggest about 28 days to 1 month");
   });
 
   it("asks before keeping a group the dates contradict, and Keep is remembered", async () => {

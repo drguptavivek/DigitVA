@@ -60,3 +60,11 @@ describe("UpstreamChangesDialog", () => {
     expect(buttonOf(tree.root, "Close")).toBeDefined();
   });
 });
+
+describe("row actions of a phone or web interview", () => {
+  test("no Edit in ODK; an ODK row, or one from an older server without form_source, keeps it", () => {
+    expect(actions(row({ form_source: "web" }), true)).toEqual(["view"]);
+    expect(actions(row({ form_source: "odk" }), true)).toEqual(["view", "edit"]);
+    expect(actions(row({}), true)).toEqual(["view", "edit"]);
+  });
+});

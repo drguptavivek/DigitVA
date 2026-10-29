@@ -117,14 +117,14 @@ describe("unsent work", () => {
     await markCompleted(db, id, { valid, issues: [] });
   };
 
-  it("counts each file of a completed interview the server has not confirmed, and not a confirmed one", async () => {
+  it("lists each file of a completed interview the server has not confirmed, counted apart from the interview", async () => {
     await complete("d1");
     await saveAttachment(db, file(A, "d1"));
     await saveAttachment(db, file(B, "d1", "md_im1"));
-    expect(await summariseWork(db)).toMatchObject({ unsent: 3, attention: 0 });
+    expect(await summariseWork(db)).toMatchObject({ unsent: 1, unsentFiles: 2, attention: 0 });
     await markUploaded(db, B);
     const work = await summariseWork(db);
-    expect(work.unsent).toBe(2);
+    expect(work).toMatchObject({ unsent: 1, unsentFiles: 1 });
     expect(work.items.filter((item) => item.kind === "attachment")).toHaveLength(1);
   });
 

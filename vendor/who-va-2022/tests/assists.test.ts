@@ -4,6 +4,7 @@ import { createWhoVaSession } from "../src/engine/session.js";
 import { createWhoVa2022Instrument } from "../src/instrument.js";
 import {
   ageGroupOfDays,
+  ageRange,
   ageSuggestions,
   boundaryFix,
   deriveAge,
@@ -203,5 +204,101 @@ describe("session.goToQuestion", () => {
     expect(session.goToQuestion("nope")).toEqual({ status: "unavailable", requested: "nope" });
     // Consent not given: the narrative sits behind it, and Id10013 is its controller.
     expect(session.goToQuestion("Id10476")).toMatchObject({ status: "hidden", question: "Id10013" });
+  });
+});
+
+// Birth by day / month / year; death by day / year (the form offers no month of death).
+const birthDay = (iso: string): Record<string, string> => ({ Id10020: "yes", Id10021: iso });
+const birthMonth = (iso: string): Record<string, string> => ({ Id10020: "no", dob_precision: "month_year", dob_month_year: iso });
+const birthYear = (iso: string): Record<string, string> => ({ Id10020: "no", dob_precision: "year", dob_year: iso });
+const deathDay = (iso: string): Record<string, string> => ({ Id10022: "yes", Id10023: iso });
+const deathYear = (iso: string): Record<string, string> => ({ Id10022: "no", Id10024: iso });
+const unitText = (key: string, count: number) => `${count} ${key}`;
+
+describe("age estimate for month-precision dates", () => {
+  it("covers every birth and death precision with the right kind of answer", () => {
+    const cases: Array<[string, Record<string, string>, string, string | undefined]> = [
+      ["day / day", { ...birthDay("2022-06-15"), ...deathDay("2026-10-06") }, "exact", "calculated"],
+      ["month / day", { ...birthMonth("2022-06-01"), ...deathDay("2026-10-06") }, "months", "estimate"],
+      ["year / day", { ...birthYear("2022-01-01"), ...deathDay("2026-10-06") }, "years", "estimate"],
+      ["day / year", { ...birthDay("2022-06-15"), ...deathYear("2026-01-01") }, "years", "estimate"],
+      ["month / year", { ...birthMonth("2022-06-01"), ...deathYear("2026-01-01") }, "years", "estimate"],
+      ["year / year", { ...birthYear("2022-01-01"), ...deathYear("2026-01-01") }, "years", "estimate"]
+    ];
+    for (const [label, data, precision, kind] of cases) {
+      expect(deriveAge(data)?.precision, label).toBe(precision);
+      const years = ageSuggestions(data, ALL).age_child_years;
+      expect(years?.value, label).toBe(4);
+      expect(years?.kind, label).toBe(kind);
+    }
+  });
+
+  it("estimates 4 years for born June 2022, died 6 October 2026", () => {
+    const data = { ...birthMonth("2022-06-01"), ...deathDay("2026-10-06") };
+    expect(deriveAge(data)).toMatchObject({ precision: "months", group: "child", estimate: { unit: "years", value: 4 } });
+    const found = ageSuggestions(data, ALL);
+    expect(found.age_group).toEqual({ value: "child", kind: "suggested" });
+    expect(found.age_child_unit).toEqual({ value: "years", kind: "estimate" });
+    expect(found.age_child_years).toEqual({ value: 4, kind: "estimate" });
+  });
+
+  it("estimates an adult in years and keeps the unit the interviewer chose", () => {
+    const adult = { ...birthMonth("1980-06-01"), ...deathDay("2026-10-06") };
+    expect(ageSuggestions(adult, ALL).age_adult).toEqual({ value: 46, kind: "estimate" });
+    const child = { ...birthMonth("2022-06-01"), ...deathDay("2026-10-06"), age_child_unit: "months" };
+    expect(ageSuggestions(child, ALL).age_child_years).toBeUndefined();
+  });
+
+  it("uses the exact-date child units and the group edge at 12 years", () => {
+    // Shortest age 367 days, longest 397: 12 or 13 months (under 24 months a child's age is in months), so no number.
+    expect(deriveAge({ ...birthMonth("2023-12-01"), ...deathDay("2025-01-01") })?.estimate).toBeUndefined();
+    // Born June 2023, died 6 Oct 2026: 3 years whichever day of June.
+    expect(deriveAge({ ...birthMonth("2023-06-01"), ...deathDay("2026-10-06") })?.estimate).toEqual({ unit: "years", value: 3 });
+    // Shortest 365 days is just under a year: months and years both possible, so no number.
+    const under = deriveAge({ ...birthMonth("2025-01-01"), ...deathDay("2026-01-31") });
+    expect(under).toMatchObject({ group: "child", minDays: 365, maxDays: 395 });
+    expect(under?.estimate).toBeUndefined();
+    // 12 years and a bit: an adult, in years.
+    expect(deriveAge({ ...birthMonth("2014-06-01"), ...deathDay("2026-10-06") })).toMatchObject({
+      group: "adult",
+      estimate: { unit: "years", value: 12 }
+    });
+    // The range crosses the 12 year line: neither group is certain.
+    const edge = deriveAge({ ...birthMonth("2014-10-01"), ...deathDay("2026-10-06") });
+    expect(edge?.group).toBeUndefined();
+    expect(edge?.estimate).toBeUndefined();
+  });
+
+  it("does not suggest a number for a range that spans 28 days", () => {
+    // Shortest 28 days (a child), longest 57: still a child, but the number is open.
+    const child = deriveAge({ ...birthMonth("2026-09-01"), ...deathDay("2026-10-28") });
+    expect(child).toMatchObject({ group: "child", minDays: 28, maxDays: 57 });
+    expect(child?.estimate).toBeUndefined();
+    // Shortest 0, longest 27: a neonate, number open.
+    const neonate = deriveAge({ ...birthMonth("2026-10-01"), ...deathDay("2026-10-28") });
+    expect(neonate).toMatchObject({ group: "neonate", minDays: 0, maxDays: 27 });
+    expect(neonate?.estimate).toBeUndefined();
+    // 5 to 35 days crosses the 28 day line: no group either.
+    expect(deriveAge({ ...birthMonth("2026-10-01"), ...deathDay("2026-11-05") })?.group).toBeUndefined();
+    expect(ageSuggestions({ ...birthMonth("2026-10-01"), ...deathDay("2026-11-05") }, ALL)).toEqual({});
+  });
+
+  it("suggests the group but no number when the range spans two values", () => {
+    const found = ageSuggestions({ ...birthMonth("2026-09-01"), ...deathDay("2026-10-28") }, ALL);
+    expect(found).toEqual({ age_group: { value: "child", kind: "suggested" } });
+  });
+
+  it("describes the range for the note, and nothing for exact dates", () => {
+    const age = deriveAge({ ...birthMonth("2022-06-01"), ...deathDay("2026-10-06") })!;
+    expect(ageRange(age, unitText)).toEqual({ from: "4 years 3 months", to: "4 years 4 months" });
+    expect(ageRange(deriveAge({ ...birthMonth("2026-09-01"), ...deathDay("2026-10-28") })!, unitText)).toEqual({
+      from: "28 days",
+      to: "1 months"
+    });
+    expect(ageRange(deriveAge(exact("2020-01-01", "2024-01-01"))!, unitText)).toBeUndefined();
+  });
+
+  it("gives nothing when death is before the month of birth", () => {
+    expect(deriveAge({ ...birthMonth("2026-11-01"), ...deathDay("2026-10-06") })).toBeUndefined();
   });
 });

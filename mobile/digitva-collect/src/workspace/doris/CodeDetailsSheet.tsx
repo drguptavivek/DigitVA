@@ -82,8 +82,8 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
 }
 
 /**
- * The VA cause a chosen ICD-11 code maps to. Suggestions show only the mapping label; the selected cause can also show
- * its plain-text definition. Nothing renders while loading or when the code has no VA cause.
+ * The VA cause a chosen ICD-11 code maps to: one banner per cause. The chosen cause also shows its plain-text
+ * definition; the Step 1 DORIS card shows the label alone. Nothing renders while loading or when there is no VA cause.
  */
 export function AssociatedVaCodes({ api, code, showDefinition = false, attribution = false, style }: { api: WorkspaceApi; code: string; showDefinition?: boolean; attribution?: boolean; style?: StyleProp<ViewStyle> }) {
   const { t } = useUi();
@@ -99,7 +99,8 @@ export function AssociatedVaCodes({ api, code, showDefinition = false, attributi
   const text = definitionPlainText(definition.definition_html);
   return (
     <View testID={showDefinition ? "va-definition-note" : "associated-va-codes"} style={[{ gap: gap.xs, backgroundColor: t.warning, borderColor: t.warningBorder, borderWidth: 1, borderLeftWidth: 4, borderRadius: uiRadius.md, paddingHorizontal: gap.md, paddingVertical: gap.sm }, style]}>
-      {showDefinition ? <Body style={{ color: t.warningForeground, fontWeight: "600" }}>Case definition</Body> : <Body style={{ color: t.warningForeground, fontWeight: "600" }}>{`Associated VA codes: ${definition.va_code} ${definition.title}`}</Body>}
+      <Body style={{ color: t.warningForeground, fontWeight: "600" }}>{`Associated VA codes: ${definition.va_code} ${definition.title}`}</Body>
+      {showDefinition ? <Body style={{ color: t.warningForeground, fontWeight: "600" }}>Case definition</Body> : null}
       {showDefinition ? (text ? <Body style={{ color: t.warningForeground }}>{text}</Body> : <Muted>No definition text for this VA cause.</Muted>) : null}
       {showDefinition && attribution ? <FieldHint testID="digitva-addition">{tr("digitvaAddition")}</FieldHint> : null}
     </View>

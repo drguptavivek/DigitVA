@@ -3087,7 +3087,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     An unchanged revision leaves that case sent back.
 
     The draft's ``meta["effectiveSavedAt"]`` becomes this version's completion
-    time (``_completion_time`` of *envelope*).
+    time (``_completion_time`` of *envelope*). The interview start
+    (``startedAt``, payload ``start``) is never moved: the stored one stays
+    whatever *envelope* sends, so a revision differing only in its start is
+    no change.
 
     *resubmit* is the server's own correction of the interviewer's latest
     version (reason ``RESUBMITTED_REASON``) and never refuses for a reason the
@@ -3211,11 +3214,19 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
                 raise refusal
             return kept_apart(closed=True)
 
+    # The interview start is when the family was interviewed: a revision never
+    # moves it (docs/policy/interview-revisions.md, digitva-7amd.4), so the
+    # stored start wins whatever the client sends, and a draft that has none
+    # stays without one (the payload then falls back to the open time).
     meta = {
         **(draft.meta or {}),
         **{k: envelope[k] for k in (*_DEVICE_TIME_KEYS, *_DEFINITION_IDENTITY_KEYS) if k in envelope},
-        **_clock_meta(envelope, _utcnow()),
+        **_clock_meta({k: v for k, v in envelope.items() if k != "startedAt"}, _utcnow()),
     }
+    if "startedAt" in (draft.meta or {}):
+        meta["startedAt"] = draft.meta["startedAt"]
+    else:
+        meta.pop("startedAt", None)
     # Revisions and idempotent device resends rebuild the envelope from the
     # stored draft.  Merge the small client timeline streams before that
     # rebuild, retaining server-owned submitted/final_saved receipts.
@@ -3228,6 +3239,11 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         draft, user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
         intake_source=prior.get("intake_source") or "web", meta=meta, carry=prior if active is not None else None,
     )
+    # The form's own start answer (Id10011) is pinned the same way. A revision
+    # session can stamp a new one, so the coded payload keeps the stored value;
+    # the raw answers keep what was sent, so the acknowledged hash still holds.
+    if prior.get("Id10011") is not None:
+        payload["Id10011"] = prior["Id10011"]
     # Recomputed from the stored payload, as ensure_active_payload_version and
     # ODK sync decide "same payload" (payload_matches, both sides one rule):
     # a stored column from an older normalisation must not turn a no-op into

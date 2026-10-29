@@ -1299,7 +1299,8 @@ def revise_submission(va_sid):
     ``more_information`` or ``finish_partial``), ``answers_json`` +
     ``answers_sha256`` (the complete answers, as ``/submissions``),
     ``completion`` (``{valid, issues}``), ``draft`` (envelope meta; only
-    ``startedAt``/``completedAt`` are taken, checked as on upload). Replies 200
+    ``startedAt``/``completedAt`` are taken, checked as on upload; the stored
+    ``startedAt`` always stays). Replies 200
     ``{changed, va_sid, payload_version_id, answers_sha256, outcome,
     workflow_state}``; ``changed: false`` when the answers do not change the
     coding payload: no new version, release or routing, but raw answers that

@@ -744,13 +744,18 @@ export function QueueScreen({
   }, [coderStats, pickMode, pickReady, randomMode, randomReady, showHistory]);
   // A project that has pick mode (after one that had not) must not stay stuck on the history tab.
   const wasPickMode = useRef(pickMode || showHistory);
+  // Only loaded stats count: a page load clears them, and reading that gap as "pick_ready unknown"
+  // would undo the history tab the effect above (or the user) just chose, in a loop.
+  const statsLoaded = Boolean(coderStats);
   useEffect(() => {
-    if (pickMode && (pickReady === undefined || pickReady > 0) && !wasPickMode.current && showHistory) {
+    if (!statsLoaded) return;
+    const pickable = pickMode && (pickReady === undefined || pickReady > 0);
+    if (pickable && !wasPickMode.current && showHistory) {
       setOffset(0);
       setShowHistory(false);
     }
-    wasPickMode.current = pickMode && (pickReady === undefined || pickReady > 0);
-  }, [pickMode, pickReady, showHistory]);
+    wasPickMode.current = pickable;
+  }, [statsLoaded, pickMode, pickReady, showHistory]);
 
   const viewChanged = useRef(onViewChange);
   viewChanged.current = onViewChange;

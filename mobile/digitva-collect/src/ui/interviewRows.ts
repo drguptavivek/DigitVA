@@ -5,7 +5,7 @@
  */
 import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
-import type { DraftRow } from "../drafts";
+import type { Db, DraftRow } from "../drafts";
 import { t, uiLocale, type StringKey } from "../i18n";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
@@ -53,8 +53,23 @@ export interface InterviewItem {
   updatedAt: string;
 }
 
+/** A listed draft with the deceased's name from its own answers (Id10017 + Id10018), when it has one. */
+export type ListedDraft = DraftRow & { deceased_name?: string | null };
+
+/** The name each local draft's answers give the deceased, by draft id. One query for all drafts; no other answer is read. */
+export async function listDraftNames(db: Db): Promise<Map<string, string>> {
+  const rows = await db.getAllAsync<{ id: string; given: unknown; surname: unknown }>(
+    "SELECT id, json_extract(envelope, '$.data.Id10017') AS given, json_extract(envelope, '$.data.Id10018') AS surname FROM drafts", []);
+  const names = new Map<string, string>();
+  for (const { id, given, surname } of rows) {
+    const name = [given, surname].map((part) => (typeof part === "string" ? part.trim() : "")).filter(Boolean).join(" ");
+    if (name) names.set(id, name);
+  }
+  return names;
+}
+
 export interface InterviewSources {
-  drafts: DraftRow[];
+  drafts: ListedDraft[];
   registrations: Registration[];
   cases: CaseDetail[];
   onlineCases: CaseRow[];
@@ -160,9 +175,10 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
     const ready = draft.completed === 1;
     items.push({
       key: `draft-${draft.id}`, kind: "drafts",
-      // A draft with no name and no case id yet is "Untitled"; its short local id stays as the small muted line.
-      title: known?.name || draft.unique_id || t("untitledInterview"),
-      caseId: known?.name ? known.unique_id : draft.unique_id ? undefined : draft.id.slice(0, 8),
+      // The linked case's name wins, then the name typed into the draft. A draft with neither and no case id yet is
+      // "Untitled"; its short local id stays as the small muted line.
+      title: known?.name || draft.deceased_name || draft.unique_id || t("untitledInterview"),
+      caseId: known?.name ? known.unique_id : draft.deceased_name ? draft.unique_id ?? draft.id.slice(0, 8) : draft.unique_id ? undefined : draft.id.slice(0, 8),
       ageYears: known?.age, sex: known?.sex, dateOfDeath: dateOnly(known?.died), unit: known?.unit_name ?? undefined,
       badge: ready ? { label: t("draftReady"), tone: "accent" } : { label: t("badgeDraft"), tone: "warning" },
       action: ready && draft.upload_issue !== "consent_refused" && draft.upload_issue !== "refusal_stale" ? undefined : { type: "resume", draft, label: t("actionResume") },
@@ -173,7 +189,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       retryDemo: draft.upload_issue === "demo_limit" || draft.upload_issue === "case_conflict" ? draft : undefined,
       retryLabel: draft.upload_issue === "case_conflict" ? t("retryHeld") : undefined,
       deletable: !ready && !draft.server_draft_id && !draft.base_updated_at && draft.upload_issue == null && !src.refusals?.get(draft.id) ? draft : undefined,
-      search: [known?.name, draft.unique_id, known?.unique_id, known?.unit_name, known?.village],
+      search: [known?.name, draft.deceased_name, draft.unique_id, known?.unique_id, known?.unit_name, known?.village],
       updatedAt: draft.updated_at,
     });
   }

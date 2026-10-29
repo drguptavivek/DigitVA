@@ -629,7 +629,7 @@ export function DorisPanel({
       <Card style={[layout.panel, pageCard]}>
         <EditorHeading title="Final underlying cause" />
         <Step1AssignedCard initial={ownInitial} />
-        <Step1DorisCard saved={step1 ?? null} certificate={workspace.doris.step1_certificate ?? null} api={api} vaSid={identity.vaSid} onDetails={setDetailCode} />
+        <Step1DorisCard saved={step1 ?? null} certificate={workspace.doris.step1_certificate ?? null} api={api} vaSid={identity.vaSid} chosenCode={selected?.code} onDetails={setDetailCode} />
         <CertificateReference certificate={workspace.doris.step1_certificate ?? null} />
         {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
         {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
@@ -770,6 +770,9 @@ function NotCodeableAction({ reason, other, busy, onReason, onOther, onSubmit }:
 /** A quick-add choice above the search. `codes` are tried in order; `search` opens the picker with that query. */
 type QuickChoice = { key: string; label: string; codes: string[]; title?: boolean } | { key: string; label: string; search: string };
 
+/** What each quick choice is called when the chosen cause equals its primary code (a stem-only match keeps the button). */
+const QUICK_SOURCE: Record<string, string> = { doris: "the DORIS result", step1: "your Step 1 underlying cause", smartva: "the SmartVA result" };
+
 /** The Step 1 DORIS suggestion's codes in the order a quick-add tries them: the full code, then its stem. */
 function suggestedDorisCodes(run: unknown): string[] {
   const doris = object(object(run).doris);
@@ -849,7 +852,7 @@ function Step1AssignedCard({ initial }: { initial: WorkspaceAssessment | null })
 }
 
 /** The saved Step 1 DORIS suggestion for information on masked Step 2, with its VA mapping and checks. */
-function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: JsonObject | null; certificate: JsonObject | null; api: WorkspaceApi; vaSid: string; onDetails: (code: string) => void }) {
+function Step1DorisCard({ saved, certificate, api, vaSid, chosenCode, onDetails }: { saved: JsonObject | null; certificate: JsonObject | null; api: WorkspaceApi; vaSid: string; chosenCode?: string; onDetails: (code: string) => void }) {
   const codes = suggestedDorisCodes(saved);
   const { stem, known } = stemAndKnownTitle(saved, certificate ?? {});
   const title = useCodeTitle(api, vaSid, stem, known);
@@ -864,7 +867,7 @@ function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: 
                 <Body style={{ flexShrink: 1 }}>DORIS suggests: {codes[0]}{title ? ` — ${title}` : ""}</Body>
                 <InfoButton code={codes[0]} onPress={onDetails} />
               </View>
-              <AssociatedVaCodes api={api} code={codes[0]} />
+              {chosenCode === codes[0] ? null : <AssociatedVaCodes api={api} code={codes[0]} />}
             </View>
           ) : <Alert variant="destructive">DORIS could not select an underlying cause from this certificate.</Alert>}
           <DorisChecks doris={object(saved.doris)} codedit={object(saved.codedit)} api={api} vaSid={vaSid} />
@@ -929,29 +932,29 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
   onClear: () => void;
 }) {
   const layout = useLayout();
-  const { phone } = useUi();
+  const { t } = useUi();
   return (
     <Card>
       <CardTitle>{label}</CardTitle>
       {value ? (
-        <View testID="selected-cause-layout" style={phone ? { gap: gap.sm } : { flexDirection: "row", alignItems: "flex-start", gap: gap.md }}>
-          <View style={phone ? undefined : { flex: 1, minWidth: 0 }}>
-            <View style={[layout.row, { flexWrap: "nowrap" }]}>
-              <Body style={{ flexShrink: 1 }}>{value.code} — {value.title}</Body>
-              <InfoButton code={value.code} onPress={onDetails} />
-              <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
-            </View>
-            <AssociatedVaCodes api={api} code={value.code} />
+        // Boxed and headed so the chosen cause cannot be mistaken for the quick-choice buttons below it.
+        <View testID="selected-cause-layout" style={{ gap: gap.sm, borderWidth: 2, borderColor: t.primary, backgroundColor: t.accent, borderRadius: uiRadius.md, padding: gap.md }}>
+          <View style={[layout.row, { flexWrap: "nowrap" }]}>
+            <Body style={{ flexShrink: 1, fontWeight: "600" }}>{`Your choice: ${value.code} — ${value.title}`}</Body>
+            <InfoButton code={value.code} onPress={onDetails} />
+            <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
           </View>
-          <AssociatedVaCodes api={api} code={value.code} showDefinition attribution style={phone ? undefined : { flex: 1, minWidth: 0 }} />
+          <AssociatedVaCodes api={api} code={value.code} showDefinition attribution />
         </View>
       ) : null}
       {quick.map((choice) => (
         <View key={choice.key} style={{ gap: gap.xs }}>
           {"search" in choice ? (
             <View style={layout.row}><Button variant="outline" size="sm" label={choice.label} onPress={() => onOpen(choice.search)} style={{ flexShrink: 1 }} /></View>
+          ) : value && choice.codes[0] === value.code ? (
+            <Muted>{`Your choice matches ${QUICK_SOURCE[choice.key] ?? "this suggestion"}.`}</Muted>
           ) : (
-            <QuickChoiceButton choice={choice} onQuick={onQuick} api={api} onDetails={onDetails} />
+            <QuickChoiceButton choice={choice} onQuick={onQuick} onDetails={onDetails} />
           )}
         </View>
       ))}
@@ -961,16 +964,13 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
   );
 }
 
-function QuickChoiceButton({ choice, onQuick, api, onDetails }: { choice: Extract<QuickChoice, { codes: string[] }>; onQuick: (codes: string[]) => void; api: WorkspaceApi; onDetails: (code: string) => void }) {
+/** A suggestion to pick: the button and its details. The VA-code banner belongs to the chosen cause only. */
+function QuickChoiceButton({ choice, onQuick, onDetails }: { choice: Extract<QuickChoice, { codes: string[] }>; onQuick: (codes: string[]) => void; onDetails: (code: string) => void }) {
   const layout = useLayout();
-  const code = choice.codes[0];
   return (
-    <View style={{ gap: gap.xs }}>
-      <View style={layout.row}>
-        <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flexShrink: 1 }} />
-        <InfoButton code={code} onPress={onDetails} />
-      </View>
-      {code ? <AssociatedVaCodes api={api} code={code} /> : null}
+    <View style={layout.row}>
+      <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flexShrink: 1 }} />
+      <InfoButton code={choice.codes[0]} onPress={onDetails} />
     </View>
   );
 }

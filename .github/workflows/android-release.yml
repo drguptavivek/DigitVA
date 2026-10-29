@@ -153,6 +153,19 @@ jobs:
           retention-days: 14
           path: ${{ runner.temp }}/release-assets/
 
+      # The Gradle Hermes bundle task composes this map from the Metro and
+      # Hermes maps; it is not packaged in the APK. Workflow artifacts only, never
+      # a GitHub release asset. Retention is the repository maximum (90 days).
+      - name: Upload Hermes source map (Collect)
+        # A missing map is a warning, not a blocked release.
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hermes-sourcemap-collect-${{ steps.app_version.outputs.version }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+          path: mobile/digitva-collect/android/app/build/generated/sourcemaps/react/release/index.android.bundle.map
+
       - name: Remove signing material
         if: always()
         shell: bash

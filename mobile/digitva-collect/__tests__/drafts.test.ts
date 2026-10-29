@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
 import { saveDraftConsent, type StoredConsent } from "../src/consentStore";
+import { recordDraftTimeline } from "../src/draftSync";
 import { draftAttachments, saveAttachment } from "../src/attachmentStore";
 
 import {
@@ -74,6 +75,50 @@ describe("draft store", () => {
     expect(await draftAttachments(db, "refused")).toEqual([]);
     await store.save(draft("refused", "2026-09-30T02:00:00Z", { Id10013: "yes", Id10007: "stale" }));
     expect((await store.load!("refused"))!.data).toEqual({ Id10013: "yes" });
+  });
+
+  // A milestone write lands between the save's read of the row and its update (digitva-7amd.3).
+  const raceAfterRead = (inject: () => Promise<void>): Db => {
+    let armed = false;
+    return {
+      ...db,
+      getFirstAsync: async <T,>(sql: string, params: Array<string | number | null>) => {
+        const row = await db.getFirstAsync<T>(sql, params);
+        if (armed && sql.startsWith("SELECT project_id, envelope")) {
+          armed = false;
+          await inject();
+        }
+        return row;
+      },
+      arm: () => { armed = true; }
+    } as Db & { arm: () => void };
+  };
+
+  it("keeps both the answers and a timeline milestone that races a save", async () => {
+    const racing = raceAfterRead(async () => void (await recordDraftTimeline(db, "race", "identity_saved", "2026-10-01T10:05:00+05:30"))) as Db & { arm: () => void };
+    const store = createDraftStore(racing, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("race", "2026-09-30T01:00:00Z", { Id10007: "first" }));
+    racing.arm();
+    await store.save(draft("race", "2026-09-30T02:00:00Z", { Id10007: "second" }));
+    const saved = (await store.load!("race")) as WhoVaDraft & { workflowTimelineV1?: Array<{ event: string }> };
+    expect(saved.data).toEqual({ Id10007: "second" });
+    expect(saved.workflowTimelineV1?.map((item) => item.event)).toEqual(["identity_saved"]);
+    // Later saves keep the timeline too.
+    await store.save(draft("race", "2026-09-30T03:00:00Z", { Id10007: "third" }));
+    expect(((await store.load!("race")) as typeof saved).workflowTimelineV1).toHaveLength(1);
+  });
+
+  it("still fails when another writer changed the answers under a save", async () => {
+    const racing = raceAfterRead(async () => {
+      const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["clash"]);
+      const other = { ...JSON.parse(row!.envelope), data: { Id10007: "other" } };
+      await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [JSON.stringify(other), "clash"]);
+    }) as Db & { arm: () => void };
+    const store = createDraftStore(racing, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("clash", "2026-09-30T01:00:00Z", { Id10007: "first" }));
+    racing.arm();
+    await expect(store.save(draft("clash", "2026-09-30T02:00:00Z", { Id10007: "second" }))).rejects.toThrow("draft_conflict");
+    expect((await store.load!("clash"))!.data).toEqual({ Id10007: "other" });
   });
 
   it("stores the national ID reduced to its last three digits", async () => {

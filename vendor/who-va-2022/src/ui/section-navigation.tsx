@@ -25,6 +25,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import type { WhoVaUiMessages } from "../i18n.js";
+import { domElement } from "./dom-element.js";
 import { defaultFormTheme as T } from "./theme.js";
 import { withWebTheme } from "./web-theme.js";
 
@@ -84,21 +85,21 @@ const MAX_INDENT = 2;
 const INDENT = 16;
 
 /** Focusable descendants of a drawer panel, in document order (web only). */
-function focusableWithin(node: unknown): HTMLElement[] {
-  if (typeof HTMLElement === "undefined" || !(node instanceof HTMLElement)) return [];
-  return Array.from(
-    node.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])')
-  );
+export function focusableWithin(node: unknown): HTMLElement[] {
+  const panel = domElement(node, "querySelectorAll");
+  if (!panel) return [];
+  return Array.from(panel.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])'));
 }
 
-/** Scroll `box` just enough to show `item`, touching nothing outside the box. */
-function keepInView(box: unknown, item: unknown): void {
-  if (typeof HTMLElement === "undefined" || !(box instanceof HTMLElement) || !(item instanceof HTMLElement))
-    return;
-  const top = item.offsetTop - box.offsetTop;
-  const bottom = top + item.offsetHeight;
-  if (top < box.scrollTop) box.scrollTo({ top: top - 8 });
-  else if (bottom > box.scrollTop + box.clientHeight) box.scrollTo({ top: bottom - box.clientHeight + 8 });
+/** Scroll `box` just enough to show `item`, touching nothing outside the box (web only). */
+export function keepInView(box: unknown, item: unknown): void {
+  const scroller = domElement(box, "scrollTo", "scrollTop");
+  const target = domElement(item, "offsetTop");
+  if (!scroller || !target) return;
+  const top = target.offsetTop - scroller.offsetTop;
+  const bottom = top + target.offsetHeight;
+  if (top < scroller.scrollTop) scroller.scrollTo({ top: top - 8 });
+  else if (bottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTo({ top: bottom - scroller.clientHeight + 8 });
 }
 
 function sectionTitle(item: SectionNavItem): string {

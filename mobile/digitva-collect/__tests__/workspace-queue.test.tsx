@@ -92,6 +92,10 @@ async function press(renderer: ReactTestRenderer, label: string) {
   });
 }
 
+function tabKind(root: ReactTestInstance, label: string) {
+  return root.findAll((node) => node.props.label === label && node.props.kind !== undefined)[0]?.props.kind;
+}
+
 async function pickProject(renderer: ReactTestRenderer, name: string) {
   await press(renderer, "Project: " + (renderer.root.findAll((n) => n.props.accessibilityRole === "button" && String(n.props.accessibilityLabel).startsWith("Project: "))[0].props.accessibilityLabel as string).slice(9));
   await press(renderer, name);
@@ -759,6 +763,33 @@ describe("queue layout", () => {
     expect(button(screen.renderer.root, "Available")).toBeDefined();
     expect(api.getCodingAvailable).toHaveBeenCalledWith(expect.objectContaining({ projectId: "P2" }));
     expect(button(screen.renderer.root, "Available").props.kind ?? "primary").toBe("primary");
+    await unmount(screen.renderer);
+  });
+
+  test("pick 0 with random cases settles on the history tab without reloading in a loop", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 7, pick_ready: 0, has_random_mode: true, has_pick_mode: true }) });
+    const screen = await render("coding", api);
+    for (let i = 0; i < 6; i += 1) await settle();
+    const historyLoads = (api.getCodingHistory as jest.Mock).mock.calls.length;
+    const availableLoads = (api.getCodingAvailable as jest.Mock).mock.calls.length;
+    for (let i = 0; i < 6; i += 1) await settle();
+    expect(historyLoads).toBeGreaterThan(0);
+    expect(availableLoads).toBeLessThanOrEqual(1);
+    expect((api.getCodingHistory as jest.Mock).mock.calls.length).toBe(historyLoads);
+    expect((api.getCodingAvailable as jest.Mock).mock.calls.length).toBe(availableLoads);
+    expect(tabKind(screen.renderer.root, "My coded cases")).toBe("primary");
+    await unmount(screen.renderer);
+  });
+
+  test("a pick-only project with nothing to pick keeps the history tab the coder chose, with Recode reachable", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 0, pick_ready: 0, has_random_mode: false, has_pick_mode: true }) });
+    const screen = await render("coding", api);
+    expect(tabKind(screen.renderer.root, "My coded cases")).toBe("secondary");
+    await press(screen.renderer, "History");
+    for (let i = 0; i < 6; i += 1) await settle();
+    expect(tabKind(screen.renderer.root, "My coded cases")).toBe("primary");
+    expect((api.getCodingHistory as jest.Mock).mock.calls.length).toBe(1);
+    expect(button(screen.renderer.root, "Recode")).toBeDefined();
     await unmount(screen.renderer);
   });
 

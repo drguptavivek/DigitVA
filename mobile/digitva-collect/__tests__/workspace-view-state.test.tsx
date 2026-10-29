@@ -165,3 +165,37 @@ test("saving Step 1 reloads the workspace on the COD section the coder is in, no
   expect(layoutProps.selectedCode).toBe("vacodassessment");
   expect((api.getCategory as jest.Mock).mock.calls.at(-1)?.[1]).toBe("vacodassessment");
 });
+
+test("saving DORIS Step 1 lands on the COD section showing Step 2, not the first section", async () => {
+  const cod = { code: "vacodassessment", label: "COD", nav_label: "COD", render_mode: "workflow_panel" };
+  const base = {
+    case: { va_sid: "sid-1", instance_name: "Case", form_type_code: "VA", project_mode: "masked_doris", icd_classification: "icd11", workflow_state: "coding_in_progress", narrative_qa_enabled: false, social_autopsy_enabled: false },
+    default_category: "a", blocked_by: [],
+    assessments: { initial: null, initial_prefill: null, final: null, not_codeable: null, reviewer_initial: null, reviewer_final: null },
+    smartva: null, other_conditions_options: [], doris: null, narrative_qa: null, social_autopsy: null,
+  };
+  // The server keeps vacodassessment in the nav (always_include) and only the step changes.
+  const before = { ...base, step: "initial", categories: [{ code: "a", label: "A", nav_label: "A", render_mode: "default" }, cod] };
+  const after = { ...base, step: "final", categories: [{ code: "a", label: "A", nav_label: "A", render_mode: "default" }, cod] };
+  let served = before;
+  const api = {
+    getWorkspace: jest.fn(async () => served),
+    getCategory: jest.fn(async (_sid: string, code: string) => ({ code, label: code, render_mode: "default", summary_items: [], subcategories: [] })),
+    getNote: jest.fn(async () => ({ va_sid: "sid-1", content: null, updated_at: null })),
+  } as unknown as WorkspaceApi;
+  let panel!: { workspace: { step: string }; onSaved: () => Promise<void> };
+  await act(async () => {
+    create(<CaseWorkspaceScreen
+      identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} section="vacodassessment"
+      renderDoris={(workspace, onSaved) => { panel = { workspace, onSaved }; return null; }}
+    />);
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  });
+  expect(layoutProps.selectedCode).toBe("vacodassessment");
+  expect(panel.workspace.step).toBe("initial");
+  served = after;
+  await act(async () => { await panel.onSaved(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+  expect(panel.workspace.step).toBe("final");
+  expect(layoutProps.selectedCode).toBe("vacodassessment");
+  expect((api.getCategory as jest.Mock).mock.calls.at(-1)?.[1]).toBe("vacodassessment");
+});

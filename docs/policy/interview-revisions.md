@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-29
 ---
 
 # Interview Revisions Policy
@@ -69,6 +69,16 @@ Decisions made while building part A:
   the phone's acknowledgement matches. Raw answers with the stored hash write
   nothing. The interview times (`startedAt`, `completedAt`) are part of the
   payload: a new `completedAt` is a change.
+- **A revision keeps the interview's start time** (owner, 2026-10-29,
+  `digitva-7amd.4`). The start (`Id10011`, `startedAt`) is when the family was
+  interviewed, so every version keeps the first submission's value; a revision
+  never moves the interview date or the death-to-interview interval. The end
+  (`Id10481`, `completedAt`) becomes the revision's completion time, as before.
+  The server enforces this on every revision (phone and browser), whatever start
+  the client sends: the coded payload keeps both the meta start and the form's
+  own `Id10011` answer from the version being replaced, while the raw answers
+  keep exactly what was sent (so the acknowledged answers hash still matches).
+  A revision that only restamps the start is no change.
 - Only answers and interview times can change the fingerprint. The submitter's
   name, the organization-unit codes and names and the register's ABHA are taken
   from the version being replaced, and locked answers the submit held keep

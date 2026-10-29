@@ -23,6 +23,19 @@ export function stageWidths(counts: PipelineCounts, scale: number): { reported: 
 /** Rows a user can open: a unit with units below it, or a sites-mode site (its card, causes and staff). The unrouted row ends the path. */
 export const canDrill = (row: Pick<AreaRow, "kind" | "has_children">): boolean => row.kind === "site" || (row.kind === "unit" && row.has_children);
 
+/**
+ * The unit to open straight away: a user scoped below the project whose one root has units under it (a district data
+ * manager) would otherwise see only that root as the first level. Null for anything else. Only at the top level.
+ */
+export function soleOpenUnit(
+  summary: { mode: string; project_wide: boolean; unit: unknown; rows: Pick<AreaRow, "kind" | "key" | "has_children">[] },
+  selection: { unit: string | null; site: string | null },
+): string | null {
+  if (selection.unit || selection.site || summary.unit || summary.mode !== "organization" || summary.project_wide) return null;
+  const [only] = summary.rows;
+  return summary.rows.length === 1 && only.kind === "unit" && only.has_children ? only.key : null;
+}
+
 export interface AreaSelection {
   project: string;
   unit: string | null;

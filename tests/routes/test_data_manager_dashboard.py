@@ -2317,6 +2317,24 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn(self.SID, sids)
         self.assertNotIn(retired_sid, sids)
 
+    def test_submission_list_names_the_form_source_so_the_ui_can_hide_odk_actions(self):
+        self._login(self.dm_user_id)
+        response = self.client.get("/api/v1/data-management/submissions")
+        row = next(r for r in response.get_json()["data"] if r["va_sid"] == self.SID)
+        self.assertEqual(row["form_source"], "odk")
+        form = db.session.get(VaForms, self.FORM_ID)
+        form.form_source = "web"
+        db.session.commit()
+        try:
+            row = next(
+                r for r in self.client.get("/api/v1/data-management/submissions").get_json()["data"]
+                if r["va_sid"] == self.SID
+            )
+            self.assertEqual(row["form_source"], "web")
+        finally:
+            form.form_source = "odk"
+            db.session.commit()
+
     def test_submission_list_includes_retired_submissions_when_asked(self):
         self._login(self.dm_user_id)
         retired_sid = self._add_retired_submission()

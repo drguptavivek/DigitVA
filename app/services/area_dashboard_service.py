@@ -1061,9 +1061,9 @@ def area_summary(
     """The card and the table for one level of the user's area in *project_id*.
 
     Tree project, no unit: the grant roots, plus an Unrouted row when the
-    scope is project-wide. With a unit: that unit's direct children. Each row
-    is the row's whole subtree, counted once. Sites-mode project: one row per
-    in-scope site (just *site_id* when given).
+    scope is project-wide and has any count. With a unit: that unit's direct
+    children. Each row is the row's whole subtree, counted once. Sites-mode
+    project: one row per in-scope site (just *site_id* when given).
 
     ``card`` is the selected area as a whole (``_area_card``); at the
     project root a project-wide scope also gets ``project_card`` (offline
@@ -1145,7 +1145,9 @@ def _area_summary(user, project_id, unit_id, site_id, period) -> dict:
             raise AreaNotFound()
         rows = _unit_summary_rows(scope, grant_root_units(scope), dm_links=dm_links, since=since)
         if scope.project_wide:
-            rows.append(_unrouted_row(scope, since))
+            unrouted = _unrouted_row(scope, since)
+            if any(unrouted["counts"].values()):  # an all-zero row says nothing
+                rows.append(unrouted)
         result["card"] = _area_card(scope, rows, screens, since=since)
     result["rows"] = rows
 

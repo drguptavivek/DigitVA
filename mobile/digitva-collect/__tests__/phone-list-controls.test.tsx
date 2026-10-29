@@ -48,6 +48,19 @@ describe("interview card", () => {
     expect(it.caseId).toBe("7b010f05");
   });
 
+  it("titles a direct-start draft from the name in its own answers; a linked case name still wins", () => {
+    const named = item({ deceased_name: "Mohan Testcase" });
+    expect(named.title).toBe("Mohan Testcase");
+    expect(named.caseId).toBe("7b010f05"); // no case id yet: the short local id stays
+    expect(item({ deceased_name: "Mohan Testcase", unique_id: "A-1" })).toMatchObject({ title: "Mohan Testcase", caseId: "A-1" });
+    expect(item({ deceased_name: null }).title).toBe("Untitled interview");
+    const linked = buildInterviewItems(sources({
+      drafts: [draft("d1", { death_id: "C1", deceased_name: "Mohan Testcase" })],
+      cases: [{ death_id: "C1", unique_id: "AAM01-C1", project_id: "P1", site_id: "S1", org_unit_id: null, unit_name: "CHC", state: "registered", source: "reported", my_draft_id: null, updated_at: "2026-10-01T00:00:00Z", deceased: { name: "Ramesh Kumar" }, household_address: {} } as never],
+    }))[0];
+    expect(linked.title).toBe("Ramesh Kumar");
+  });
+
   it("shows the key time per state, formatted and never raw ISO", async () => {
     const started = item({ started_at: "2026-10-23T09:15:00.000Z" });
     expect(started.timeText).toMatch(/^Started .*2026/);

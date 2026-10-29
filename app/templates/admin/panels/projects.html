@@ -145,17 +145,18 @@
          (Web Intake); tinted so it reads as one section, apart from the
          ODK and coding settings above. #}
       <div class="rounded p-3 mt-3 bg-info-subtle border border-info-subtle" id="project-web-capture-block">
-        <div class="fw-semibold mb-1"><i class="fa-solid fa-globe me-1"></i>Web data capture (browser VA form)</div>
+        <div class="fw-semibold mb-1"><i class="fa-solid fa-globe me-1"></i>DigitVA data capture (browser VA form and Collect app)</div>
         <div class="small text-body-secondary mb-2">
-          These settings are used only when interviews are entered in the
-          browser. With Web Intake off the project collects through ODK only
-          and the rest of this section is ignored.
+          Web Intake turns on DigitVA's own data capture: the browser VA form
+          and the DigitVA Collect phone app. With Web Intake off the project
+          collects through ODK only, its interviewers cannot sign in to Collect
+          to collect, and the rest of this section is ignored.
         </div>
         <div class="row g-2 mb-1">
           <div class="col-12 col-sm-8 col-lg-6">
             <label class="form-label small mb-1" for="project-web-intake-mode-input">Web Intake</label>
-            <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only; direct: questionnaire only; death_register: register the death first; both: either route">
-              <option value="off">Off (ODK only)</option>
+            <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only (no browser form, no Collect app); direct: questionnaire only; death_register: register the death first; both: either route">
+              <option value="off">Off (ODK only; no Collect app)</option>
               <option value="direct">Direct questionnaire entry</option>
               <option value="death_register">Death register first</option>
               <option value="both">Both routes</option>

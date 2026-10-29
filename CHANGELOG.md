@@ -5,6 +5,33 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-29
 
+- **Phone acceptance fixes, Collect 0.3.14** (`digitva-7amd`, from the phone
+  run on staging TST001: CHO interview, MO masked ICD-11 DORIS coding, district
+  data manager). Phone: "Go" in Problems to fix no longer crashes the app (React
+  Native 0.86 defines a global `HTMLElement`, so the form now detects DOM
+  elements by their methods, `.1`); a timeline write no longer fails the next
+  draft save with "Something went wrong / Not saved", and saves keep the draft
+  timeline (`.3`); the interviewer name prefilled from the account passes the
+  form's letters-and-spaces rule (`.9`); age is estimated from a birth month and
+  year (`.11`, `docs/policy/digitva-who-form-overrides.md`); drafts show the
+  deceased's name instead of "Untitled interview" (`.12`); Home counts
+  interviews, with attached files noted apart (`.15`,
+  `docs/policy/phone-attachments.md`); offline, the list says revisions need a
+  connection (`.19`). Web coding: the queue no longer flips tabs in a loop, so
+  My coded cases and Recode are reachable (`.2`); the image viewer's close
+  button is visible and a zoomed image pans (`.5`); Save Step 1 stays on the
+  cause-of-death section (`.6`); the selected cause is labelled and duplicate
+  suggestion buttons and banners are gone (`.7`). Server: a revision keeps the
+  interview's start (`start` and `Id10011`; `.4`,
+  `docs/policy/interview-revisions.md`); the TST001 seed is ICD-11 with DORIS
+  and presets HIV and malaria mortality Low on DH01 (`.8`, `.16`); data-manager
+  counts say they are hourly, statistics wording is count-neutral, an all-zero
+  Unrouted row is hidden, a single-root user opens on the units below it, and
+  phone/web cases show no ODK status or "Edit in ODK" (`.14`, `.17`, `.18`,
+  `docs/policy/area-dashboard.md`). Release builds keep the Hermes source map as
+  a workflow artifact (`.10`). The admin Projects panel now says Web Intake
+  also gates the Collect app (`.24`). Tests: app 3,350, form package 974,
+  backend 7,042 passed, six skipped; `make check-web` passed.
 - **Refused cases can be revisited** (`digitva-hs7e.15.2`): families often agree
   on a later contact, so a submitted refusal no longer holds a shared case; the
   case is `refused` and the team restarts it after fresh consent. Recording a

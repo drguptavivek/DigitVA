@@ -3,7 +3,7 @@ title: Android Release Builds
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 ---
 
 # Android release builds
@@ -151,6 +151,45 @@ artifact. With `publish: true` and tag `android-v<version>` (it must match
 `app.json`), the publish job alone has `contents: write` and creates the
 release with those four assets. Rebuilding the same version reproduces the
 same versionCodes, so bump `app.json` before every published release.
+
+## Hermes source maps and symbolicating crashes
+
+Release JavaScript ships as Hermes bytecode, so a logcat stack shows only a
+bytecode position such as `run@1:3850100` (line 1, column = byte offset). The
+Gradle bundle task composes the Metro and Hermes maps into
+`mobile/digitva-collect/android/app/build/generated/sourcemaps/react/release/index.android.bundle.map`.
+It is not packaged in the APK. Both APK workflows (**Android release APK** and
+**Collect Plus Android release**) upload it as a separate workflow artifact,
+never a GitHub release asset:
+
+| Build | Artifact name |
+| --- | --- |
+| Collect | `hermes-sourcemap-collect-<app.json version>-<full commit sha>` |
+| Collect Plus | `hermes-sourcemap-collect-plus-<app.json version>-<full commit sha>` |
+
+Retention is 90 days, the repository maximum
+(`gh api repos/drguptavivek/DigitVA/actions/permissions/artifact-and-log-retention`);
+a larger `retention-days` makes the upload fail. For releases that must stay
+symbolicatable longer, download the artifact and archive it with the APK
+backups. The repository is public, so any signed-in GitHub user can download
+workflow artifacts; the map exposes only source that is already public. The
+Google Play bundle workflow uploads its own map as
+`hermes-sourcemap-collect-play-<version>-<sha>`.
+
+To find a release's map, get its commit from the release (`gh release view
+android-v0.3.13 --json targetCommitish`) or the workflow run, then:
+
+```sh
+gh run list --workflow android-release.yml --commit <sha>      # run id
+gh run download <run-id> -n hermes-sourcemap-collect-<version>-<sha> -D /private/tmp/map
+cd mobile/digitva-collect   # npm ci first; metro-symbolicate ships with Metro
+npx --no-install metro-symbolicate /private/tmp/map/index.android.bundle.map < stack.txt
+```
+
+`stack.txt` holds the lines copied from `adb logcat`, for example
+`at run (index.android.bundle:1:3850100)` or `run@1:3850100`; each is replaced
+by the original file, line and function. Use the map of the exact build that
+crashed: offsets from another version map to the wrong code.
 
 ## Google Play bundle - primary release path
 

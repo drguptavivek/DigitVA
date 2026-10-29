@@ -871,6 +871,7 @@ def dm_submissions_page(
             VaSubmissions.va_uniqueid_masked,
             VaForms.project_id,
             VaForms.site_id,
+            VaForms.form_source,
             va_local_date(VaSubmissions.va_submission_date, tz_name).label("va_submission_date"),
             VaSubmissions.va_data_collector,
             sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),

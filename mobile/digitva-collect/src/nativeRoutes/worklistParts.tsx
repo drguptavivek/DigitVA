@@ -81,13 +81,14 @@ function Card({ children, testID }: { children: React.ReactNode; testID?: string
   return <View style={[styles.card, { gap: spacing.xs }]} testID={testID}>{children}</View>;
 }
 
-function Metric({ value, label, actionLabel, onAction, disabled, loading }: { value: number | string; label: string; actionLabel: string; onAction(): void; disabled?: boolean; loading?: boolean }) {
+function Metric({ value, label, note, actionLabel, onAction, disabled, loading }: { value: number | string; label: string; note?: string; actionLabel: string; onAction(): void; disabled?: boolean; loading?: boolean }) {
   const { ui } = useTheme();
   return (
     <View style={{ flex: 1 }}>
       <Card>
         <Text style={{ ...typography.largeTitle, color: ui.foreground }}>{value}</Text>
         <Text style={{ ...typography.body, color: ui.foreground }}>{label}</Text>
+        {note ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{note}</Text> : null}
         <Button kind="secondary" size="sm" label={actionLabel} onPress={onAction} disabled={disabled} loading={loading} />
       </Card>
     </View>
@@ -100,6 +101,8 @@ export interface HomeViewProps {
   summary: HomeSummary;
   /** Ready to send from this phone (shared count, src/unsentWork.ts); undefined while not counted. */
   unsent: number | undefined;
+  /** Attached files waiting beside those records (shown as a note, not added to the count). */
+  unsentFiles?: number;
   canStart: boolean;
   canRegister: boolean;
   busy: boolean;
@@ -140,7 +143,7 @@ export function HomeView(p: HomeViewProps) {
         )}
       </Card>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
-        <Metric value={p.unsent ?? "–"} label={t("homeUnsent")} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy} loading={p.busy} />
+        <Metric value={p.unsent ?? "–"} label={t("homeUnsent")} note={p.unsentFiles ? t("homeUnsentFiles", { count: p.unsentFiles }) : undefined} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy} loading={p.busy} />
         <Metric value={p.summary.needVisit} label={t("homeNeedVisit")} actionLabel={t("homeView")} onAction={p.onViewTodo} />
       </View>
       {p.canRegister ? <Button label={t("registerDeath")} onPress={p.onRegister} /> : null}
@@ -242,6 +245,8 @@ export interface InterviewsViewProps {
   hasMore: boolean;
   loadingMore: boolean;
   loadFailed: boolean;
+  /** What to say when the revisions list failed to load (no connection, or Retry + Ref); defaults from `offline`. */
+  loadFailedText?: string;
   onAction(action: InterviewAction): void;
   onRetryDemo(item: InterviewItem): void;
   onDeleteDraft?(item: InterviewItem): void;
@@ -308,7 +313,7 @@ export function InterviewsView(p: InterviewsViewProps) {
           }
           return (
             <View style={{ gap: spacing.xs }}>
-              {p.loadFailed ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("revisionRetry")}</Text> : null}
+              {p.loadFailed ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{p.loadFailedText ?? (p.offline ? t("revisionsNeedConnection") : t("revisionRetry"))}</Text> : null}
               {p.hasMore ? <Button kind="secondary" loading={p.loadingMore} label={t("loadMore")} onPress={p.onLoadMore} /> : null}
               <Button kind="secondary" label={t("homeSendNow")} disabled={p.busy || !p.canRefresh} onPress={p.onSend} />
               <Button kind="secondary" label={t("refresh")} loading={p.refreshing} disabled={refreshDisabled} onPress={p.onRefresh} />

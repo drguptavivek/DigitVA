@@ -521,6 +521,62 @@ class InterviewRevisionTests(BaseTestCase):
         stored = datetime.fromisoformat(self._draft(va_sid).meta["effectiveSavedAt"])
         self.assertLess(abs((stored - done).total_seconds()), 60)
 
+    # ── a revision keeps the interview's start (digitva-7amd.4) ────────────
+
+    def test_a_revision_keeps_the_first_start_and_moves_only_the_end(self):
+        started = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        death_id = self._case()
+        va_sid = self._upload(
+            death_id, _answers(), startedAt=started, completedAt=(datetime.now(UTC) - timedelta(hours=2)).isoformat(),
+        ).get_json()["va_sid"]
+        done = datetime.now(UTC) - timedelta(minutes=5)
+        response = self._revise(va_sid, _answers(Id10017="Binita"), draft={
+            "startedAt": datetime.now(UTC).isoformat(), "completedAt": done.isoformat(),
+            "deviceClockAt": datetime.now(UTC).isoformat(),
+        })
+        self.assertEqual(response.get_json()["changed"], True)
+        first, second = self._versions(va_sid)
+        self.assertEqual(second.payload_data["start"], started)
+        self.assertEqual(second.payload_data["start"], first.payload_data["start"])
+        self.assertNotEqual(second.payload_data["end"], first.payload_data["end"])
+        self.assertEqual(self._draft(va_sid).meta["startedAt"], started)
+
+    def test_a_revision_that_differs_only_in_its_start_is_no_change(self):
+        completed = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        death_id = self._case()
+        va_sid = self._upload(death_id, _answers(), completedAt=completed).get_json()["va_sid"]
+        response = self._revise(va_sid, _answers(), draft={
+            "startedAt": datetime.now(UTC).isoformat(), "completedAt": completed,
+        })
+        self.assertEqual((response.status_code, response.get_json()["changed"]), (200, False))
+        self.assertEqual(len(self._versions(va_sid)), 1)
+
+    def test_a_revision_keeps_the_forms_own_start_answer(self):
+        # Seen on staging (digitva-7amd.4): the revision session stamped a new Id10011.
+        first_start = (datetime.now(UTC) - timedelta(hours=3)).isoformat()
+        death_id = self._case()
+        va_sid = self._upload(death_id, _answers(Id10011=first_start)).get_json()["va_sid"]
+        later = datetime.now(UTC).isoformat()
+        response = self._revise(va_sid, _answers(Id10011=later, Id10017="Binita"))
+        self.assertEqual(response.get_json()["changed"], True)
+        first, second = self._versions(va_sid)
+        self.assertEqual(first.payload_data["Id10011"], first_start)
+        self.assertEqual(second.payload_data["Id10011"], first_start)
+        self.assertEqual(second.payload_data["Id10017"], "Binita")
+        # A revision that only restamps Id10011 is no change.
+        only_start = _answers(Id10011=datetime.now(UTC).isoformat(), Id10017="Binita")
+        response = self._revise(va_sid, only_start)
+        self.assertEqual((response.status_code, response.get_json()["changed"]), (200, False))
+        self.assertEqual(len(self._versions(va_sid)), 2)
+        self.assertEqual(self._draft(va_sid).answers_sha256, _sha(_text(only_start)))
+
+    def test_a_start_sent_with_changed_answers_does_not_change_the_acknowledged_hash(self):
+        _death, va_sid = self._submitted()
+        new = _answers(Id10017="Binita")
+        response = self._revise(va_sid, new, draft={"startedAt": datetime.now(UTC).isoformat()})
+        self.assertEqual(response.get_json()["answers_sha256"], _sha(_text(new)))
+        self.assertEqual(self._draft(va_sid).answers_sha256, _sha(_text(new)))
+
     # ── finishing a partial interview ──────────────────────────────────────
 
     def _partial(self):

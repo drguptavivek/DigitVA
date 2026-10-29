@@ -516,6 +516,13 @@ class AreaSummaryTests(AreaDashboardFixture):
         self.assertEqual(unrouted["not_codeable"], 1)
         self.assertEqual(rows[str(self.district_2.org_unit_id)]["counts"]["submitted"], 1)
 
+    def test_an_all_zero_unrouted_row_is_left_out(self):
+        zero = {key: 0 for key in area.COUNT_KEYS}
+        with mock.patch.object(area, "_unrouted_row", return_value={"key": area.UNROUTED_KEY, "counts": zero}):
+            rows = self._by_key(area._area_summary(self.project_user, self.TREE, None, None, "all"))
+        self.assertNotIn(area.UNROUTED_KEY, rows)
+        self.assertIn(str(self.district_1.org_unit_id), rows)
+
     def test_drill_down_lists_children_with_breadcrumb(self):
         summary = area.area_summary(self.project_user, self.TREE, unit_id=str(self.district_1.org_unit_id))
         rows = self._by_key(summary)

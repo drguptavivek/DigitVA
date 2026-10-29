@@ -20,6 +20,18 @@ both web-intake methods with a user in every role. Source:
 - Project: organization mode, `web_intake_mode=both`, web defaults as the
   Projects panel applies them (WHO_2022_VA, pick-and-choose coding). The
   automatic site and its web form come from `ensure_organization_site`.
+- Cause of death: ICD-11 with DORIS entry (`icd_classification=icd11`,
+  `cod_entry_mode=doris`, `masked_cod_required=true`). A rerun moves an
+  existing ICD-10 TST001 to this, except that it uses the admin route's guard
+  (`_project_has_in_progress_coding`: an active allocation or a case at
+  `coder_step1_saved`) and then prints `cod  kept ... (coding in progress)`
+  and changes nothing.
+- Area presets: the root unit DH01 gets `Id10002` (HIV/AIDS mortality) =
+  `low` and `Id10003` (malaria mortality) = `low` in `map_org_unit_va_presets`,
+  so every unit inherits them and the CHO is not asked
+  ([Area VA presets](../policy/web-intake.md)). `Id10004` (season) stays
+  asked: it is not a preset. A rerun fills only a field that is unset, so a
+  value an admin changed by hand is kept.
 - Grants go through `project_user_import_service` (the admin import path), so
   the level x cadre rules are enforced and each write lands in `grants.log`.
 - Every unit-placed user also has a `mas_org_unit_worker` row (worker code =

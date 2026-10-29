@@ -44,6 +44,7 @@ export type DeviceTimedDraft = WhoVaDraft & {
   deviceClockAt?: string;
   locale?: string;
   translation_version?: number;
+  workflowTimelineV1?: unknown;
   definitionSha256?: unknown;
   definitionExtensions?: unknown;
 };
@@ -210,6 +211,8 @@ function envelopeWithDeviceTimes(
     ...(storedTimestamp(existing.completedAt) ? { completedAt: existing.completedAt } : {}),
     ...(locale ? { locale } : {}),
     ...(translationVersion !== undefined ? { translation_version: translationVersion } : {}),
+    // The engine's draft never carries the host's milestone timeline; keep what is stored.
+    ...(Array.isArray(existing.workflowTimelineV1) ? { workflowTimelineV1: existing.workflowTimelineV1 } : {}),
   };
   if (pin) return withDefinitionPin(saved, pin) as DeviceTimedDraft;
   return {
@@ -443,6 +446,19 @@ export async function migrate(db: Db): Promise<void> {
   }
 }
 
+/** The envelope without the host-appended milestone timeline, for comparing what else changed. */
+function withoutWorkflowTimeline(envelope: string): string {
+  const { workflowTimelineV1: _timeline, ...rest } = JSON.parse(envelope) as Record<string, unknown>;
+  return JSON.stringify(rest);
+}
+
+/** True when the stored row differs from what a save read only by its workflow timeline. */
+async function onlyTimelineMoved(db: Db, id: string, read: { envelope: string; updated_at: string }): Promise<boolean> {
+  const row = await db.getFirstAsync<{ envelope: string; updated_at: string }>("SELECT envelope, updated_at FROM drafts WHERE id = ?", [id]);
+  return !!row && row.updated_at === read.updated_at && row.envelope !== read.envelope &&
+    withoutWorkflowTimeline(row.envelope) === withoutWorkflowTimeline(read.envelope);
+}
+
 /**
  * The form's draft store for one interview. `host` supplies the site, unit
  * and case binding on the first save; later saves update the envelope and
@@ -461,7 +477,7 @@ export function createDraftStore(
       // The full national ID never persists on the device (the form already
       // reduces it; this covers a host that hands over an unreduced draft).
       const draft = { ...rawDraft, data: reduceNationalIdData(rawDraft.data) };
-      return guard.runWrite(async () => {
+      const attemptSave = async (canRetry: boolean): Promise<void> => {
         guard.assertCurrent();
         const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string; updated_at: string; death_id: string | null; client_death_id: string | null }>(
           "SELECT project_id, envelope, updated_at, death_id, client_death_id FROM drafts WHERE id = ?",
@@ -511,10 +527,15 @@ export function createDraftStore(
           );
         guard.assertCurrent();
         if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) === 0) {
+          // A timeline milestone (recordDraftTimeline, outside this write path) may have landed between our read and
+          // update. It changes neither answers nor updated_at, so redo the save once from the fresh row; any other
+          // difference is a real conflict and still fails.
+          if (canRetry && existing && await onlyTimelineMoved(db, draft.id, existing)) return attemptSave(false);
           throw new Error("draft_conflict");
         }
         if (refused) await clearRefusedDraft(db, draft.id);
-      });
+      };
+      return guard.runWrite(() => attemptSave(true));
     },
     async load(id) {
       guard.assertCurrent();

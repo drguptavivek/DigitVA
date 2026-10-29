@@ -59,7 +59,7 @@ import {
 import { useToast } from "../toast";
 import { Button, errorText, Screen } from "../ui";
 import { CodingCaseChips } from "../ui/CodingCaseChips";
-import { buildInterviewItems, interviewCounts, type InterviewAction, type InterviewItem } from "../ui/interviewRows";
+import { buildInterviewItems, interviewCounts, listDraftNames, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
 import type { PickerTarget } from "../ui/sitePicker";
@@ -87,13 +87,14 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const shell = useShell();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
-  const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [drafts, setDrafts] = useState<ListedDraft[]>([]);
   const [refusals, setRefusals] = useState<Map<string, SendRefusal>>(new Map());
   const [revisions, setRevisions] = useState<RevisionRow[]>([]);
   const [firstDownload, setFirstDownload] = useState(false);
   const [submittedRevisions, setSubmittedRevisions] = useState<SubmittedRevisionSummary[]>([]);
   const [submittedRevisionsLoaded, setSubmittedRevisionsLoaded] = useState(false);
-  const [submittedRevisionsError, setSubmittedRevisionsError] = useState(false);
+  // The revisions list failed to load: undefined = fine; the text is what Interviews shows (no connection, or Retry + the Ref line).
+  const [submittedRevisionsError, setSubmittedRevisionsError] = useState<string | undefined>();
   const [cases, setCases] = useState<CaseDetail[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>();
   const [onlineCases, setOnlineCases] = useState<CaseRow[]>([]);
@@ -150,7 +151,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         submittedRequestGenerationRef.current += 1;
         setSubmittedRevisions((rows) => rows.filter((row) => authorizedProjects.has(row.project_id)));
         setSubmittedRevisionsLoaded(false);
-        setSubmittedRevisionsError(false);
+        setSubmittedRevisionsError(undefined);
         setSelectedProjectId((selected) =>
           selected && authorizedProjects.has(selected)
             ? selected
@@ -187,7 +188,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     setRevisions([]);
     setSubmittedRevisions([]);
     setSubmittedRevisionsLoaded(false);
-    setSubmittedRevisionsError(false);
+    setSubmittedRevisionsError(undefined);
     setCases([]);
     setRegistrations([]);
     setActions([]);
@@ -219,8 +220,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       current: () => boolean = () => true,
       caseFlagsAuthoritative = false,
     ) => {
-      const [d, c, r, a, localRevisions, reference, lastRefusals, codingNoticesForAccount] = await Promise.all([
+      const [d, draftNames, c, r, a, localRevisions, reference, lastRefusals, codingNoticesForAccount] = await Promise.all([
         listDrafts(handle),
+        listDraftNames(handle),
         listCases(handle),
         listRegistrations(handle),
         listActions(handle),
@@ -234,7 +236,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         new Set(reference?.projects.map(({ project }) => project.project_id) ?? []),
       );
       if (!current()) return;
-      setDrafts(d);
+      setDrafts(d.map((draft) => ({ ...draft, deceased_name: draftNames.get(draft.id) ?? null })));
       setRefusals(lastRefusals);
       setCodingUploadNotices(codingNoticesForAccount);
       setRevisions(localRevisions);
@@ -271,7 +273,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         setCanCodeNowUniqueIds([]);
         setSubmittedRevisions([]);
         setSubmittedRevisionsLoaded(false);
-        setSubmittedRevisionsError(false);
+        setSubmittedRevisionsError(undefined);
         setMessage(errorText(error));
         // Unsent work stays visible (as paused) when access is refused.
         try {
@@ -289,7 +291,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           setReference(undefined);
           setSubmittedRevisions([]);
           setSubmittedRevisionsLoaded(false);
-          setSubmittedRevisionsError(false);
+          setSubmittedRevisionsError(undefined);
           setMessage(errorText(storageError));
         }
         return;
@@ -360,7 +362,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     async (projectIds: Set<string>, current: () => boolean = () => true) => {
       if (!account) return;
       const generation = ++submittedRequestGenerationRef.current;
-      setSubmittedRevisionsError(false);
+      setSubmittedRevisionsError(undefined);
       try {
         const rows = await fetchSubmittedRevisions(account.user_id);
         if (!current() || generation !== submittedRequestGenerationRef.current) return;
@@ -372,7 +374,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           await handleError(error);
           return;
         }
-        setSubmittedRevisionsError(true);
+        // No network (the fetch threw a TypeError, the same signal that flags the phone offline) is not a fault to retry; any other failure keeps its Ref line.
+        setSubmittedRevisionsError(error instanceof TypeError ? t("revisionsNeedConnection") : `${t("revisionRetry")}\n${errorText(error).split("\n").pop()}`);
         setSubmittedRevisionsLoaded(false);
       }
     },
@@ -968,7 +971,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           canRefresh={Boolean(db)}
           hasMore={Boolean(onlineCursor)}
           loadingMore={onlineBusy}
-          loadFailed={submittedRevisionsError}
+          loadFailed={submittedRevisionsError !== undefined}
+          loadFailedText={submittedRevisionsError}
           onAction={runAction}
           onRetryDemo={retryDemo}
           onDeleteDraft={(item) => setDeleting(item.deletable)}
@@ -991,6 +995,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         offline={isOffline}
         summary={summary}
         unsent={shell.sync.work?.unsent}
+        unsentFiles={shell.sync.work?.unsentFiles}
         canStart={Boolean(db && referenceData && targets.length > 0)}
         canRegister={canRegister}
         busy={busy}

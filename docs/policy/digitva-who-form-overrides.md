@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -302,6 +302,7 @@ it filled). They act only on a question that is on screen, never on a locked
 |---|---|---|
 | `age_group` from the dates | Unanswered: pre-select the group the dates give and show "Suggested from the dates". Exact dates (birth and death to the day): `ageInDays` with the WHO thresholds (27 days or fewer neonate, under 12 × 365.25 child, else adult). Year only (`dob_year`/`Id10024`, or a year with an exact date): the year difference, 13 or more adult, 1 to 11 child, 0 and 12 no suggestion. A month-precision birth: a group only when every day in the month range agrees. An answer that contradicts it asks "The dates suggest Child (about 4 years). Keep Adult?" with Keep / Use suggestion; Keep is remembered for that suggestion, a changed date asks again | `digitva-12ks` |
 | Ages from exact dates | `age_neonate_days`, `age_child_unit` and its days/months/years number, `age_adult` are pre-filled when empty with "Calculated from the dates": child unit days up to 60 days, months under 24 months, else years; adult years floor(days / 365.25). Years only: unit Years and the year difference for child, `age_adult` for adult, hint "Estimate from the years"; never days or months. A number more than one unit away from the calculation asks to confirm like the group | `digitva-12ks` |
+| Ages from a month of birth | Birth month and year with a death date (owner 2026-10-29): the shortest and longest possible age from the date bounds. When the whole range is one value in one unit (the child unit by the exact-date rule above), the unit and number are pre-filled with "Estimated from the dates" (born June 2022, died 6 October 2026: Child, 4 years). Otherwise nothing is filled and a non-blocking hint reads "The dates suggest about 1 year 2 months to 1 year 3 months". Never over a typed, chosen or locked answer | `digitva-7amd.11` |
 | Boundary fixes | Shown under the WHO constraint message with a one-tap button: child days under 28 move to Neonate (`age_neonate_days`), child days over 60 switch to months (converted), child years 12 or more switch to Adult, neonate days over 27 switch to Child. The clearer wording is DigitVA's; the WHO message beside it is untouched | `digitva-12ks` |
 | `narr_language` | Pre-selected from the typed narrative `Id10476`: Devanagari is Hindi (Marathi shares the script; change it by hand), Latin is English (Hinglish in Latin letters stays English), Bengali, Kannada and Malayalam scripts their language; an empty narrative takes the questionnaire language; only a language the question offers; only until the interviewer picks one | `digitva-v5zz` |
 | Voice-typing tip | Under `Id10476`: "Tip: tap the microphone on your keyboard to dictate (Hindi or English)." The typed narrative stays a plain multiline input (never secure, no restricted keyboard) so the keyboard's microphone stays. An in-app Dictate button (on-device recognition only) is step 2 and needs its own policy first | `digitva-kkdb` |

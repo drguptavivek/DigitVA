@@ -30,6 +30,9 @@ export interface WhoVaUiMessageTemplates {
   unitDays: string;
   unitMonths: string;
   unitYears: string;
+  unitDay: string;
+  unitMonth: string;
+  unitYear: string;
   unitHours: string;
   unitMinutes: string;
   unitWeeks: string;
@@ -142,6 +145,8 @@ export interface WhoVaUiMessageTemplates {
   assistSuggested: string;
   assistCalculated: string;
   assistEstimate: string;
+  assistEstimatedFromDates: string;
+  assistRange: string;
   assistMismatch: string;
   assistKeep: string;
   assistUseSuggestion: string;
@@ -188,6 +193,9 @@ export interface WhoVaUiMessages {
   unitDays: string;
   unitMonths: string;
   unitYears: string;
+  unitDay: string;
+  unitMonth: string;
+  unitYear: string;
   unitHours: string;
   unitMinutes: string;
   unitWeeks: string;
@@ -300,6 +308,8 @@ export interface WhoVaUiMessages {
   assistSuggested: string;
   assistCalculated: string;
   assistEstimate: string;
+  assistEstimatedFromDates: string;
+  assistRange: (from: string, to: string) => string;
   assistMismatch: (suggested: string, entered: string) => string;
   assistKeep: string;
   assistUseSuggestion: string;
@@ -327,6 +337,9 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   unitDays: "days",
   unitMonths: "months",
   unitYears: "years",
+  unitDay: "day",
+  unitMonth: "month",
+  unitYear: "year",
   unitHours: "hours",
   unitMinutes: "minutes",
   unitWeeks: "weeks",
@@ -445,6 +458,8 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   assistSuggested: "Suggested from the dates",
   assistCalculated: "Calculated from the dates",
   assistEstimate: "Estimate from the years",
+  assistEstimatedFromDates: "Estimated from the dates",
+  assistRange: "The dates suggest about {from} to {to}",
   assistMismatch: "The dates suggest {suggested}. Keep {entered}?",
   assistKeep: "Keep",
   assistUseSuggestion: "Use suggestion",
@@ -486,6 +501,7 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
     problemsCount: (count) => format(templates.problemsCount, { count }),
     problemHiddenBy: (question) => format(templates.problemHiddenBy, { question }),
     assistMismatch: (suggested, entered) => format(templates.assistMismatch, { suggested, entered }),
+    assistRange: (from, to) => format(templates.assistRange, { from, to }),
     assistAbout: (value) => format(templates.assistAbout, { value }),
     fixToNeonate: (days) => format(templates.fixToNeonate, { days }),
     fixToAdult: (years) => format(templates.fixToAdult, { years }),

@@ -5,6 +5,7 @@ import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
 import { createDraftStore, markCompleted, migrate, type Db } from "../src/drafts";
 import { pendingErrors, resetErrorLog } from "../src/errorLog";
 import { ApiError } from "../src/api";
+import { listDraftNames } from "../src/ui/interviewRows";
 import { clearSendError, MAX_ITEMS, noteSendError, summariseWork } from "../src/unsentWork";
 
 function memoryDb(): Db {
@@ -79,5 +80,24 @@ it("keeps counts exact while capping the item list", async () => {
 });
 
 it("returns zeros for an empty store", async () => {
-  expect(await summariseWork(db)).toEqual({ unsent: 0, attention: 0, inProgress: 0, items: [] });
+  expect(await summariseWork(db)).toEqual({ unsent: 0, unsentFiles: 0, attention: 0, inProgress: 0, items: [] });
+});
+
+it("counts an interview with two photos once, and its files apart; both files stay separate items", async () => {
+  await save("one", { valid: true });
+  for (const id of ["f1", "f2"]) {
+    await db.runAsync("INSERT INTO attachments (id, draft_id, question, kind, mime_type, ext, size_bytes, created_at, data) VALUES (?, ?, 'Id10001', 'photo', 'image/jpeg', 'jpg', 1, ?, x'00')", [id, "one", "2026-09-30"]);
+  }
+  const work = await summariseWork(db);
+  expect(work).toMatchObject({ unsent: 1, unsentFiles: 2, attention: 0 });
+  expect(work.items.filter((item) => item.kind === "attachment")).toHaveLength(2);
+  await db.runAsync("UPDATE drafts SET upload_issue = 'answers_hash_invalid'", []);
+  expect(await summariseWork(db)).toMatchObject({ unsent: 0, unsentFiles: 0, attention: 3 });
+});
+
+it("reads the deceased's name from each draft's Id10017 + Id10018 in one query", async () => {
+  await save("both", undefined, { Id10017: "Mohan", Id10018: "Testcase" });
+  await save("given", undefined, { Id10017: " Sunita " });
+  await save("none");
+  expect(await listDraftNames(db)).toEqual(new Map([["both", "Mohan Testcase"], ["given", "Sunita"]]));
 });

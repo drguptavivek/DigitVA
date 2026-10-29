@@ -5,6 +5,7 @@ import type {
 } from "@drguptavivek/who-2022-va";
 import type { WhoVaDraftController } from "@drguptavivek/who-2022-va/web";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { draftReloadUrl } from "./draftReload";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
@@ -690,7 +691,7 @@ export default function InterviewScreen() {
       }
       setConsentGate({ ...consentGate, status });
       setChangingConsent(false);
-      if (status.decision === "granted" && typeof window !== "undefined") window.location.reload();
+      if (status.decision === "granted" && typeof window !== "undefined") window.location.replace(draftReloadUrl(window.location.href, draftId));
     } catch (error) {
       setMessage(interviewErrorText(error));
     } finally {
@@ -1130,7 +1131,7 @@ export default function InterviewScreen() {
         method: "PATCH", csrf: requestCsrf!, json: { sections: { _other: { Id10013: "yes" } }, resume_refused: true, if_updated_at: current.draft.updated_at },
       });
       dirtyRef.current = false;
-      if (typeof window !== "undefined") window.location.reload();
+      if (typeof window !== "undefined") window.location.replace(draftReloadUrl(window.location.href, draftId));
     } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); setConfirmWhoGrant(false); }
   }
 

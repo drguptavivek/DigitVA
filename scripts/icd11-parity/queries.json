@@ -1,0 +1,25 @@
+{
+ "note": "Fixed ICD-11 search texts and code-info inputs for the phone/container parity run. Edit only by adding; ids are the list position.",
+ "search": [
+  "acute myocardial infarction", "myocardial", "heart attack", "chest pain", "hypertension", "high blood pressure",
+  "stroke", "intracerebral haemorrhage", "paralysis", "diabetes", "diabetis", "sugar disease", "kidney failure",
+  "chronic kidney disease", "copd", "asthma", "pneumonia", "neumonia", "cough", "breathlessness",
+  "tuberculosis", "tuberclosis", "tb", "hiv", "aids", "malaria", "falciparum", "dengue", "typhoid", "fever",
+  "jaundice", "cirrhosis", "liver cancer", "lung cancer", "breast cancer", "cervical cancer", "stomach cancer",
+  "cancer", "anaemia", "anemia", "diarrhoea", "diarrhea", "gastroenteritis", "dehydration", "malnutrition",
+  "measles", "meningitis", "fits", "convulsions", "epilepsy", "sepsis", "septicaemia", "preterm", "premature baby",
+  "low birth weight", "birth asphyxia", "respiratory distress syndrome", "neonatal sepsis", "stillbirth",
+  "postpartum haemorrhage", "bleeding after delivery", "eclampsia", "puerperal sepsis", "obstructed labour",
+  "abortion", "snake bite", "dog bite", "road traffic accident", "fall", "drowning", "burns", "electrocution",
+  "suicide", "hanging", "poisoning", "pesticide poisoning", "organophosphate", "alcohol", "assault", "old age",
+  "unknown", "tuber", "diab", "pneum", "cardio", "hepat", "nephro", "1B10", "BA41", "BA41.Z", "zzzz", ""
+ ],
+ "codeinfo": [
+  "BA41.Z", "BA52.Z", "BA5Z", "BD10", "BA00.Z", "BA01", "8B00.Z", "8B11", "5A11", "GB61.Z", "CA22.Z", "CA23",
+  "CA40.Z", "1G40", "1B10.Z", "1B11.0", "1C62.Z", "DB94.3", "2C12.02", "2C25.Z", "2C6Z", "2C77.Z", "2B72.Z",
+  "3A00.Z", "1F40.Z", "1D2Z", "1A07.Z", "1A40.Z", "5C70.0", "1F03.0", "1D01.0Z", "KA21.4Z", "KB23.0Z",
+  "KB21.Z", "KA60", "KA21.0Z", "JA43.Z", "JB02.2", "JA25", "JB40.0", "KD3B.1",
+  "1B12.2&XA0G74", "2C25.Z&XA57M6", "PA78&XE9H6", "5B52&XS25", "NB91.0Z&XA8LA8", "BA41.Z&XT5R",
+  "BA41", "1B10", "ba41.z", "BA41.Z&", "&XA0G74", "XA0G74", "ZZ99.9", "BA41.Z/CA40.Z", "BA41.Z BA52.Z", ""
+ ]
+}

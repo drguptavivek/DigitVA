@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-29
 
+- **Offline ICD-11 engine: phone parity kit and vendored bridge source.** On the
+  SM-E146B, the engine shipped in Collect Plus 0.3.14 matched the official
+  `whoicd/icd-api:2.6.0` container on all 20,010 certificates (10,000 new
+  deterministic synthetic ones, our earlier 10,000-case suite and its 10
+  erroneous cases), on 91 of 92 search texts (an empty text is refused over REST,
+  answered in-process) and on all 57 code-info inputs, including postcoordinated
+  and malformed ones. Phone DORIS median 3.5 ms, search 3.5 ms; start 20.9 s,
+  peak 1,050 MB. The kit (`scripts/icd11-parity`) pins the engine and APK by
+  SHA-256 and generates its inputs from hashes, so runs repeat byte for byte. The
+  Android C# bridge, its project and reflection lists, and the NativeAOT build
+  command now live in `mobile/digitva-collect/modules/digitva-icd11/engine-src`
+  instead of only in `private/`.
 - **Pinned Collect 0.3.14, Collect Plus 0.3.14 and web `expo-web-v2026.10.29.1`**
   in `docker-compose.yml` for the staging image (checksums verified after
   download; `docs/current-state/android-release-builds.md`). A pre-deploy audit

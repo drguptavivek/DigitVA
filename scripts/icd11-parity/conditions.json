@@ -1,0 +1,402 @@
+[
+ {
+  "key": "ami",
+  "text": "Acute myocardial infarction",
+  "groups": [
+   "adult"
+  ],
+  "code": "BA41.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+  "title": "Acute myocardial infarction, unspecified"
+ },
+ {
+  "key": "coronary",
+  "text": "Coronary atherosclerosis",
+  "groups": [
+   "adult"
+  ],
+  "code": "BA52.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+  "title": "Coronary atherosclerosis, unspecified site"
+ },
+ {
+  "key": "ihd",
+  "text": "Chronic ischaemic heart disease",
+  "groups": [
+   "adult"
+  ],
+  "code": "BA5Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1221742343/unspecified",
+  "title": "Chronic ischaemic heart disease, unspecified"
+ },
+ {
+  "key": "heart_failure",
+  "text": "Congestive heart failure",
+  "groups": [
+   "adult"
+  ],
+  "code": "BD10",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+  "title": "Congestive heart failure"
+ },
+ {
+  "key": "hypertension",
+  "text": "Essential hypertension",
+  "groups": [
+   "adult"
+  ],
+  "code": "BA00.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+  "title": "Essential hypertension, unspecified"
+ },
+ {
+  "key": "hhd",
+  "text": "Hypertensive heart disease",
+  "groups": [
+   "adult"
+  ],
+  "code": "BA01",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1210166201",
+  "title": "Hypertensive heart disease"
+ },
+ {
+  "key": "ich",
+  "text": "Intracerebral haemorrhage",
+  "groups": [
+   "adult"
+  ],
+  "code": "8B00.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified",
+  "title": "Intracerebral haemorrhage, site unspecified"
+ },
+ {
+  "key": "ischaemic_stroke",
+  "text": "Cerebral ischaemic stroke",
+  "groups": [
+   "adult"
+  ],
+  "code": "8B11",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/636274910",
+  "title": "Cerebral ischaemic stroke"
+ },
+ {
+  "key": "t2dm",
+  "text": "Type 2 diabetes mellitus",
+  "groups": [
+   "adult"
+  ],
+  "code": "5A11",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+  "title": "Type 2 diabetes mellitus"
+ },
+ {
+  "key": "ckd",
+  "text": "Chronic kidney disease",
+  "groups": [
+   "adult"
+  ],
+  "code": "GB61.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+  "title": "Chronic kidney disease, stage unspecified"
+ },
+ {
+  "key": "copd",
+  "text": "Chronic obstructive pulmonary disease",
+  "groups": [
+   "adult"
+  ],
+  "code": "CA22.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified",
+  "title": "Chronic obstructive pulmonary disease, unspecified"
+ },
+ {
+  "key": "asthma",
+  "text": "Asthma",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "CA23",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1656445230",
+  "title": "Asthma"
+ },
+ {
+  "key": "pneumonia",
+  "text": "Pneumonia, organism unspecified",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "CA40.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+  "title": "Pneumonia, organism unspecified"
+ },
+ {
+  "key": "sepsis",
+  "text": "Sepsis without septic shock",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "1G40",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+  "title": "Sepsis without septic shock"
+ },
+ {
+  "key": "resp_tb",
+  "text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation",
+  "groups": [
+   "adult"
+  ],
+  "code": "1B10.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+  "title": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation"
+ },
+ {
+  "key": "hiv",
+  "text": "HIV disease",
+  "groups": [
+   "adult"
+  ],
+  "code": "1C62.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+  "title": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified"
+ },
+ {
+  "key": "cirrhosis",
+  "text": "Alcoholic cirrhosis",
+  "groups": [
+   "adult"
+  ],
+  "code": "DB94.3",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/474954105",
+  "title": "Alcoholic cirrhosis of liver without hepatitis"
+ },
+ {
+  "key": "hepatocellular",
+  "text": "Hepatocellular carcinoma",
+  "groups": [
+   "adult"
+  ],
+  "code": "2C12.02",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1294035808",
+  "title": "Hepatocellular carcinoma of liver"
+ },
+ {
+  "key": "lung_cancer",
+  "text": "lung cancer",
+  "groups": [
+   "adult"
+  ],
+  "code": "2C25.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified",
+  "title": "Malignant neoplasms of bronchus or lung, unspecified"
+ },
+ {
+  "key": "breast_cancer",
+  "text": "breast cancer",
+  "groups": [
+   "adult"
+  ],
+  "code": "2C6Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1047754165/unspecified",
+  "title": "Malignant neoplasms of breast, unspecified"
+ },
+ {
+  "key": "cervix_cancer",
+  "text": "cervix cancer",
+  "groups": [
+   "adult"
+  ],
+  "code": "2C77.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1256072522/unspecified",
+  "title": "Malignant neoplasms of cervix uteri, unspecified"
+ },
+ {
+  "key": "stomach_cancer",
+  "text": "stomach cancer",
+  "groups": [
+   "adult"
+  ],
+  "code": "2B72.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1397617262/unspecified",
+  "title": "Malignant neoplasms of stomach, unspecified"
+ },
+ {
+  "key": "anaemia",
+  "text": "Iron deficiency anaemia",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "3A00.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1577750667/unspecified",
+  "title": "Iron deficiency anaemia, unspecified"
+ },
+ {
+  "key": "malaria",
+  "text": "falciparum malaria",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "1F40.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified",
+  "title": "Malaria due to Plasmodium falciparum, unspecified"
+ },
+ {
+  "key": "dengue",
+  "text": "Dengue",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "1D2Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1959883044/unspecified",
+  "title": "Dengue, unspecified"
+ },
+ {
+  "key": "typhoid",
+  "text": "Typhoid fever",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "1A07.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified",
+  "title": "Typhoid fever, unspecified"
+ },
+ {
+  "key": "gastroenteritis",
+  "text": "Gastroenteritis or colitis without specification of infectious agent",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "1A40.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified",
+  "title": "Infectious gastroenteritis or colitis without specification of infectious agent"
+ },
+ {
+  "key": "dehydration",
+  "text": "Dehydration",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "5C70.0",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/578744597",
+  "title": "Dehydration"
+ },
+ {
+  "key": "measles",
+  "text": "Measles without complication",
+  "groups": [
+   "child"
+  ],
+  "code": "1F03.0",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914",
+  "title": "Measles without complication"
+ },
+ {
+  "key": "meningitis",
+  "text": "Bacterial meningitis",
+  "groups": [
+   "adult",
+   "child"
+  ],
+  "code": "1D01.0Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified",
+  "title": "Bacterial meningitis, unspecified"
+ },
+ {
+  "key": "preterm",
+  "text": "Preterm newborn",
+  "groups": [
+   "neonate"
+  ],
+  "code": "KA21.4Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+  "title": "Preterm newborn, unspecified"
+ },
+ {
+  "key": "rds",
+  "text": "Respiratory distress syndrome of newborn",
+  "groups": [
+   "neonate"
+  ],
+  "code": "KB23.0Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified",
+  "title": "Respiratory distress syndrome of newborn, unspecified"
+ },
+ {
+  "key": "birth_asphyxia",
+  "text": "Birth asphyxia",
+  "groups": [
+   "neonate"
+  ],
+  "code": "KB21.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified",
+  "title": "Birth asphyxia, unspecified"
+ },
+ {
+  "key": "neonatal_sepsis",
+  "text": "sepsis of newborn",
+  "groups": [
+   "neonate"
+  ],
+  "code": "KA60",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+  "title": "Sepsis of fetus or newborn"
+ },
+ {
+  "key": "lbw",
+  "text": "Low birth weight",
+  "groups": [
+   "neonate"
+  ],
+  "code": "KA21.0Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/307162488/unspecified",
+  "title": "Extremely low birth weight of newborn, unspecified"
+ },
+ {
+  "key": "pph",
+  "text": "Postpartum haemorrhage",
+  "groups": [
+   "maternal"
+  ],
+  "code": "JA43.Z",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified",
+  "title": "Postpartum haemorrhage, unspecified"
+ },
+ {
+  "key": "uterine_atony",
+  "text": "Uterine atony",
+  "groups": [
+   "maternal"
+  ],
+  "code": "JB02.2",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1073291850",
+  "title": "Other uterine inertia"
+ },
+ {
+  "key": "eclampsia",
+  "text": "Eclampsia",
+  "groups": [
+   "maternal"
+  ],
+  "code": "JA25",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659",
+  "title": "Eclampsia"
+ },
+ {
+  "key": "puerperal_sepsis",
+  "text": "Puerperal sepsis",
+  "groups": [
+   "maternal"
+  ],
+  "code": "JB40.0",
+  "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079",
+  "title": "Puerperal sepsis"
+ }
+]

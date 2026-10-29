@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType><NativeLib>Shared</NativeLib><AllowUnsafeBlocks>true</AllowUnsafeBlocks><AssemblyName>digitva_icd11</AssemblyName><TargetFramework>net10.0</TargetFramework><Nullable>disable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization><PublishAot>true</PublishAot><JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault><TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <B>/tmp/icdapi_portable</B>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="/usr/local/share/dotnet/shared/Microsoft.AspNetCore.App/10.0.13/*.dll" Private="true" />
+    <Reference Include="$(B)/*.dll" Exclude="$(B)/DigitvaIcd11Bridge.dll;$(B)/Microsoft.Extensions.Hosting.Systemd.dll;$(B)/Microsoft.Extensions.Hosting.WindowsServices.dll;$(B)/Microsoft.Win32.SystemEvents.dll;$(B)/System.Drawing.Common.dll;$(B)/System.ServiceProcess.ServiceController.dll" Private="true" />
+  </ItemGroup>
+<ItemGroup><TrimmerRootAssembly Include="ICD-API" /><TrimmerRootAssembly Include="Microsoft.CSharp" /><TrimmerRootAssembly Include="System.Linq.Expressions" /><TrimmerRootAssembly Include="OCT" /><TrimmerRootAssembly Include="DorisRuleEngine" /><TrimmerRootAssembly Include="ICDTextAnalyzers" /><TrimmerRootAssembly Include="Expressions" /><TrimmerRootAssembly Include="NCalc" /><TrimmerRootAssembly Include="protobuf-net" /><TrimmerRootAssembly Include="Newtonsoft.Json" /><TrimmerRootAssembly Include="CsvHelper" /><TrimmerRootAssembly Include="J2N" /><TrimmerRootAssembly Include="ICU4N" /><TrimmerRootAssembly Include="Lucene.Net" /><TrimmerRootAssembly Include="Lucene.Net.Analysis.Common" /><TrimmerRootAssembly Include="Lucene.Net.ICU" /><TrimmerRootAssembly Include="JiebaNet.Segmenter" /><TrimmerRootAssembly Include="MiniExcel" /><TrimmerRootAssembly Include="CSharpFastPFOR" /><TrimmerRootAssembly Include="Antlr4.Runtime.Standard" /></ItemGroup><ItemGroup><RdXmlFile Include="rd.xml" /><RdXmlFile Include="rd_gen.xml" /></ItemGroup></Project>

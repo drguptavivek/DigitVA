@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-29
 ---
 
 # Test Project TST001 (Intake Test)
@@ -26,6 +26,24 @@ both web-intake methods with a user in every role. Source:
   email local part, upper-cased, dots as underscores).
 - It passes `flask web-intake readiness TST001`; `geography_fields` warns
   because the bundled WHO questionnaire has no `org_<level>_code` fields.
+
+## On staging
+
+Staging has real users, so `--staging` changes what the seed writes:
+
+```bash
+docker compose exec -T -e DIGITVA_ALLOW_TEST_SEED=1 minerva_app_service \
+  uv run --no-sync flask seed test-project --staging --actor-email <admin email>
+```
+
+`--actor-email` is required and must name an existing active user with an
+active global `admin` grant; that admin is the actor on every grant and
+`grants.log` line. The seed creates and grants no admin account: no
+`testadmin`, no `project_pi` grant (so no `test.pi`), and no SADEMO grant.
+Each new account gets its own random password that is never shown, logged
+or recorded; the operator sets real passwords afterwards from hashes.
+Existing accounts keep their password. `--actor-email` without `--staging` is
+refused. The rest (tree, grid, every other roster grant) is the same as dev.
 
 ## Tree
 
@@ -60,13 +78,13 @@ district reference model. TST001 grants use `district` CS/DPM/DEPI/MO/SN,
 
 ## Roster
 
-Every account is `<name>@digitva.com`, password `Aiims@123`, email verified,
-onboarded, Asia/Kolkata, English. Unit-scoped grants carry the cadre.
+Every account is `<name>@digitva.com`, password `Aiims@123` (dev only; see
+On staging), email verified, onboarded, Asia/Kolkata, English. Unit-scoped grants carry the cadre.
 
 | User | Unit / cadre | Roles | Landing |
 | --- | --- | --- | --- |
-| testadmin | project | admin (existing), project_pi | admin |
-| test.pi | project | project_pi | admin |
+| testadmin (dev only) | project | admin (existing), project_pi | admin |
+| test.pi (dev only) | project | project_pi | admin |
 | test.dm | project | data_manager | data_manager |
 | test.faculty, test.resident | project | collaborator_pii, coding_tester | data_manager |
 | test.cs.dh01 | DH01 CS | interview_supervisor (no `site_pi`: not held at a unit; `test.pi` covers every district) | intake |
@@ -95,7 +113,7 @@ the grid permits: `death_reporter` needs `can_report_deaths` (SC01 ANM),
 reviewer are project-scope grants (no cadre). No single (unit, cadre) permits
 all four roles, hence three roster rows for the same person; the first row sets
 the landing page and the unit-placed worker is SC01 ANM. It also holds a
-project-scope `coder` grant in SADEMO (classical, sites, random allocation),
+project-scope `coder` grant in SADEMO (classical, sites, random allocation; dev only),
 written by the seed directly because the user import is organization-only.
 The SADEMO grant is skipped when that project does not exist.
 

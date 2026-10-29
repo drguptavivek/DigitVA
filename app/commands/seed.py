@@ -7,6 +7,7 @@ Usage:
   flask seed test-project # build test project TST001 (dev/staging only)
 """
 import os
+import secrets
 import uuid
 import click
 import sqlalchemy as sa
@@ -370,9 +371,15 @@ def _tst_email(local: str) -> str:
     "--staging",
     is_flag=True,
     default=False,
-    help="Allow a non-debug app; also needs DIGITVA_ALLOW_TEST_SEED=1 in the environment.",
+    help="Staging mode: allows a non-debug app (also needs DIGITVA_ALLOW_TEST_SEED=1), "
+    "needs --actor-email, and creates no admin or project_pi account.",
 )
-def seed_test_project(staging):
+@click.option(
+    "--actor-email",
+    default=None,
+    help="Staging only: an active global admin recorded as the actor of every grant.",
+)
+def seed_test_project(staging, actor_email):
     """Build test project TST001 with its tree, grid and a user in every role.
 
     Dev/staging only, never part of `seed run`. Idempotent: existing rows are
@@ -380,6 +387,12 @@ def seed_test_project(staging):
     existing users keep their password, profile and status (a deactivated
     one gets no grants and is listed). Grants go through the
     project user import service, so the level x cadre rules are enforced.
+
+    Dev (no --staging) seeds testadmin as actor and TST001 PI, and gives new
+    users the shared documented password. --staging (real users) uses the
+    --actor-email admin instead, skips testadmin, every project_pi grant and
+    the SADEMO grant, and gives each new user a random password that is
+    never shown or kept; the operator sets real passwords afterwards.
     """
     from flask import current_app
 
@@ -389,13 +402,30 @@ def seed_test_project(staging):
     staging_allowed = staging and os.environ.get("DIGITVA_ALLOW_TEST_SEED") == "1"
     if not (current_app.debug or current_app.testing or staging_allowed):
         raise click.ClickException(
-            "test-project creates accounts with a shared password; it runs only "
+            "test-project creates test accounts; it runs only "
             "on a debug or testing app, or with --staging and DIGITVA_ALLOW_TEST_SEED=1."
         )
 
-    _seed_admin()
+    from app.models import VaUsers
+
+    if actor_email is not None and not staging:
+        # Dev mode's actor is the seeded testadmin; a second actor would be ambiguous.
+        raise click.ClickException("--actor-email applies only with --staging.")
+    if staging:
+        if not actor_email:
+            raise click.ClickException("--staging needs --actor-email (an active global admin).")
+        actor = db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.email == actor_email.strip().lower())
+        )
+        if actor is None or not actor.is_active or not actor.is_admin():
+            raise click.ClickException(
+                "--actor-email must name an active user with an active global admin grant."
+            )
+    else:
+        _seed_admin()
+        actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     try:
-        summary = _build_test_project(org, user_import)
+        summary = _build_test_project(org, user_import, actor, staging=staging)
     except (org.OrganizationError, user_import.ProjectUserImportError, ValueError) as exc:
         db.session.rollback()
         raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
@@ -405,8 +435,14 @@ def seed_test_project(staging):
         click.echo(f"  {key:10s} {value}")
 
 
-def _build_test_project(org, user_import) -> dict:
-    """Write everything in the caller's transaction; return counts for the summary."""
+def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
+    """Write everything in the caller's transaction; return counts for the summary.
+
+    *actor* is the global admin recorded on the import and audit. *staging*
+    drops project_pi from the roster (and any user left with no role), the
+    testadmin PI grant and the SADEMO grant, and gives new users a random
+    password instead of TEST_PROJECT_PASSWORD.
+    """
     from app.models import (
         MasOrgUnitWorker, VaAccessRoles, VaAccessScopeTypes, VaProjectMaster,
         VaStatuses, VaUserAccessGrants, VaUsers,
@@ -414,6 +450,14 @@ def _build_test_project(org, user_import) -> dict:
     from app.routes.admin import _with_web_project_defaults
 
     summary = {}
+    roster = _TST_USERS
+    if staging:
+        # Owner rule: no project admin is created or granted on staging.
+        roster = tuple(
+            (local, landing, unit_code, cadre_code, kept)
+            for local, landing, unit_code, cadre_code, roles in _TST_USERS
+            if (kept := tuple(role for role in roles if role != "project_pi"))
+        )
 
     # Project: created as the Projects panel creates a web organization
     # project, then given its automatic site and web form.
@@ -476,7 +520,7 @@ def _build_test_project(org, user_import) -> dict:
         units[code] = unit
 
     cadres = {c.cadre_code: c for c in org.list_cadres(TEST_PROJECT_ID, include_inactive=True)}
-    for code in {cadre_code for *_rest, cadre_code, _roles in _TST_USERS if cadre_code}:
+    for code in {cadre_code for *_rest, cadre_code, _roles in roster if cadre_code}:
         if not cadres[code].is_active:
             org.update_cadre(TEST_PROJECT_ID, cadres[code].cadre_id, is_active=True)
     summary["tree"] = (
@@ -488,13 +532,13 @@ def _build_test_project(org, user_import) -> dict:
     # reset). An existing user keeps password, profile and status: a
     # deactivated account may have been disabled on purpose, so it is never
     # reactivated here; its grants are skipped and it is listed.
-    emails = [_tst_email(local) for local, *_ in _TST_USERS]
+    emails = [_tst_email(local) for local, *_ in roster]
     users = {
         u.email: u
         for u in db.session.scalars(sa.select(VaUsers).where(VaUsers.email.in_(emails)))
     }
     created_users = 0
-    for local, landing, *_ in _TST_USERS:
+    for local, landing, *_ in roster:
         email = _tst_email(local)
         if email in users:
             continue
@@ -511,7 +555,8 @@ def _build_test_project(org, user_import) -> dict:
             email_verified=True,
             other=creation_other("seed"),
         )
-        user.set_password(TEST_PROJECT_PASSWORD)
+        # Staging: unknown to anyone; never echoed, logged or stored in clear.
+        user.set_password(secrets.token_urlsafe(32) if staging else TEST_PROJECT_PASSWORD)
         db.session.add(user)
         users[email] = user
         created_users += 1
@@ -520,7 +565,7 @@ def _build_test_project(org, user_import) -> dict:
 
     # Workers: the person-holds-cadre-at-unit record, grant or not.
     created_workers = 0
-    for local, _landing, unit_code, cadre_code, _roles in _TST_USERS:
+    for local, _landing, unit_code, cadre_code, _roles in roster:
         if unit_code is None:
             continue
         worker_code = local.upper().replace(".", "_")
@@ -550,9 +595,9 @@ def _build_test_project(org, user_import) -> dict:
     )
     if inactive:
         summary["skipped"] = "deactivated, no grants: " + ", ".join(inactive)
-    grant_specs = [("testadmin@digitva.com", "project_pi", None, None)] + [
+    grant_specs = ([] if staging else [("testadmin@digitva.com", "project_pi", None, None)]) + [
         (_tst_email(local), role, unit_code, cadre_code)
-        for local, _landing, unit_code, cadre_code, roles in _TST_USERS
+        for local, _landing, unit_code, cadre_code, roles in roster
         for role in roles
         if _tst_email(local) not in inactive
     ]
@@ -569,13 +614,12 @@ def _build_test_project(org, user_import) -> dict:
         }
         for number, (email, role, unit_code, cadre_code) in enumerate(grant_specs, start=1)
     ]
-    actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
     _new_users, audit, _codes = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
     written, total = len(audit), len(plan)
     # Sites projects: the import is organization-only, so write the one
     # project-scope grant the way the admin panel does (admin.py grants).
-    for local, project_id, role in _TST_CLASSICAL_GRANTS:
+    for local, project_id, role in () if staging else _TST_CLASSICAL_GRANTS:
         user = users[_tst_email(local)]
         if db.session.get(VaProjectMaster, project_id) is None or user.user_status != VaStatuses.active:
             continue

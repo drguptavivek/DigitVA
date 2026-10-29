@@ -2,16 +2,19 @@
 
 Roster and grid: docs/current-state/test-project-tst001.md.
 """
+from datetime import UTC, datetime
+
 import sqlalchemy as sa
 
 from app import db
-from app.commands.seed import _TST_USERS, TEST_PROJECT_ID
+from app.commands.seed import _TST_USERS, TEST_PROJECT_ID, TEST_PROJECT_PASSWORD
 from app.models import (
     MasCadre,
     MasOrgUnit,
     MasOrgUnitWorker,
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaProjectMaster,
     VaStatuses,
     VaUserAccessGrants,
     VaUsers,
@@ -186,3 +189,93 @@ class SeedTestProjectTests(BaseTestCase):
             ("test.pi@digitva.com", "project_pi", TEST_PROJECT_ID, None), self._grants()
         )
         self.assertIn(("test.dm@digitva.com", "data_manager", TEST_PROJECT_ID, None), self._grants())
+
+    def _user(self, local):
+        return db.session.scalar(sa.select(VaUsers).where(VaUsers.email == f"{local}@digitva.com"))
+
+    def _add_sademo(self):
+        """The classical project the SADEMO coder grant needs."""
+        now = datetime.now(UTC)
+        db.session.add(VaProjectMaster(
+            project_id="SADEMO", project_code="SADEMO", project_name="Sites Demo",
+            project_nickname="SADEMO", project_status=VaStatuses.active,
+            project_registered_at=now, project_updated_at=now,
+        ))
+        db.session.commit()
+        self.assertIsNotNone(db.session.get(VaProjectMaster, "SADEMO"))
+
+    def _sademo_grants(self):
+        return db.session.scalars(
+            sa.select(VaUserAccessGrants.role)
+            .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
+            .where(VaUsers.email == "test.all@digitva.com", VaUserAccessGrants.project_id == "SADEMO")
+        ).all()
+
+    def _staging(self, actor_email=None):
+        args = ["seed", "test-project", "--staging"]
+        if actor_email is not None:
+            args += ["--actor-email", actor_email]
+        return self.app.test_cli_runner().invoke(args=args)
+
+    def test_dev_mode_writes_the_sademo_grant_with_the_shared_password(self):
+        self._add_sademo()
+        result = self.app.test_cli_runner().invoke(args=["seed", "test-project"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(self._sademo_grants(), [VaAccessRoles.coder])
+        self.assertTrue(self._user("test.dm").check_password(TEST_PROJECT_PASSWORD))
+        self.assertIsNotNone(self._user("testadmin"))
+        self.assertIsNotNone(self._user("test.pi"))
+
+    def test_staging_refuses_without_an_active_global_admin_actor(self):
+        inactive = self._make_user("inactive.admin@test.local", "Inactive123")
+        db.session.add(VaUserAccessGrants(
+            user_id=inactive.user_id, role=VaAccessRoles.admin,
+            scope_type=VaAccessScopeTypes.global_scope, grant_status=VaStatuses.active,
+        ))
+        inactive.user_status = VaStatuses.deactive
+        db.session.commit()
+        self.assertTrue(inactive.is_admin())
+
+        for actor_email in (None, "", "nobody@test.local", self.base_project_pi_user.email,
+                            "inactive.admin@test.local"):
+            with self.subTest(actor_email=actor_email):
+                refused = self._staging(actor_email)
+                self.assertNotEqual(refused.exit_code, 0)
+                self.assertIn("--actor-email", refused.output)
+        dev = self.app.test_cli_runner().invoke(
+            args=["seed", "test-project", "--actor-email", self.base_admin_user.email]
+        )
+        self.assertNotEqual(dev.exit_code, 0)
+        self.assertIn("only with --staging", dev.output)
+        self.assertIsNone(self._user("test.dm"))
+        self.assertIsNone(self._user("testadmin"))
+
+    def test_staging_grants_no_admin_or_pi_and_sets_unknown_passwords(self):
+        self._add_sademo()
+        self.assertIn(("test.pi", "admin", None, None, ("project_pi",)), _TST_USERS)
+        first = self._staging(self.base_admin_user.email.upper())
+        self.assertEqual(first.exit_code, 0, first.output)
+        second = self._staging(self.base_admin_user.email)
+        self.assertEqual(second.exit_code, 0, second.output)
+
+        expected = [
+            (f"{local}@digitva.com", role, unit or TEST_PROJECT_ID, cadre)
+            for local, _landing, unit, cadre, roles in _TST_USERS
+            for role in roles
+            if role != "project_pi"
+        ]
+        self.assertTrue(expected)
+        self.assertEqual(sorted(self._grants()), sorted(expected))
+        self.assertNotIn("project_pi", {role for _e, role, _s, _c in self._grants()})
+        self.assertIsNone(self._user("testadmin"))
+        self.assertIsNone(self._user("test.pi"))
+        self.assertEqual(self._sademo_grants(), [])
+        self.assertIn("already in place", second.output)
+
+        dm, cho = self._user("test.dm"), self._user("test.cho.sc01")
+        self.assertIsNotNone(dm)
+        self.assertIsNotNone(cho)
+        for user in (dm, cho):
+            self.assertFalse(user.check_password(TEST_PROJECT_PASSWORD))
+        self.assertNotEqual(dm.password, cho.password)
+        self.assertNotIn(TEST_PROJECT_PASSWORD, first.output + second.output)

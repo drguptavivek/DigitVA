@@ -14,6 +14,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   the attempt's own consent, so a teammate's fresh grant is no longer re-cleared.
   Staging had no held cases to backfill. Full backend suite: 7,029 passed, six
   skipped. See `docs/policy/respondent-consent-notice-draft.md`.
+- **Staging-safe TST001 seed** (`digitva-rlk6`): `flask seed test-project
+  --staging --actor-email <admin>` creates no admin or project PI account
+  (no testadmin, test.pi or SADEMO grant) and gives each new account a random,
+  unrecorded password; dev mode is unchanged. See
+  `docs/current-state/test-project-tst001.md`. Full backend suite: 7,032 passed.
 - **Query-count diagnostic** (`digitva-hs7e.19`): the paging stats test prints
   the extra SQL statements if its counts differ; the assertion is unchanged.
 

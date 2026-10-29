@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-29
 ---
 
 # CLI Reference
@@ -22,6 +22,7 @@ docker compose exec minerva_app_service uv run flask <group> <command> [options]
 |---------|-------------|
 | `seed run` | Seed languages, admin user, form types, field mappings. Safe to re-run. |
 | `seed run --test` | Also create 5 test coder users (see [CLAUDE.md](../../CLAUDE.md) for credentials). |
+| `seed test-project [--staging --actor-email EMAIL]` | Build test project TST001 (debug or testing app only). `--staging` (with `DIGITVA_ALLOW_TEST_SEED=1`) needs an active global admin as actor and creates no admin or `project_pi` account, with random unrecorded passwords. See [test-project-tst001.md](test-project-tst001.md). |
 
 ---
 

@@ -1511,7 +1511,9 @@ def admin_create_project():
 
     from app.models.va_web_intake import WEB_INTAKE_MODES
 
-    web_intake_mode = (payload.get("web_intake_mode") or "off").strip()
+    # Not sent: the new-project default, 'direct' (owner, 2026-10-29). An
+    # explicit "off" still wins.
+    web_intake_mode = (payload.get("web_intake_mode") or "direct").strip()
     if web_intake_mode not in WEB_INTAKE_MODES:
         return _json_error("Invalid web_intake_mode.", 400)
 

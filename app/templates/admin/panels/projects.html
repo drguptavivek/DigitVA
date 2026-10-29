@@ -913,6 +913,7 @@
   markTouched(formTypeInput, 'web_intake_form_type_id');
   markTouched(deathSummaryInput, 'web_intake_death_summary_enabled');
   markTouched(medicalRecordsInput, 'web_intake_medical_records_enabled');
+  markTouched(equityInput, 'web_intake_equity_enabled');
   markTouched(allLocalesInput, 'web_intake_available_locales');
   markTouched(availableLocalesList, 'web_intake_available_locales');
   markTouched(narrationLanguagesList, 'web_intake_narration_languages');
@@ -1007,7 +1008,7 @@
     formTypeInput.value = '';
     deathSummaryInput.checked = true;
     medicalRecordsInput.checked = true;
-    equityInput.checked = false;
+    equityInput.checked = true;  // the server's new-project default (WEB_PROJECT_DEFAULTS)
     intakeNoteInput.value = '';
     _intakeNoteIsDefault = true;
     syncIntakeNoteState();
@@ -1052,7 +1053,7 @@
     icdClassificationInput.value = 'icd10';
     deriveCodEntryMode();
     maskedCodRequiredInput.checked = true;
-    webIntakeModeInput.value = 'off';
+    webIntakeModeInput.value = 'direct';
     structureModeInput.value = 'sites';
     socialAutopsyEnabledInput.checked = true;
     reviewerSocialAutopsyEnabledInput.checked = true;
@@ -1192,6 +1193,11 @@
     // Sending this form's initial values instead would store them as if they
     // had been chosen, and would send language lists this deployment may not
     // support.
+    // Equity is left out whenever untouched, intake 'off' included: an 'off'
+    // project keeps the model default (off).
+    if (!_editingId && !_touched.web_intake_equity_enabled) {
+      delete data.web_intake_equity_enabled;
+    }
     if (!_editingId && data.web_intake_mode !== 'off') {
       var defaulted = [
         'web_intake_form_type_id',

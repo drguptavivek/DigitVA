@@ -205,7 +205,7 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(body["notice_versions"], [])
         self.assertEqual(body["contacts"]["districts"], {})
         self.assertIsNone(body["contacts"]["dpo"])
-        self.assertEqual(body["retention"], {"period_days": None, "expiry_action": "erase"})
+        self.assertEqual(body["retention"], {"period_days": 365, "expiry_action": "erase"})  # digitva-7amd.26
 
     def test_config_answers_a_device_bearer(self):
         client = _FreshGClient(self.app, self.app.response_class, use_cookies=False)

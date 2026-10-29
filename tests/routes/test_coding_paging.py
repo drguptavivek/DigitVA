@@ -8,6 +8,7 @@ in SQL, a constant number of queries whatever the table size.
 
 import difflib
 import uuid
+from unittest import mock
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
@@ -371,12 +372,16 @@ class CodingPagingTests(BaseTestCase):
         self.assertEqual(len([r for r in listed if r["va_sid"].startswith("pg-")]), 9)
         self.assertEqual(get_coder_ready_stats(self.coder)["pick_ready"], len(listed))
         self._get("/api/v1/coding/stats")  # warm the session
-        with _QueryCounter() as small:
+        # Both runs read the coder counts cold: the test Redis cache is shared by
+        # the parallel workers, and another worker's cache.clear() between the two
+        # runs made only the second one query them (17 vs 19, digitva-hs7e.19).
+        cold = mock.patch("app.services.coder_dashboard_service.cache.get", return_value=None)
+        with cold, _QueryCounter() as small:
             self._get("/api/v1/coding/stats")
         for i in range(20):
             self._add_submission(f"pg-a-stat-{i}", self.form_a)
         db.session.flush()
-        with _QueryCounter() as large:
+        with cold, _QueryCounter() as large:
             stats = self._get("/api/v1/coding/stats").get_json()
         self.assertEqual(stats["pick_ready"], len(listed) + 20)
         self.assertEqual(

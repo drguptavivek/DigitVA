@@ -147,6 +147,9 @@ class AuthzFixtureMixin:
                 project_name=project_id, project_nickname=project_id,
                 project_status=VaStatuses.deactive if project_id == CL else VaStatuses.active,
                 coding_intake_mode="pick_and_choose",
+                # The grant tests assume ODK-only projects until they switch
+                # intake on; the model default is now "direct".
+                web_intake_mode="off",
                 demo_training_enabled=project_id == DM,
                 **stamps,
             ))

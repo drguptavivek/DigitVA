@@ -165,9 +165,10 @@ class VaProjectMaster(db.Model):
         sa.Boolean(), nullable=False, default=False, server_default="false"
     )
     # Web intake of WHO VA 2022 questionnaires (docs/policy/web-intake.md):
-    # off | direct | death_register | both.
+    # off | direct | death_register | both. New projects default to 'direct'
+    # (owner, 2026-10-29); existing rows keep their value.
     web_intake_mode: so.Mapped[str] = so.mapped_column(
-        sa.String(16), nullable=False, default="off", server_default="off"
+        sa.String(16), nullable=False, default="direct", server_default="direct"
     )
     # Self-coding project (docs/policy/web-intake.md, "Self-coding projects"):
     # a coder also interviews, and may code their own case. Only meaningful

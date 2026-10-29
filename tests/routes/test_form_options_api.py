@@ -633,7 +633,11 @@ class FormOptionsAdminCreationTests(BaseTestCase):
         self.assertIsNone(db.session.get(VaProjectMaster, self.PROJECT))
 
     def test_post_without_the_fields_keeps_the_model_defaults(self):
-        response = self._post(self._base_payload(self.PROJECT))
+        # Explicit "off": a project with no mode now defaults to "direct" and
+        # gets the web-capture defaults (digitva-7amd.25).
+        payload = self._base_payload(self.PROJECT)
+        payload["web_intake_mode"] = "off"
+        response = self._post(payload)
         self.assertEqual(response.status_code, 201, response.get_json())
 
         db.session.expire_all()
@@ -1204,8 +1208,31 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
             project.web_intake_narration_languages, ["english", "hindi"]
         )
 
+    def test_a_project_created_without_a_mode_is_direct_with_every_default(self):
+        """digitva-7amd.25: no web_intake_mode means "direct", web defaults too."""
+        response = self._post("FDEF06")
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, "FDEF06")
+        self.assertEqual(project.web_intake_mode, "direct")
+        self.assertEqual(project.web_intake_form_type_id, self.default_type.form_type_id)
+        self.assertFalse(project.social_autopsy_enabled)
+        self.assertEqual(project.coding_intake_mode, "pick_and_choose")
+        self.assertEqual(project.web_intake_narration_languages, ["english", "hindi"])
+        self.assertTrue(project.web_intake_equity_enabled)  # digitva-7amd.26
+
+    def test_equity_is_on_by_default_only_for_a_project_that_collects_on_the_web(self):
+        self.assertEqual(self._post("FDEQ01", web_intake_mode="off").status_code, 201)
+        self.assertEqual(self._post("FDEQ02", web_intake_equity_enabled=False).status_code, 201)
+        self.assertEqual(self._post("FDEQ03").status_code, 201)
+        db.session.expire_all()
+        self.assertFalse(db.session.get(VaProjectMaster, "FDEQ01").web_intake_equity_enabled)
+        self.assertFalse(db.session.get(VaProjectMaster, "FDEQ02").web_intake_equity_enabled)
+        self.assertTrue(db.session.get(VaProjectMaster, "FDEQ03").web_intake_equity_enabled)
+
     def test_web_intake_off_keeps_the_model_defaults(self):
-        response = self._post("FDEF02")
+        response = self._post("FDEF02", web_intake_mode="off")
         self.assertEqual(response.status_code, 201, response.get_json())
 
         db.session.expire_all()

@@ -137,13 +137,20 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
           df -h /
 
+      # The engine source is the vendor/smartva-analyze submodule (public); only it is fetched.
+      - name: Fetch the SmartVA engine source
+        run: git submodule update --init --depth 1 vendor/smartva-analyze
+
       - name: Build the bundled SmartVA engine
         shell: bash
         run: |
           set -euo pipefail
           rustup toolchain install stable --profile minimal
           rustup target add --toolchain stable aarch64-linux-android
-          sdkmanager 'ndk;28.2.13676358'
+          # The runner image no longer puts sdkmanager on PATH.
+          sdkmanager="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          [[ -x "$sdkmanager" ]] || { echo "sdkmanager not found under $ANDROID_HOME" >&2; exit 1; }
+          "$sdkmanager" 'ndk;28.2.13676358'
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
           RUSTUP_TOOLCHAIN=stable scripts/build-smartva-android.sh
 

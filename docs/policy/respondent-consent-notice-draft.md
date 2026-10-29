@@ -196,9 +196,12 @@ Project Setup's "Seed from draft" (Respondent consent section) creates notice
 version 1 of a project with no notice versions, in English and Hindi, from the
 two blocks below: plain text (the consent screen shows the text as written,
 not as Markdown), `[PROJECT NAME]` replaced by the project's name and the
-placeholders below filled from the `PUBLIC_*` settings; every other bracketed
-item is left for the project to fill in. Filling them in is an edit, which
-saves a new version.
+placeholders below filled from the `PUBLIC_*` settings and the "Defaults"
+section (retention, district team, mentoring institution: from the project's
+consent settings, else the defaults; one district contact in the settings fills
+the district line, none or several give the health-worker sentence). Any other
+bracketed item is left for the project to fill in. Filling them in is an edit,
+which saves a new version.
 
 Placeholders are filled from settings (owner 2026-10-27, `digitva-e9hx`) only
 when a version is saved, by the seed or by Project Setup's "Fill from
@@ -476,6 +479,28 @@ a contact is audited and creates a new notice version, because the printed
 text changes. A deletion or exclusion request received by email is recorded
 in the case history (who, when, what was asked) and actioned by a supervisor
 or data manager, as under "Withdrawal" in the consent bead.
+
+## Defaults (owner 2026-10-29, `digitva-7amd.26`)
+
+A project's notice must not reach a respondent with a bracketed blank. Seeding
+and "Fill from settings" write these defaults where a setting is missing:
+
+- **Retention.** A project without its own retention setting keeps the
+  respondent's and family's identifying details (names, phone numbers,
+  address, identity numbers) for **one year from the interview**, then erases
+  them; the de-identified answers are kept permanently. The consent settings
+  default to `retention_period_days = 365`, `expiry_action = erase`, counted
+  from the interview. The notice says: "We keep your name, phone number,
+  address and identity numbers for 1 year from the interview, then erase them.
+  The answers about the death are kept permanently without these details." A
+  project may set another period or `lock`; the sentence follows its setting.
+  The erasure must be true when the respondent hears it, so the erasure job
+  (`digitva-7amd.27`) must run before the first interview reaches one year.
+- **District team.** The district unit's contact when the project has one;
+  otherwise "Your district team: the health worker who visits you will give
+  you their name and phone number."
+- **Mentoring institution.** The consent settings' mentoring institution when
+  set; otherwise "The mentoring institution: through the central team below."
 
 ## Notes for the project and legal review
 

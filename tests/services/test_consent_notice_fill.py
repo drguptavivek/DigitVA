@@ -25,7 +25,19 @@ from app.services.consent_notice_seed import SEED_PURPOSES, SEED_TEXT, standalon
 from tests.base import BaseTestCase
 
 PLACEHOLDER = re.compile(r"\[[^]]*\]")
-INSTITUTION = {"en": "[INSTITUTION NAME, EMAIL, PHONE]", "hi": "[संस्थान का नाम, ईमेल, फ़ोन]"}
+ONE_YEAR = {
+    "en": "We keep your name, phone number, address and identity numbers for 1 year from the interview, "
+          "then erase them. The answers about the death are kept permanently without these details.",
+    "hi": "हम आपका नाम, फ़ोन नंबर, पता और पहचान नंबर साक्षात्कार से 1 वर्ष तक रखते हैं, फिर उन्हें मिटा देते हैं। "
+          "मृत्यु के बारे में उत्तर इन विवरणों के बिना हमेशा रखे जाते हैं।",
+}
+HEALTH_WORKER = {
+    "en": "Your district team: the health worker who visits you will give you their name and phone number.",
+    "hi": "आपकी ज़िला टीम: आपसे मिलने आने वाले स्वास्थ्यकर्मी आपको अपना नाम और फ़ोन नंबर बताएँगे।",
+}
+CENTRAL = {"en": "The mentoring institution: through the central team below.",
+           "hi": "मार्गदर्शक संस्थान: नीचे दिए केंद्रीय टीम के माध्यम से।"}
+DISTRICT_UNIT_1, DISTRICT_UNIT_2 = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
 EMPTY = {"PUBLIC_ORG_NAME": "", "PUBLIC_CONTACT_EMAIL": "", "PUBLIC_GRIEVANCE_OFFICER": ""}
 
 
@@ -98,8 +110,8 @@ class ConsentNoticeFillTests(BaseTestCase):
         for language, row in rows.items():
             for fragment in expected[language]:
                 self.assertIn(fragment, row.text)
-            # The mentoring institution is the only placeholder no setting fills.
-            self.assertEqual(set(PLACEHOLDER.findall(row.text)), {INSTITUTION[language]})
+            self.assertEqual(PLACEHOLDER.findall(row.text), [])
+            self.assertIn(CENTRAL[language], row.text)
             self.assertEqual(row.text_sha256, hashlib.sha256(row.text.encode("utf-8")).hexdigest())
             labels = {p["code"]: p["label"] for p in row.purposes}
             self.assertIn("Org X", labels["narrative_automated_processing"])
@@ -110,37 +122,44 @@ class ConsentNoticeFillTests(BaseTestCase):
 
     def test_demo_lines_appear_only_on_the_demo_project(self):
         rows = self._seed(self.PROJECT)
-        self.assertIn("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", rows["en"].text)
-        self.assertIn("[DISTRICT CONTACT NAME, EMAIL, PHONE]", rows["en"].text)
-        self.assertIn("[रखने की अवधि और उसके बाद क्या होगा]", rows["hi"].text)
-        self.assertIn("[ज़िला संपर्क का नाम, ईमेल, फ़ोन]", rows["hi"].text)
-        for row in rows.values():
+        for language, row in rows.items():
+            self.assertIn(ONE_YEAR[language], row.text)
+            self.assertIn(HEALTH_WORKER[language], row.text)
             self.assertIn("Org X", row.text)  # the shared fills still apply
             self.assertNotIn("public demo", row.text)
             self.assertNotIn("सार्वजनिक डेमो", row.text)
 
     def test_demo_retention_promise_waits_for_the_purge_and_the_demo(self):
-        # Purge off: the deletion promise would be untrue, so its placeholder stays; the district line fills.
+        # Purge off: the demo's deletion promise would be untrue, so the project's own retention
+        # sentence (the default) stands; the district line is still the demo's.
         rows = self._seed(self.DEMO, PUBLIC_DEMO_PURGE_ENABLED=False)
         self.assertIn("Your district team: not applicable in the public demo.", rows["en"].text)
-        self.assertIn("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", rows["en"].text)
-        self.assertIn("[रखने की अवधि और उसके बाद क्या होगा]", rows["hi"].text)
+        self.assertIn(ONE_YEAR["en"], rows["en"].text)
+        self.assertIn(ONE_YEAR["hi"], rows["hi"].text)
         self.assertNotIn("is deleted 30 days", rows["en"].text)
 
     def test_demo_lines_need_a_demo_deployment(self):
         # A project that happens to be called PUB01 on a non-demo deployment is an ordinary project.
         rows = self._seed(self.DEMO, PUBLIC_DEMO_ENABLED=False)
         self.assertIn("Org X", rows["en"].text)
-        self.assertIn("[DISTRICT CONTACT NAME, EMAIL, PHONE]", rows["en"].text)
-        self.assertIn("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", rows["en"].text)
+        self.assertIn(HEALTH_WORKER["en"], rows["en"].text)
+        self.assertIn(ONE_YEAR["en"], rows["en"].text)
         self.assertNotIn("public demo", rows["en"].text)
 
     def test_unset_settings_leave_their_placeholders_and_the_phone_goes(self):
         # An officer without an email is not enough to fill the officer line.
         rows = self._seed(self.PROJECT, **{**EMPTY, "PUBLIC_GRIEVANCE_OFFICER": "Dr A B"})
         for language, row in rows.items():
-            self.assertEqual(row.text, SEED_TEXT[language].replace("[PROJECT NAME]", "Fill CNF01")
-                             .replace(", [PHONE]", "").replace(", [फ़ोन]", ""))
+            # Only the three digitva-7amd.26 defaults are filled when no PUBLIC_* setting is.
+            expected = (SEED_TEXT[language].replace("[PROJECT NAME]", "Fill CNF01")
+                        .replace(", [PHONE]", "").replace(", [फ़ोन]", ""))
+            for placeholder in ("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", "[रखने की अवधि और उसके बाद क्या होगा]"):
+                expected = expected.replace(placeholder, ONE_YEAR[language])
+            expected = (expected.replace("[DISTRICT CONTACT NAME, EMAIL, PHONE]", HEALTH_WORKER["en"].split(": ")[1][:-1])
+                        .replace("[ज़िला संपर्क का नाम, ईमेल, फ़ोन]", HEALTH_WORKER["hi"].split(": ")[1][:-1])
+                        .replace("[INSTITUTION NAME, EMAIL, PHONE]", CENTRAL["en"].split(": ")[1][:-1])
+                        .replace("[संस्थान का नाम, ईमेल, फ़ोन]", CENTRAL["hi"].split(": ")[1][:-1]))
+            self.assertEqual(row.text, expected)
             self.assertEqual([(p["code"], p["label"]) for p in row.purposes],
                              sorted((p["code"], p["label"]) for p in SEED_PURPOSES[language]))
         self.assertIn("[DATA PROTECTION OFFICER]", rows["en"].text)
@@ -198,3 +217,97 @@ class ConsentNoticeFillTests(BaseTestCase):
         with patch.dict(self.app.config, self._settings()):
             self.assertEqual(self.client.post(url, headers=self._csrf_headers()).status_code, 403)
         self.assertEqual(len(self._versions(self.PROJECT)), 2)
+
+    # ── defaults and settings-built lines (digitva-7amd.26) ────────────────
+
+    def _set(self, project_id, **body):
+        consent_service.save_settings(self.base_admin_user, project_id, body)
+        db.session.flush()
+
+    def test_a_fresh_project_seeds_without_any_placeholder_and_with_the_one_year_sentence(self):
+        rows = self._seed(self.PROJECT)
+        for language, row in rows.items():
+            self.assertEqual(PLACEHOLDER.findall(row.text), [], language)
+            self.assertIn(ONE_YEAR[language], row.text)
+
+    def test_retention_follows_the_projects_period_and_action(self):
+        cases = [
+            (730, "lock", "2 years from the interview, then lock them so that no one can see them.",
+             "2 वर्ष तक रखते हैं, फिर उन्हें लॉक कर देते हैं ताकि कोई उन्हें देख न सके।"),
+            (180, "erase", "6 months from the interview, then erase them.", "6 महीने तक रखते हैं, फिर उन्हें मिटा देते हैं।"),
+            (30, "erase", "1 month from the interview, then erase them.", "1 महीना तक रखते हैं"),
+            (45, "erase", "45 days from the interview, then erase them.", "45 दिन तक रखते हैं"),
+            (1, "erase", "1 day from the interview", "1 दिन तक रखते हैं"),
+        ]
+        for days, action, english, hindi in cases:
+            with self.subTest(days=days, action=action):
+                self._set(self.PROJECT, retention={"period_days": days, "expiry_action": action})
+                rows = self._seed(self.PROJECT)
+                self.assertIn(english, rows["en"].text)
+                self.assertIn(hindi, rows["hi"].text)
+                self.assertNotIn("[", rows["en"].text.split("How long we keep it.")[1].split("\n")[0])
+                db.session.execute(sa.delete(MasConsentNoticeVersion).where(
+                    MasConsentNoticeVersion.project_id == self.PROJECT))
+
+    def test_one_district_contact_fills_the_district_line_two_or_none_do_not(self):
+        person = {"name": "Dr Rao", "email": "rao@example.org", "phone": "99999"}
+        self._set(self.PROJECT, contacts={"districts": {DISTRICT_UNIT_1: person}})
+        rows = self._seed(self.PROJECT)
+        self.assertIn("Your district team: Dr Rao, rao@example.org, 99999.", rows["en"].text)
+        self.assertIn("आपकी ज़िला टीम: Dr Rao, rao@example.org, 99999।", rows["hi"].text)
+        db.session.execute(sa.delete(MasConsentNoticeVersion).where(MasConsentNoticeVersion.project_id == self.PROJECT))
+
+        # Empty parts drop cleanly.
+        self._set(self.PROJECT, contacts={"districts": {DISTRICT_UNIT_1: {"name": "Dr Rao", "phone": "99999"}}})
+        rows = self._seed(self.PROJECT)
+        self.assertIn("Your district team: Dr Rao, 99999.", rows["en"].text)
+        db.session.execute(sa.delete(MasConsentNoticeVersion).where(MasConsentNoticeVersion.project_id == self.PROJECT))
+
+        self._set(self.PROJECT, contacts={"districts": {DISTRICT_UNIT_1: person, DISTRICT_UNIT_2: {"name": "Dr Two"}}})
+        rows = self._seed(self.PROJECT)
+        self.assertIn(HEALTH_WORKER["en"], rows["en"].text)
+        self.assertIn(HEALTH_WORKER["hi"], rows["hi"].text)
+        db.session.execute(sa.delete(MasConsentNoticeVersion).where(MasConsentNoticeVersion.project_id == self.PROJECT))
+
+        self._set(self.PROJECT, contacts={"districts": {}})
+        self.assertIn(HEALTH_WORKER["en"], self._seed(self.PROJECT)["en"].text)
+
+    def test_the_mentoring_institution_is_the_set_contact_else_the_central_team(self):
+        self._set(self.PROJECT, contacts={"mentor_institution": {"name": "AIIMS", "email": "m@example.org"}})
+        rows = self._seed(self.PROJECT)
+        self.assertIn("The mentoring institution: AIIMS, m@example.org.", rows["en"].text)
+        self.assertIn("मार्गदर्शक संस्थान: AIIMS, m@example.org।", rows["hi"].text)
+        db.session.execute(sa.delete(MasConsentNoticeVersion).where(MasConsentNoticeVersion.project_id == self.PROJECT))
+        self._set(self.PROJECT, contacts={"mentor_institution": {}})
+        rows = self._seed(self.PROJECT)
+        self.assertIn(CENTRAL["en"], rows["en"].text)
+        self.assertIn(CENTRAL["hi"], rows["hi"].text)
+
+    def test_fill_saves_no_version_when_the_seed_already_filled_everything(self):
+        self._seed(self.PROJECT)
+        with patch.dict(self.app.config, self._settings()):
+            with self.assertRaises(consent_service.ConsentError) as caught:
+                consent_service.fill_notice_versions(self.base_admin_user, self.PROJECT)
+        self.assertEqual(caught.exception.code, "conflict")
+
+    def test_fill_replaces_the_retention_placeholder_of_an_older_notice(self):
+        text = SEED_TEXT["en"].replace("[PROJECT NAME]", "Old")
+        consent_service.create_notice_version(self.base_admin_user, self.PROJECT, {
+            "version": 1, "language": "en", "text": text, "purposes": SEED_PURPOSES["en"],
+            "allowed_modes": ["spoken"]})
+        db.session.flush()
+        self._set(self.PROJECT, retention={"period_days": 730, "expiry_action": "lock"})
+        with patch.dict(self.app.config, self._settings(**EMPTY)):
+            (row,) = consent_service.fill_notice_versions(self.base_admin_user, self.PROJECT)
+        self.assertEqual(row.version, 2)
+        self.assertIn("2 years from the interview, then lock them", row.text)
+        self.assertNotIn("[RETENTION", row.text)
+
+    def test_a_project_without_settings_reports_the_default_retention(self):
+        config = consent_service.get_consent_config("CNF-NONE")
+        self.assertEqual(config["retention"], {"period_days": 365, "expiry_action": "erase"})
+
+    def test_a_first_save_creates_the_row_with_the_default_retention(self):
+        self._set(self.PROJECT, contacts={"central_team": {"email": "c@example.org"}})
+        settings = consent_service.get_settings(self.PROJECT)
+        self.assertEqual((settings.retention_period_days, settings.expiry_action), (365, "erase"))

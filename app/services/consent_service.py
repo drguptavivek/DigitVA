@@ -170,8 +170,8 @@ def get_consent_config(project_id: str) -> dict:
         "notice_versions": [serialize_version(v) for v in active_versions(project_id)] if required else [],
         "contacts": (settings.contacts if settings and settings.contacts else empty_contacts()),
         "retention": {
-            "period_days": settings.retention_period_days if settings else None,
-            "expiry_action": settings.expiry_action if settings else "erase",
+            "period_days": (settings.retention_period_days if settings else None) or DEFAULT_RETENTION_DAYS,
+            "expiry_action": settings.expiry_action if settings else DEFAULT_EXPIRY_ACTION,
         },
         "refusal_behaviour": settings.refusal_behaviour if settings else REFUSAL_BEHAVIOURS[0],
     }
@@ -750,8 +750,8 @@ def save_settings(user, project_id: str, body: dict, *, _retried: bool = False) 
     before = {
         "consent_required": bool(settings and settings.consent_required),
         "contacts": settings.contacts if settings else empty_contacts(),
-        "retention_period_days": settings.retention_period_days if settings else None,
-        "expiry_action": settings.expiry_action if settings else "erase",
+        "retention_period_days": (settings.retention_period_days if settings else None) or DEFAULT_RETENTION_DAYS,
+        "expiry_action": settings.expiry_action if settings else DEFAULT_EXPIRY_ACTION,
         "refusal_behaviour": settings.refusal_behaviour if settings else REFUSAL_BEHAVIOURS[0],
     }
     after = dict(before)
@@ -881,16 +881,55 @@ def create_notice_version(user, project_id: str, body: dict) -> MasConsentNotice
     return row
 
 
+#: What a project without its own consent settings keeps and does after it
+#: (owner 2026-10-29, digitva-7amd.26): identifying details for one year from
+#: the interview, then erased. Policy: respondent-consent-notice-draft.md "Defaults".
+DEFAULT_RETENTION_DAYS = 365
+DEFAULT_EXPIRY_ACTION = "erase"
+
+
+def _retention_period(days: int, hindi: bool) -> str:
+    """*days* as whole years, else whole 30-day months, else days ("1 year", "6 months")."""
+    if days % 365 == 0:
+        count, unit = days // 365, ("वर्ष", "वर्ष") if hindi else ("year", "years")
+    elif days % 30 == 0:
+        count, unit = days // 30, ("महीना", "महीने") if hindi else ("month", "months")
+    else:
+        count, unit = days, ("दिन", "दिन") if hindi else ("day", "days")
+    return f"{count} {unit[0] if count == 1 else unit[1]}"
+
+
+def _retention_sentence(days: int, action: str, hindi: bool) -> str:
+    """The notice's retention sentence for the project's setting (the policy's
+    wording at 365 days and erase). A change here changes what respondents hear."""
+    period = _retention_period(days, hindi)
+    if hindi:
+        after = "लॉक कर देते हैं ताकि कोई उन्हें देख न सके" if action == "lock" else "मिटा देते हैं"
+        return (f"हम आपका नाम, फ़ोन नंबर, पता और पहचान नंबर साक्षात्कार से {period} तक रखते हैं, फिर उन्हें {after}। "
+                "मृत्यु के बारे में उत्तर इन विवरणों के बिना हमेशा रखे जाते हैं।")
+    after = "lock them so that no one can see them" if action == "lock" else "erase them"
+    return (f"We keep your name, phone number, address and identity numbers for {period} from the interview, "
+            f"then {after}. The answers about the death are kept permanently without these details.")
+
+
+def _contact_line(person: object) -> str:
+    """A contact's non-empty name, email and phone joined by ", " ("" when none)."""
+    person = person if isinstance(person, dict) else {}
+    return ", ".join(str(person[key]).strip() for key in _PERSON_KEYS if str(person.get(key) or "").strip())
+
+
 def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tuple[str, list[dict]]:
     """A notice's ``text`` and purpose labels with the seed placeholders filled
     from the project name and the ``PUBLIC_*`` settings (English and Hindi
     spellings; policy: respondent-consent-notice-draft.md "Seed text for
     Project Setup"). Called only when a version is saved, never when one is
     shown, so a record's stored text and hash stay what the respondent heard.
-    An unset or empty setting leaves its placeholder as it is; ``, [PHONE]``
-    goes, as there is no phone setting. The demo project on a demo deployment
-    (public_demo_service.is_demo_project) also gets its district line, and its
-    retention line while PUBLIC_DEMO_PURGE_ENABLED.
+    An unset or empty ``PUBLIC_*`` setting leaves its placeholder as it is; ``, [PHONE]``
+    goes, as there is no phone setting. The retention, district-team and
+    mentoring-institution lines are always filled (digitva-7amd.26): from the
+    project's consent settings, else the policy's defaults. The demo project on
+    a demo deployment (public_demo_service.is_demo_project) gets its own
+    district line, and its own retention line while PUBLIC_DEMO_PURGE_ENABLED.
     Returns new purpose dicts; the inputs (``SEED_PURPOSES``) are not changed."""
     config = current_app.config
     org, email = config.get("PUBLIC_ORG_NAME") or "", config.get("PUBLIC_CONTACT_EMAIL") or ""
@@ -928,8 +967,29 @@ def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tup
              "यह केवल अभ्यास के लिए एक सार्वजनिक डेमो है। इसमें दर्ज सब कुछ, यह साक्षात्कार भी, "
              f"डेमो खाते के अंतिम उपयोग के {days} दिन बाद मिटा दिया जाता है।"),
         ]
-    # Stored texts are NFC (create_notice_version), so match the NFC spelling.
-    fills = [(unicodedata.normalize("NFC", placeholder), value) for placeholder, value in fills]
+    # Defaults (digitva-7amd.26), after the demo's own lines, which win by being first: no
+    # notice leaves here with a bracketed blank for these. A null retention period counts as
+    # "not set"; the demo's district and purge lines above take precedence on the demo.
+    settings = get_settings(project_id)
+    retention_days = (settings.retention_period_days if settings else None) or DEFAULT_RETENTION_DAYS
+    action = settings.expiry_action if settings else DEFAULT_EXPIRY_ACTION
+    contacts = (settings.contacts if settings else None) or {}
+    district = [line for line in map(_contact_line, (contacts.get("districts") or {}).values()) if line]
+    mentor = _contact_line(contacts.get("mentor_institution"))
+    fills += [
+        ("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", _retention_sentence(retention_days, action, False)),
+        ("[रखने की अवधि और उसके बाद क्या होगा]", _retention_sentence(retention_days, action, True)),
+        ("[DISTRICT CONTACT NAME, EMAIL, PHONE]",
+         district[0] if len(district) == 1 else "the health worker who visits you will give you their name and phone number"),
+        ("[ज़िला संपर्क का नाम, ईमेल, फ़ोन]",
+         district[0] if len(district) == 1 else "आपसे मिलने आने वाले स्वास्थ्यकर्मी आपको अपना नाम और फ़ोन नंबर बताएँगे"),
+        ("[INSTITUTION NAME, EMAIL, PHONE]", mentor or "through the central team below"),
+        ("[संस्थान का नाम, ईमेल, फ़ोन]", mentor or "नीचे दिए केंद्रीय टीम के माध्यम से"),
+    ]
+    # Stored texts are NFC (create_notice_version), so match the NFC spelling, in the
+    # replacements too, or a second fill would see its own text as changed.
+    fills = [(unicodedata.normalize("NFC", placeholder), unicodedata.normalize("NFC", value))
+             for placeholder, value in fills]
 
     def fill(value: str) -> str:
         for placeholder, replacement in fills:

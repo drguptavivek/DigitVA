@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-29
 ---
 
 # Web Intake Policy
@@ -25,9 +25,16 @@ submission enters the workflow. Plan:
   question's minimum and maximum dates and stores the selected date as ISO
   `YYYY-MM-DD`.
 
-- **Project setting** `va_project_master.web_intake_mode`: `off` (default,
-  ODK only), `direct` (questionnaire only), `death_register` (a death must be
+- **Project setting** `va_project_master.web_intake_mode`: `off` (ODK only;
+  the project's interviewers cannot collect in the Collect app either),
+  `direct` (questionnaire only), `death_register` (a death must be
   registered first, then the questionnaire starts from it), `both`.
+  **A new project defaults to `direct`** (owner, 2026-10-29,
+  `digitva-7amd.25`): DigitVA is Collect-based, so a project collects in the
+  browser and the Collect app unless an administrator turns intake off.
+  Existing projects keep their setting. A new project also gets the
+  web-capture defaults, with the **equity questions on**
+  (`web_intake_equity_enabled`; owner 2026-10-29, `digitva-7amd.26`).
 - **Role** `interviewer` (fills questionnaires) is an explicit access grant at
   project, project-site or organization-unit scope, like every other role.
   At unit scope the cadre must have `can_fill_va_form` at that level (see

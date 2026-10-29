@@ -223,6 +223,7 @@ WEB_PROJECT_DEFAULTS = {
     "web_intake_intake_note": None,
     "web_intake_death_summary_enabled": True,
     "web_intake_medical_records_enabled": True,
+    "web_intake_equity_enabled": True,
     "social_autopsy_enabled": False,
     "web_intake_available_locales": ["en", "hi"],
     "web_intake_narration_languages": ["english", "hindi"],

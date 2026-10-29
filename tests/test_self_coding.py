@@ -440,7 +440,7 @@ class AdminSelfCodingSettingTests(BaseTestCase):
         self.assertIsNone(db.session.get(VaProjectMaster, self.PROJECT))
 
     def test_update_refuses_turning_it_on_while_intake_is_off(self):
-        self.assertEqual(self._post_project().status_code, 201)
+        self.assertEqual(self._post_project(web_intake_mode="off").status_code, 201)
         response = self._put(self.PROJECT, self_coding_enabled=True)
         self.assertEqual(response.status_code, 400)
         self.assertIn("web intake", response.get_json()["error"])

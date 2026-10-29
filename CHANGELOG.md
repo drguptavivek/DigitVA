@@ -5,6 +5,19 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-29
 
+- **Collect-based project defaults and consent notice defaults**
+  (`digitva-7amd.25`, `.26`; owner decisions 2026-10-29). A new project
+  defaults to Web Intake `direct` (migration `c7a3f9e1b5d2` changes only the
+  column default; existing projects keep theirs) with the web-capture defaults
+  and the equity questions on. A seeded or filled consent notice has no blank:
+  identifiers are kept one year from the interview, then erased, and the
+  de-identified answers permanently (consent settings default to 365 days,
+  erase); a district line and a mentoring-institution line fall back to the
+  health worker and the central team. The erasure job that makes the promise
+  true is `digitva-7amd.27`. The paging query-count test no longer flakes:
+  the parallel workers share one Redis cache (`digitva-hs7e.19`). The Collect
+  Plus release fetches the SmartVA submodule and finds `sdkmanager` again. See
+  `docs/policy/web-intake.md`, `docs/policy/respondent-consent-notice-draft.md`.
 - **Phone acceptance fixes, Collect 0.3.14** (`digitva-7amd`, from the phone
   run on staging TST001: CHO interview, MO masked ICD-11 DORIS coding, district
   data manager). Phone: "Go" in Problems to fix no longer crashes the app (React

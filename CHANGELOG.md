@@ -5,6 +5,8 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-29
 
+- **Collect and Collect Plus 0.3.15** (version bump for the release that carries
+  the change below).
 - **Collect shows only what the app and the account state allow** (owner rule
   2026-10-29, after the staging phone check; audit of every native screen).
   Plain Collect no longer mentions or offers offline coding: its ICD-11 / DORIS

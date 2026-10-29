@@ -515,8 +515,12 @@ def interview_refused(*, death, client_draft_id, answers: dict, consent=None, in
 
 
 def case_refusal_hold(death) -> bool:
+    """Whether an unsent refusing interview holds *death* against its other
+    interviews. A submitted refusal no longer holds: the case is ``refused``
+    and the team may restart it with a fresh consent (owner 2026-10-29,
+    digitva-hs7e.15.2)."""
     return bool(db.session.scalar(sa.select(sa.exists().where(
-        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status.in_(("draft", "submitted")),
+        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "draft",
         VaWebIntakeDraft.meta["caseRefusalHold"].astext == "true",
     ))))
 
@@ -1050,13 +1054,14 @@ def record_draft_consent(user, draft, consent: object) -> dict:
     releasing = isinstance(consent, dict) and consent.get("decision") == "granted"
     if case_refusal_hold(death) and not (draft.meta or {}).get("caseRefusalHold"):
         raise ConsentError("Another interview holds this case after a refusal.", "consent_refused", 409, fields=[])
-    record, _ = record_consent(user, project_id=draft.project_id, death=death, consent=consent,
-                               client_draft_id=draft.client_draft_id, channel="web")
+    record, created = record_consent(user, project_id=draft.project_id, death=death, consent=consent,
+                                     client_draft_id=draft.client_draft_id, channel="web")
     if (releasing and (draft.meta or {}).get("caseRefusalHold") and
             str(web_intake_service._answers_of(draft).get("Id10013") or "").lower() != "no"):
         draft.meta = {**draft.meta, "caseRefusalHold": False}
     if record.event == "refused":
-        web_intake_service.clear_direct_identity_for_refusal(draft, user)
+        # A resent identical refusal records nothing new and clears no one again.
+        web_intake_service.clear_direct_identity_for_refusal(draft, user, hold_others=created)
         web_intake_service.scrub_refused_draft(draft)
         if draft.answers_sha256 and (draft.meta or {}).get("lastSync"):
             draft.meta = {**draft.meta, "lastSync": {**draft.meta["lastSync"], "refusal": True}}

@@ -6,6 +6,7 @@ whole); with ``limit`` they page without gap or repeat across ties, bounded
 in SQL, a constant number of queries whatever the table size.
 """
 
+import difflib
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -381,7 +382,9 @@ class CodingPagingTests(BaseTestCase):
         self.assertEqual(
             stats["pick_ready"], len(get_pick_available_forms(self.coder, forms))
         )
-        self.assertEqual(small.count, large.count)
+        # The statement diff names the cause if the full-suite 17-vs-19 recurs (digitva-hs7e.19).
+        self.assertEqual(small.count, large.count, "\n".join(difflib.unified_diff(
+            small.statements, large.statements, "small", "large", lineterm="")))
 
     # ------------------------------------------------------------------
     # /coding/history

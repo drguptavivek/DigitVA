@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 ---
 
 # Offline API Contract v1
@@ -481,7 +481,7 @@ The first resumed browser PATCH carries `resume_refused: true` and the current
 `if_updated_at`; phone draft sync or final submission carries
 `resume_refused: true` and the current `base_updated_at`. Subsequent saves
 include a server draft version at or after the refusal barrier; stale or
-unversioned submissions receive 409 `refusal_stale`. When the caller owns the located server draft, that response carries `draft_id`; fetch it for the current sanitized contents and version. For a shared case the refusing draft holds further writes across open attempts. Other interviewers’ earlier lawful draft data is preserved; after the holding draft receives a fresh grant, each other attempt requires its own explicit current-version resume. A hold on a submitted refusal remains until an authorized resolution exists.
+unversioned submissions receive 409 `refusal_stale`. When the caller owns the located server draft, that response carries `draft_id`; fetch it for the current sanitized contents and version. For a shared case the refusal clears every other open attempt to the same refusal-only answers (files and earlier saved versions included) and the refusing draft holds further writes across them while it is unsent; a fresh grant on it, or its submit, ends the hold. Each other attempt then requires its own explicit current-version resume, and nothing it held before the refusal returns. A submitted refusal leaves the case `refused`, and any team interviewer may restart it after a fresh consent (owner 2026-10-29, `digitva-hs7e.15.2`). Only an interview's own refusal (its `Id10013 = no`, or a refused consent recorded for it), at the moment it is recorded, clears and holds the others; later saves or the submit of that same refusal, and an interview refused only because it inherits the case's earlier refusal, clear only that interview and leave the other attempts alone.
 Bundle ingest applies the same boundary. A refusal for an already submitted
 attempt, or a case-level refusal while unsent attempts are open, is rejected;
 a matching accepted refusal replay is a duplicate.

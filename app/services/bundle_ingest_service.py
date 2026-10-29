@@ -955,7 +955,7 @@ def _consent(ingest: _Ingest, line: _Line, record: dict, digest: str) -> _Outcom
         for draft in open_drafts:
             if draft.user_id != actor.user_id:
                 raise RecordRejected("forbidden")
-            intake.clear_direct_identity_for_refusal(draft, actor)
+            intake.clear_direct_identity_for_refusal(draft, actor, hold_others=True)
             intake.scrub_refused_draft(draft)
     body = {k: v for k, v in record.items() if k not in _CONSENT_ENVELOPE_ONLY}
     stored, created = consent_service.record_consent(

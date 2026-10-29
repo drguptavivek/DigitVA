@@ -3,7 +3,7 @@ title: Unified App Release Review Information
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 ---
 
 # DigitVA 0.3.12 release review information
@@ -88,9 +88,10 @@ final artifact and its privacy declaration before distribution. Bundled Hindi
 questionnaire review/redistribution and WHO offline software permission remain
 open; a private test APK is not public release approval.
 
-A submitted refusal that holds other open attempts remains held. There is no
-in-app authorized release for that exceptional shared-case state yet
-(`digitva-hs7e.15.2`); prior lawful submissions and identity remain intact.
+Submitting a refusal ends its hold on other open attempts (`digitva-hs7e.15.2`):
+the case becomes `refused` and the team may restart it after fresh consent.
+Other open attempts were cleared to refusal-only answers when the refusal was
+recorded; prior lawful submissions and identity remain intact.
 
 Sources: [Play Data Safety](https://support.google.com/googleplay/android-developer/answer/10787469?hl=en)
 and [account deletion](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en),

@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -167,6 +167,19 @@ identifiers, exact demographic details, clinical answers, narratives,
 attachments, visit notes and coding are excluded. An explicit subsequent
 grant permits an unsent draft to resume; removed answers remain empty. Historic
 lawfully finalised submissions are not changed; withdrawal is separate.
+
+**Later agreement and shared cases (owner 2026-10-29, `digitva-hs7e.15.2`).**
+Families often agree on a later contact, so a submitted refusal is not final:
+the case becomes `refused` and any team interviewer may restart it, taking a
+fresh consent first. No supervisor step is needed; the refused submission, the
+case transitions and the new consent record are the audit trail. When a
+refusal is recorded on a case that other interviewers also have open, their
+open interviews are cleared at that moment to the same refusal-only answers
+(files and earlier saved versions included) and paused until each interviewer
+explicitly resumes after a fresh grant; nothing they collected before the
+refusal returns. The hold that stops those other interviews from writing lasts
+only while the refusing interview is unsent: a fresh grant on it, or
+submitting it, ends the hold.
 
 ## Refusal profile, for legal review (owner 2026-10-27)
 

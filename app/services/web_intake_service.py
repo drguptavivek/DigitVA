@@ -22,7 +22,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytz
 import sqlalchemy as sa
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
 
 from app import db
 from app.models import (
@@ -2127,25 +2127,69 @@ def stored_answers(answers: dict) -> dict:
     return redact_payload_national_ids(scrub_attachment_names(answers))[0]
 
 
-def clear_direct_identity_for_refusal(draft: VaWebIntakeDraft, actor: VaUsers) -> None:
-    """Remove identity copied from an unsent direct interview, not a register."""
+def is_new_refusal(draft: VaWebIntakeDraft, answers: dict, consent: object = None,
+                   client_draft_id: uuid.UUID | None = None) -> bool:
+    """Whether this request records a new refusal of *draft*'s own, the
+    moment its teammates are cleared (``clear_direct_identity_for_refusal``
+    *hold_others*). Own: WHO ``Id10013 = no`` in *answers*, a refused
+    *consent* arriving with this request (device), or a refused consent
+    recorded for its attempt (*client_draft_id*, default the draft's), not
+    only the case's older case-level refusal it inherits. New: the draft is
+    not already refused and unresumed (``refusalResumePending``, which only
+    ``scrub_refused_draft`` sets and only an explicit resume clears), so a
+    later autosave or submit of the same refusal clears no one again. Read it
+    before this request scrubs the draft."""
+    from app.services import consent_service
+
+    if (draft.meta or {}).get("refusalResumePending"):
+        return False
+    if str(answers.get("Id10013") or "").strip().lower() == "no":
+        return True
+    if isinstance(consent, dict) and consent.get("decision") in ("granted", "refused"):
+        return consent["decision"] == "refused"
+    attempt = client_draft_id or draft.client_draft_id
+    if attempt is None or draft.death_id is None:
+        return False
+    record = consent_service._latest_record(draft.death_id, attempt)
+    return bool(record and record.event == "refused")
+
+
+def clear_direct_identity_for_refusal(draft: VaWebIntakeDraft, actor: VaUsers, *, hold_others: bool) -> None:
+    """Remove identity copied from an unsent direct interview, not a register.
+
+    On a shared case (other open drafts) the case's identity stays. When
+    *hold_others* (this request records a new refusal of the draft's own,
+    ``is_new_refusal``) every other open draft is scrubbed as this one is
+    (``scrub_refused_draft``: refusal-only answers, no prefill, history or
+    uploads) and paused for an explicit resume, and this draft holds the case
+    until a fresh grant on it or its submit
+    (docs/policy/respondent-consent-notice-draft.md, "Later agreement and
+    shared cases"). A draft refused only by the case's older refusal, or
+    saved again under a refusal already recorded, leaves the others alone:
+    they may hold a fresh grant of their own. Submitted
+    drafts are never touched."""
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
     if death is None:
         return
-    if db.session.scalar(sa.select(sa.exists().where(
-        VaWebIntakeDraft.death_id == death.death_id,
-        VaWebIntakeDraft.draft_id != draft.draft_id,
+    open_others = sa.select(VaWebIntakeDraft).where(
+        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.draft_id != draft.draft_id,
         VaWebIntakeDraft.status == "draft",
-    ))):
-        now = _utcnow()
-        db.session.execute(sa.update(VaWebIntakeDraft).where(
-            VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.draft_id != draft.draft_id,
-            VaWebIntakeDraft.status == "draft",
-        ).values(updated_at=now, meta=VaWebIntakeDraft.meta.op("||")(
-            sa.func.jsonb_build_object("refusalBarrier", now.isoformat(), "refusalResumePending", True)
-        )).execution_options(synchronize_session=False))
-        draft.meta = {**(draft.meta or {}), "caseRefusalHold": True}
-        return
+    )
+    if not hold_others:
+        if db.session.scalar(sa.select(open_others.exists())):
+            return
+    else:
+        # Locked so a teammate's concurrent save cannot land over the scrub;
+        # ordered so concurrent refusals take the locks in one order.
+        others = db.session.scalars(
+            open_others.order_by(VaWebIntakeDraft.draft_id).options(selectinload(VaWebIntakeDraft.sections))
+            .with_for_update(of=VaWebIntakeDraft).execution_options(populate_existing=True)
+        ).all()
+        if others:
+            for other in others:
+                scrub_refused_draft(other)
+            draft.meta = {**(draft.meta or {}), "caseRefusalHold": True}
+            return
     if death.source != "direct" or death.status not in ("draft_identity", "in_progress") or death.va_sid or db.session.scalar(sa.select(sa.exists().where(
         VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "submitted",
     ))):
@@ -2222,14 +2266,16 @@ def release_who_refusal_hold(draft: VaWebIntakeDraft, *, answers: dict, base_upd
     return True
 
 
-def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None, refusal_override: bool | None = None, resume_refused: bool = False) -> int:
+def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None, refusal_override: bool | None = None, resume_refused: bool = False, new_refusal: bool | None = None) -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
     A direct start's case (``draft_identity``) takes its identity from the
     merged answers of every saved section (a save sends only the sections that
     changed); any other case takes it at submit. *actor* is the saver,
     recorded when the case leaves ``draft_identity``; it defaults to the
-    draft's owner, the only user who may save it.
+    draft's owner, the only user who may save it. *new_refusal*:
+    ``is_new_refusal`` decided by a caller that scrubs the draft or knows an
+    incoming consent first (device paths); None decides it here.
     """
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
@@ -2254,7 +2300,8 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         death=death, client_draft_id=draft.client_draft_id, answers=combined,
     )
     if refused:
-        clear_direct_identity_for_refusal(draft, actor or db.session.get(VaUsers, draft.user_id))
+        new = new_refusal if new_refusal is not None else is_new_refusal(draft, combined)
+        clear_direct_identity_for_refusal(draft, actor or db.session.get(VaUsers, draft.user_id), hold_others=new)
         scrub_refused_draft(draft)
         sections = {name: consent_service.refusal_answers(answers) if isinstance(answers, dict) else answers
                     for name, answers in sections.items()}
@@ -2678,7 +2725,7 @@ def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, s
     return payload, references, validation_err
 
 
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None, locked_death: VaDeathRegister | None = None, refusal_override: bool | None = None) -> VaSubmissions | None:
+def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None, locked_death: VaDeathRegister | None = None, refusal_override: bool | None = None, new_refusal: bool | None = None) -> VaSubmissions | None:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
     Every outcome is stored as a submission. Only ``completed`` enters coding
@@ -2697,6 +2744,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
 
     *locked_death*: the draft's case when the caller already holds its row
     lock in this transaction (``submit_device_interview``); not locked again.
+    *new_refusal* as ``save_draft_sections``.
     """
     if draft.status != "draft":
         raise WebIntakeError("This draft has already been submitted.", 409)
@@ -2733,7 +2781,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         if db.session.scalar(sa.select(VaWebIntakeDraft.status).where(VaWebIntakeDraft.draft_id == draft.draft_id)) != "draft":
             raise WebIntakeError("This draft has already been submitted.", 409)
         if refused:
-            clear_direct_identity_for_refusal(draft, user)
+            new = new_refusal if new_refusal is not None else is_new_refusal(draft, completion["data"])
+            clear_direct_identity_for_refusal(draft, user, hold_others=new)
             scrub_refused_draft(draft)
         if death.status in _SUPERSEDED_CASE_STATES:
             _supersede_draft(draft, data, completion)
@@ -3927,9 +3976,12 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     draft.client_draft_id = client_draft_id
     draft.answers_sha256 = answers_sha256
     draft.meta = {**(draft.meta or {}), **stored}
+    # The incoming consent is recorded after this call, so it is passed in;
+    # the save clears the teammates, so the submit (same request) does not.
+    new = refusal_override is not False and is_new_refusal(draft, data, incoming_consent, client_draft_id)
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user,
-                        refusal_override=refusal_override, resume_refused=resume_refused)
-    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death, refusal_override=refusal_override) is None:
+                        refusal_override=refusal_override, resume_refused=resume_refused, new_refusal=new)
+    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death, refusal_override=refusal_override, new_refusal=False) is None:
         return draft, "server", True
     return draft, "incoming", False
 
@@ -4064,6 +4116,8 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
     )
     if not refused and not released:
         check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=resume_refused)
+    # Decided before the scrub below marks the draft refused.
+    new = refused and is_new_refusal(draft, combined, client_draft_id=client_draft_id)
     if refused:
         cleaned = consent_service.refusal_answers(data)
         stripped = stripped or cleaned != data
@@ -4127,6 +4181,9 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         draft, sections={DEVICE_SECTION: data},
         meta={k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope} or None,
         current_section=section if isinstance(section, str) and section else None, actor=user, resume_refused=resume_refused,
+        # The draft has no client_draft_id until its upload: the attempt's
+        # own consent decided *refused* above, so it is passed on.
+        refusal_override=refused, new_refusal=new,
     )
     log.info("device draft synced | unique_id=%s | conflict=%s | by=%s", draft.unique_id, conflict, user.user_id)
     return _sync_reply(draft, "server" if refused else "incoming", conflict)

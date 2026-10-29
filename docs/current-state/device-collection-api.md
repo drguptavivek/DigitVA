@@ -3,13 +3,13 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-29
 ---
 
 # Device Collection API (Path B server side)
 
 The 2026-10-28 refusal boundary supersedes older covered-fields-only
-descriptions below. See [the consent policy](../policy/respondent-consent-notice-draft.md#refusal-boundary-owner-2026-10-28). Browser saves and phone sync keep only validated refusal fields; attachment uploads under refusal return `consent_refused`. A deliberate resumption after either refusal uses `resume_refused: true` with a current browser `if_updated_at` or phone `base_updated_at`; later writes must carry a version at or after the refusal barrier. Earlier removed answers are not restored. A shared case keeps earlier lawful identity and other interviewers’ prior answers, while a hold blocks their further writes. A fresh grant on the holding draft releases the hold; each other open draft still requires its own explicit current-version resume. A submitted refusal hold requires a separate authorized resolution. An already-open parallel attempt can record a refusal even after another lawful submission has won the case; the prior submission and its case identity remain unchanged.
+descriptions below. See [the consent policy](../policy/respondent-consent-notice-draft.md#refusal-boundary-owner-2026-10-28). Browser saves and phone sync keep only validated refusal fields; attachment uploads under refusal return `consent_refused`. A deliberate resumption after either refusal uses `resume_refused: true` with a current browser `if_updated_at` or phone `base_updated_at`; later writes must carry a version at or after the refusal barrier. Earlier removed answers are not restored. A shared case keeps earlier lawful identity; other interviewers’ open drafts on it are cleared to refusal-only answers (files and saved versions included) when the refusal is recorded, and a hold blocks their further writes. A fresh grant on the holding draft, or submitting it, ends the hold (`digitva-hs7e.15.2`); the submitted case is `refused` and the team may restart it after fresh consent. Each other open draft still requires its own explicit current-version resume. An already-open parallel attempt can record a refusal even after another lawful submission has won the case; the prior submission and its case identity remain unchanged.
 
 Native passkey sign-in is deferred. Enrolled devices currently open a session
 with the account password. The local encrypted store still requires the user's

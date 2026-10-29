@@ -3,6 +3,20 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-29
+
+- **Refused cases can be revisited** (`digitva-hs7e.15.2`): families often agree
+  on a later contact, so a submitted refusal no longer holds a shared case; the
+  case is `refused` and the team restarts it after fresh consent. Recording a
+  new refusal clears teammates' open interviews once to refusal-only answers
+  (files and saved versions included); repeat saves of that refusal and
+  inherited case refusals clear only their own interview. Phone sync now uses
+  the attempt's own consent, so a teammate's fresh grant is no longer re-cleared.
+  Staging had no held cases to backfill. Full backend suite: 7,029 passed, six
+  skipped. See `docs/policy/respondent-consent-notice-draft.md`.
+- **Query-count diagnostic** (`digitva-hs7e.19`): the paging stats test prints
+  the extra SQL statements if its counts differ; the assertion is unchanged.
+
 ## 2026-10-28
 
 - **Final staging verification** (`digitva-hs7e.17`, `.18`): deployed

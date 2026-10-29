@@ -404,7 +404,7 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertIn("refused", {r.event for r in self._records(death_id)})
 
-    def _sync_draft(self, death_id, answers, project_id=None, client_draft_id=None):
+    def _sync_draft(self, death_id, answers, project_id=None, client_draft_id=None, **extra):
         project_id = project_id or self.REQUIRED
         now = datetime.now(UTC).isoformat()
         answers_json = json.dumps(answers, separators=(",", ":"))
@@ -413,7 +413,7 @@ class ConsentApiTests(BaseTestCase):
             "death_id": death_id, "client_draft_id": str(client_draft_id or uuid.uuid4()),
             "draft": {"currentSection": "consented"},
             "answers_json": answers_json, "answers_sha256": hashlib.sha256(answers_json.encode()).hexdigest(),
-            "savedAt": now, "deviceClockAt": now, "base_updated_at": None,
+            "savedAt": now, "deviceClockAt": now, "base_updated_at": None, **extra,
         }, headers=self._csrf_headers())
 
     def _synced_answers(self, death_id):
@@ -1037,12 +1037,15 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(started.status_code, 201, started.get_json())
         other_id = started.get_json()["draft"]["draft_id"]
         self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
         self._login(self.interviewer_id)
         self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
+        # The refusal clears the teammate's interview to refusal-only answers.
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
         self._login(str(self.outsider.user_id))
         self._refusal(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Changed"}),
                       409, "consent_refused")
-        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
         version = self.client.get(f"{INTAKE}/drafts/{other_id}").get_json()["draft"]["updated_at"]
         attack = self.client.patch(f"{INTAKE}/drafts/{other_id}", headers=self._csrf_headers(), json={
             "sections": {"main": {"Id10013": "yes"}}, "resume_refused": True, "if_updated_at": version,
@@ -1061,6 +1064,7 @@ class ConsentApiTests(BaseTestCase):
             "sections": {}, "resume_refused": True, "if_updated_at": version,
         })
         self.assertEqual(resumed.status_code, 200, resumed.get_json())
+        self.assertNotIn("Id10017", self._saved_answers(other_id))
 
     def test_shared_case_dp_grant_does_not_override_who_refusal(self):
         self._grant(self.outsider, self.REQUIRED)
@@ -1082,22 +1086,171 @@ class ConsentApiTests(BaseTestCase):
         self._login(str(self.outsider.user_id))
         self._refusal(self._save_draft(other_id, {"Id10013": "yes"}), 409, "consent_refused")
 
-    def test_submitting_shared_refusal_keeps_the_hold(self):
+    def test_submitted_shared_refusal_frees_the_case_for_a_fresh_start(self):
         first_id = self._direct_draft(self.PLAIN)
         self.assertEqual(self._save_draft(first_id, _answers()).status_code, 200)
         first = db.session.get(VaWebIntakeDraft, uuid.UUID(first_id))
+        death_id = first.death_id
         self._login(str(self.outsider.user_id))
         other = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
-            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": str(first.death_id),
+            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": str(death_id),
         })
         self.assertEqual(other.status_code, 201, other.get_json())
         other_id = other.get_json()["draft"]["draft_id"]
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
         self._login(self.interviewer_id)
         self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
         response = self._submit(first_id, {"Id10013": "no"})
         self.assertEqual(response.status_code, 201, response.get_json())
+        death = db.session.get(VaDeathRegister, death_id)
+        db.session.refresh(death)
+        self.assertEqual(death.status, "refused")
+        # The teammate's interview stays cleared and paused until an explicit
+        # resume on the current version; nothing from before the refusal returns.
+        self._login(str(self.outsider.user_id))
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
+        self._refusal(self._save_draft(other_id, {"Id10017": "Later"}), 409, "refusal_stale")
+        version = self.client.get(f"{INTAKE}/drafts/{other_id}").get_json()["draft"]["updated_at"]
+        resumed = self.client.patch(f"{INTAKE}/drafts/{other_id}", headers=self._csrf_headers(), json={
+            "sections": {}, "resume_refused": True, "if_updated_at": version,
+        })
+        self.assertEqual(resumed.status_code, 200, resumed.get_json())
+        version = resumed.get_json()["draft"]["updated_at"]
+        saved = self.client.patch(f"{INTAKE}/drafts/{other_id}", headers=self._csrf_headers(), json={
+            "sections": {"main": {"Id10013": "yes", "Id10017": "Later"}}, "if_updated_at": version,
+        })
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes", "Id10017": "Later"})
+        # A new interview by another team member starts on the refused case.
+        third = self._get_or_make_user("consent.third.restart@test.local", "Consent123!")
+        self._grant(third, self.PLAIN)
+        db.session.commit()
+        self._login(str(third.user_id))
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PLAIN, "site_id": self.SITE_PLAIN, "death_id": str(death_id),
+        })
+        self.assertEqual(started.status_code, 201, started.get_json())
+        third_id = started.get_json()["draft"]["draft_id"]
+        self.assertEqual(self._save_draft(third_id, {"Id10013": "yes", "Id10017": "New"}).status_code, 200)
+        self.assertEqual(self._saved_answers(third_id), {"Id10013": "yes", "Id10017": "New"})
+
+    def test_an_inherited_case_refusal_leaves_a_teammates_fresh_grant_alone(self):
+        self._grant(self.outsider, self.REQUIRED)
+        third = self._get_or_make_user("consent.third.inherited@test.local", "Consent123!")
+        self._grant(third, self.REQUIRED)
+        db.session.commit()
+        first_id = self._direct_draft()
+        self.assertEqual(self._draft_consent(first_id, self._consent()).status_code, 201)
+        self.assertEqual(self._save_draft(first_id, _answers()).status_code, 200)
+        death = db.session.get(VaDeathRegister, db.session.get(VaWebIntakeDraft, uuid.UUID(first_id)).death_id)
+        death_id = str(death.death_id)
+        # Teammate B interviews on a phone attempt of its own.
+        self._login(str(self.outsider.user_id))
+        attempt = uuid.uuid4()
+        synced = self._sync_draft(death_id, {"Id10013": "yes", "Id10017": "Other"}, client_draft_id=attempt)
+        self.assertEqual(synced.status_code, 200, synced.get_json())
+        other_id = synced.get_json()["draft"]["draft_id"]
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        # A refuses and submits: B is cleared, then takes its own fresh grant and resumes.
+        self._login(self.interviewer_id)
+        self.assertEqual(self._draft_consent(first_id, self._consent(decision="refused")).status_code, 201)
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
+        submitted = self._submit(first_id, {"refusal_age_group": "65_plus", "refusal_sex": "female"})
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        consent_service.record_consent(self.outsider, project_id=self.REQUIRED, death=death,
+                                       consent=self._consent(client_draft_id=attempt),
+                                       client_draft_id=attempt, channel="web")
+        db.session.commit()
+        self._login(str(self.outsider.user_id))
+        version = self.client.get(f"{INTAKE}/drafts/{other_id}").get_json()["draft"]["updated_at"]
+        resumed = self._sync_draft(death_id, {"Id10013": "yes", "Id10017": "Later"}, client_draft_id=attempt,
+                                   resume_refused=True, base_updated_at=version)
+        self.assertEqual(resumed.status_code, 200, resumed.get_json())
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Later")
+        # C saves before any grant: refused by the case's older refusal only.
+        self._login(str(third.user_id))
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.REQUIRED, "site_id": self.SITE_REQ, "death_id": death_id,
+        })
+        self.assertEqual(started.status_code, 201, started.get_json())
+        third_id = started.get_json()["draft"]["draft_id"]
+        self.assertEqual(self._save_draft(third_id, {"Id10013": "yes", "Id10017": "Third"}).status_code, 200)
+        self.assertEqual(self._saved_answers(third_id), {"Id10013": "yes"})
+        third_draft = db.session.get(VaWebIntakeDraft, uuid.UUID(third_id))
+        self.assertFalse((third_draft.meta or {}).get("caseRefusalHold"))
+        # B keeps its answer and can go on saving.
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Later")
+        self._login(str(self.outsider.user_id))
+        version = self.client.get(f"{INTAKE}/drafts/{other_id}").get_json()["draft"]["updated_at"]
+        saved = self._sync_draft(death_id, {"Id10013": "yes", "Id10017": "Again"}, client_draft_id=attempt,
+                                 base_updated_at=version)
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Again")
+
+    def _case_draft(self, project_id, death_id):
+        site_id = self.SITE_REQ if project_id == self.REQUIRED else self.SITE_PLAIN
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": project_id, "site_id": site_id, "death_id": death_id,
+        })
+        self.assertEqual(started.status_code, 201, started.get_json())
+        return started.get_json()["draft"]["draft_id"]
+
+    def test_a_repeated_refusal_does_not_clear_a_later_teammate(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        first_id = self._case_draft(self.PLAIN, death_id)
+        self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
+        self._login(str(self.outsider.user_id))
+        other_id = self._case_draft(self.PLAIN, death_id)
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        # The refusal was recorded before the teammate started: an autosave
+        # and the submit of the same refusal clear no one.
+        self._login(self.interviewer_id)
+        self.assertEqual(self._save_draft(first_id, {"Id10013": "no"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        submitted = self._submit(first_id, {"Id10013": "no"})
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        self._login(str(self.outsider.user_id))
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "More"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "More")
+
+    def test_a_phone_who_refusal_by_sync_clears_and_holds_teammates(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        self._login(str(self.outsider.user_id))
+        other_id = self._case_draft(self.PLAIN, death_id)
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        self._login(self.interviewer_id)
+        synced = self._sync_draft(death_id, {"Id10013": "no"}, project_id=self.PLAIN)
+        self.assertEqual(synced.status_code, 200, synced.get_json())
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
+        phone = db.session.get(VaWebIntakeDraft, uuid.UUID(synced.get_json()["draft"]["draft_id"]))
+        db.session.refresh(phone)
+        self.assertTrue(phone.meta.get("caseRefusalHold"))
         self._login(str(self.outsider.user_id))
         self._refusal(self._save_draft(other_id, {"Id10013": "yes"}), 409, "consent_refused")
+
+    def test_a_phone_upload_with_a_refused_consent_clears_teammates(self):
+        self._grant(self.outsider, self.REQUIRED)
+        db.session.commit()
+        death_id = self._register(consent=self._consent()).get_json()["case"]["death_id"]
+        self._login(str(self.outsider.user_id))
+        other_id = self._case_draft(self.REQUIRED, death_id)
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self.assertEqual(self._saved_answers(other_id)["Id10017"], "Other")
+        self._login(self.interviewer_id)
+        attempt = uuid.uuid4()
+        response = self._upload(death_id, {"refusal_age_group": "65_plus", "refusal_sex": "female"},
+                                client_draft_id=attempt,
+                                consent=self._consent(client_draft_id=attempt, decision="refused"))
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
+        uploaded = db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == attempt)).one()
+        db.session.refresh(uploaded)
+        self.assertTrue(uploaded.meta.get("caseRefusalHold"))
 
     def test_refusal_on_an_existing_open_attempt_preserves_an_earlier_submission(self):
         first_id = self._direct_draft(self.PLAIN)

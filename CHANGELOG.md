@@ -12,6 +12,8 @@ What landed, newest first. Details live in the commits and the linked docs;
   orphaned drafts each hold a consent). Both reloads now go to `?draftId=`, the
   address "Resume interview" uses. A manual browser refresh during a new
   interview still starts another draft.
+  Shipped in web release `expo-web-v2026.10.29.2` (from `a4d7bce83`), now
+  pinned in `docker-compose.yml`.
 - **Offline ICD-11 engine: phone parity kit and vendored bridge source.** On the
   SM-E146B, the engine shipped in Collect Plus 0.3.14 matched the official
   `whoicd/icd-api:2.6.0` container on all 20,010 certificates (10,000 new

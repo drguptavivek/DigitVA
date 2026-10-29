@@ -21,7 +21,7 @@ Version 0.3.13 introduces the manual Settings server compatibility/build check
 
 Built on CI from `20f65ba57` (Collect) and `140ead14e` (Collect Plus, the first
 CI build with the bundled SmartVA engine), with web release
-`expo-web-v2026.10.29.1` from `2096df221`; the three are pinned in
+`expo-web-v2026.10.29.2` from `a4d7bce83`; the three are pinned in
 `docker-compose.yml`. Both use the release certificate; versionCode 3142 (arm64).
 Checksums verified after download from the releases. The phone acceptance
 fixes in them are listed under 2026-10-29 in `CHANGELOG.md` (`digitva-7amd`).

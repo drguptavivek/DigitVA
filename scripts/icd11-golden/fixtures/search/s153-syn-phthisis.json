@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1B10.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "9C22.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Phthisis bulbi",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "CA80.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Byssinosis due to exposure to flax",
        "postcoordination": true,
        "postcoordination_availability": 1,

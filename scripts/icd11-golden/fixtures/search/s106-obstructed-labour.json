@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "JB06.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstructed labour due to unspecified causes",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "JB06.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstructed labour due to other specified causes",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "JB04.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstructed labour due to compound presentation",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "JB04.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstructed labour due to face presentation",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "JB04.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstructed labour due to shoulder presentation",
        "postcoordination": false,
        "postcoordination_availability": 0,

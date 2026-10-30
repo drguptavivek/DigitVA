@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1C13",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tetanus",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1C14",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstetrical tetanus",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "8D83",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Autonomic nervous system disorder due to infection",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -56,7 +62,9 @@
       },
       {
        "code": "1C15",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tetanus neonatorum",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "QC00.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Need for immunization against tetanus alone",
        "postcoordination": false,
        "postcoordination_availability": 0,

@@ -8,7 +8,7 @@
 #   .NET 10 SDK, pinned in global.json (the one place; the workflow reads it too) with the ASP.NET Core 10 shared framework
 #   it ships with, and the Android NDK (28.2). Runs on macOS and on Linux x64 (the host picks the NDK's prebuilt folder).
 #   Optional: ANDROID_NDK (default: the Mac SDK's 28.2.13676358), ASPNET_DIR (default: the shared framework of the
-#   installed SDK, found from `dotnet --info`).
+#   installed SDK, found from `dotnet --list-runtimes`).
 # Bridge.csproj reads WHO's assemblies from /tmp/icdapi_portable (property IcdApiDir) and ASP.NET Core from AspNetDir.
 # rd.xml (hand-written) and rd_gen.xml keep the generic types that protobuf-net, Newtonsoft.Json and System.Text.Json
 # reach by reflection; NativeAOT would trim them otherwise. rd_gen.xml is generated from the WHO assemblies by gen_rd.cs

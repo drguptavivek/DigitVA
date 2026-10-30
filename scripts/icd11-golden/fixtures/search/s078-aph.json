@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "6A01.20",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Developmental language disorder with impairment of receptive and expressive language",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "9B11.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Aphakia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "JA41.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Antepartum haemorrhage, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "MA80.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Aphasia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "MA80.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Dysphasia",
        "postcoordination": false,
        "postcoordination_availability": 0,

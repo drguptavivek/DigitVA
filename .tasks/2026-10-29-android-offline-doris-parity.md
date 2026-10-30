@@ -1,9 +1,9 @@
 # Android offline DORIS coding: parity with the web flow
 
-Status: design approved 2026-10-29; WP1/WP1b built and packaged 2026-10-30 (not published); WP2 and WP3 built 2026-10-30 (jest and golden replay; not yet run on a phone); rest not started
+Status: design approved 2026-10-29; WP1/WP1b built, published as engine release 2026.10.29.1 and pinned; WP2, WP3 and WP4 (round 2 and final-code guard `.12`) built 2026-10-30 (jest and golden replay; golden sets owner-approved and frozen 2026-10-30; Collect and Collect Plus 0.3.15 released; WP5 phone proof of the full journey not done); WP6 built, WP7 not started; WP8 builds on CI, not yet the release source
 Priority: P1
 Created: 2026-10-29
-Bead: `digitva-9cll` (epic); WP1 `.1`, WP4 `.2`, WP2 `.3`, WP3 `.4`, WP5 `.5`; gaps `digitva-gt2v`, `digitva-bged`
+Bead: `digitva-9cll` (epic); WP1 `.1`, WP4 `.2`, WP2 `.3`, WP3 `.4`, WP5 `.5`, WP8 `.10` (CI byte difference `.11`), final-code guard `.12`; gaps `digitva-gt2v`, `digitva-bged`
 Owner rule (2026-10-29): Collect Plus does the whole web DORIS coding flow on
 the phone **with no server call** — enrolled or standalone, online or not. The
 Android bridge (`mobile/digitva-collect/modules/digitva-icd11`) is the primary
@@ -97,7 +97,7 @@ unbounded data.
 ## Work packages
 
 **WP1 — Bridge rebuild (one engine release).** `engine-src/Bridge.cs`, `rd.xml`, `shim.c`, Kotlin, `offlineEngine.ts`.
-Done 2026-10-30 as engine release `2026.10.29.1` (bead `digitva-9cll.1`, WP1b `.6`), packaged but not published. **No old-engine
+Done 2026-10-30 as engine release `2026.10.29.1` (bead `digitva-9cll.1`, WP1b `.6`), published by the owner and pinned in `collect-plus-release.yml`. **No old-engine
 fallback** (owner 2026-10-29): the bridge exports only `init`, `free` and `digitva_icd11_call` (the four single-argument
 exports are gone); the shim's `load` requires `digitva_icd11_call` and returns 3 without it, so an old library fails loudly and
 the app reports the engine unavailable (`load_failed`); the Kotlin `invoke`/`NativeCalls` mapping, `hasCall` and the shim's legacy
@@ -269,7 +269,7 @@ image with a pinned .NET SDK and NDK, `gen_rd.cs` and the parity kit — the
 "next step 1" in the WHO note and the answer to WHO's maintenance concern.
 Publishing the result stays an owner decision.
 
-*Built 2026-10-30 (not yet run on GitHub).* `build.sh` is portable (macOS and
+*Built 2026-10-30; runs on GitHub.* `build.sh` is portable (macOS and
 Linux x64; SDK pinned in `engine-src/global.json`, ASP.NET Core found from the
 SDK, `Bridge.csproj` takes `IcdApiDir` and `AspNetDir`), and
 `.github/workflows/icd11-engine-build.yml` builds from the digest-pinned WHO
@@ -279,11 +279,34 @@ library equals the pinned release's. Details in
 `docs/current-state/icd11-android-engine-interface.md` ("Building the
 engine"). The Mac build with the portable script reproduced the release
 library (`8bfdc258...`) and left `rd_gen.xml` unchanged. Not covered: the parity
-kit and the JNI smoke need an arm64 phone and stay manual; the Linux build
-path is untested until the first run. Open owner decisions: whether CI becomes
-the source of release builds (then publish from its artifact and pin its
-library sha256 in `collect-plus-release.yml`), and runner cost if the
-repository is private.
+kit and the JNI smoke need an arm64 phone and stay manual. The first CI run
+failed because `setup-dotnet` adds a newer bare runtime beside the SDK, so
+`build.sh` now finds the ASP.NET Core shared framework from
+`dotnet --list-runtimes` (the SDK's own `Microsoft.AspNetCore.App`), not
+`dotnet --info` (`01b41cb8d`, bead `digitva-9cll.10`). The CI library is not
+byte-identical to the Mac-built release `icd11-engine-v2026.10.29.1` (build ID,
+`.comment`, about 1.6 KB of `.rodata`; bead `digitva-9cll.11`), so the
+Mac-built release stays the pinned one until that is resolved. Open owner
+decisions: whether CI becomes the source of release builds (then publish from
+its artifact and pin its library sha256 in `collect-plus-release.yml`), and
+runner cost if the repository is private.
+
+**WP4 final codes only (owner 2026-10-30, bead `digitva-9cll.12`).** An
+extension code (chapter X, e.g. `XK8G`) alone, or a category with children
+(e.g. `NC72`, `MG52.0`), as the stem or as any `/` cluster stem, is refused at
+selection with 422 `INVALID_SELECTION`. Server: `selection_refusal`
+(`app/services/icd11_postcoordination.py`), called after the URI check in the
+doris-clinical and public doris-demo selection-check routes; offline:
+`selectionRefusal` (`dorisTerminology.ts`). Terms items gain `extension` and
+`leaf` (only when WHO sent `isLeaf`); codeinfo and selection-check items gain
+both. Both pickers (`picker/expression.ts` and `digitva_icd11_picker.js`,
+`notFinal`) open a category's hierarchy ("Choose specific") and mark an
+extension; `HierarchyCard` disables "Use this code" and hides Build on such
+nodes. Old APKs show "The selected code does not match its WHO URI." for these
+refusals. Done; policy in `docs/policy/doris-cod-workflow.md`, the checks in
+`docs/current-state/doris-validation-checks.md`. The WHO ECT selection-check
+is unchanged (owner decision pending, `digitva-dn15`). Golden fixtures were
+re-recorded for the new fields and refusals.
 
 **WP4 layout round 2 — phone portrait and tablet landscape (Fable review
 2026-10-29).** After the current safety/density fixes:
@@ -321,7 +344,7 @@ repository is private.
 **Round 2 status (2026-10-30, digitva-9cll.2).** Built in JS, not yet seen on
 a device: flat rows with the ⓘ and 28 dp pills, header without a Search
 button, build rows with check circles / folded optional axes / "Show all N",
-the tablet two-pane picker, `Modal supportedOrientations`, `app.json`
+the tablet two-pane picker (a phone row's line 2 starts with a 28 dp "Use" pill when the code is complete or postcoordination is not mandatory; a mandatory stem shows "+ Build (required)" and no Use; the footer has Clear after OK; a refused axis pick shows its message under the axis search box), `Modal supportedOrientations`, `app.json`
 `"orientation": "default"` (needs a native rebuild). Phone portrait lock landed 2026-10-30 (owner go): `expo-screen-orientation`,
 and `app/_layout.tsx` locks to portrait when the screen's shortest side is
 under 600 dp. Every app and VA form scroller (31 in `src`, `app` and
@@ -340,6 +363,9 @@ interview form and other screens in landscape.
   required axes, clusters, X extensions, maternal/perinatal links, injuries)
   together with the WHO JSON they were built from; the TS port must produce
   the same replies from the same WHO JSON. This catches Python↔TS drift.
+- Status 2026-10-30: the golden sets are recorded, owner-approved and frozen,
+  and jest replays them (bead `digitva-9cll.7`); the phone run is not done
+  (bead `digitva-9cll.5`, with the XK8G/NC72 refusals on the Samsung).
 - Phone run of the full journey (test plan in
   `private/DigitVA offline coding phone test plan.md`), airplane mode,
   standalone and enrolled; timings and memory with `scripts/android-profile.sh`.
@@ -403,8 +429,9 @@ a reviewed change, never a silent re-record.
    releases) requires only that the expected code is in the top 5, so a WHO
    ranking change is a reviewed difference, not a failure.
 
-Corpus lists live in one reviewable file per set; the owner approves the
-lists before they are frozen. Fixtures carry the WHO JSON they were built
+Corpus lists live in one reviewable file per set. The owner approved all three
+on 2026-10-30 and they are frozen (`"status": "approved"`); a change sets a set
+back to `draft` and goes to the owner. Fixtures carry the WHO JSON they were built
 from, so the TS port is tested offline in jest and the engine on the phone.
 
 Coverage is measured for TS (`jest --coverage` on the changed files, target

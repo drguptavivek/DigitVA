@@ -2,10 +2,22 @@
  "failures": [],
  "release": "2026-01",
  "sets": {
+  "doris": {
+   "bytes": 1572323,
+   "corpus_items": 173,
+   "corpus_status": "approved",
+   "fixtures": 173
+  },
+  "postcoordination": {
+   "bytes": 5435412,
+   "corpus_items": 44,
+   "corpus_status": "approved",
+   "fixtures": 44
+  },
   "search": {
-   "bytes": 7024896,
+   "bytes": 7069936,
    "corpus_items": 238,
-   "corpus_status": "draft",
+   "corpus_status": "approved",
    "fixtures": 238
   }
  },

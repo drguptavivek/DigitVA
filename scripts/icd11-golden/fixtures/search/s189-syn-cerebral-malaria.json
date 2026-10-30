@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1F40.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Plasmodium falciparum malaria with cerebral complications",
        "postcoordination": true,
        "postcoordination_availability": 1,

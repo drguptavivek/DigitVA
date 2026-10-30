@@ -18,6 +18,8 @@
       "body": {
        "item": {
         "code": "9B71.00&XS25&XK9J/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Nonproliferative diabetic retinopathy",
@@ -44,13 +46,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/XS25",
       "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/417759842"
+      "GET icd/release/11/2026-01/mms/417759842",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "9B71.00&XS25&XK9J/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Nonproliferative diabetic retinopathy",
@@ -276,7 +282,9 @@
     "body": {
      "item": {
       "code": "9B71.00",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": false,
@@ -305,7 +313,9 @@
     "body": {
      "item": {
       "code": "9B71.00",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": false,

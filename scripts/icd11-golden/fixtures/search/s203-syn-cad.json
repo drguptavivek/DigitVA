@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BA8Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diseases of coronary artery, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "8B22.C0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "CADASIL - [cerebral autosomal dominant arteriopathy with subcortical infarcts and leukoencephalopathy] syndrome",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "BA52.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Coronary atherosclerosis, unspecified site",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "8A6Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Epilepsy or seizures, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -69,7 +77,9 @@
       },
       {
        "code": "NE61",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,

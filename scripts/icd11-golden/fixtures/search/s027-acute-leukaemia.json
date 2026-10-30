@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "2A60.3Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute myeloid leukaemia, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "2B33.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Acute leukaemia, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "2A60.35",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute erythroid leukaemia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "2A60.36",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute megakaryoblastic leukaemia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "2A60.37",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute basophilic leukaemia",
        "postcoordination": true,
        "postcoordination_availability": 1,

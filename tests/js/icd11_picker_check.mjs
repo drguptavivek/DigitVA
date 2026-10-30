@@ -104,3 +104,50 @@ console.log('icd11_picker ok');
   assert.match(tags[0].getAttribute('aria-label'), /Adults only/);
 }
 console.log('causing-unknown and age tag checks passed');
+
+// An extension code alone and a category with children never get Use or + Build; a category's title or
+// "Choose specific" opens its hierarchy, where Use stays off while the node has children.
+{
+  const posts = [];
+  const tree = (code, children) => ({selected: {code, title: 'T ' + code, uri: 'u-' + code}, ancestors: [], siblings: [], children, related_maternal: [], related_perinatal: []});
+  const post = (path, body) => { posts.push([path, body.code]); return Promise.resolve(path === 'hierarchy' ? (body.code === 'NC72' ? tree('NC72', [{code: 'NC72.7', title: 'Shaft', uri: 'u-7', has_children: false}]) : tree(body.code, [])) : {}); };
+  const root = document.createElement('div');
+  root.innerHTML = '<h2 data-line-title>L</h2><input><div data-doris-search-status></div><div data-doris-search-results></div><div data-doris-details-panel hidden></div><div data-doris-guided-panel></div>';
+  document.body.appendChild(root);
+  const pk = createIcd11Picker({mount: document.body, transport: {post}, onSelect() {}});
+  pk.open(root, root.querySelector('input'));
+  const items = [
+    {code: 'XK8G', title: 'Left', uri: 'u-x', extension: true, leaf: true},
+    {code: 'NC72', title: 'Fracture of femur', uri: 'u-n', extension: false, leaf: false, postcoordination: true, postcoordination_availability: 1},
+    {code: 'NC72.7', title: 'Shaft', uri: 'u-7', extension: false, leaf: true, postcoordination: true, postcoordination_availability: 1},
+  ];
+  pk.renderResults(root, items, {input: root.querySelector('input'), statusEl: root.querySelector('[data-doris-search-status]'), resultList: root.querySelector('[data-doris-search-results]'), onRequery() {}});
+  const rows = [...root.querySelectorAll('.doris-search-result')];
+  const buttons = (row) => [...row.querySelectorAll('button')].map((b) => b.textContent);
+  assert.ok(buttons(rows[2]).includes('Use'));
+  assert.ok(rows[2].querySelector('.doris-context-icon--post'));
+  assert.ok(!buttons(rows[0]).includes('Use')); assert.ok(!buttons(rows[1]).includes('Use'));
+  assert.equal(rows[1].querySelector('.doris-context-icon--post'), null);
+  const marker = rows[0].querySelector('.badge');
+  assert.equal(marker.textContent, 'Extension'); assert.equal(marker.tagName, 'SPAN');
+  assert.equal(marker.getAttribute('aria-label'), 'Extension code XK8G: add it to a stem');
+  const footer = root.querySelector('.doris-selection-choice');
+  rows[0].querySelector('.doris-search-title-button').click();
+  assert.equal(footer.textContent, 'XK8G is an extension code. It cannot be used alone: add it to a stem through + Build.');
+  assert.deepEqual(posts, []);
+  const choose = [...rows[1].querySelectorAll('button')].find((b) => b.textContent === 'Choose specific ▸');
+  assert.equal(choose.getAttribute('aria-label'), 'Choose a more specific code under NC72');
+  choose.click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(posts, [['hierarchy', 'NC72']]);
+  assert.equal(footer.textContent, 'NC72 is a category, not a final code. Choose a more specific code under it.');
+  const card = () => root.querySelector('[data-doris-guided-panel-content]');
+  const useCode = () => [...card().querySelectorAll('button')].find((b) => b.textContent === 'Use this code');
+  assert.equal(useCode().disabled, true);
+  assert.ok(![...card().querySelectorAll('button')].some((b) => b.textContent === 'Build expression for this stem'));
+  [...card().querySelectorAll('button')].find((b) => b.textContent.startsWith('NC72.7')).click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(useCode().disabled, false);
+  pk.close();
+}
+console.log('final-code checks passed');

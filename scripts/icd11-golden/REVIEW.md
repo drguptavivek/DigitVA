@@ -1,6 +1,6 @@
-# Golden corpora: draft for owner review
+# Golden corpora: approved by the owner
 
-All three sets are `"status": "draft"`. Edit the JSON in `corpus/` (or tell the writer what to add or drop), then re-record (README.md) and regenerate this file with `python3 scripts/icd11-golden/review.py`.
+All three sets are `"status": "approved"` (owner, 2026-10-30) and frozen. A change goes back to the owner: edit the JSON in `corpus/`, set it to `draft`, then re-record (README.md) and regenerate this file with `python3 scripts/icd11-golden/review.py`.
 
 Counts: DORIS 173 certificates, postcoordination 44 stems with 47 built expressions, search 238 terms.
 

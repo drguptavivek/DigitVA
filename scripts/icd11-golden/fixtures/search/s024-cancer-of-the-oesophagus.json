@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "2B70.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant neoplasms of oesophagus, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "2B70.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified malignant neoplasms of oesophagus",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "2B5Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant mesenchymal neoplasm of unspecified type",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "2D8Y&XA0828",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant neoplasm metastasis in the oesophagus",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "2B71.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant neoplasms of oesophagogastric junction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "DB93.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hepatic cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -33,7 +35,9 @@
       },
       {
        "code": "KB8Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified digestive system disorders of fetus or newborn",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "DB93",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "Hepatic fibrosis or cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "DB93.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified hepatic fibrosis or cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "CA25.Z/DB93.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Liver cirrhosis in unspecified cystic fibrosis",
        "postcoordination": true,
        "postcoordination_availability": 1,

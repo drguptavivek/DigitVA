@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "BA41.Z/BD10",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Acute myocardial infarction, unspecified",
@@ -38,13 +40,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
       "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
       "GET icd/release/11/2026-01/mms/codeinfo/BD10",
-      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/2136808878"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BA41.Z/BD10",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Acute myocardial infarction, unspecified",
@@ -272,6 +278,8 @@
       "body": {
        "item": {
         "code": "BA41.Z&XA0F62/BD10",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Acute myocardial infarction, unspecified",
@@ -296,13 +304,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
       "GET icd/release/11/2026-01/mms/codeinfo/XA0F62",
       "GET icd/release/11/2026-01/mms/codeinfo/BD10",
-      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/2136808878"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BA41.Z&XA0F62/BD10",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Acute myocardial infarction, unspecified",
@@ -545,7 +557,9 @@
     "body": {
      "item": {
       "code": "BA41.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,
@@ -574,7 +588,9 @@
     "body": {
      "item": {
       "code": "BA41.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,

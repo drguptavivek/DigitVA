@@ -632,6 +632,30 @@ describe("server draft store", () => {
     expect(patches).toHaveLength(1);
   });
 
+  it("keeps the prefill for the form's own load after the pin-only write (digitva-k7m4)", async () => {
+    const pin = { instrumentVersion: "served-2", definitionSha256: "a".repeat(64), definitionExtensions: ["digitva_core"] };
+    let updatedAt = "revision-0";
+    let pinned = false;
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "PATCH") {
+        pinned = true;
+        updatedAt = "revision-1";
+        return response({ status: 200, body: { saved_sections: 0, draft: { draft_id: "d1", updated_at: updatedAt } } });
+      }
+      return response({ status: 200, body: {
+        draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: updatedAt },
+        envelope: { ...draft, instrumentVersion: "served-2", ...(pinned ? pin : {}), data: {} },
+        prefill: {},
+      } });
+    });
+    const store = new ServerDraftStore({
+      endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10010", "Interviewer"]]),
+      definitionPin: pin, initialData: { Id10010: "Shivangi" }, initialDataVersion: "revision-0",
+    });
+    expect((await store.load("d1"))?.data).toEqual({ Id10010: "Shivangi" });
+    expect((await store.load("d1"))?.data).toEqual({ Id10010: "Shivangi" });
+  });
+
   it("pins a served definition before the first answer save and preserves it on later writes", async () => {
     const requests: Array<{ method: string; body?: Record<string, unknown> }> = [];
     const pin = {

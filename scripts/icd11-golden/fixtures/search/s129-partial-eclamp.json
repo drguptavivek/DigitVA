@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "JA25.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Eclampsia, time period unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "JA25",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "Eclampsia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "JA25.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Eclampsia in pregnancy",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "JA25.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Eclampsia in labour",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "JA25.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Eclampsia in the puerperium",
        "postcoordination": false,
        "postcoordination_availability": 0,

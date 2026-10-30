@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1A07.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Typhoid fever, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "1A08&XN1K5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Enteritis due to paratyphoid fever A",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "1A08&XN322",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Enteritis due to paratyphoid fever B",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "1A08&XN5TR",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Enteritis due to paratyphoid fever C",
        "postcoordination": true,
        "postcoordination_availability": 1,

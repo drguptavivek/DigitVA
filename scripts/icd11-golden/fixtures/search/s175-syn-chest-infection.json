@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Lower respiratory tract disease, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

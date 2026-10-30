@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1A07.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Typhoid fever, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1A07.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified typhoid fever",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1A07.Y/CA40.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Typhoid pneumonia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "1D49",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Crimean-Congo haemorrhagic fever",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1A07.Y/BB40",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Typhoid endocarditis",
        "postcoordination": true,
        "postcoordination_availability": 1,

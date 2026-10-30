@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "2D4Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unspecified malignant neoplasms of unspecified sites",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "2E2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant neoplasm metastasis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "2B70.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant neoplasms of oesophagus, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "2B33.Y",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Other malignant haematopoietic neoplasms without further specification",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "2B31.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Histiocytic sarcoma",
        "postcoordination": true,
        "postcoordination_availability": 1,

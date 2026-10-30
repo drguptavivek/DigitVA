@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "2F9Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neoplasms of unknown behaviour of unspecified site",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "2F3Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Benign neoplasms except of mesenchymal origin, of unspecified site",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "ME61",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Subcutaneous swelling, mass or lump of uncertain or unspecified nature",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "2F9A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neoplasms of unknown behaviour of endocrine glands",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "2E6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Carcinoma in situ of unspecified site",
        "postcoordination": true,
        "postcoordination_availability": 1,

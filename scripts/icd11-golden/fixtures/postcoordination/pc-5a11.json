@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "5A11/8C03.0",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Type 2 diabetes mellitus",
@@ -38,13 +40,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/5A11%2F8C03.0",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/8C03.0",
-      "GET icd/release/11/2026-01/mms/119724091"
+      "GET icd/release/11/2026-01/mms/119724091",
+      "GET icd/release/11/2026-01/mms/codeinfo/8C03.0",
+      "GET icd/release/11/2026-01/mms/1837670870"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "5A11/8C03.0",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Type 2 diabetes mellitus",
@@ -344,6 +350,8 @@
       "body": {
        "item": {
         "code": "5A24/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Uncontrolled or unstable diabetes mellitus",
@@ -366,13 +374,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/5A24%2F5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/5A24",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/1156295616"
+      "GET icd/release/11/2026-01/mms/1156295616",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "5A24/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Uncontrolled or unstable diabetes mellitus",
@@ -709,7 +721,9 @@
     "body": {
      "item": {
       "code": "5A11",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,
@@ -738,7 +752,9 @@
     "body": {
      "item": {
       "code": "5A11",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,

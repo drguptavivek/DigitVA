@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "KA21.4Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Preterm newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "JB00.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Preterm labour without delivery",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA21.3Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Extreme prematurity of newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KB2B",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Primary atelectasis of newborn",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "5A92",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Peripheral precocious puberty",
        "postcoordination": false,
        "postcoordination_availability": 0,

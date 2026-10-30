@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "CA07.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute upper respiratory infection, site unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "EB05",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Urticaria of unspecified type",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "EB0Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified urticarial disorders",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "ME63.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic urticarial skin disorder",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "EB00.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute urticaria",
        "postcoordination": false,
        "postcoordination_availability": 0,

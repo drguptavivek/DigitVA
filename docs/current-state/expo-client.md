@@ -694,11 +694,13 @@ the device while unenrolled.
   kit and `theme.ts` tokens (light/dark). It speaks the web page's message
   protocol to `pickerBridge.ts`, so `WorkspaceApi` and the guidance routes are
   the only data path and the verification rule is unchanged. Plain Collect and
-  the Expo web build keep the shared web page. Details:
+  the Expo web build keep the shared web page. Only final codes can be used: a
+  category opens its hierarchy and an extension code is marked, with no Use or
+  Build (`digitva-9cll.12`). Details:
   [DORIS COD Workflow](doris-cod-workflow.md).
 - Offline replies (digitva-9cll.3, 2026-10-30): terms, codeinfo, selection-check
   and process are the server's replies, built by TypeScript ports of the
-  server's rules over the on-phone engine (`whoEngineApi.ts`,
+  server's rules over the on-phone engine, including the final-code refusal of selection-check (`whoEngineApi.ts`,
   `dorisTerminology.ts`, `dorisCertificate.ts`, `dorisProcessing.ts`) and
   replayed against the recorded golden sets in jest; errors are `ApiError`s
   with the server's codes. Limits, accepted: `certificate_digest` is the

@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "GB60.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute kidney failure, stage unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "GB60.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified acute kidney failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KC01&XT5R",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congenital renal failure [Acute]",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "JB44.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Postpartum acute renal failure",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "GB60.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute kidney failure, stage 2",
        "postcoordination": true,
        "postcoordination_availability": 2,

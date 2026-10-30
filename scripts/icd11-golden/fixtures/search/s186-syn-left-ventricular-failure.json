@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BD11.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -33,7 +35,9 @@
       },
       {
        "code": "BD11.Z&XT5R",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute left ventricular failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -45,7 +49,9 @@
       },
       {
        "code": "BA01/BD1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypertensive heart disease with heart failure",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "BD11.Z&XS3A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure NYHA Class I",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -69,7 +77,9 @@
       },
       {
        "code": "BD11.Z&XS6B",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure NYHA Class II",
        "postcoordination": true,
        "postcoordination_availability": 2,

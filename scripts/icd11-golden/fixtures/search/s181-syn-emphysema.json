@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA21.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Emphysema, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "CA21.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified emphysema",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "KB27.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Interstitial emphysema originating in the perinatal period",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "NF0A.7",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Traumatic subcutaneous emphysema, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "NE81.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified injury or harm arising from a procedure, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,

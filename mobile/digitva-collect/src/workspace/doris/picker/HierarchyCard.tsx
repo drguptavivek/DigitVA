@@ -3,6 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { Button, Label, Muted, Body, font, gap, useUi } from "../ui";
 import { parseDorisHierarchy, type DorisHierarchy, type DorisOption } from "../guidance";
 import { LoadView, Panel } from "./Panel";
+import { isExtension } from "./expression";
 import { useLoad, type Post } from "./transport";
 
 function Nodes({ title, nodes, onNode }: { title: string; nodes: DorisOption[]; onNode: (node: DorisOption) => void }) {
@@ -21,7 +22,8 @@ function Nodes({ title, nodes, onNode }: { title: string; nodes: DorisOption[]; 
 
 function HierarchyBody({ tree, onNode, onUse, onBuild }: { tree: DorisHierarchy; onNode: (node: DorisOption) => void; onUse: (selected: DorisOption) => void; onBuild: (selected: DorisOption) => void }) {
   const { selected } = tree;
-  const usable = Boolean(selected.code && selected.uri);
+  // Only a final code is offered: a node with children is drilled into (tap a child), an extension code is added through + Build.
+  const usable = Boolean(selected.code && selected.uri) && !tree.children.length && !isExtension(selected.code);
   const context = [["Maternal context", tree.related_maternal], ["Perinatal context", tree.related_perinatal]] as const;
   return (
     <View style={{ gap: gap.sm }}>
@@ -39,7 +41,7 @@ function HierarchyBody({ tree, onNode, onUse, onBuild }: { tree: DorisHierarchy;
   );
 }
 
-/** Ancestors, siblings and children of a code (the `hierarchy` route); a node opens its own hierarchy. */
+/** Ancestors, siblings and children of a code (the `hierarchy` route); a node opens its own hierarchy, so a category is drilled into, never used. */
 export function HierarchyCard({ code, post, onNode, onUse, onBuild, onClose }: { code: string; post: Post; onNode: (node: DorisOption) => void; onUse: (selected: DorisOption) => void; onBuild: (selected: DorisOption) => void; onClose: () => void }) {
   const state = useLoad(async () => parseDorisHierarchy(await post("hierarchy", { code })), [code]);
   return (

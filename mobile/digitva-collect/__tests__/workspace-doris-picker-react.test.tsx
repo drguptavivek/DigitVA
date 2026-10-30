@@ -410,14 +410,37 @@ describe("result rows and badges", () => {
   ];
   const env: Env = { terms: () => ({ schema_version: 1, items: rows, truncated: false, next_cursor: null }) };
 
-  it("has no Use or Details button on a phone: line 1 is the Use, Details is the trailing 'ⓘ'", async () => {
+  it("shows a Use pill on a phone unless the code must be built, which its Build pill then says", async () => {
     mockWindow = { width: 360, height: 800, fontScale: 1 };
     const h = mount({ env });
     await search(h, "heart");
     for (const code of ["CA40", "BD54", "NC72.7", "BD54/MC85", "JA00"]) {
-      expect(has(h, `Use ${code}`)).toBe(false);
+      expect(has(h, `Use ${code}`)).toBe(code !== "BD54");
       expect(has(h, `Details of ${code}`)).toBe(true);
     }
+    const pills = h.tree.root.findAll((node) => typeof node.type === "string" && /postcoordination/i.test(String(node.props.accessibilityLabel)));
+    expect(pills.map((node) => `${node.props.accessibilityLabel}: ${flat(node.children)}`)).toEqual([
+      "Mandatory postcoordination: + Build (required)", "Postcoordination available: + Build", "Mandatory postcoordination: + Build",
+    ]);
+    // Use comes first, then a divider before the badges; a row with no badges has no divider.
+    const metas = h.tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "result-meta");
+    const metaOf = (code: string) => metas.find((meta) => meta.findAll((node) => node.props.accessibilityLabel === `Use ${code}`).length > 0)!;
+    const order = (code: string) => metaOf(code).children.map((child) => typeof child === "string" ? child : child.props.testID ?? child.props.accessibilityLabel ?? "badges");
+    expect(order("NC72.7").slice(0, 3)).toEqual(["Use NC72.7", "use-divider", "badges"]);
+    expect(metaOf("CA40").findAll((node) => node.props.testID === "use-divider")).toHaveLength(0);
+    await press(h, "Use CA40");
+    expect(text(h)).toContain("CA40 — Pneumonia");
+    // The title is bold at 700 (Samsung's font has no 600, which drew it regular); the code is not bold.
+    const titleOf = h.tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "CA40 Pneumonia")[0];
+    const weights = titleOf.findAll((node) => typeof node.type === "string" && typeof node.props.children === "string").map((node) => `${node.props.children}:${Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)).fontWeight ?? ""}`);
+    expect(weights).toEqual(expect.arrayContaining(["CA40:400", "Pneumonia:700"]));
+    // Clear empties the staged code and keeps the results; it sits after OK on the same row.
+    const buttons = h.tree.root.findAll((node) => node.props.testID === "picker-footer-buttons" && typeof node.type === "string")[0];
+    const labels = buttons.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
+    expect(labels).toEqual(["Use the selected code", "Clear the selected code"]);
+    await press(h, "Clear the selected code");
+    expect(text(h)).toContain("No code selected");
+    expect(has(h, "Use CA40")).toBe(true);
     expect(has(h, "Hierarchy of BD54")).toBe(false);
     expect(h.tree.root.findAll((node) => node.props.children === "Details" && typeof node.type === "string")).toHaveLength(0);
   });
@@ -461,6 +484,105 @@ describe("result rows and badges", () => {
     await search(h, "pneu");
     expect(has(h, "Open coding note")).toBe(false);
     expect(has(h, "Mandatory postcoordination")).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------- final codes only */
+
+describe("extension codes and categories are never staged", () => {
+  const EXTENSION = "XK8G is an extension code. It cannot be used alone: add it to a stem through + Build.";
+  const CATEGORY = "NC72 is a category, not a final code. Choose a more specific code under it.";
+  const rows = [
+    term("XK8G", "Left", { extension: true, leaf: true }),
+    term("NC72", "Fracture of femur", { extension: false, leaf: false, postcoordination: true, postcoordination_availability: 1 }),
+    term("NC72.7", "Fracture of shaft", { extension: false, leaf: true, postcoordination: true, postcoordination_availability: 1 }),
+    // An older server sends neither flag: unknown, so Use stays and the selection check decides.
+    term("CA40", "Pneumonia"),
+  ];
+  const hierarchy = (code: string) => ({ schema_version: 1, selected: opt(code, { title: `Title ${code}` }), ancestors: [], siblings: [], children: code === "NC72" ? [opt("NC72.7", { title: "Shaft" })] : [], related_maternal: [], related_perinatal: [], truncated: false });
+  const env: Env = {
+    terms: () => ({ schema_version: 1, items: rows, truncated: false, next_cursor: null }),
+    guidance: { hierarchy: (body) => hierarchy(body.code as string), details: () => ({ schema_version: 1 }) },
+  };
+  const isButton = (h: Harness, label: string) => h.tree.root.findAll((node) => node.props.accessibilityLabel === label && typeof node.type === "string").map((node) => node.props.accessibilityRole);
+
+  it("shows no Use and no + Build for an extension or a category, and a marker or 'Choose specific' in place of Use", async () => {
+    mockWindow = { width: 360, height: 800, fontScale: 1 };
+    const h = mount({ env });
+    await search(h, "femur");
+    expect(has(h, "Use NC72.7")).toBe(true);
+    expect(has(h, "Use CA40")).toBe(true);
+    expect(has(h, "Use XK8G")).toBe(false);
+    expect(has(h, "Use NC72")).toBe(false);
+    // Only NC72.7 keeps its + Build.
+    expect(h.tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Postcoordination available")).toHaveLength(1);
+    expect(has(h, "Choose a more specific code under NC72")).toBe(true);
+    expect(text(h)).toContain("Choose specific ▸");
+    // The extension marker is there, and it is not a button.
+    expect(isButton(h, "Extension code XK8G: add it to a stem")).toEqual([undefined]);
+    expect(has(h, "Extension code XK8G: add it to a stem")).toBe(false);
+    expect(control(h, "NC72 Fracture of femur").props.accessibilityHint).toMatch(/hierarchy/);
+  });
+
+  it("keeps the markers on a tablet, where Use is an inline button", async () => {
+    mockWindow = { width: 1180, height: 820, fontScale: 1 };
+    const h = mount({ env });
+    await search(h, "femur");
+    expect(has(h, "Use XK8G")).toBe(false);
+    expect(has(h, "Use NC72")).toBe(false);
+    expect(has(h, "Use NC72.7")).toBe(true);
+    expect(has(h, "Choose a more specific code under NC72")).toBe(true);
+    expect(isButton(h, "Extension code XK8G: add it to a stem")).toEqual([undefined]);
+  });
+
+  it("the title of an extension says what to do and stages nothing", async () => {
+    const h = mount({ env });
+    await search(h, "femur");
+    await press(h, "XK8G Left");
+    expect(text(h)).toContain(EXTENSION);
+    expect(text(h)).not.toContain("SELECTED");
+    expect(calls(h, "hierarchy")).toEqual([]);
+    expect(control(h, "Use the selected code").props.disabled).toBe(true);
+  });
+
+  it("the title or 'Choose specific' of a category opens its hierarchy, where a child is drilled into and a leaf can be used", async () => {
+    const h = mount({ env });
+    await search(h, "femur");
+    await press(h, "NC72 Fracture of femur");
+    expect(calls(h, "hierarchy")).toEqual([{ schema_version: 1, code: "NC72" }]);
+    expect(text(h)).toContain(CATEGORY);
+    expect(text(h)).not.toContain("SELECTED");
+    expect(control(h, "Use this code").props.disabled).toBe(true);
+    expect(has(h, "Build expression for this stem")).toBe(false);
+    await press(h, "Close See in hierarchy");
+    await press(h, "Choose a more specific code under NC72");
+    expect(calls(h, "hierarchy")).toHaveLength(2);
+    await press(h, "NC72.7 Shaft");
+    expect(calls(h, "hierarchy")[2]).toEqual({ schema_version: 1, code: "NC72.7" });
+    await press(h, "Use this code");
+    expect(text(h)).toContain("SELECTED");
+  });
+
+  it("a typed category or expression on a category stem goes through stage() too", async () => {
+    const info = (code: string) => ({ schema_version: 1, item: { code, title: `Title ${code}`, uri: `https://who.int/${code}`, release: "r", postcoordination: false, leaf: !code.startsWith("NC72&") && code !== "NC72", extension: false } });
+    const h = mount({ env: { ...env, codeinfo: info } });
+    await search(h, "NC72&XK8G");
+    expect(has(h, "Use NC72&XK8G")).toBe(false);
+    await press(h, "NC72&XK8G Title NC72&XK8G");
+    expect(calls(h, "hierarchy")).toEqual([{ schema_version: 1, code: "NC72" }]);
+    expect(text(h)).toContain(CATEGORY);
+    await search(h, "NC72.7&XK8G");
+    await press(h, "Use NC72.7&XK8G");
+    expect(text(h)).toContain("SELECTED");
+  });
+
+  it("shows the selection check's own not-final refusal, and nothing else from the server", async () => {
+    const h = mount({ env: { check: () => { throw failure(422, "INVALID_SELECTION", CATEGORY); } } });
+    await search(h, "pneu");
+    await press(h, "CA40 Pneumonia");
+    await press(h, "Use the selected code");
+    expect(text(h)).toContain(CATEGORY);
+    expect(h.handlers.onSelect).not.toHaveBeenCalled();
   });
 });
 
@@ -910,6 +1032,9 @@ describe("builder", () => {
     await advance(250);
     await press(h, "XS5W Other");
     expect(text(h)).toContain("WHO does not accept XS5W as an extension of BD54.");
+    // The refusal sits under the search box, above the matches: below 20 of them it was off screen on a phone.
+    const order = text(h);
+    expect(order.indexOf("WHO does not accept XS5W")).toBeLessThan(order.indexOf("XK9J — Cavity"));
     await press(h, "XQ00 Third");
     expect(text(h)).toContain(WHO_DOWN);
     expect(text(h)).not.toContain("WHO does not accept XS5W");
@@ -1125,7 +1250,7 @@ describe("build layout", () => {
 describe("hierarchy", () => {
   const tree = (over: Record<string, unknown> = {}) => ({
     schema_version: 1, selected: opt("CA40", { title: "Pneumonia" }), ancestors: [opt("CA00", { title: "Chest" }), { code: "", title: "Respiratory", uri: "https://who.int/r", has_children: true }],
-    siblings: [opt("CA41", { title: "Bronchitis" })], children: [opt("CA40.1", { title: "Viral" })], related_maternal: [opt("JB00", { title: "Maternal one" })], related_perinatal: [opt("KB00", { title: "Perinatal one" })], truncated: true, ...over,
+    siblings: [opt("CA41", { title: "Bronchitis" })], children: [], related_maternal: [opt("JB00", { title: "Maternal one" })], related_perinatal: [opt("KB00", { title: "Perinatal one" })], truncated: true, ...over,
   });
   const stemInfo = (code: string) => ({ schema_version: 1, item: { code, title: `Title ${code}`, uri: `https://who.int/${code}`, release: "r", postcoordination: true, postcoordination_availability: code === "BD54" ? 2 : 1, primary_stem: null } });
 
@@ -1140,15 +1265,19 @@ describe("hierarchy", () => {
   });
 
   it("lists ancestors, siblings, children and context, and a node opens its own hierarchy", async () => {
-    const h = mount({ env: { guidance: { hierarchy: (body) => (body.code === "CA41" ? tree({ selected: opt("CA41", { title: "Bronchitis" }), siblings: [], children: [], ancestors: [], related_maternal: [], related_perinatal: [], truncated: false }) : tree()) } } });
+    const h = mount({ env: { guidance: { hierarchy: (body) => (body.code === "CA41" ? tree({ selected: opt("CA41", { title: "Bronchitis" }), siblings: [], children: [], ancestors: [], related_maternal: [], related_perinatal: [], truncated: false }) : tree({ children: [opt("CA40.1", { title: "Viral" })] })) } } });
     await search(h, "pneu");
     await openHierarchy(h, "CA40");
     expect(calls(h, "hierarchy")).toEqual([{ schema_version: 1, code: "CA40" }]);
     const out = text(h);
-    for (const part of ["See in hierarchy", "Selected: CA40 — Pneumonia", "Ancestor path", "▷ Respiratory", "Siblings", "Children", "Maternal context: Maternal one", "Perinatal context: Perinatal one", "Some hierarchy choices were omitted"]) expect(out).toContain(part);
-    expect(has(h, "Build expression for this stem")).toBe(true);
+    for (const part of ["See in hierarchy", "Selected: CA40 — Pneumonia", "Ancestor path", "▷ Respiratory", "Siblings", "Children", "CA40.1 — Viral", "Maternal context: Maternal one", "Perinatal context: Perinatal one", "Some hierarchy choices were omitted"]) expect(out).toContain(part);
+    // A node with children is a category: it is drilled into, never used or built on.
+    expect(control(h, "Use this code").props.disabled).toBe(true);
+    expect(has(h, "Build expression for this stem")).toBe(false);
     await press(h, "CA41 Bronchitis");
     expect(text(h)).toContain("Selected: CA41 — Bronchitis");
+    expect(control(h, "Use this code").props.disabled).toBe(false);
+    expect(has(h, "Build expression for this stem")).toBe(true);
     expect(text(h)).not.toContain("Ancestor path");
     expect(text(h)).not.toContain("Some hierarchy choices were omitted");
   });
@@ -1582,12 +1711,14 @@ describe("layout", () => {
       expect(scrollerOf(h).props.contentContainerStyle).not.toHaveProperty("gap");
     });
 
-    it("has one line for a plain result: a 44-point whole-line target and a 32-point ⓘ that reaches 44", async () => {
+    it("gives a plain result a 44-point whole-line target, a 32-point ⓘ that reaches 44, and only a Use pill on line 2", async () => {
       mockWindow = PHONE;
       const h = mount({ env });
       await search(h, "pregnant");
       const row = rowOf(h, "CA40");
-      expect(withIn(row, (node) => node.props.testID === "result-meta")).toBe(false);
+      const plainMeta = row.findAll((node) => node.props.testID === "result-meta" && typeof node.type === "string")[0];
+      expect(withIn(plainMeta, labelled("Use CA40"))).toBe(true);
+      expect(flat(plainMeta.children)).toBe("Use");
       const line = row.findAll((node) => node.props.testID === "result-line" && typeof node.type === "string")[0];
       expect(flatStyle(line).flexDirection).toBe("row");
       const title = row.findAll((node) => node.props.accessibilityLabel === "CA40 Pneumonia" && typeof node.type === "string")[0];
@@ -1606,7 +1737,9 @@ describe("layout", () => {
       mockWindow = PHONE;
       const h = mount({ env: { ...env, terms: () => ({ schema_version: 1, items: [term("CA40", "Pneumonia"), rich, term("CA41", "Cough", { age_restricted: true })], truncated: false, next_cursor: null }) } });
       await search(h, "pregnant");
-      expect(withIn(rowOf(h, "CA40"), (node) => node.props.testID === "result-meta")).toBe(false);
+      // A plain row's line 2 holds only its Use pill: 28 points, like the badges.
+      const use = h.tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Use CA40")[0];
+      expect(flatStyle(use).minHeight).toBe(28);
       const meta = rowOf(h, "JA00").findAll((node) => node.props.testID === "result-meta" && typeof node.type === "string")[0];
       expect(flatStyle(meta)).toMatchObject({ flexDirection: "row", flexWrap: "nowrap" });
       for (const badge of ["Mandatory postcoordination", "Open coding note", "Open pregnancy related terms", "Open perinatal related terms"]) expect(withIn(meta, labelled(badge))).toBe(true);
@@ -1625,7 +1758,7 @@ describe("layout", () => {
       for (const label of ["Mandatory postcoordination", "Open coding note", "Open pregnancy related terms", "Open perinatal related terms", "Age-restricted: Usually used only for certain age groups."]) {
         expect(flatStyle(hosts(label)).minHeight).toBe(28);
       }
-      expect(flat(hosts("Mandatory postcoordination").children)).toBe("+ Build");
+      expect(flat(hosts("Mandatory postcoordination").children)).toBe("+ Build (required)");
       const capped = h.tree.root.findAll((node) => typeof node.type === "string" && node.props.maxFontSizeMultiplier !== undefined);
       expect(capped.length).toBeGreaterThan(0);
       // Titles are never capped: they grow with the system font.
@@ -1711,8 +1844,10 @@ describe("layout", () => {
       expect(withIn(detail, (node) => node.props.testID === "picker-details")).toBe(true);
       expect(withIn(scrollerOf(h), (node) => node.props.testID === "picker-details")).toBe(false);
       expect(withIn(scrollerOf(h), labelled("Details of CA40"))).toBe(true);
-      // Rows in the narrow pane drop the inline buttons for the ⓘ.
-      expect(has(h, "Use CA40")).toBe(false);
+      // Rows in the narrow pane drop the inline buttons for a Use pill and the ⓘ.
+      expect(has(h, "Details of CA40")).toBe(true);
+      expect(h.tree.root.findAll((node) => node.props.testID === "result-actions")).toHaveLength(0);
+      expect(has(h, "Use CA40")).toBe(true);
     });
 
     it("never narrows the results below 320", async () => {

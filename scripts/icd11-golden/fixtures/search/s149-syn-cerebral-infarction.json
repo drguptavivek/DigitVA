@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "8B11.5Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Cerebral ischaemic stroke, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "8B21.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Silent cerebral infarct",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "8B11.2Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Cerebral ischaemic stroke due to embolic occlusion, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "8E64",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Multifocal cerebral infarctions",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "8B25.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Late effects of cerebral ischemic stroke",
        "postcoordination": true,
        "postcoordination_availability": 1,

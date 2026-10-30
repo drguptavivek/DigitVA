@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "JA43.3/3B14.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Postpartum coagulation defects [Other inherited coagulation factor deficiency with bleeding tendency, unspecified]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "JA43.3/3B15",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Postpartum coagulation defects [Inherited coagulation factor deficiency without bleeding tendency]",
        "postcoordination": true,
        "postcoordination_availability": 2,

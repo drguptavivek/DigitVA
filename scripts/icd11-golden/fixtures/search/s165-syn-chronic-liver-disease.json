@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "DB99.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic liver disease",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "DB97.Z&XT8W",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Inflammatory liver disease, unspecified [Chronic]",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "DB99.10&XT8W",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Polycystic liver disease [Chronic]",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "DB95.Z&XT8W",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic toxic liver disease",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "DB97.Y&XT8W",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified inflammatory liver disease [Chronic]",
        "postcoordination": true,
        "postcoordination_availability": 1,

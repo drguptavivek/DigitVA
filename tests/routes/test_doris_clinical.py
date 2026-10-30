@@ -1,5 +1,6 @@
 """Unit tests for clinical DORIS processing and signed proof contracts."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
@@ -8,6 +9,7 @@ from requests import Response
 
 from app.routes.api.doris_clinical import (
     ClinicalDorisContext,
+    _codeinfo_item,
     clinical_codeinfo,
     clinical_process,
     clinical_selection_check,
@@ -314,6 +316,8 @@ class TestDorisProcessProof(BaseTestCase):
             "uri": _URI,
             "release": "2026-01",
             "postcoordination": False,
+            "leaf": True,
+            "extension": False,
         }
         context_patch = patch(
             "app.routes.api.doris_clinical._require_terminology_context",
@@ -337,3 +341,45 @@ class TestDorisProcessProof(BaseTestCase):
 
         self.assertEqual(codeinfo_response.get_json()["item"], item)
         self.assertEqual(selected_response.get_json()["item"], item)
+
+    def test_selection_check_refuses_extension_and_category_codes(self):
+        cases = [
+            ("XK8G", True, True,
+             "XK8G is an extension code. It cannot be used alone: add it to a stem through + Build."),
+            ("NC72", False, False,
+             "NC72 is a category, not a final code. Choose a more specific code under it."),
+        ]
+        for code, leaf, extension, message in cases:
+            item = {"code": code, "title": code, "uri": _URI, "release": "2026-01",
+                    "postcoordination": False, "leaf": leaf, "extension": extension}
+            with self.app.test_request_context(
+                json={"schema_version": 1, "code": code, "uri": _URI}
+            ):
+                with patch(
+                    "app.routes.api.doris_clinical._require_terminology_context",
+                    return_value=(SimpleNamespace(), None),
+                ), patch("app.routes.api.doris_clinical._codeinfo_item", return_value=item):
+                    response, status = clinical_selection_check.__wrapped__("SID-1")
+            self.assertEqual(status, 422)
+            self.assertEqual(
+                response.get_json()["error"],
+                {"code": "INVALID_SELECTION", "message": message},
+            )
+
+    def test_codeinfo_item_reads_leaf_from_the_stem_entity(self):
+        stem_uri = "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+        for code, entity, leaf in (
+            ("NC72", {"code": "NC72", "title": "Fracture of femur", "child": ["x"]}, False),
+            ("NC72.7&XK8G", {"code": "NC72.7", "title": "Shaft"}, True),
+        ):
+            upstream = _upstream(json.dumps(entity).encode())
+            with patch(
+                "app.routes.api.doris_clinical.get_icd11_codeinfo",
+                return_value={"code": code, "stemId": stem_uri, "title": "T"},
+            ), patch(
+                "app.routes.api.doris_clinical.expected_expression_uri", return_value=_URI
+            ), patch(
+                "app.routes.api.doris_clinical.proxy_who_icd_request", return_value=upstream
+            ):
+                item = _codeinfo_item(code)
+            self.assertEqual((item["leaf"], item["extension"]), (leaf, False))

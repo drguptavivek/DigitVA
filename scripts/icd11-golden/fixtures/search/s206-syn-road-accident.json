@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PA0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport traffic event injuring a user of unspecified land transport",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "PA1D",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport nontraffic event injuring a user of an all-terrain vehicle",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "PA0D",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport traffic event injuring a user of an all-terrain vehicle",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "PA0D&XE9EE&XE1LZ",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Passenger of all-terrain or other off-road motor vehicle injured in traffic accident",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "PA1D&XE1LZ",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Passenger of all-terrain or other off-road motor vehicle injured in nontraffic accident",
        "postcoordination": true,
        "postcoordination_availability": 1,

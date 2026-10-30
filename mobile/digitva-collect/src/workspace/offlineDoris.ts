@@ -40,7 +40,7 @@ import type { DorisCodeInfoReply, DorisProcessReply, DorisTermsReply, JsonObject
 import { DorisCertificateError, type DorisFieldError } from "./dorisCertificate";
 import { createGuidance, GUIDANCE_ENDPOINTS, PostcoordinationError, type GuidanceEndpoint, type GuidanceReply } from "./dorisGuidance";
 import { DorisRequestError, processCertificate } from "./dorisProcessing";
-import { codeinfoItem, searchTerms, validSubtreeUris } from "./dorisTerminology";
+import { codeinfoItem, searchTerms, selectionRefusal, validSubtreeUris } from "./dorisTerminology";
 import { assertNoPii, assertNoPiiInText, PiiBoundaryError } from "./piiBoundary";
 import { createWhoEngineApi, ENGINE_PROVENANCE, WHO_RELEASE, WhoUnavailableError, type WhoEngineApi } from "./whoEngineApi";
 import { codePointLength, isRecord } from "./whoText";
@@ -254,6 +254,9 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         const item = await codeinfoItem(who, code);
         // The URI must be the one WHO reports for that code: a picker hint that no longer matches (stale draft, re-shipped data) is refused.
         if (!item || item.uri !== uri) throw dorisError(422, "INVALID_SELECTION", "The selected code does not match its WHO URI.");
+        // An extension code alone, or a category with children: DORIS and CoDEdit would object only after processing.
+        const refusal = await selectionRefusal(who, item);
+        if (refusal) throw dorisError(422, "INVALID_SELECTION", refusal);
         confirmedUris.set(item.code, item.uri);
         return { schema_version: 1 as const, item };
       }, (error) => personalData(error, "The selected ICD-11 code is invalid."));

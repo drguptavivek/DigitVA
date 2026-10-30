@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BA00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Essential hypertension, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "MC80.0Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Elevated blood-pressure reading, without diagnosis of hypertension, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "CA40.0Z/1G40",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Bacterial pneumonia, unspecified",
@@ -38,13 +40,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z%2F1G40",
       "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z",
       "GET icd/release/11/2026-01/mms/codeinfo/1G40",
-      "GET icd/release/11/2026-01/mms/1323682030/unspecified"
+      "GET icd/release/11/2026-01/mms/1323682030/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/1G40",
+      "GET icd/release/11/2026-01/mms/622600769"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "CA40.0Z/1G40",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Bacterial pneumonia, unspecified",
@@ -346,6 +352,8 @@
       "body": {
        "item": {
         "code": "CA40.0Z&XK9J",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Bacterial pneumonia, unspecified",
@@ -375,6 +383,8 @@
       "body": {
        "item": {
         "code": "CA40.0Z&XK9J",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Bacterial pneumonia, unspecified",
@@ -677,6 +687,8 @@
       "body": {
        "item": {
         "code": "CA40.0Z&XB25/1A07",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Bacterial pneumonia, unspecified",
@@ -701,21 +713,20 @@
       "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z",
       "GET icd/release/11/2026-01/mms/codeinfo/XB25",
       "GET icd/release/11/2026-01/mms/codeinfo/1A07",
-      "GET icd/release/11/2026-01/mms/1323682030/unspecified"
+      "GET icd/release/11/2026-01/mms/1323682030/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A07",
+      "GET icd/release/11/2026-01/mms/1528414070"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
-       "item": {
-        "code": "CA40.0Z&XB25/1A07",
-        "postcoordination": false,
-        "release": "2026-01",
-        "title": "Bacterial pneumonia, unspecified",
-        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1674014893 / http://id.who.int/icd/release/11/2026-01/mms/1528414070"
+       "error": {
+        "code": "INVALID_SELECTION",
+        "message": "1A07 is a category, not a final code. Choose a more specific code under it."
        },
        "schema_version": 1
       },
-      "http_status": 200
+      "http_status": 422
      },
      "request": {
       "code": "CA40.0Z&XB25/1A07",
@@ -1029,7 +1040,9 @@
     "body": {
      "item": {
       "code": "CA40.0Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": true,
@@ -1058,7 +1071,9 @@
     "body": {
      "item": {
       "code": "CA40.0Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": true,

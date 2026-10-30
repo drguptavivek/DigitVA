@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "JA01.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ectopic pregnancy, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "JA01.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified ectopic pregnancy",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA01.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fetus or newborn affected by ectopic pregnancy",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "JA05.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Renal failure following abortion, ectopic or molar pregnancy",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "JA05.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Embolism following abortion, ectopic or molar pregnancy",
        "postcoordination": false,
        "postcoordination_availability": 0,

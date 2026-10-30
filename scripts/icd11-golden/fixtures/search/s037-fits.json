@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "8A68.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Type of seizure, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "QB31.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fitting or adjustment of external prosthetic device, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "QB31.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fitting or adjustment of spectacles or contact lenses",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "QB31.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fitting or adjustment of dental prosthetic device",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "PB10&XE87S",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fire of fittings",
        "postcoordination": true,
        "postcoordination_availability": 1,

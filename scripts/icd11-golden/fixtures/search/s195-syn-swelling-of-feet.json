@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "FB56.6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified soft tissue disorders",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "FA36.Z&XA22T0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Effusion of joint, unspecified [Joint of the foot]",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "FA36.Z&XA04T7",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Effusion of joint, unspecified [Interphalangeal joint of the foot]",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "FA36.Z&XA0RK3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Effusion of joint, unspecified [Distal interphalangeal joint of the foot]",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "FA36.Z&XA5573",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Effusion of joint, unspecified [Proximal interphalangeal joint of the foot]",
        "postcoordination": true,
        "postcoordination_availability": 1,

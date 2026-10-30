@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1B1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculosis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "EA5Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cutaneous involvement by other specified bacterial infection",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1B1Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified tuberculosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "1B11.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculous granuloma of brain",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KA61.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congenital tuberculosis",
        "postcoordination": false,
        "postcoordination_availability": 0,

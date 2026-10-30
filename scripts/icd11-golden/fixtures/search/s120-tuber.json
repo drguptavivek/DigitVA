@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1B1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculosis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "EA5Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cutaneous involvement by other specified bacterial infection",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "LD2D.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberous sclerosis",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "EB90.21",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberous xanthoma",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1B1Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified tuberculosis",
        "postcoordination": true,
        "postcoordination_availability": 1,

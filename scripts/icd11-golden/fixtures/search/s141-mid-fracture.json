@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "ND56.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fracture of unspecified body region",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "ND32",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Fractures involving multiple body regions",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "NB52.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fracture of lumbar spine or pelvis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "FB80.B",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Pathological fracture",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -68,7 +76,9 @@
       },
       {
        "code": "FB80.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified disorders of bone density or structure",
        "postcoordination": true,
        "postcoordination_availability": 1,

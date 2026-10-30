@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "GB61.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 5",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -33,7 +35,9 @@
       },
       {
        "code": "3A71.2/GB61.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Anaemia in chronic kidney disease [Chronic kidney disease, stage 5]",
        "postcoordination": true,
        "postcoordination_availability": 2,

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA22.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic obstructive pulmonary disease, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "CA22.1",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Certain specified chronic obstructive pulmonary disease",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "CA22.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic obstructive pulmonary disease with acute exacerbation, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "CA22.1&XS7U",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Other specified chronic obstructive pulmonary disease, moderate airflow limitation",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "CA22.1&XS80",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Other specified chronic obstructive pulmonary disease, mild airflow limitation",
        "postcoordination": true,
        "postcoordination_availability": 1,

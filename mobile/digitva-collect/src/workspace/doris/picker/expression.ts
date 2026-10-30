@@ -25,6 +25,10 @@ export interface PickerItem {
   causingUnknown?: boolean;
   /** Staged from the builder, which only offers what WHO accepts (all required axes chosen or "not known", or the stem when no axis is required). */
   built?: boolean;
+  /** WHO chapter X (terms and codeinfo replies); absent means unknown. */
+  extension?: boolean;
+  /** WHO's isLeaf (of the first stem for an expression); absent means unknown, never false. */
+  leaf?: boolean;
 }
 
 /** Chosen axis values by axis id. */
@@ -36,6 +40,19 @@ export const CAUSING_AXIS = "hasCausingCondition";
 export const isComplete = (code: string): boolean => /[&/]/.test(code);
 export const isExtension = (code: string): boolean => /^X/i.test(code);
 export const isMandatory = (item: PickerItem): boolean => item.postcoordination_availability === 2;
+/**
+ * Why WHO would refuse this item alone on a certificate, as the server's selection check words it, or null. Only the
+ * reply's flags count: an item without them (older server, built expression, related term) passes here and the
+ * selection check on OK decides.
+ */
+export function notFinal(item: PickerItem): { kind: "extension" | "category"; stem: string; message: string } | null {
+  const { stem } = splitExpression(item.code);
+  if (item.extension === true) return { kind: "extension", stem, message: `${stem} is an extension code. It cannot be used alone: add it to a stem through + Build.` };
+  if (item.leaf === false) return { kind: "category", stem, message: `${stem} is a category, not a final code. Choose a more specific code under it.` };
+  return null;
+}
+/** The selection check's refusal of a code that is not final, worded as `notFinal` words it; transport.ts shows only text that matches. */
+export const NOT_FINAL_REFUSAL = /^[A-Z0-9][A-Z0-9.]{0,15} is (an extension code\. It cannot be used alone: add it to a stem through \+ Build|a category, not a final code\. Choose a more specific code under it)\.$/;
 /** A search box value with a digit and no space is a code (codeinfo), anything else is text. */
 export const looksCode = (value: string): boolean => /\d/.test(value) && !/\s/.test(value);
 

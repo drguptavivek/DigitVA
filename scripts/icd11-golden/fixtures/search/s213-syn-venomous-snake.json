@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PA78&XE9H6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Contact with venomous snake",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "NE61",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "PA78&XE1PT",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Contact with venomous snakes or lizards",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "9A60.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified conjunctivitis",
        "postcoordination": true,
        "postcoordination_availability": 1,

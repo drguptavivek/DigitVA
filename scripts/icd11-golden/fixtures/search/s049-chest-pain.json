@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MD30.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chest pain, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "MD30.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other chest pain",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BA40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Angina pectoris, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "MD30.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chest pain on breathing",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "MG30.00",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic primary visceral pain",
        "postcoordination": true,
        "postcoordination_availability": 1,

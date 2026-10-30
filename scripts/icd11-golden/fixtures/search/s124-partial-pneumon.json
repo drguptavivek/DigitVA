@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "CA40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Pneumonia, organism unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "CA7Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Pneumonitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "QF01.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified acquired absence of organs",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "CA40.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified pneumonia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KB24",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congenital pneumonia",
        "postcoordination": true,
        "postcoordination_availability": 1,

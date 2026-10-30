@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MD11.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Dyspnoea",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "BD11.2&XS3A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure with reduced ejection fraction NYHA Class I",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BD11.2&XS6B",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure with reduced ejection fraction NYHA Class II",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -56,7 +62,9 @@
       },
       {
        "code": "BD11.1&XS3A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure with mid range ejection fraction NYHA Class I",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -68,7 +76,9 @@
       },
       {
        "code": "BD11.2&XS9T",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure with reduced ejection fraction NYHA Class III",
        "postcoordination": true,
        "postcoordination_availability": 2,

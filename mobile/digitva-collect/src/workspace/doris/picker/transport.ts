@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type DependencyList } from "r
 
 import type { PickerFrameProps } from "../IcdPickerFrame";
 import type { PickerReply } from "../pickerBridge";
+import { NOT_FINAL_REFUSAL } from "./expression";
 
 /** A failed bridge call: the bridge's `{code, message, status}` reply as an Error. */
 export class PickerError extends Error {
@@ -44,11 +45,13 @@ const KNOWN_CODES = new Map([
 ]);
 
 /**
- * What the coder reads for a failure: a `Notice`, a known DORIS code's fixed line, or a generic line. Transport
+ * What the coder reads for a failure: a `Notice`, the selection check's not-final refusal, a known DORIS code's fixed line, or a generic line. Transport
  * texts ("HTTP 502"), parser texts ("Invalid DORIS response: axes[0].id") and offline engine texts never reach the screen.
  */
 export function errorMessage(error: unknown): string {
   if (error instanceof Notice) return error.message;
+  // The selection check's "extension code" / "category" refusal tells the coder what to do instead; only that exact wording is shown.
+  if (error instanceof PickerError && error.code === "INVALID_SELECTION" && NOT_FINAL_REFUSAL.test(error.message)) return error.message;
   return (error instanceof PickerError && KNOWN_CODES.get(error.code)) || GENERIC;
 }
 

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "MG55.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Artemisinin resistant Plasmodium falciparum",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "1F40.Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Malaria due to Plasmodium falciparum, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "1F40.Y",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Other severe or complicated Plasmodium falciparum malaria",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "1F40.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Plasmodium falciparum malaria with cerebral complications",
        "postcoordination": true,
        "postcoordination_availability": 1,

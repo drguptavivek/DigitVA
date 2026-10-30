@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PD03",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self-harm by exposure to or harmful effects of pesticides",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "PH53",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Exposure to or harmful effects of undetermined intent of pesticides",
        "postcoordination": false,
        "postcoordination_availability": 0,

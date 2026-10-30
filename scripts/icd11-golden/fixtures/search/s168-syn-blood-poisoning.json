@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "NE60",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of drugs, medicaments or biological substances, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "PC98&XE13E",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self poisoning with or exposure to agents primarily affecting blood constituents",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "PC98",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self-harm by exposure to other or unspecified drug, medicament or biological substance",
        "postcoordination": true,
        "postcoordination_availability": 1,

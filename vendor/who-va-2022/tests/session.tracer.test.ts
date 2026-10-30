@@ -124,6 +124,24 @@ describe("universal instrument session", () => {
     expect(session.getSnapshot().data.Id10017).toBe("Respondent Corrected Name");
   });
 
+  it("leaves a locked question editable while it has no answer, and locks it once loaded with one", () => {
+    const session = createWhoVaSession(whoVa2022Instrument, {
+      initialData: { Id10010c: "staff-1" },
+      lockedQuestionNames: ["Id10010", "Id10010c"]
+    });
+
+    expect(session.getSnapshot().lockedQuestionNames).toEqual(["Id10010c"]);
+    expect(session.getSnapshot().questions.find((q) => q.name === "Id10010")?.readOnly).toBeFalsy();
+    session.setAnswer("Id10010", "S");
+    session.setAnswer("Id10010", "Shivangi");
+    expect(session.getSnapshot().data.Id10010).toBe("Shivangi");
+    expect(() => session.setAnswer("Id10010c", "other")).toThrow(/cannot be edited/);
+
+    session.replaceData({ Id10010: "Shivangi", Id10010c: "staff-1" });
+    expect(session.getSnapshot().lockedQuestionNames).toEqual(["Id10010", "Id10010c"]);
+    expect(() => session.setAnswer("Id10010", "Edited")).toThrow(/cannot be edited/);
+  });
+
   it("does not publish a redundant snapshot for the same instrument object", () => {
     const session = createWhoVaSession(whoVa2022Instrument);
     let notifications = 0;

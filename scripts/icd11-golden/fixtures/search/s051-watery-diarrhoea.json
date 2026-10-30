@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "ME05.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diarrhoea",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1A40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Infectious gastroenteritis or colitis without specification of infectious agent",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "2C10.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neuroendocrine neoplasms of pancreas",
        "postcoordination": true,
        "postcoordination_availability": 1,

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "JA43.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Postpartum haemorrhage, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -33,7 +35,9 @@
       },
       {
        "code": "JA43.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other immediate postpartum haemorrhage",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -45,7 +49,9 @@
       },
       {
        "code": "JA43.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified postpartum haemorrhage",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -57,7 +63,9 @@
       },
       {
        "code": "JA43.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Delayed or secondary postpartum haemorrhage",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -69,7 +77,9 @@
       },
       {
        "code": "JA43.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Third-stage haemorrhage",
        "postcoordination": true,
        "postcoordination_availability": 2,

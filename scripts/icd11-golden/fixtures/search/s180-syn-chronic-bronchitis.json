@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA20.1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic bronchitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "CA20.1Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified chronic bronchitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "CA22.1",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Certain specified chronic obstructive pulmonary disease",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "CA20.10",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Simple chronic bronchitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "CA81.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified respiratory conditions due to inhalation of chemicals, gases, fumes or vapours",
        "postcoordination": true,
        "postcoordination_availability": 1,

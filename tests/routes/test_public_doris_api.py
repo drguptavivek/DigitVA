@@ -78,6 +78,8 @@ class TestPublicDorisApi:
             "uri": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
             "release": "2026-01",
             "postcoordination": False,
+            "leaf": True,
+            "extension": False,
         }
         headers = {"X-CSRFToken": token}
         with patch("app.public_doris.routes._codeinfo_item", return_value=item):
@@ -123,6 +125,35 @@ class TestPublicDorisApi:
         assert no_uri.status_code == 422
         assert no_uri.get_json()["error"]["code"] == "CODE_NOT_FOUND"
 
+    def test_selection_check_refuses_extension_and_category_codes_after_the_uri(self):
+        headers = {"X-CSRFToken": self._csrf()}
+        uri = "http://id.who.int/icd/release/11/2026-01/mms/1"
+        cases = [
+            ("XK8G", True, True,
+             "XK8G is an extension code. It cannot be used alone: add it to a stem through + Build."),
+            ("NC72", False, False,
+             "NC72 is a category, not a final code. Choose a more specific code under it."),
+        ]
+        for code, leaf, extension, message in cases:
+            item = {"code": code, "title": code, "uri": uri, "release": "2026-01",
+                    "postcoordination": False, "leaf": leaf, "extension": extension}
+            with patch("app.public_doris.routes._codeinfo_item", return_value=item):
+                refused = self.client.post(
+                    "/api/v1/doris-demo/selection-check",
+                    json={"schema_version": 1, "code": code, "uri": uri},
+                    headers=headers,
+                )
+                # A tampered URI gets the URI message, not the refusal.
+                tampered = self.client.post(
+                    "/api/v1/doris-demo/selection-check",
+                    json={"schema_version": 1, "code": code, "uri": uri + "0"},
+                    headers=headers,
+                )
+            assert refused.status_code == 422
+            assert refused.get_json()["error"] == {"code": "INVALID_SELECTION", "message": message}
+            assert tampered.status_code == 422
+            assert tampered.get_json()["error"]["message"] == "The selected code does not match its WHO URI."
+
     def test_selection_check_rejects_extra_keys(self):
         token = self._csrf()
         item = {
@@ -131,6 +162,8 @@ class TestPublicDorisApi:
             "uri": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
             "release": "2026-01",
             "postcoordination": False,
+            "leaf": True,
+            "extension": False,
         }
         with patch("app.public_doris.routes._codeinfo_item", return_value=item):
             response = self.client.post(

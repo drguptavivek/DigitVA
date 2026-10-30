@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "NE2Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Burns, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "NE00",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Burn of eye or ocular adnexa",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "NE02",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Burn of other internal organs",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "EM0Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified diseases of the skin",
        "postcoordination": true,
        "postcoordination_availability": 1,

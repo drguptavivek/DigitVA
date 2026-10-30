@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "8B11.5Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Cerebral ischaemic stroke, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "8B26.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified vascular syndromes of brain in cerebrovascular diseases",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "8B26.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Posterior cerebral artery syndrome",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KB00.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified neonatal cerebral ischaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "8B11",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": false,
        "matching_text": "Cerebral ischaemic stroke",
        "postcoordination": true,
        "postcoordination_availability": 1,

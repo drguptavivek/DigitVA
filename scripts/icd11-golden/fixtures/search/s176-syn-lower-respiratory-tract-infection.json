@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA4Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified lung infections",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "CA4Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Lung infections, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "CA45",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory infections, not elsewhere classified",
        "postcoordination": false,
        "postcoordination_availability": 0,

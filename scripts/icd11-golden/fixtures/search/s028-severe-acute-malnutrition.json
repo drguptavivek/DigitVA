@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "5B52&XS25",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Severe acute malnutrition in infants, children or adolescents",
        "postcoordination": true,
        "postcoordination_availability": 1,

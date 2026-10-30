@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "1A00&XN8P1",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Cholera",
@@ -45,6 +47,8 @@
       "body": {
        "item": {
         "code": "1A00&XN8P1",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Cholera",
@@ -517,7 +521,9 @@
     "body": {
      "item": {
       "code": "1A00",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -546,7 +552,9 @@
     "body": {
      "item": {
       "code": "1A00",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PD3Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self-harm, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "QC4B",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Personal history of self-harm",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "PD3Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified intentional self-harm",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "QC65",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Family history of mental or behavioural disorder",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -69,7 +77,9 @@
       },
       {
        "code": "PC98",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self-harm by exposure to other or unspecified drug, medicament or biological substance",
        "postcoordination": true,
        "postcoordination_availability": 1,

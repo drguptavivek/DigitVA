@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "GB90.44",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Renal tubular acidosis",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "PA0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport traffic event injuring a user of unspecified land transport",
        "postcoordination": true,
        "postcoordination_availability": 1,

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1A40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Infectious gastroenteritis or colitis without specification of infectious agent",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "1A2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Viral intestinal infections, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "1A09.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Salmonella enteritis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "1A30",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Infections due to Balantidium coli",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -69,7 +77,9 @@
       },
       {
        "code": "1A36.00",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute amoebiasis",
        "postcoordination": false,
        "postcoordination_availability": 0,

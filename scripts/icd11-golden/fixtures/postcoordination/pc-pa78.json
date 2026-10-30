@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "PA78&XE9H6",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Unintentionally stung or envenomated by animal",
@@ -45,6 +47,8 @@
       "body": {
        "item": {
         "code": "PA78&XE9H6",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Unintentionally stung or envenomated by animal",
@@ -321,7 +325,9 @@
     "body": {
      "item": {
       "code": "PA78",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -350,7 +356,9 @@
     "body": {
      "item": {
       "code": "PA78",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

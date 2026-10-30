@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "PA80.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentionally struck by projectile from unspecified firearm",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "NB51.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified open wound of abdomen, lower back or pelvis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "NA21.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified open wound of neck",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "ND51.Y",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Other specified injuries of spine or trunk, level unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "NA81.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified open wound of thorax",
        "postcoordination": true,
        "postcoordination_availability": 1,

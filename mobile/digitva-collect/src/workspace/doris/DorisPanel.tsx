@@ -402,8 +402,10 @@ export function DorisPanel({
     const currentCertificate = processCertificate(certificate);
     const sourceLines = array(certificate.Part1).map(lineConditions);
     const lastFilledLine = sourceLines.reduce((last, conditions, index) => conditions.length ? index : last, -1);
-    if (sourceLines.slice(0, lastFilledLine + 1).some((conditions) => conditions.length === 0)) {
-      update((current) => ({ ...current, error: "Complete each Part I line before the next line, or remove the empty line." }));
+    // The web's words (doris_clinical.js part1Gap): processCertificate would otherwise drop the blank line and move causes up.
+    const blankLine = sourceLines.slice(0, lastFilledLine + 1).findIndex((conditions) => conditions.length === 0);
+    if (blankLine !== -1) {
+      update((current) => ({ ...current, error: `Fill or remove Part I line ${blankLine + 1} before processing; blank lines cannot separate causes.` }));
       return;
     }
     if (sourceLines.some((conditions) => conditions.some((condition) => conditions.some((other) => other.Interval !== condition.Interval)))) {

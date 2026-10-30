@@ -1,5 +1,5 @@
 {
- "status": "draft",
+ "status": "approved",
  "kind": "doris",
  "release": "2026-01",
  "description": "Certificates sent through DigitVA's process_certificate (normalise, verify codes against codeinfo, WHO DORIS, WHO CoDEdit, ucod_parts, who_notes). Each item's 'certificate' is the process payload's certificate.",

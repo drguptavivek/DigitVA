@@ -17,6 +17,8 @@
       "body": {
        "item": {
         "code": "PA61&XE545&XE266",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Unintentional fall from a height of 1 metre or more",
@@ -48,6 +50,8 @@
       "body": {
        "item": {
         "code": "PA61&XE545&XE266",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Unintentional fall from a height of 1 metre or more",
@@ -272,7 +276,9 @@
     "body": {
      "item": {
       "code": "PA61",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -301,7 +307,9 @@
     "body": {
      "item": {
       "code": "PA61",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

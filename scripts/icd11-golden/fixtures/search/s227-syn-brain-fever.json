@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "8D43.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Encephalopathy due to toxicity, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

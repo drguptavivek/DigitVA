@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "1D01.0Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": false,
@@ -50,7 +52,9 @@
     "body": {
      "item": {
       "code": "1D01.0Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": false,

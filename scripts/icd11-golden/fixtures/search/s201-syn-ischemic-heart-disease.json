@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BA6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ischaemic heart diseases, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "BA4Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute ischaemic heart disease, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -45,7 +49,9 @@
       },
       {
        "code": "BA5Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic ischaemic heart disease, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "BA5Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified chronic ischaemic heart disease",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -69,7 +77,9 @@
       },
       {
        "code": "QC67",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Family history of ischaemic heart disease or other diseases of the circulatory system",
        "postcoordination": false,
        "postcoordination_availability": 0,

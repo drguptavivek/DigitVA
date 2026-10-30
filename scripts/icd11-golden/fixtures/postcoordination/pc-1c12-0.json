@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "1C12.0/CA40.0Y",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Whooping cough due to Bordetella pertussis",
@@ -38,13 +40,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
       "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
       "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
-      "GET icd/release/11/2026-01/mms/1287021540"
+      "GET icd/release/11/2026-01/mms/1287021540",
+      "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
+      "GET icd/release/11/2026-01/mms/1323682030/other"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "1C12.0/CA40.0Y",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Whooping cough due to Bordetella pertussis",
@@ -308,7 +314,9 @@
     "body": {
      "item": {
       "code": "1C12.0",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -337,7 +345,9 @@
     "body": {
      "item": {
       "code": "1C12.0",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

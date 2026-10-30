@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "5A61.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Central diabetes insipidus",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "GB90.4A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Nephrogenic diabetes insipidus",
        "postcoordination": false,
        "postcoordination_availability": 0,

@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MF93",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Glycosuria",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "5A41",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypoglycaemia without associated diabetes",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "MA18.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Elevated blood glucose level, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "5A40.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Impaired fasting glucose",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "CA70.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Bagassosis",
        "postcoordination": true,
        "postcoordination_availability": 1,

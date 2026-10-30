@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "XK9J",
+      "extension": true,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": false,
@@ -48,20 +50,13 @@
    "name": "selection-check",
    "reply": {
     "body": {
-     "item": {
-      "code": "XK9J",
-      "has_coding_note": false,
-      "postcoordination": false,
-      "postcoordination_availability": 0,
-      "related_maternal": false,
-      "related_perinatal": false,
-      "release": "2026-01",
-      "title": "Bilateral",
-      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "XK9J is an extension code. It cannot be used alone: add it to a stem through + Build."
      },
      "schema_version": 1
     },
-    "http_status": 200
+    "http_status": 422
    },
    "request": {
     "code": "XK9J",

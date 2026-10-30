@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1B1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculosis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1B1Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified tuberculosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA61.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congenital tuberculosis",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "1B12.40",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculosis of bones or joints",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1B10.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation",
        "postcoordination": true,
        "postcoordination_availability": 1,

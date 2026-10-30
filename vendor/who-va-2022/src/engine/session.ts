@@ -46,6 +46,10 @@ function sectionIsRelevant(
   return isSectionRelevantWithCalculatedData(instrument, section, data);
 }
 
+function isEmptyAnswer(value: unknown): boolean {
+  return value == null || value === "" || (Array.isArray(value) && value.length === 0);
+}
+
 function blocksDraftMutation(issue: ValidationIssue): boolean {
   return issue.code === "type" || issue.code === "choice" || issue.code === "unsupported-expression";
 }
@@ -83,6 +87,8 @@ class UniversalWhoVaSession implements WhoVaSession {
   private visibleSectionsCache:
     { instrument: InstrumentDefinition; data: SubmissionData; sections: InstrumentSection[] } | undefined;
   private readonly listeners = new Set<(snapshot: SessionSnapshot) => void>();
+  /** The host's locks; only those holding an answer are enforced (lockedQuestionNames). */
+  private requestedLocks: ReadonlySet<string>;
   private lockedQuestionNames: ReadonlySet<string>;
   private readonly now: () => Date;
   private locale: string;
@@ -93,15 +99,14 @@ class UniversalWhoVaSession implements WhoVaSession {
     options: WhoVaSessionOptions = {}
   ) {
     this.now = options.now ?? (() => new Date());
-    this.lockedQuestionNames = new Set(options.lockedQuestionNames ?? []);
     this.locale = options.locale ?? "en";
     this.messages = resolveUiMessages(this.locale, options.uiTranslations);
     const startedAt = this.now();
     this.data = {};
     const initialData = reduceNationalIdData(options.initialData ?? {});
     const { choiceValuesByQuestionName, questionsByName } = getInstrumentRuntimeIndex(instrument);
-    this.lockedQuestionNames = new Set(
-      [...this.lockedQuestionNames].filter((name) => questionsByName.has(name))
+    this.requestedLocks = new Set(
+      [...(options.lockedQuestionNames ?? [])].filter((name) => questionsByName.has(name))
     );
     for (const [name, value] of Object.entries(initialData)) {
       const question = questionsByName.get(name);
@@ -130,6 +135,7 @@ class UniversalWhoVaSession implements WhoVaSession {
         this.data[question.name] = options.audit;
     }
     this.data = applyCalculations(instrument, this.data);
+    this.lockedQuestionNames = this.enforcedLocks();
     const first = this.visibleSections()[0];
     if (!first) throw new Error("Instrument has no visible sections");
     const requested = options.initialSection
@@ -204,8 +210,19 @@ class UniversalWhoVaSession implements WhoVaSession {
 
   setLockedQuestionNames(names: Iterable<string>): void {
     const { questionsByName } = getInstrumentRuntimeIndex(this.instrument);
-    this.lockedQuestionNames = new Set([...names].filter((name) => questionsByName.has(name)));
+    this.requestedLocks = new Set([...names].filter((name) => questionsByName.has(name)));
+    this.lockedQuestionNames = this.enforcedLocks();
     this.notify();
+  }
+
+  /**
+   * The requested locks that hold an answer. A locked question left empty (its
+   * prefill lost or never sent) would trap the interviewer on a required
+   * question, so it stays editable until data is next loaded; the host
+   * restores the authoritative value on save. Typing never re-locks it.
+   */
+  private enforcedLocks(): ReadonlySet<string> {
+    return new Set([...this.requestedLocks].filter((name) => !isEmptyAnswer(this.data[name])));
   }
 
   setInstrument(instrument: InstrumentDefinition): void {
@@ -276,6 +293,7 @@ class UniversalWhoVaSession implements WhoVaSession {
       replacement[name] = value;
     }
     this.data = applyCalculations(this.instrument, replacement);
+    this.lockedQuestionNames = this.enforcedLocks();
     this.issues = [];
     const current = this.currentSection();
     this.currentSectionName = current.name;

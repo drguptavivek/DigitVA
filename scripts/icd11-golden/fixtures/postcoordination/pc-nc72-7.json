@@ -17,6 +17,8 @@
       "body": {
        "item": {
         "code": "NC72.7&XK8G&XJ44E",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Multiple fractures of femur",
@@ -48,6 +50,8 @@
       "body": {
        "item": {
         "code": "NC72.7&XK8G&XJ44E",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Multiple fractures of femur",
@@ -296,6 +300,8 @@
       "body": {
        "item": {
         "code": "NC72.7&XJ7YM&XK9K",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Multiple fractures of femur",
@@ -327,6 +333,8 @@
       "body": {
        "item": {
         "code": "NC72.7&XJ7YM&XK9K",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Multiple fractures of femur",
@@ -574,6 +582,8 @@
       "body": {
        "item": {
         "code": "NC72.7&XK8G",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Multiple fractures of femur",
@@ -603,6 +613,8 @@
       "body": {
        "item": {
         "code": "NC72.7&XK8G",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Multiple fractures of femur",
@@ -870,7 +882,9 @@
     "body": {
      "item": {
       "code": "NC72.7",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -899,7 +913,9 @@
     "body": {
      "item": {
       "code": "NC72.7",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

@@ -13,6 +13,8 @@ from app.services.icd11_postcoordination import (
     postcoordination_availability,
     postcoordination_options,
     related_terms,
+    search_terms,
+    selection_refusal,
     valid_subtree_uris,
 )
 
@@ -153,6 +155,53 @@ def test_search_availability_does_not_infer_from_leaf_or_expression():
     assert postcoordination_availability(1) == (True, 1)
     assert postcoordination_availability(2) == (True, 2)
     assert postcoordination_availability("2") == (False, None)
+
+
+def test_search_terms_flags_extension_and_leaf_and_omits_unknown_leaf():
+    upstream = type("Upstream", (), {"json": lambda self: {"destinationEntities": [
+        {"theCode": "XK8G", "id": "u1", "title": "Left", "isLeaf": True, "chapter": "X"},
+        {"theCode": "NC72", "id": "u2", "title": "Fracture of femur", "isLeaf": False, "chapter": "22"},
+        {"theCode": "NC72.7", "id": "u3", "title": "Shaft", "isLeaf": True, "chapter": "22"},
+        # No isLeaf and no chapter: leaf stays unknown, extension falls back to the code.
+        {"theCode": "XA0001", "id": "u4", "title": "Old reply"},
+    ]}})()
+    with patch("app.services.icd11_postcoordination.proxy_who_icd_request", return_value=upstream):
+        items = search_terms("femur")["items"]
+
+    assert [(item["code"], item["extension"], item.get("leaf")) for item in items] == [
+        ("XK8G", True, True), ("NC72", False, False), ("NC72.7", False, True), ("XA0001", True, None),
+    ]
+    assert "leaf" not in items[3]
+
+
+EXTENSION = "XK8G is an extension code. It cannot be used alone: add it to a stem through + Build."
+CATEGORY = "NC72 is a category, not a final code. Choose a more specific code under it."
+
+
+@pytest.mark.parametrize(("item", "message"), [
+    ({"code": "XK8G", "leaf": True, "extension": True}, EXTENSION),
+    ({"code": "NC72", "leaf": False, "extension": False}, CATEGORY),
+    # The stem of a built expression decides: NC72&XK8G is still a category.
+    ({"code": "NC72&XK8G", "leaf": False, "extension": False}, CATEGORY),
+    ({"code": "NC72.7", "leaf": True, "extension": False}, None),
+    ({"code": "NC72.7&XK8G", "leaf": True, "extension": False}, None),
+])
+def test_selection_refusal_uses_the_first_stem_flags_without_calling_who(item, message):
+    with patch("app.services.icd11_postcoordination._stem") as stem:
+        assert selection_refusal(item) == message
+    stem.assert_not_called()
+
+
+def test_selection_refusal_reads_each_further_cluster_stem():
+    entities = {"BD54": {"code": "BD54"}, "NC72": {"code": "NC72", "child": ["c"]}}
+    with patch(
+        "app.services.icd11_postcoordination._stem",
+        side_effect=lambda code: ({"code": code}, entities[code]),
+    ) as stem:
+        assert selection_refusal({"code": "JB64.4/BD54", "leaf": True}) is None
+        assert selection_refusal({"code": "JB64.4/NC72&XK8G", "leaf": True}) == CATEGORY
+        assert selection_refusal({"code": "JB64.4/XK8G", "leaf": True}) == EXTENSION
+    assert [call.args for call in stem.call_args_list] == [("BD54",), ("NC72",)]
 
 
 WINDOW = "http://id.who.int/icd/release/11/2026-01/mms/500"

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "DB94.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Alcoholic liver disease, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "DB94.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified alcoholic liver disease",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "DB94.1Y&XT5R",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute alcoholic hepatitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "DB94.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Alcoholic fatty liver",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "DB92.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Non-alcoholic fatty liver disease, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

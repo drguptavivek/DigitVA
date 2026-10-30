@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "RA01.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "COVID-19, virus identified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "RA02",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Post COVID-19 condition",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "RA01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "COVID-19",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "RA01.1",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "COVID-19, virus not identified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "QA08.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Special screening examination for other viral diseases",
        "postcoordination": false,
        "postcoordination_availability": 0,

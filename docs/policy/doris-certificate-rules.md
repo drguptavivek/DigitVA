@@ -3,10 +3,12 @@ title: DORIS Certificate Field Rules
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-30
 ---
 
 # DORIS Certificate Field Rules
+
+Every check from search to final save, with known gaps: [DORIS Validation Checks](../current-state/doris-validation-checks.md).
 
 Owner decisions on which certificate controls the coder sees, which are
 greyed, and which draw a soft warning. This is the shared source of truth for
@@ -81,6 +83,9 @@ a hidden control. The guard uses only the certificate's own `Sex`,
 
 ## Layout
 
+- **Administrative Data order.** Sex, Date of birth, Date of death, Estimated
+  age with its unit, as in WHO's DORIS workspace, in the web editor and the
+  Expo app alike.
 - **N/A cards.** Only whole cards (V1, V3) use the title plus note. A single
   follow-up inside a card that shows (surgery date and reason before
   Surgery is Yes, autopsy findings before Autopsy is Yes, the external-cause

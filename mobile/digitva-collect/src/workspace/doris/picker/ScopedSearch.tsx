@@ -10,7 +10,7 @@ import { errorMessage, type Post } from "./transport";
 /**
  * "Search in axis" box: a debounced WHO search limited to the axis's subtrees (or to the extension chapter for
  * "Other postcoordination?"). A pick goes to `onChoose`, which may refuse it by throwing; the message shows under
- * the results. After a successful pick the box clears, as the web builder re-renders.
+ * the box. After a successful pick the box clears, as the web builder re-renders.
  */
 export function ScopedSearch({ label, subtreeUris, post, isActive, onChoose, onActive }: {
   label: string;
@@ -71,6 +71,8 @@ export function ScopedSearch({ label, subtreeUris, post, isActive, onChoose, onA
   return (
     <View style={{ gap: gap.xs }}>
       <Input value={query} onChangeText={type} placeholder={`search in axis: ${label}`} accessibilityLabel={`search in axis: ${label}`} maxLength={80} autoCorrect={false} autoCapitalize="none" />
+      {/* Above the matches: below 20 of them a refused pick looked like a tap that did nothing. */}
+      {problem ? <Alert variant="destructive">{problem}</Alert> : null}
       {results ? (
         <View style={{ gap: gap.xs }}>
           {results.items.length ? results.items.map((item) => (
@@ -81,7 +83,6 @@ export function ScopedSearch({ label, subtreeUris, post, isActive, onChoose, onA
           {results.truncated ? <Muted>Showing the first 20 matches. Refine the search to narrow them.</Muted> : null}
         </View>
       ) : null}
-      {problem ? <Alert variant="destructive">{problem}</Alert> : null}
     </View>
   );
 }

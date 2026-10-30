@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1B10.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory tuberculosis, without mention of bacteriological or histological confirmation",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "CB40.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified diseases of the respiratory system",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1B10.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory tuberculosis, confirmed",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "1B13.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute miliary tuberculosis of a single specified site",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1B13.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified miliary tuberculosis",
        "postcoordination": true,
        "postcoordination_availability": 1,

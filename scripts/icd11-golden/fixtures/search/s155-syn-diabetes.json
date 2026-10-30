@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "5A14",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetes mellitus, type unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "JA63.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetes mellitus arising in pregnancy",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "5A13.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetes mellitus due to drug or chemical",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "5A11",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Type 2 diabetes mellitus",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "LD2H.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified syndromic genetic deafness",
        "postcoordination": false,
        "postcoordination_availability": 0,

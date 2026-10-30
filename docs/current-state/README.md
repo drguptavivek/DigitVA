@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-10-30
 ---
 
 # Current State Index
@@ -40,6 +40,7 @@ Read these documents in this order:
 14. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 15. [Health-System Organization Model](health-system-organization-model.md)
 16. [DORIS COD Workflow](doris-cod-workflow.md)
+    - [DORIS Validation Checks](doris-validation-checks.md): every check from search to final save, with known gaps
     - [ICD-11 Android Engine Interface](icd11-android-engine-interface.md):
       Collect Plus offline engine, each layer's functions and input/output shapes
 17. [Device Collection API](device-collection-api.md)

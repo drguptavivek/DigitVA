@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "FB32.2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ischaemic infarction of muscle, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "DD30.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute vascular disorders of intestine, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "8B26.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified vascular syndromes of brain in cerebrovascular diseases",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -56,7 +62,9 @@
       },
       {
        "code": "GB90.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ischaemia or infarction of kidney",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "DB98.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Infarction of liver",
        "postcoordination": true,
        "postcoordination_availability": 1,

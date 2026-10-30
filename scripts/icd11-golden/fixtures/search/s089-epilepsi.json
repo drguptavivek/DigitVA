@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "8A6Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Epilepsy or seizures, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "8A60.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Epilepsy due to injuries to the head",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "8A61.1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Genetic epileptic syndromes with onset in infancy, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "8A06.Y/8A6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Myoclonus due to epilepsy",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "8A61.40",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Reflex epilepsies",
        "postcoordination": false,
        "postcoordination_availability": 0,

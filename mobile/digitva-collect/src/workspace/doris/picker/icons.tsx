@@ -19,3 +19,13 @@ export function PerinatalIcon({ color, size = 16 }: { color: string; size?: numb
     </Svg>
   );
 }
+
+/** Use on a phone row: a tick in a ring, the compact twin of the "ⓘ" beside it. Drawn in strokes of the text colour. */
+export function UseIcon({ color, size = 24 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Circle cx={12} cy={12} r={10} />
+      <Path d="M7.5 12.5l3 3 6-6.5" />
+    </Svg>
+  );
+}

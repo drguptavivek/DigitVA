@@ -82,7 +82,8 @@ if "sweep" in env["SECTIONS"]:
 if env["SUITE"] != "-":
     datasets["clinical-variants-10k"] = json.loads((pathlib.Path(env["SUITE"]) / "hashes.json").read_text())
 engine = {"version": env["ENGINE_LABEL"], "tag": provenance.get("ENGINE_TAG"), "archive_sha256": provenance.get("ENGINE_ARCHIVE_SHA256"),
-          "local_so_sha256": provenance.get("ENGINE_LOCAL_SO_SHA256")}
+          "local_so_sha256": provenance.get("ENGINE_LOCAL_SO_SHA256"),
+          "so_sha256": provenance.get("ENGINE_SO_SHA256") or provenance.get("ENGINE_LOCAL_SO_SHA256")}
 libs = ({"source": "Collect Plus APK", "tag": provenance["LIBS_PLUS_TAG"], "apk": provenance["LIBS_PLUS_APK"], "apk_sha256": provenance["LIBS_PLUS_APK_SHA256"]}
         if "LIBS_PLUS_TAG" in provenance else {"source": "STAGED", "path": provenance.get("STAGED")})
 info = {

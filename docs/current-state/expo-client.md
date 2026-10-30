@@ -664,6 +664,12 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   `DIGITVA_ANDROID_RELEASE_BUILD=1` the plus APK keeps the Expo template's debug signing
   (`with-android-release-signing.js`); the release key exists only in CI, and release
   APKs come only from CI.
+  `NATIVE=1 make collect-plus-local` runs the same `build.sh` on the Mac with its own
+  toolchains and caches instead of the emulated amd64 container (much faster on Apple
+  Silicon); it checks them against the pins first and stops naming any that is missing
+  (Docker is needed only to copy WHO's assemblies once). It is not pinned like the image,
+  so its engine bytes differ from a Linux build, as the Mac and CI builds already do;
+  `SOURCE.txt` records `build: native` and the tool versions.
 
 ### Pure offline mode (digitva-zjqq, 2026-10-26)
 

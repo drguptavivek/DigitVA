@@ -30,10 +30,11 @@ repo="$(cd "$here/../.." && pwd)"
 . "$repo/scripts/icd11-engine.env"
 engine_tag="icd11-engine-v${ICD11_ENGINE_VERSION}"
 engine_sha="$(sed -n 's/^ *ICD11_ENGINE_SHA256: *//p' "$repo/.github/workflows/collect-plus-release.yml" | tr -d '"' | head -n 1)"
-# The engine runs with the OpenSSL the app ships; take it from the published Plus APK.
-plus_tag="collect-plus-v0.3.14-plus.1"
-plus_apk="digitva-collect-plus-0.3.14-arm64-v8a.apk"
-plus_sha="a6fc8a2b5b4e2869dbcb7adab5c28dad864d703039823698674d177b4596e41c"
+# The phone runs the libraries of the published Plus APK: the engine, the OpenSSL it ships and libc++. The engine inside must
+# equal the pinned archive's (the CI build stages it from there), so the run stops if they differ.
+plus_tag="collect-plus-v0.3.18-plus.1"
+plus_apk="digitva-collect-plus-0.3.18-arm64-v8a.apk"
+plus_sha="458ba35ae5de8307173f099dae0a8526437f3ad587a302a276d2e3e29c96e954"
 ndk="${ANDROID_NDK:-$HOME/Library/Android/sdk/ndk/28.2.13676358}"
 clang="$ndk/toolchains/llvm/prebuilt/$(uname | tr '[:upper:]' '[:lower:]')-x86_64/bin/aarch64-linux-android29-clang"
 device=/data/local/tmp/icd11-parity
@@ -53,10 +54,12 @@ gh release download "$plus_tag" -R drguptavivek/DigitVA -p "$plus_apk" --clobber
 echo "$plus_sha  $plus_apk" | shasum -a 256 -c
 rm -rf engine lib && mkdir -p engine lib
 tar -xzf "icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" -C engine
-unzip -q -j -o "$plus_apk" lib/arm64-v8a/libssl.so lib/arm64-v8a/libcrypto.so lib/arm64-v8a/libc++_shared.so -d lib
-cp engine/bridge-aot/pub-bionic/digitva_icd11.so lib/libdigitva_icd11.so
-printf 'ENGINE_TAG=%s\nENGINE_ARCHIVE_SHA256=%s\nLIBS_PLUS_TAG=%s\nLIBS_PLUS_APK=%s\nLIBS_PLUS_APK_SHA256=%s\n' \
-  "$engine_tag" "$engine_sha" "$plus_tag" "$plus_apk" "$plus_sha" >> provenance.env
+unzip -q -j -o "$plus_apk" lib/arm64-v8a/libssl.so lib/arm64-v8a/libcrypto.so lib/arm64-v8a/libc++_shared.so \
+  lib/arm64-v8a/libdigitva_icd11.so -d lib
+cmp -s lib/libdigitva_icd11.so engine/bridge-aot/pub-bionic/digitva_icd11.so \
+  || { echo "the engine in $plus_apk is not the one in $engine_tag" >&2; exit 2; }
+printf 'ENGINE_TAG=%s\nENGINE_ARCHIVE_SHA256=%s\nLIBS_PLUS_TAG=%s\nLIBS_PLUS_APK=%s\nLIBS_PLUS_APK_SHA256=%s\nENGINE_SO_SHA256=%s\n' \
+  "$engine_tag" "$engine_sha" "$plus_tag" "$plus_apk" "$plus_sha" "$(shasum -a 256 lib/libdigitva_icd11.so | cut -d' ' -f1)" >> provenance.env
 fi
 
 if [ -n "$prepared" ]; then cp "$prepared" ours.jsonl; else python3 "$here/make_certificates.py" "$work/ours.jsonl" "$certificates"; fi

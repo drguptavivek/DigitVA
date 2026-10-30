@@ -12,6 +12,12 @@ What landed, newest first. Details live in the commits and the linked docs;
   verification only; release APKs still come only from CI. First full run
   not yet made.
 
+- **Parity and load run with the published 0.3.18 APK** (WHO technical note
+  sections 5 and 6): `run_phone.sh` takes the engine, OpenSSL and libc++ from
+  the Collect Plus 0.3.18 APK (stops if its engine differs from the pinned
+  archive). Full run: 30,783 of 30,783 matched; 50,959 engine calls in 173 s,
+  DORIS median 3.4 ms, engine RSS 511 MB to 1,082 MB over the run.
+
 - **Full ICD-11 parity run and clean-room engine check**
   (`scripts/icd11-parity/results/`, WHO technical note section 5): `eval.sh full`
   on the SM-E146B with engine 2026.10.29.1 matched 30,783 of 30,783 request lines

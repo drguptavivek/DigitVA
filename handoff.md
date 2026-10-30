@@ -40,11 +40,13 @@ has neither, and its coding is one direct step with SmartVA visible.
    `private/engine-measurements/20261030-coding-journey` (icd11 PSS max 819 MB,
    no LMK).
 4. `make collect-plus-local` (debug-signed local verification build, not for
-   distribution): the container mode is committed but untested end to end
-   (Docker needs 12 GB or more; 24 GB set 2026-10-31); `NATIVE=1` (build on
-   the Mac, no emulation) was being written. The clean-room rebuild it grew
-   from passed on 2026-10-31 and its engine library matched the container in
-   `eval.sh quick` (results `2026-10-30-quick-engine-local-cleanroom`).
+   distribution): container mode untested end to end (Docker 12 GB or more;
+   24 GB set 2026-10-31); `NATIVE=1` builds on the Mac (Node 24 and Java 21
+   accepted with a warning) and its first full run was in progress at the
+   2026-10-31 commit: check `build/collect-plus-local/` and fix or record.
+   The engine's memory grew 511 MB to 1,082 MB over the 50,959-call full
+   parity run (591 MB on 29 Oct without the golden/sweep entity reads);
+   attributed to WHO's entity cache, not confirmed.
 5. `digitva-9cll.22` coding parity (P1), children ranked: `.22.2` online phone
    attachments never load (likely one prop), `.22.4` enrolled offline NQA/SA
    ignore the project and import skips the gates, `.22.3` native category view

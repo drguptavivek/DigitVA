@@ -170,6 +170,7 @@ archive bytes.
 | --- | --- | --- |
 | Large parity run, 29 Oct 2026, Samsung SM-E146B, engine library of Collect Plus 0.3.14 (engine release `icd11-engine-v2026.10.25.1`) | 20,164 requests sent to the phone engine and to the `whoicd/icd-api:2.6.0` container | below |
 | Full evaluation (`scripts/icd11-parity/eval.sh full`), Samsung SM-E146B, engine 2026.10.29.1, 30 Oct 2026 | 30,783 requests: the 20,010 certificates and the request sets below, plus every WHO request recorded in the golden corpora (1,592) and 8,909 coding-screen reads over 401 codes | 30,783 of 30,783 matched: 30,088 identical replies, 695 refused by both, none different or one-sided (below) |
+| Full evaluation with the published app's libraries (`eval.sh full`), Samsung SM-E146B, 30 Oct 2026: engine, OpenSSL and libc++ taken from the Collect Plus 0.3.18 APK (its engine is byte-identical to engine release 2026.10.29.1) | the same 30,783 requests | 30,783 of 30,783 matched: 30,088 identical, 695 refused by both |
 | Clean-room rebuild, 30 Oct 2026: the engine library compiled in a fresh Ubuntu 24.04 container from our public repository and WHO's public inputs only, run on the same phone (`eval.sh quick`) | 2,064 requests, including every WHO request recorded in the golden corpora | 2,064 of 2,064 matched: 2,017 identical, 47 refused by both |
 | Phone parity kit (`scripts/icd11-parity/run_phone.sh`), Samsung SM-E146B, engine 2026.10.29.1, 30 Oct 2026 | the same requests sent to the phone engine and to the container; 28 rows test the bridge's bounds (below) | 472 of 472 matched: 431 identical replies, 41 refused with the same status class, none one-sided |
 | Golden corpora, frozen 30 Oct 2026 (`scripts/icd11-golden/`) | the app's TypeScript layer against recorded WHO replies | 455 fixtures (DORIS 173, postcoordination 44, search 238); 173/173 DORIS, 238/238 search, 485/485 guidance operations identical |
@@ -319,6 +320,33 @@ middle of the run (CoDEdit 270 ms), broad searches such as "cancer" (614 ms)
 and "liver cancer" (256 ms), and the first postcoordinated code-info lookup,
 1B12.2&XA0G74 (275 ms). In that run the engine started in 20.9 s; memory was
 504 MB after start, 591 MB at the end, and peaked at 1,050 MB during start-up.
+
+**Per call under the full evaluation load, 30 Oct 2026, engine warm, measured
+in the engine process** (the `eval.sh full` run with the libraries of the
+published Collect Plus 0.3.18 APK: 50,959 engine calls in one process, back to
+back; the container column is WHO's container on the Mac running the same
+requests over REST, for scale only)
+
+| Operation | Calls | Phone median | Phone 95th / 99th percentile | Phone slowest | Container median / 95th |
+| --- | --: | --: | --: | --: | --: |
+| DORIS | 20,176 | 3.4 ms | 5.3 / 6.6 ms | 141 ms | 1.0 / 1.8 ms |
+| CoDEdit | 20,176 | 4.4 ms | 5.5 / 6.0 ms | 348 ms | 0.7 / 1.1 ms |
+| Search | 1,325 | 5.2 ms | 54 / 186 ms | 681 ms | 1.7 / 10.8 ms |
+| Code info | 2,734 | under 0.1 ms | 0.5 / 0.7 ms | 269 ms | 0.6 / 0.7 ms |
+| Entity | 4,445 | 0.3 ms | 1.3 / 4.2 ms | 70 ms | 0.6 / 1.1 ms |
+| Residual entity (`unspecified`, `other`) | 1,398 | 0.2 ms | 3.0 / 16 ms | 43 ms | 0.6 / 1.5 ms |
+| Foundation entity | 705 | 0.1 ms | 0.4 / 0.6 ms | 0.7 ms | 0.6 / 0.8 ms |
+
+The phone spent 173 s on the 50,959 calls (about 295 calls a second). Lookups
+(code info, entities) are faster on the phone than over the container's REST
+layer, because they skip HTTP; DORIS, CoDEdit and broad searches are three to
+six times slower. The engine started in 19.6 s. Its memory was 511 MB after
+start and grew steadily to 1,082 MB at the end of the run (peak 1,179 MB): the
+29 October run, without the 6,548 entity reads of the golden and sweep sets,
+ended at 591 MB, so the growth follows the number of distinct entities read
+and is most likely WHO's entity cache; a coding session reads far fewer. The
+engine used one core throughout; the battery stayed at 26.4 °C and Android's
+thermal status at 0 (none), sampled every 5 s over the last part of the run.
 
 **Per call as the app sees it, first calls, including the hop to the engine
 process**

@@ -88,3 +88,5 @@ desktop/target/
 app/static/expo-client/
 .env.demo
 deploy/maintenance/on
+.serena/project.yml
+cur.png

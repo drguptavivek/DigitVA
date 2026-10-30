@@ -179,9 +179,21 @@ class VaDefinitionsRoutesTests(BaseTestCase):
         icd11 = self.client.get(f"{API}/for-icd", query_string={"code": "1A00.1", "classification": "icd11"})
         self.assertEqual(icd11.get_json()["va_code"], "VAs-01.04")
 
+    def test_for_icd_icd11_keeps_the_old_keys_and_adds_the_bucket(self):
+        """Old APKs render ``va_code - title`` and read 404 as no VA cause."""
+        self._login(str(self.base_coder_id))
+        payload = self.client.get(f"{API}/for-icd", query_string={"code": "1A00.1", "classification": "icd11"}).get_json()
+        self.assertTrue({"icd_code", "classification", "va_code", "title", "definition_html", "source"} <= set(payload))
+        self.assertTrue({"bucket_code", "bucket_label", "bucket_section", "has_definition"} <= set(payload))
+        self.assertEqual((payload["bucket_code"], payload["has_definition"]), ("vas_01_04", True))
+        # ICD-10 stays as it was.
+        icd10 = self.client.get(f"{API}/for-icd", query_string={"code": "A04"}).get_json()
+        self.assertNotIn("bucket_code", icd10)
+
     def test_for_icd_404_and_bad_classification(self):
         self._login(str(self.base_coder_id))
         self.assertEqual(self.client.get(f"{API}/for-icd?code=Z99").status_code, 404)
+        self.assertEqual(self.client.get(f"{API}/for-icd?code=9Z99&classification=icd11").status_code, 404)
         self.assertEqual(self.client.get(f"{API}/for-icd").status_code, 404)
         self.assertEqual(self.client.get(f"{API}/for-icd?code=A04&classification=icd9").status_code, 400)
 

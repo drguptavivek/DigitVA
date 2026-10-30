@@ -417,34 +417,39 @@ def icd11_primary_stem_sql(value_sql: str, provenance_sql: str) -> str:
     )
 
 
-def _who_2026_bucket_sql() -> tuple[str, str, str]:
-    """Return (CTEs, SELECT columns, joins) bucketing CODs in WHO_2022_VA_2026.
+def who_2026_bucket_ctes(*, start_codes_param: str | None = None, with_nodes: bool = False) -> str:
+    """The ``bucket_rows`` ... ``icd11_buckets`` CTEs bucketing codes in WHO_2022_VA_2026.
 
-    Each value is bucketed through the rows of its own classification, which
-    its code shape decides (the ICD-10 and ICD-11 shapes do not overlap):
-    ICD-10 values use the ``icd10`` rows with the legacy reporting aliases, as
-    before; ICD-11 values use the ``icd11`` rows, exact code first, then the
-    nearest ancestor on the catalogue's parent chain. A post-coordinated
-    ICD-11 value (``1G40&XN...``, ``1G40/...``) is bucketed by its primary
-    stem: the ``primary_stem`` its save recorded in
-    ``icd11_provenance -> 'conclusive'`` (WHO's causing condition,
-    ``digitva-443q``), else, for a value saved before then, its first stem.
-    SmartVA ICDs are ICD-10. Every bucket gets a ``*_who_bucket_provenance``
-    column: ``icd10``, ``icd11_native``, ``unmapped``, or NULL when there is
-    no value (docs/policy/icd11-cod-bucket-schemes.md).
+    The one implementation behind the COD snapshot MV, the server's
+    ``find_va_definition_for_icd`` and the offline pack
+    (``resolve_who_2026_icd11_buckets``), so they cannot disagree. Rows read
+    are ``age_scope IS NULL`` only; an ICD-11 code with no row of its own takes
+    its nearest mapped ancestor, whether or not that node has a VA definition.
+
+    ``start_codes_param`` names a bind parameter (a list of upper-case codes)
+    that limits the ancestor walk to those codes, so a request walks one chain
+    instead of the catalogue; ``icd11_buckets`` still lists every mapped code,
+    so callers filter it. ``with_nodes`` adds ``bucket_code`` (the leaf
+    ``node_code``) and ``bucket_section_code`` (the parent's) to
+    ``bucket_rows`` and ``icd11_buckets``. The defaults emit exactly the text the
+    frozen migrations replay (tests/migrations/test_migrate_cod_mvs_primary_stem.py).
     """
-    def authoritative(column: str) -> str:
-        return f"""CASE
-            WHEN ar.va_sid IS NOT NULL THEN ar.{column}
-            WHEN ac.va_sid IS NOT NULL THEN ac.{column}
-            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.{column}
-            WHEN cf.va_finassess_id IS NOT NULL THEN cf.{column}
-            ELSE NULL
-        END"""
-    ctes = f"""bucket_rows AS (
+    node_columns = (
+        "\n        leaf.node_code AS bucket_code,\n        parent.node_code AS bucket_section_code,"
+        if with_nodes
+        else ""
+    )
+    bucket_node_columns = ", bucket_code, bucket_section_code" if with_nodes else ""
+    ancestor_node_columns = (
+        "\n            m.bucket_code,\n            m.bucket_section_code,"
+        if with_nodes
+        else ""
+    )
+    seed = f"\n      AND upper(c.code) = ANY(:{start_codes_param})" if start_codes_param else ""
+    return f"""bucket_rows AS (
     SELECT DISTINCT ON (map.icd_classification, upper(map.icd_code))
         map.icd_classification,
-        upper(map.icd_code) AS icd_code,
+        upper(map.icd_code) AS icd_code,{node_columns}
         parent.node_label AS bucket_section,
         leaf.node_label AS bucket_label
     FROM mas_cod_bucket_schemes scheme
@@ -474,7 +479,7 @@ icd10_buckets AS (
     WHERE icd_classification = 'icd10'
 ),
 icd11_mapped AS (
-    SELECT icd_code, bucket_section, bucket_label
+    SELECT icd_code{bucket_node_columns}, bucket_section, bucket_label
     FROM bucket_rows
     WHERE icd_classification = 'icd11'
 ),
@@ -490,7 +495,7 @@ icd11_ancestors AS (
     FROM mas_icd11_mms c
     WHERE c.release = '{DEFAULT_ICD11_RELEASE}'
       AND c.code IS NOT NULL
-      AND upper(c.code) NOT IN (SELECT icd_code FROM icd11_mapped)
+      AND upper(c.code) NOT IN (SELECT icd_code FROM icd11_mapped){seed}
     UNION ALL
     SELECT
         a.start_code,
@@ -505,12 +510,12 @@ icd11_ancestors AS (
       AND a.depth < 20
 ),
 icd11_buckets AS (
-    SELECT icd_code, bucket_section, bucket_label
+    SELECT icd_code{bucket_node_columns}, bucket_section, bucket_label
     FROM icd11_mapped
     UNION ALL
     (
         SELECT DISTINCT ON (a.start_code)
-            a.start_code AS icd_code,
+            a.start_code AS icd_code,{ancestor_node_columns}
             m.bucket_section,
             m.bucket_label
         FROM icd11_ancestors a
@@ -518,6 +523,55 @@ icd11_buckets AS (
         ORDER BY a.start_code, a.depth, m.bucket_label
     )
 )"""
+
+
+def resolve_who_2026_icd11_buckets(start_codes: Iterable[str] | None = None) -> list[sa.Row]:
+    """ICD-11 codes resolved to their VA bucket: the shared lookup and pack source.
+
+    Rows are ``(icd_code, bucket_code, bucket_label, bucket_section_code,
+    bucket_section)`` from ``who_2026_bucket_ctes``, the CTEs of the COD
+    snapshot. ``start_codes`` (upper-case) limits the walk to those codes
+    (one chain per request, the server lookup); None resolves the whole
+    catalogue plus every mapped code (the offline pack). A code with no
+    bucket on its chain has no row. Read-only; raw SQL, so pending session
+    changes are not flushed first.
+    """
+    param = None if start_codes is None else "start_codes"
+    seeded = "" if param is None else "\nWHERE icd_code = ANY(:start_codes)"
+    statement = sa.text(
+        f"WITH RECURSIVE {who_2026_bucket_ctes(start_codes_param=param, with_nodes=True)}\n"
+        "SELECT icd_code, bucket_code, bucket_label, bucket_section_code, bucket_section\n"
+        f"FROM icd11_buckets{seeded}\nORDER BY icd_code"
+    )
+    params = {} if start_codes is None else {"start_codes": list(start_codes)}
+    return list(db.session.execute(statement, params).all())
+
+
+def _who_2026_bucket_sql() -> tuple[str, str, str]:
+    """Return (CTEs, SELECT columns, joins) bucketing CODs in WHO_2022_VA_2026.
+
+    Each value is bucketed through the rows of its own classification, which
+    its code shape decides (the ICD-10 and ICD-11 shapes do not overlap):
+    ICD-10 values use the ``icd10`` rows with the legacy reporting aliases, as
+    before; ICD-11 values use the ``icd11`` rows, exact code first, then the
+    nearest ancestor on the catalogue's parent chain. A post-coordinated
+    ICD-11 value (``1G40&XN...``, ``1G40/...``) is bucketed by its primary
+    stem: the ``primary_stem`` its save recorded in
+    ``icd11_provenance -> 'conclusive'`` (WHO's causing condition,
+    ``digitva-443q``), else, for a value saved before then, its first stem.
+    SmartVA ICDs are ICD-10. Every bucket gets a ``*_who_bucket_provenance``
+    column: ``icd10``, ``icd11_native``, ``unmapped``, or NULL when there is
+    no value (docs/policy/icd11-cod-bucket-schemes.md).
+    """
+    def authoritative(column: str) -> str:
+        return f"""CASE
+            WHEN ar.va_sid IS NOT NULL THEN ar.{column}
+            WHEN ac.va_sid IS NOT NULL THEN ac.{column}
+            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.{column}
+            WHEN cf.va_finassess_id IS NOT NULL THEN cf.{column}
+            ELSE NULL
+        END"""
+    ctes = who_2026_bucket_ctes()
 
     def columns(prefix: str, alias: str, value_sql: str, *, icd11: bool) -> str:
         alias11 = f"{alias}11"
@@ -1704,8 +1758,9 @@ def get_dm_project_site_stats_from_mv(
 
     *unit_ids*: the caller's unit-grant subtree, as in ``get_dm_kpi_from_mv``.
     """
-    import pytz
     from datetime import datetime, timedelta
+
+    import pytz
 
     core = sa.table(
         CORE_MV_NAME,

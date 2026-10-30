@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 // resolving relative imports the way Metro does for web (.web beats plain). Fails when the
 // native-only SQLite store is reachable: `make check-web` then dies on the wa-sqlite wasm.
 const root = resolve(__dirname, "..");
-const FORBIDDEN = /^(expo-sqlite|src\/(drafts|dbTransaction|interviewerDb))$/;
+const FORBIDDEN = /^(expo-sqlite|src\/(drafts|dbTransaction|interviewerDb|coding\/bundledVaDefinitions))$/;
 const EXTS = [".web.tsx", ".web.ts", ".tsx", ".ts", "/index.web.tsx", "/index.web.ts", "/index.tsx", "/index.ts"];
 // Also follows require(); Metro bundles lazy requires too. Skips `import type` (erased by Babel) and `typeof import(...)` type positions.
 const IMPORT = /(?:import|export)\s(?!type[\s{])[^'"]*?from\s*["']([^"']+)["']|import\s*["']([^"']+)["']|(?<!typeof\s)(?:import|require)\(\s*["']([^"']+)["']\s*\)/g;

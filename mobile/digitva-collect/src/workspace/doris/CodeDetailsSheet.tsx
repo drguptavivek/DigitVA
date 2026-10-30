@@ -8,16 +8,18 @@ import type { DorisCodeInfoItem, VaDefinition, WorkspaceIdentity } from "../cont
 import { Alert, Body, Button, Card, CardTitle, FieldHint, Muted, gap, uiRadius, useUi } from "./ui";
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&nbsp;": " " };
-const vaDefinitionCache = new WeakMap<WorkspaceApi, Map<string, Promise<VaDefinition | null>>>();
+/** The lookup of one code: the VA cause, null when it is not mapped, undefined when the lookup failed (shown as nothing). */
+type VaLookup = VaDefinition | null | undefined;
+const vaDefinitionCache = new WeakMap<WorkspaceApi, Map<string, Promise<VaLookup>>>();
 
-function getVaDefinition(api: WorkspaceApi, code: string): Promise<VaDefinition | null> {
+function getVaDefinition(api: WorkspaceApi, code: string): Promise<VaLookup> {
   let byCode = vaDefinitionCache.get(api);
   if (!byCode) vaDefinitionCache.set(api, byCode = new Map());
   let request = byCode.get(code);
   if (!request) {
     request = Promise.resolve().then(() => api.getVaDefinitionForIcd(code)).catch(() => {
       if (byCode?.get(code) === request) byCode.delete(code);
-      return null;
+      return undefined;
     });
     byCode.set(code, request);
   }
@@ -30,18 +32,46 @@ export function definitionPlainText(html: string): string {
 }
 
 /**
+ * What to show for a looked-up code: the section line, the VA cause line and whether a case definition follows.
+ * `legacy` words the cause line for a server that predates buckets (no bucket_label). Information only: nothing here
+ * gates Process, save or submit.
+ */
+function vaCauseParts(found: VaDefinition | null, legacy: (found: VaDefinition) => string): { section: string | null; cause: string; hasDefinition: boolean } {
+  if (!found) return { section: null, cause: "VA cause: not mapped", hasDefinition: false };
+  if (found.bucket_label === undefined) return { section: null, cause: legacy(found), hasDefinition: true };
+  return {
+    section: found.bucket_section || null,
+    cause: `VA cause: ${found.bucket_label} (${found.va_code})`,
+    hasDefinition: found.has_definition !== false,
+  };
+}
+
+function VaCauseSummary({ found }: { found: VaDefinition | null }) {
+  const { section, cause, hasDefinition } = vaCauseParts(found, (old) => `VA cause: ${old.va_code} — ${old.title}`);
+  const text = found && hasDefinition ? definitionPlainText(found.definition_html) : "";
+  return (
+    <View style={{ gap: gap.xs }}>
+      {section ? <Muted>{section}</Muted> : null}
+      <Body style={{ fontWeight: "600" }}>{cause}</Body>
+      {hasDefinition ? (text ? <Body>{text}</Body> : <Muted>No definition text for this VA cause.</Muted>) : null}
+      <FieldHint testID="digitva-addition">{tr("digitvaAddition")}</FieldHint>
+    </View>
+  );
+}
+
+/**
  * ICD-11 details of one code (title, code, WHO URI, release, postcoordination) from the codeinfo endpoint, and the
  * VA cause it maps to with its definition, in a sheet over the editor. Closes on the button, an outside press or back.
  */
 export function CodeDetailsSheet({ api, identity, code, onClose }: { api: WorkspaceApi; identity: WorkspaceIdentity; code: string; onClose: () => void }) {
   const { t } = useUi();
   const [item, setItem] = useState<DorisCodeInfoItem | null>(null);
-  const [definition, setDefinition] = useState<VaDefinition | null>(null);
+  const [definition, setDefinition] = useState<VaLookup>(undefined);
   const [error, setError] = useState("");
   useEffect(() => {
     let live = true;
     setItem(null);
-    setDefinition(null);
+    setDefinition(undefined);
     setError("");
     api.getDorisCodeInfo(identity.vaSid, code)
       .then((reply) => { if (live) setItem(reply.item); })
@@ -65,12 +95,8 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
               <Muted>{item.postcoordination ? "Postcoordination is available for this code." : "No postcoordination for this code."}</Muted>
             </>
           ) : null}
-          {definition ? (
-            <View style={{ gap: gap.xs }}>
-              <Body style={{ fontWeight: "600" }}>VA cause: {definition.va_code} — {definition.title}</Body>
-              {definitionPlainText(definition.definition_html) ? <Body>{definitionPlainText(definition.definition_html)}</Body> : <Muted>No definition text for this VA cause.</Muted>}
-              <FieldHint testID="digitva-addition">{tr("digitvaAddition")}</FieldHint>
-            </View>
+          {definition !== undefined ? (
+            <VaCauseSummary found={definition} />
           ) : null}
           {error ? <Alert variant="destructive">{error}</Alert> : null}
           {!item && !error ? <Muted>Loading…</Muted> : null}
@@ -82,26 +108,28 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
 }
 
 /**
- * The VA cause a chosen ICD-11 code maps to: one banner per cause. The chosen cause also shows its plain-text
- * definition; the Step 1 DORIS card shows the label alone. Nothing renders while loading or when there is no VA cause.
+ * The VA cause bucket a chosen ICD-11 code maps to: one banner per cause. The chosen cause also shows its plain-text
+ * definition; the Step 1 DORIS card shows the label alone. Nothing renders while loading or when the lookup failed; an unmapped code says "VA cause: not mapped".
  */
 export function AssociatedVaCodes({ api, code, showDefinition = false, attribution = false, style }: { api: WorkspaceApi; code: string; showDefinition?: boolean; attribution?: boolean; style?: StyleProp<ViewStyle> }) {
   const { t } = useUi();
-  const [loaded, setLoaded] = useState<{ api: WorkspaceApi; code: string; definition: VaDefinition | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ api: WorkspaceApi; code: string; definition: VaLookup } | null>(null);
   useEffect(() => {
     let live = true;
     getVaDefinition(api, code)
       .then((found) => { if (live) setLoaded({ api, code, definition: found }); });
     return () => { live = false; };
   }, [api, code]);
-  const definition = loaded?.api === api && loaded.code === code ? loaded.definition : null;
-  if (!definition) return null;
-  const text = definitionPlainText(definition.definition_html);
+  const definition = loaded?.api === api && loaded.code === code ? loaded.definition : undefined;
+  if (definition === undefined) return null;
+  const { section, cause, hasDefinition } = vaCauseParts(definition, (old) => `Associated VA codes: ${old.va_code} ${old.title}`);
+  const text = definition && hasDefinition ? definitionPlainText(definition.definition_html) : "";
   return (
     <View testID={showDefinition ? "va-definition-note" : "associated-va-codes"} style={[{ gap: gap.xs, backgroundColor: t.warning, borderColor: t.warningBorder, borderWidth: 1, borderLeftWidth: 4, borderRadius: uiRadius.md, paddingHorizontal: gap.md, paddingVertical: gap.sm }, style]}>
-      <Body style={{ color: t.warningForeground, fontWeight: "600" }}>{`Associated VA codes: ${definition.va_code} ${definition.title}`}</Body>
-      {showDefinition ? <Body style={{ color: t.warningForeground, fontWeight: "600" }}>Case definition</Body> : null}
-      {showDefinition ? (text ? <Body style={{ color: t.warningForeground }}>{text}</Body> : <Muted>No definition text for this VA cause.</Muted>) : null}
+      {section ? <Body style={{ color: t.warningForeground }}>{section}</Body> : null}
+      <Body style={{ color: t.warningForeground, fontWeight: "600" }}>{cause}</Body>
+      {showDefinition && hasDefinition ? <Body style={{ color: t.warningForeground, fontWeight: "600" }}>Case definition</Body> : null}
+      {showDefinition && hasDefinition ? (text ? <Body style={{ color: t.warningForeground }}>{text}</Body> : <Muted>No definition text for this VA cause.</Muted>) : null}
       {showDefinition && attribution ? <FieldHint testID="digitva-addition">{tr("digitvaAddition")}</FieldHint> : null}
     </View>
   );

@@ -1070,6 +1070,90 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     await act(async () => tree.unmount());
   });
 
+  describe("VA cause bucket display", () => {
+    const withBucket = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case <b>text</b></p>", bucket_code: "vas_01_01", bucket_label: "Sepsis", bucket_section: "Infectious diseases", has_definition: true };
+    const labelOnly = { icd_code: "5A00", classification: "icd11", va_code: "VAs-98", title: "Other and unspecified NCD", definition_html: "", bucket_code: "vas_98", bucket_label: "Other and unspecified NCD", bucket_section: "Non-communicable diseases", has_definition: false };
+    const show = async (lookup: unknown, props: Partial<React.ComponentProps<typeof AssociatedVaCodes>> = {}) => {
+      const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => lookup) as unknown as WorkspaceApi["getVaDefinitionForIcd"] });
+      let tree!: ReactTestRenderer;
+      await act(async () => { tree = create(<AssociatedVaCodes api={api} code="CA40" showDefinition {...props} />); await flushAll(); });
+      return tree;
+    };
+
+    it("shows the section, the VA cause and the plain-text definition for a bucket with one", async () => {
+      const tree = await show(withBucket);
+      const text = allText(tree);
+      expect(text).toContain("Infectious diseases");
+      expect(text).toContain("VA cause: Sepsis (VAs-01.01)");
+      expect(text).toContain("Case definition");
+      expect(text).toContain("Case text");
+      expect(text).not.toContain("Associated VA codes");
+      await act(async () => tree.unmount());
+    });
+
+    it("shows a label-only bucket with no definition paragraph", async () => {
+      const tree = await show(labelOnly);
+      const text = allText(tree);
+      expect(text).toContain("Non-communicable diseases");
+      expect(text).toContain("VA cause: Other and unspecified NCD (VAs-98)");
+      expect(text).not.toContain("Case definition");
+      expect(text).not.toContain("No definition text");
+      await act(async () => tree.unmount());
+    });
+
+    it("says not mapped for an unmapped code, and stays silent when the lookup fails", async () => {
+      const unmapped = await show(null);
+      expect(allText(unmapped)).toContain("VA cause: not mapped");
+      expect(allText(unmapped)).not.toContain("Case definition");
+      await act(async () => unmapped.unmount());
+      const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => { throw new Error("offline"); }) });
+      let failed!: ReactTestRenderer;
+      await act(async () => { failed = create(<AssociatedVaCodes api={api} code="CA40" showDefinition />); await flushAll(); });
+      expect(allText(failed)).not.toContain("VA cause");
+      await act(async () => failed.unmount());
+    });
+
+    it("shows the bucket label alone on the Step 1 card, and keeps the old wording for a server without buckets", async () => {
+      const card = await show(withBucket, { showDefinition: false });
+      expect(allText(card)).toContain("VA cause: Sepsis (VAs-01.01)");
+      expect(allText(card)).not.toContain("Case definition");
+      await act(async () => card.unmount());
+      const { bucket_code, bucket_label, bucket_section, has_definition, ...old } = withBucket;
+      const legacy = await show(old);
+      expect(allText(legacy)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+      expect(allText(legacy)).toContain("Case text");
+      await act(async () => legacy.unmount());
+    });
+
+    it("shows the same lines in the ICD-11 details sheet", async () => {
+      const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => labelOnly) });
+      const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+      await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+      await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+      await act(async () => flush());
+      await act(async () => tree.root.findAllByProps({ accessibilityLabel: "Details for CA40" })[0].props.onPress());
+      await act(async () => flush());
+      // Once under the chosen cause and once in the sheet.
+      const text = allText(tree);
+      expect(text.match(/Non-communicable diseases/g)).toHaveLength(2);
+      expect(text.match(/VA cause: Other and unspecified NCD \(VAs-98\)/g)).toHaveLength(2);
+      expect(text).not.toContain("No definition text");
+      await act(async () => tree.unmount());
+    });
+
+    it("never disables Process or Save for an unmapped code", async () => {
+      const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => null) });
+      const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+      await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+      await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+      await act(async () => flush());
+      expect(allText(tree)).toContain("VA cause: not mapped");
+      expect(byLabel(tree, "Process current certificate").props.disabled).toBeFalsy();
+      expect(byLabel(tree, "Save Step 1").props.disabled).toBeFalsy();
+      await act(async () => tree.unmount());
+    });
+  });
+
   it("refuses a quick-add the WHO codeinfo does not confirm, without choosing it", async () => {
     const api = apiFor({ getDorisCodeInfo: jest.fn(async () => { throw new Error("not found"); }) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);

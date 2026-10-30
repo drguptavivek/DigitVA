@@ -19,10 +19,9 @@ from pathlib import Path
 
 import nh3
 import sqlalchemy as sa
-from sqlalchemy.orm import aliased
 
 from app import db
-from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd11Mms
+from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, icd11_primary_stem
 from app.services.icd_coding_value import (
@@ -31,6 +30,7 @@ from app.services.icd_coding_value import (
     extract_icd_code,
     icd11_primary_stem_of,
 )
+from app.services.submission_analytics_mv import resolve_who_2026_icd11_buckets
 from app.utils.rich_text import sanitize_rich_text
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -244,32 +244,6 @@ def list_coder_va_definitions(query: str | None = None) -> dict:
     return {"definitions": definitions, "total": len(definitions)}
 
 
-def _icd_candidates(code: str, classification: str) -> list[str]:
-    """``code`` then its ancestors, most specific first (upper-case).
-
-    ICD-10: the three-character category (A04.0 -> A04). ICD-11: the parent
-    chain in mas_icd11_mms (one recursive query).
-    """
-    if classification == "icd10":
-        return [code] if len(code) <= 3 else [code, code[:3]]
-    start = (
-        sa.select(MasIcd11Mms.code, MasIcd11Mms.parent_linearization_uri, sa.literal(0).label("depth"))
-        .where(MasIcd11Mms.release == DEFAULT_ICD11_RELEASE, sa.func.upper(MasIcd11Mms.code) == code)
-        .cte("icd11_chain", recursive=True)
-    )
-    parent = aliased(MasIcd11Mms)
-    chain = start.union_all(
-        sa.select(parent.code, parent.parent_linearization_uri, start.c.depth + 1).where(
-            parent.release == DEFAULT_ICD11_RELEASE,
-            parent.linearization_uri == start.c.parent_linearization_uri,
-        )
-    )
-    ancestors = db.session.execute(
-        sa.select(chain.c.code).where(chain.c.code.is_not(None)).order_by(chain.c.depth)
-    ).scalars().all()
-    return [c.upper() for c in ancestors] or [code]
-
-
 def _icd11_lookup_stem(value: str | None, provenance_item: dict | None) -> str | None:
     """The primary stem of an ICD-11 value for the definition lookup.
 
@@ -295,21 +269,70 @@ def _icd11_lookup_stem(value: str | None, provenance_item: dict | None) -> str |
     return icd11_primary_stem(codeinfo, first)
 
 
+def _va_code_of_node(node_code: str) -> str | None:
+    """``vas_01_02`` -> ``VAs-01.02``; None for a node that is not a ``vas_*`` cause."""
+    if not node_code.startswith("vas_"):
+        return None
+    return "VAs-" + node_code[4:].replace("_", ".")
+
+
+def _find_icd11_bucket(code: str) -> dict | None:
+    """The VA bucket an ICD-11 stem resolves to, with its definition when it has one.
+
+    The bucket is the one the COD snapshot gives the code (nearest mapped node,
+    never an ancestor's past it: ``resolve_who_2026_icd11_buckets``). The
+    definition is attached only when that very node has an active row in
+    mas_va_cause_definitions; a node without one shows its label alone.
+    """
+    rows = resolve_who_2026_icd11_buckets([code])
+    if not rows:
+        return None
+    _, node_code, node_label, _, section = rows[0]
+    va_code = _va_code_of_node(node_code)
+    definition = (
+        db.session.scalar(
+            sa.select(MasVaCauseDefinition).where(
+                MasVaCauseDefinition.va_code == va_code, MasVaCauseDefinition.is_active.is_(True)
+            )
+        )
+        if va_code
+        else None
+    )
+    return {
+        "icd_code": code,
+        "classification": "icd11",
+        "va_code": definition.va_code if definition else (va_code or node_code),
+        "title": definition.title if definition else node_label,
+        "definition_html": definition.definition_html if definition else "",
+        "source": "digitva",  # not WHO ICD-11 content (licence 1.2.4)
+        "bucket_code": node_code,
+        "bucket_label": node_label,
+        "bucket_section": section,
+        "has_definition": definition is not None,
+    }
+
+
 def find_va_definition_for_icd(
     value: str | None,
     classification: str | None = None,
     provenance_item: dict | None = None,
 ) -> dict | None:
-    """Active VA cause definition for an ICD code, or None.
+    """The VA cause an ICD code maps to, or None when the code is not mapped.
 
     ``value`` may be a bare code or a stored coding value ("A04.0-Other
     bacterial ..."). Without ``classification`` the code shape decides (ICD-10
-    and ICD-11 code shapes do not overlap). The code, then its ancestors, is
-    looked up in the classification's scheme in VA_DEFINITION_SCHEMES; a
-    bucket node ``vas_01_02`` is VA cause ``VAs-01.02``. Nodes that are not
-    ``vas_*`` causes have no definition. An ICD-11 value is looked up by its
-    primary stem (``_icd11_lookup_stem``): ``provenance_item`` is a saved
-    value's ``icd11_provenance`` entry, when the caller has it.
+    and ICD-11 code shapes do not overlap).
+
+    ICD-10: the code, then its three-character category, looked up among the
+    ``vas_*`` nodes of WHO_2022_VA that have a definition; ``vas_01_02`` is
+    VA cause ``VAs-01.02``.
+
+    ICD-11 (WHO_2022_VA_2026): the bucket the COD snapshot gives the code's
+    primary stem (``_icd11_lookup_stem``; ``provenance_item`` is a saved
+    value's ``icd11_provenance`` entry, when the caller has it), also when the
+    node has no definition (``has_definition`` False, ``definition_html``
+    empty, ``title`` the node label). ``bucket_code``, ``bucket_label`` and
+    ``bucket_section`` describe that node.
     """
     classifications = [classification] if classification else list(ICD_CLASSIFICATIONS)
     for cls in classifications:
@@ -319,9 +342,10 @@ def find_va_definition_for_icd(
     else:
         return None
     if cls == "icd11":
-        code = _icd11_lookup_stem(value, provenance_item)
+        stem = _icd11_lookup_stem(value, provenance_item)
+        return _find_icd11_bucket(stem.upper()) if stem else None
 
-    candidates = _icd_candidates(code, cls)
+    candidates = [code] if len(code) <= 3 else [code, code[:3]]
     va_code_expr = sa.literal("VAs-") + sa.func.replace(sa.func.substr(MasCodBucketNode.node_code, 5), "_", ".")
     matches = db.session.execute(
         sa.select(sa.func.upper(MapIcdCodBucket.icd_code), MasVaCauseDefinition)

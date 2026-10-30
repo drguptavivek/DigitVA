@@ -1,4 +1,4 @@
-import { parseCategory, parseCoderHistory, parseCoderProjects, parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
+import { parseCategory, parseCoderHistory, parseCoderProjects, parseVaDefinition, parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -79,5 +79,20 @@ describe("offline station coding fields", () => {
     const base = { projects: [], project_options: [], last_project_id: null };
     expect(parseCoderProjects({ ...base, station_coding_disabled: true }).station_coding_disabled).toBe(true);
     expect("station_coding_disabled" in parseCoderProjects({ ...base, station_coding_disabled: false })).toBe(false);
+  });
+});
+
+describe("parseVaDefinition", () => {
+  const old = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>x</p>" };
+
+  it("reads the bucket fields and tolerates a server that lacks them", () => {
+    expect(parseVaDefinition(old)).toEqual(old);
+    const bucket = { ...old, bucket_code: "vas_01_01", bucket_label: "Sepsis", bucket_section: null, has_definition: false, definition_html: "" };
+    expect(parseVaDefinition(bucket)).toEqual(bucket);
+  });
+
+  it("rejects a bucket field of the wrong type", () => {
+    expect(() => parseVaDefinition({ ...old, bucket_label: 5 })).toThrow(WorkspaceContractError);
+    expect(() => parseVaDefinition({ ...old, has_definition: "no" })).toThrow(WorkspaceContractError);
   });
 });

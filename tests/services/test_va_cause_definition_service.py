@@ -149,7 +149,7 @@ class ImportVaDefinitionsTests(BaseTestCase):
 def seed_icd_lookup_fixtures():
     """Minimal WHO_2022_VA (ICD-10) and WHO_2022_VA_2026 (ICD-11) mappings.
 
-    ICD-10 A04 -> vas_01_04; ICD-10 Z99 -> a non-VA node. ICD-11 1A00 ->
+    ICD-10 A04 -> vas_01_04; ICD-10 Z99 -> a non-VA node. ICD-11 1A00 (age_scope NULL) ->
     vas_01_04, reached from 1A00.1 through the mas_icd11_mms parent chain.
     Shared with tests/routes/test_va_definitions_routes.py.
     """
@@ -172,16 +172,17 @@ def seed_icd_lookup_fixtures():
             db.session.flush()
             nodes[(scheme_code, node_code)] = node
 
-    def _map(scheme_code, node_code, icd_code, classification):
+    def _map(scheme_code, node_code, icd_code, classification, age_scope="vadef_test"):
         node = nodes[(scheme_code, node_code)]
         db.session.add(MapIcdCodBucket(
             scheme_id=node.scheme_id, node_id=node.node_id, icd_code=icd_code,
-            icd_classification=classification, age_scope="vadef_test",
+            icd_classification=classification, age_scope=age_scope,
         ))
 
     _map("WHO_2022_VA", "vas_01_04", "A04", "icd10")
     _map("WHO_2022_VA", "other_gastrointestinal_diseases", "Z99", "icd10")
-    _map("WHO_2022_VA_2026", "vas_01_04", "1A00", "icd11")
+    # ICD-11 rows are all-ages (NULL), the only band the snapshot reads.
+    _map("WHO_2022_VA_2026", "vas_01_04", "1A00", "icd11", age_scope=None)
     # The ICD-10 code in the wrong scheme must not be found.
     _map("WHO_2022_VA_2026", "vas_01_04", "B99", "icd10")
 

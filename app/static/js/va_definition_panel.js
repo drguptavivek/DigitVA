@@ -6,9 +6,13 @@
  * (GET /api/v1/va-definitions/for-icd?code=...; the server infers ICD-10 or
  * ICD-11 from the code) and shows that cause's definition in a small panel
  * fixed at the bottom right. The panel has no backdrop and takes no focus, so
- * the page stays usable; closing it hides it until the next selection. No
- * match (404) shows nothing. The DORIS pickers call lookup() directly when a
- * cause is picked or confirmed, with classification 'icd11'.
+ * the page stays usable; closing it hides it until the next selection. The
+ * ICD-11 answer is the VA cause bucket: its section, "VA cause: <label>
+ * (<code>)" and the WHO definition when the bucket has one. An ICD-11 code
+ * with no bucket (404) shows "VA cause: not mapped"; an ICD-10 404 shows
+ * nothing. Information only: the panel never gates selection or submit. The
+ * DORIS pickers call lookup() directly when a cause is picked or confirmed,
+ * with classification 'icd11'.
  *
  * Included once per page by app/templates/va_form_partials/_va_definitions_modal.html.
  * Code and title are set as text; definition_html is sanitized server-side
@@ -47,6 +51,7 @@
     var header = el('div', 'card-header py-1 px-2 d-flex align-items-start gap-2');
     var heading = el('div', 'flex-grow-1 small');
     heading.appendChild(el('div', 'text-muted va-def-float-context'));
+    heading.appendChild(el('div', 'text-muted va-def-float-section d-none'));
     var title = el('div', 'fw-semibold');
     title.appendChild(el('span', 'badge text-bg-light border font-monospace me-1 va-def-float-code'));
     title.appendChild(el('span', 'va-def-float-title'));
@@ -70,15 +75,31 @@
     if (panel) panel.classList.add('d-none');
   }
 
-  function show(data, fieldLabel) {
+  // data: the for-icd answer, or null for an ICD-11 code with no bucket. Servers
+  // that predate buckets send no bucket_label and render as before.
+  function show(data, fieldLabel, code) {
     var p = ensurePanel();
+    var bucket = !!data && data.bucket_label != null;
+    var hasDefinition = !!data && (!bucket || data.has_definition !== false);
+    var section = (bucket && data.bucket_section) || '';
     p.querySelector('.va-def-float-context').textContent =
-      'VA definition · ' + fieldLabel + ' · ' + data.icd_code;
-    p.querySelector('.va-def-float-code').textContent = data.va_code;
-    p.querySelector('.va-def-float-title').textContent = data.title;
+      'VA definition · ' + fieldLabel + ' · ' + (data ? data.icd_code : code);
+    var sectionNode = p.querySelector('.va-def-float-section');
+    sectionNode.textContent = section;
+    sectionNode.classList.toggle('d-none', !section);
+    var badge = p.querySelector('.va-def-float-code');
+    badge.textContent = data && !bucket ? data.va_code : '';
+    badge.classList.toggle('d-none', !(data && !bucket));
+    p.querySelector('.va-def-float-title').textContent = !data ? 'VA cause: not mapped'
+      : bucket ? 'VA cause: ' + data.bucket_label + ' (' + data.va_code + ')' : data.title;
     var body = p.querySelector('.va-def-float-body');
-    body.innerHTML = data.definition_html || '';
-    if (!data.definition_html) body.textContent = 'No definition text for this VA cause.';
+    body.classList.toggle('d-none', !hasDefinition);
+    if (hasDefinition) {
+      body.innerHTML = data.definition_html || '';
+      if (!data.definition_html) body.textContent = 'No definition text for this VA cause.';
+    } else {
+      body.textContent = '';
+    }
     body.scrollTop = 0;
     p.classList.remove('d-none');
   }
@@ -92,6 +113,7 @@
       credentials: 'same-origin'
     }).then(function (r) {
       if (seq !== requestSeq) return;
+      if (r.status === 404 && classification === 'icd11') { show(null, fieldLabel, String(value).trim().split(/\s+/)[0]); return; }
       if (!r.ok) { hide(); return; }
       return r.json().then(function (data) { if (seq === requestSeq) show(data, fieldLabel); });
     }).catch(function () { if (seq === requestSeq) hide(); });

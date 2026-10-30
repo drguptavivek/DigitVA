@@ -13,6 +13,7 @@ import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { loadActiveSlot, loadDevice } from "../auth";
 import { t } from "../i18n";
 import { Button, Screen, useUiStyles } from "../ui";
+import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
 import { createWorkspaceApi } from "../workspace/api";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
@@ -65,6 +66,12 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
     };
     return {
       ...base,
+      // The VA cause bucket comes from the pack bundled in the app, as offline: no network call, same answer in every mode.
+      // A "/" cluster needs WHO's causing condition, which only the server (online) or the engine (offline editor) knows;
+      // the server applies the same rule, and the pack's first stem is the fallback when it cannot be reached.
+      getVaDefinitionForIcd: (code: string) => code.includes("/")
+        ? base.getVaDefinitionForIcd(code).catch(() => getBundledVaDefinition(code))
+        : getBundledVaDefinition(code),
       async saveInitial(...args: Parameters<typeof base.saveInitial>) {
         const reply = await base.saveInitial(...args);
         invalidate(args[0]);

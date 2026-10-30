@@ -3,7 +3,7 @@ title: VA Cause Definitions
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-30
 ---
 
 # VA Cause Definitions
@@ -65,14 +65,62 @@ coders and reviewers consult while assigning causes of death.
   dropped and the common entities decoded, never injected as HTML.
 - `GET /api/v1/va-definitions/for-icd?code=&classification=` (same roles as
   above; classification is inferred from the code shape when omitted) returns
-  `{icd_code, classification, va_code, title, definition_html}` or 404.
+  `{icd_code, classification, va_code, title, definition_html, source}` or
+  404 when no mapping resolves. ICD-11 also returns `bucket_code`,
+  `bucket_label`, `bucket_section` and `has_definition`. A bucket without a
+  definition has `definition_html` `""` and `title` set to the bucket label;
+  its `va_code` is the `VAs-` code of a `vas_*` node, else the node code.
 - An ICD code reaches a VA cause through the COD bucket mappings: ICD-10 in
   scheme `WHO_2022_VA`, ICD-11 in `WHO_2022_VA_2026` (`icd_classification =
   'icd11'`), fixed in `VA_DEFINITION_SCHEMES`. A bucket node `vas_01_02` is VA
   cause `VAs-01.02`; nodes that are not `vas_*` causes, and `vas_09_99`
   (not in the WHO table), have no definition. The exact code is tried first,
   then its three-character category (ICD-10) or its ancestors in
-  `mas_icd11_mms` (ICD-11).
+  `mas_icd11_mms` (ICD-11). For ICD-11 this walk is replaced by the bucket
+  rule in the next section.
+
+## VA cause bucket for the selected ICD-11 code (owner, 2026-10-30, digitva-to74)
+
+- **One rule with analytics.** The VA cause an ICD-11 code shows while it is
+  being coded is the bucket the COD snapshot gives it
+  (`_who_2026_bucket_sql`, [ICD-11 COD Bucket Schemes](icd11-cod-bucket-schemes.md),
+  "Which mapping rows resolve"). That means the `WHO_2022_VA_2026` `icd11`
+  rows in the all-ages scope (`age_scope IS NULL`, the scheme's only band),
+  exact code first, then the nearest mapped ancestor. A post-coordinated value
+  resolves by its primary stem. The walk stops at the nearest mapped node,
+  whether or not that node has a definition: it never skips past it to an
+  ancestor's VA cause. The snapshot, the server lookup and the offline pack
+  share one SQL implementation. A test checks that all three give the same
+  result for every catalogue code.
+- **What shows.** Under the selected underlying cause, on the web DORIS
+  screens and in Collect Plus, before and after Process: the bucket's section
+  (parent node label) and `VA cause: <node label> (<VAs code, else node
+  code>)`. The WHO definition follows when the node has one in
+  `mas_va_cause_definitions`. Nodes without one (`vas_98`, `vas_09_99`,
+  `other_gastrointestinal_diseases`) show the label and section only; no text
+  is invented. A code with no bucket on its chain shows `VA cause: not
+  mapped`, because it reports as `unmapped` in analytics. It is information
+  only: an unmapped ICD-11 code is never blocked from selection, Process,
+  save or submission, online or offline (owner, 2026-10-30), and the line is
+  not a warning to confirm.
+- **Fully offline in Collect Plus.** The app always reads the bucket from its
+  bundled pack (`assets/va-definitions-WHO_2022_VA_2026.json`), in every mode,
+  online included. The one exception is an online `/` cluster: only the
+  server knows WHO's causing condition, so it asks the server and falls back
+  to the pack's first stem. Offline, the engine supplies it. The pack records
+  its content hash and the migration revision it was cut at.
+  `tests/services/test_export_offline_va_definitions.py` fails when the
+  committed pack differs from the database. That check needs a database with
+  the ICD-11 catalogue loaded, such as dev at head, and skips on a `create_all`
+  test database; regenerate and check the pack with every mapping or
+  definition change. A mapping edited on a
+  server after a build shows in the app only after the next pack and build.
+  The browser uses the server lookup.
+- **Display only.** The source ICD-11 code stays the record of truth. The
+  bucket changes no stored value, provenance or selectability.
+- **Scope.** Shown for ICD-11 (DORIS) coding only, in the scheme fixed in
+  `VA_DEFINITION_SCHEMES`. Projects have no bucket-scheme column. ICD-10
+  coding keeps the `WHO_2022_VA` lookup above, unchanged.
 
 ## Rich text
 

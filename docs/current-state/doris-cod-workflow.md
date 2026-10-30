@@ -26,14 +26,23 @@ Coder saves and allocation changes lock the submission before checking current
 ownership and workflow state. This prevents a save waiting behind release or
 timeout from using the former coder's allocation after reassignment.
 
-Collect Plus bundles the generated ICD-11 to VA reference from
-`scripts/export_offline_va_definitions.py`: release-specific active mappings,
-active VA definitions and WHO hierarchy, with exact-before-nearest-ancestor
-selection. The current asset contains 11,905 ICD-11 lookups and 63 definitions
-(257,807 bytes). Native codeinfo supplies a cluster's causing primary stem;
-the existing code-details sheet displays the associated VA definition with
-DigitVA attribution. Inactive schemes and nodes are excluded on server and
-phone. The reference is updated with the installed app.
+Collect Plus bundles the generated ICD-11 to VA bucket reference from
+`scripts/export_offline_va_definitions.py` (schema 2; run it as
+`python -m scripts.export_offline_va_definitions`). The pack holds every code the
+COD snapshot's own bucket rule resolves (`who_2026_bucket_ctes` in
+`app/services/submission_analytics_mv.py`, the same SQL the snapshot MV and the
+server lookup use): `codes` (stem to bucket node), `buckets` (label, section,
+VA code), the 63 active definitions, `content_sha256` and `db_revision`. The
+current asset has 18,505 codes and 66 buckets (387,100 bytes). A drift test
+(`tests/services/test_export_offline_va_definitions.py`) fails when the committed
+pack differs from a database whose catalogue is loaded. It skips on a
+`create_all` test database and there is no CI pytest run, so it is a manual
+check against dev. Inactive schemes and nodes
+are excluded on server and phone. Native Collect Plus reads the bucket from the
+pack in every mode, online included. The one exception is an online `/` cluster:
+it asks the server, which knows WHO's causing condition, and falls back to the
+pack's first stem. Offline, the engine supplies the causing condition.
+The reference is updated with the installed app.
 
 The server access summary explicitly projects whether local coding supports
 the project's mode/classification. New clients require self-coding, an active
@@ -744,8 +753,17 @@ coder to check the certificate or choose the cause without DORIS.
 
 ## Inline VA reference and SmartVA refresh
 
-The Expo editor shows the mapped VA cause code and title below suggested and
-selected ICD causes in either coding step. The selected cause's plain-text case
+The Expo editor shows the mapped VA cause bucket below suggested and selected ICD
+causes in either coding step (digitva-to74,
+[VA Cause Definitions](../policy/va-cause-definitions.md)). The bucket's section
+comes first, then `VA cause: <label> (<code>)`, then the WHO case definition
+when the bucket has one. `vas_98`, `vas_09_99` and
+`other_gastrointestinal_diseases` show the label only. An unmapped code shows
+`VA cause: not mapped`, which is information only and never blocks Process,
+save or submission. The web DORIS panel (`app/static/js/va_definition_panel.js`)
+shows the same from `GET /api/v1/va-definitions/for-icd`, which keeps its old
+keys for old APKs and adds `bucket_code`, `bucket_label`, `bucket_section` and
+`has_definition`. The selected cause's plain-text case
 definition is an expanded note beside the selection on desktop, stacked below
 on phones. Its DigitVA attribution is retained; WHO metadata stays in the details
 sheet. Lookups are shared by API instance and ICD code, with rejected requests

@@ -5,6 +5,20 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-30
 
+- **VA cause bucket shown while coding, by the analytics rule** (`digitva-to74`;
+  baseline `docs/policy/va-cause-definitions.md`, as built in
+  `docs/current-state/doris-cod-workflow.md`). The web DORIS panel and Collect
+  Plus show the bucket's section, `VA cause: <label> (<code>)` and the WHO
+  definition when there is one. An unmapped code shows `VA cause: not mapped`,
+  for information only; it never blocks submission. The COD snapshot, the
+  `/for-icd` lookup and the offline pack (schema 2, 18,505 codes, with its
+  `db_revision`) share one SQL helper. Before this change, 10 codes showed a
+  different VA cause than analytics and 6,600 showed none. Collect Plus reads
+  the pack in every mode; an online `/` cluster asks the server for WHO's
+  causing condition. The snapshot view's SQL is unchanged byte for byte, so
+  there is no migration. Old APKs keep working: the API keeps its old keys and
+  still returns 404 for an unmapped code.
+
 - **Only final ICD-11 codes reach a DORIS certificate** (`digitva-9cll.12`,
   policy `docs/policy/doris-cod-workflow.md`). An extension code alone or a
   category with children, including as a `/` cluster part, is refused at

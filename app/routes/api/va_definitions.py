@@ -3,9 +3,10 @@
 GET /          ?q=   active WHO VA cause definitions in code order, for the
                      coder "VA Definitions" modal and the help page.
 GET /for-icd   ?code=&classification=icd10|icd11
-                     the VA cause definition an ICD code maps to (through the
-                     COD bucket scheme), for the floating reference panel on
-                     the coding screens; 404 when there is none.
+                     the VA cause an ICD code maps to (through the COD bucket
+                     scheme), for the floating reference panel on the coding
+                     screens. ICD-11 returns the bucket (label, section) even
+                     when it has no definition; 404 when there is no mapping.
 Stored HTML is already sanitized (docs/policy/va-cause-definitions.md).
 """
 
@@ -41,5 +42,5 @@ def va_definition_for_icd():
         return api_error("classification must be icd10 or icd11.", status_code=400)
     found = find_va_definition_for_icd(code, classification)
     if found is None:
-        return api_error("No VA definition for this code.", status_code=404)
+        return api_error("No VA cause is mapped for this code.", status_code=404)
     return jsonify(found)

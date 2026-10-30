@@ -84,13 +84,19 @@ export interface DorisCodeInfoReply {
   item: DorisCodeInfoItem;
 }
 
-/** The VA cause an ICD-11 code maps to: its code, title and sanitized definition HTML (shown as plain text). */
+/** The VA cause bucket an ICD-11 code maps to: its code, title and sanitized definition HTML (shown as plain text). */
 export interface VaDefinition {
   icd_code: string;
   classification: string;
   va_code: string;
   title: string;
   definition_html: string;
+  /** The bucket the code resolves to (the nearest mapped node). Absent from servers that predate buckets. */
+  bucket_code?: string;
+  bucket_label?: string;
+  bucket_section?: string | null;
+  /** False for a bucket without a WHO definition: `definition_html` is then empty. Absent means true. */
+  has_definition?: boolean;
 }
 
 export function parseVaDefinition(value: unknown): VaDefinition {
@@ -101,6 +107,10 @@ export function parseVaDefinition(value: unknown): VaDefinition {
     va_code: string(source.va_code, "va_definition.va_code"),
     title: string(source.title, "va_definition.title"),
     definition_html: nullableString(source.definition_html, "va_definition.definition_html") ?? "",
+    ...(source.bucket_code === undefined ? {} : { bucket_code: string(source.bucket_code, "va_definition.bucket_code") }),
+    ...(source.bucket_label === undefined ? {} : { bucket_label: string(source.bucket_label, "va_definition.bucket_label") }),
+    ...(source.bucket_section === undefined ? {} : { bucket_section: nullableString(source.bucket_section, "va_definition.bucket_section") }),
+    ...(source.has_definition === undefined ? {} : { has_definition: boolean(source.has_definition, "va_definition.has_definition") }),
   };
 }
 

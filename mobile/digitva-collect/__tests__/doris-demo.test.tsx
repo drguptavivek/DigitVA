@@ -153,7 +153,7 @@ describe("the demo API", () => {
     expect(editor.onTerms).toHaveBeenCalledWith("fever", 5, undefined);
     expect(editor.onCodeInfo).toHaveBeenCalledWith("BA41.Z");
     expect(editor.onSelectionCheck).toHaveBeenCalledWith("BA41.Z", "uri");
-    await expect(api().getVaDefinitionForIcd("BA41.Z")).resolves.toBeNull();
+    await expect(api().getVaDefinitionForIcd("BA41.Z")).rejects.toThrow("va_definition_unavailable");
     // Subject present (the calls above ran), now absence: no store, no account, no network.
     expect(mockForbidden).not.toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();

@@ -116,8 +116,8 @@ export function createDorisDemoApi(editor: OfflineDorisEditor, allowed: () => Pr
     saveInitial: noSave,
     saveFinal: noSave,
     saveNotCodeable: noSave,
-    // VA causes are a coding-workflow crosswalk; the demo has none.
-    getVaDefinitionForIcd: async () => null,
+    // VA causes are a coding-workflow crosswalk; the demo has none. A refusal shows nothing (null would read "not mapped").
+    getVaDefinitionForIcd: async () => { throw new Error("va_definition_unavailable"); },
     async searchDorisTerms(_vaSid, query, options) {
       await allowed();
       return editor.onTerms(query, options?.limit, options?.subtreeUris);

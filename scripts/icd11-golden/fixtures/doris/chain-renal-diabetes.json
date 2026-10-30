@@ -1,0 +1,164 @@
+{
+ "id": "chain-renal-diabetes",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P61Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "GB61.5",
+       "Interval": "P2Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/820638928",
+       "Text": "Kidney failure"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "5A11",
+       "Interval": "P14Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetes"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-renal-diabetes",
+  "source": "VA cause VAs-07.01 Renal failure; VA cause VAs-03.03 Diabetes mellitus",
+  "why": "Two lines: chronic kidney disease due to diabetes"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/GB61.5",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "POST icd/release/11/2026-01/doris #f9029babee",
+    "POST icd/release/11/2026-01/codedit #f9029babee"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P61Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "GB61.5",
+          "Interval": "P2Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/820638928",
+          "Text": "Kidney failure"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "5A11",
+          "Interval": "P14Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetes"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "5A11/GB61.5",
+       "error": null,
+       "reject": false,
+       "report": "SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nGB61.5 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/GB61.5.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nGB61.5 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/GB61.5.\n",
+       "stemCode": "5A11",
+       "stemURI": "http://id.who.int/icd/entity/119724091",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;5A11;5A11;;;0;SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/GB61.5;GB61.5;Substitution:1:5A11>5A11/GB61.5;;0;GB61.5 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/GB61.5.;;;1,\"The postcoordinations - GB61.5 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/820638928",
+       "warning": "The postcoordinations - GB61.5 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "5A11",
+       "role": "stem",
+       "title": "Diabetes",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091"
+      },
+      {
+       "code": "GB61.5",
+       "role": "postcoordinated",
+       "title": "Kidney failure",
+       "uri": "http://id.who.int/icd/release/11/mms/820638928"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P61Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "GB61.5",
+         "Interval": "P2Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/820638928",
+         "Text": "Kidney failure"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "5A11",
+         "Interval": "P14Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/GB61.5": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/GB61.5","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.5","code":"GB61.5","stemId":"http://id.who.int/icd/release/11/2026-01/mms/820638928"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #f9029babee": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P61Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"GB61.5\",\"Interval\":\"P2Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/820638928\",\"Text\":\"Kidney failure\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P14Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #f9029babee": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"5A11/GB61.5","error":null,"reject":false,"report":"SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nGB61.5 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/GB61.5.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nGB61.5 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/GB61.5.\n","stemCode":"5A11","stemURI":"http://id.who.int/icd/entity/119724091","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;5A11;5A11;;;0;SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/GB61.5;GB61.5;Substitution:1:5A11>5A11/GB61.5;;0;GB61.5 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/GB61.5.;;;1,\"The postcoordinations - GB61.5 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/820638928","warning":"The postcoordinations - GB61.5 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P61Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"GB61.5\",\"Interval\":\"P2Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/820638928\",\"Text\":\"Kidney failure\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P14Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200}
+ }
+}

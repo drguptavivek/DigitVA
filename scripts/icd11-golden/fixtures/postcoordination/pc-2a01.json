@@ -1,0 +1,608 @@
+{
+ "built": [],
+ "id": "pc-2a01",
+ "input": {
+  "category": "optional",
+  "id": "pc-2a01",
+  "source": "owner list 2026-10-29",
+  "stem": "2A01",
+  "why": "Primary neoplasms of meninges: histopathology axis with 50 roots (truncated), three children"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "2A01",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "2A01",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447",
+    "GET icd/release/11/2026-01/mms/1979147242",
+    "GET icd/release/11/2026-01/mms/1284492970",
+    "GET icd/release/11/2026-01/mms/1255450803",
+    "GET icd/release/11/2026-01/mms/1401592171",
+    "GET icd/release/11/2026-01/mms/1286751171",
+    "GET icd/release/11/2026-01/mms/493891342",
+    "GET icd/release/11/2026-01/mms/59671317",
+    "GET icd/release/11/2026-01/mms/1603120779",
+    "GET icd/release/11/2026-01/mms/1041548506",
+    "GET icd/release/11/2026-01/mms/1052315868",
+    "GET icd/release/11/2026-01/mms/1414907749",
+    "GET icd/release/11/2026-01/mms/162852828",
+    "GET icd/release/11/2026-01/mms/1978867629",
+    "GET icd/release/11/2026-01/mms/1025049113",
+    "GET icd/release/11/2026-01/mms/322466810"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+         "code": "XA6HA2",
+         "has_children": true,
+         "title": "Cerebral meninges",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1284492970",
+         "code": "XA5AH0",
+         "has_children": true,
+         "title": "Spinal meninges",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1284492970"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+        "http://id.who.int/icd/release/11/2026-01/mms/1284492970"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "histopathology",
+       "instruction": "use additional code, if desired",
+       "label": "Histopathology",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+         "code": "",
+         "has_children": true,
+         "title": "Acinar cell neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1401592171",
+         "code": "",
+         "has_children": true,
+         "title": "Adenomas and adenocarcinomas",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1401592171"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1286751171",
+         "code": "",
+         "has_children": true,
+         "title": "Adnexal and skin appendage neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1286751171"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/493891342",
+         "code": "",
+         "has_children": true,
+         "title": "Basal cell neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/493891342"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/59671317",
+         "code": "",
+         "has_children": true,
+         "title": "Blood vessel tumours",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/59671317"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1603120779",
+         "code": "",
+         "has_children": true,
+         "title": "Complex epithelial neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1603120779"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1041548506",
+         "code": "",
+         "has_children": true,
+         "title": "Complex mixed and stromal neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1041548506"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1052315868",
+         "code": "",
+         "has_children": true,
+         "title": "Cystic, mucinous and serous neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1052315868"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1414907749",
+         "code": "",
+         "has_children": true,
+         "title": "Ductal and lobular neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1414907749"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/162852828",
+         "code": "",
+         "has_children": true,
+         "title": "Epithelial neoplasms, NOS",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/162852828"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1978867629",
+         "code": "",
+         "has_children": true,
+         "title": "Fibroepithelial neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1978867629"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1025049113",
+         "code": "",
+         "has_children": true,
+         "title": "Fibromatous neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1025049113"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+        "http://id.who.int/icd/release/11/2026-01/mms/1401592171",
+        "http://id.who.int/icd/release/11/2026-01/mms/1286751171",
+        "http://id.who.int/icd/release/11/2026-01/mms/493891342",
+        "http://id.who.int/icd/release/11/2026-01/mms/59671317",
+        "http://id.who.int/icd/release/11/2026-01/mms/1603120779",
+        "http://id.who.int/icd/release/11/2026-01/mms/1041548506",
+        "http://id.who.int/icd/release/11/2026-01/mms/1052315868",
+        "http://id.who.int/icd/release/11/2026-01/mms/1414907749",
+        "http://id.who.int/icd/release/11/2026-01/mms/162852828",
+        "http://id.who.int/icd/release/11/2026-01/mms/1978867629",
+        "http://id.who.int/icd/release/11/2026-01/mms/1025049113"
+       ],
+       "truncated": true
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/322466810",
+         "code": "MG30.10",
+         "has_children": false,
+         "title": "Chronic cancer pain",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/322466810"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/322466810"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447",
+    "GET icd/release/11/2026-01/mms/1979147242",
+    "GET icd/release/11/2026-01/mms/1243042431",
+    "GET icd/release/11/2026-01/mms/536810562",
+    "GET icd/release/11/2026-01/mms/1143431981",
+    "GET icd/release/11/2026-01/mms/613924498",
+    "GET icd/release/11/2026-01/mms/1753770831"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA9M51",
+       "has_children": false,
+       "title": "Cranial dura mater",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1243042431"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA6WL2",
+       "has_children": false,
+       "title": "Cranial arachnoid",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/536810562"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA2T81",
+       "has_children": false,
+       "title": "Cranial pia mater",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1143431981"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA7N98",
+       "has_children": false,
+       "title": "Tentorium cerebelli",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/613924498"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA09H1",
+       "has_children": true,
+       "title": "Falx without further specification",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1753770831"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+    "stem_code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447",
+    "GET icd/release/11/2026-01/mms/1255450803",
+    "GET icd/release/11/2026-01/mms/948063053",
+    "GET icd/release/11/2026-01/mms/978715456",
+    "GET icd/release/11/2026-01/mms/1855002887"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "histopathology",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+       "code": "",
+       "has_children": true,
+       "title": "Acinar cell neoplasms, benign",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/948063053"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+       "code": "",
+       "has_children": true,
+       "title": "Acinar cell neoplasms, malignant",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/978715456"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+       "code": "",
+       "has_children": true,
+       "title": "Acinar cell neoplasms, uncertain whether benign or malignant",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1855002887"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "histopathology",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1255450803",
+    "stem_code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447",
+    "GET icd/release/11/2026-01/mms/879154182",
+    "GET icd/release/11/2026-01/mms/1630407678",
+    "GET icd/release/11/2026-01/mms/879154182",
+    "GET icd/release/11/2026-01/mms/1719389232",
+    "GET icd/release/11/2026-01/mms/1501519274",
+    "GET icd/release/11/2026-01/mms/879154182/unspecified",
+    "GET icd/release/11/2026-01/mms/672106711",
+    "GET icd/release/11/2026-01/mms/1063986779",
+    "GET icd/release/11/2026-01/mms/1297170956"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "02",
+       "title": "Neoplasms",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1630407678"
+      },
+      {
+       "code": "",
+       "title": "Neoplasms of central nervous system or related structures",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/879154182"
+      }
+     ],
+     "children": [
+      {
+       "code": "2A01.0",
+       "has_children": true,
+       "title": "Meningiomas",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711"
+      },
+      {
+       "code": "2A01.1",
+       "has_children": false,
+       "title": "Mesenchymal tumour of meninges",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1063986779"
+      },
+      {
+       "code": "2A01.2",
+       "has_children": false,
+       "title": "Primary neoplasm of meninges of unknown or unspecified type",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1297170956"
+      }
+     ],
+     "matching_terms": [
+      "Primary neoplasms of meninges",
+      "primary neoplasm of spinal meninges"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "2A00",
+       "has_children": true,
+       "title": "Primary neoplasms of brain",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1719389232"
+      },
+      {
+       "code": "2A02",
+       "has_children": true,
+       "title": "Primary neoplasm of spinal cord, cranial nerves, paraspinal nerves or remaining parts of central nervous system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1501519274"
+      },
+      {
+       "code": "2A0Z",
+       "has_children": false,
+       "title": "Other and unspecified neoplasms of brain or central nervous system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "2A01"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01",
+    "GET icd/release/11/2026-01/mms/220111447"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01",
+      "title": "Primary neoplasms of meninges",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1025049113": {"method":"GET","path":"icd/release/11/2026-01/mms/1025049113","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1025049113","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1025049113","child":["http://id.who.int/icd/release/11/2026-01/mms/501248037","http://id.who.int/icd/release/11/2026-01/mms/405907275","http://id.who.int/icd/release/11/2026-01/mms/666616915"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1025049113","title":{"@language":"en","@value":"Fibromatous neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1041548506": {"method":"GET","path":"icd/release/11/2026-01/mms/1041548506","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1041548506","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1041548506","child":["http://id.who.int/icd/release/11/2026-01/mms/518895336","http://id.who.int/icd/release/11/2026-01/mms/237449042","http://id.who.int/icd/release/11/2026-01/mms/250320176"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1041548506","title":{"@language":"en","@value":"Complex mixed and stromal neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1052315868": {"method":"GET","path":"icd/release/11/2026-01/mms/1052315868","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1052315868","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1052315868","child":["http://id.who.int/icd/release/11/2026-01/mms/243989336","http://id.who.int/icd/release/11/2026-01/mms/522986416","http://id.who.int/icd/release/11/2026-01/mms/2067562277","http://id.who.int/icd/release/11/2026-01/mms/1528886665"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1052315868","title":{"@language":"en","@value":"Cystic, mucinous and serous neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1063986779": {"method":"GET","path":"icd/release/11/2026-01/mms/1063986779","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1063986779","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1063986779","classKind":"category","code":"2A01.1","indexTerm":[{"label":{"@language":"en","@value":"Mesenchymal tumour of meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/220111447"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1063986779/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1063986779/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1255450803","http://id.who.int/icd/release/11/2026-01/mms/1401592171","http://id.who.int/icd/release/11/2026-01/mms/1286751171","http://id.who.int/icd/release/11/2026-01/mms/493891342","http://id.who.int/icd/release/11/2026-01/mms/59671317","http://id.who.int/icd/release/11/2026-01/mms/1603120779","http://id.who.int/icd/release/11/2026-01/mms/1041548506","http://id.who.int/icd/release/11/2026-01/mms/1052315868","http://id.who.int/icd/release/11/2026-01/mms/1414907749","http://id.who.int/icd/release/11/2026-01/mms/162852828","http://id.who.int/icd/release/11/2026-01/mms/1978867629","http://id.who.int/icd/release/11/2026-01/mms/1025049113","http://id.who.int/icd/release/11/2026-01/mms/8987040","http://id.who.int/icd/release/11/2026-01/mms/218746635","http://id.who.int/icd/release/11/2026-01/mms/1079699653","http://id.who.int/icd/release/11/2026-01/mms/1983715813","http://id.who.int/icd/release/11/2026-01/mms/1878363789","http://id.who.int/icd/release/11/2026-01/mms/332064829","http://id.who.int/icd/release/11/2026-01/mms/578851160","http://id.who.int/icd/release/11/2026-01/mms/1716858530","http://id.who.int/icd/release/11/2026-01/mms/546679566","http://id.who.int/icd/release/11/2026-01/mms/854107677","http://id.who.int/icd/release/11/2026-01/mms/1260174985","http://id.who.int/icd/release/11/2026-01/mms/726115988","http://id.who.int/icd/release/11/2026-01/mms/2049079851","http://id.who.int/icd/release/11/2026-01/mms/79274524","http://id.who.int/icd/release/11/2026-01/mms/2022905621","http://id.who.int/icd/release/11/2026-01/mms/928474622","http://id.who.int/icd/release/11/2026-01/mms/108819171","http://id.who.int/icd/release/11/2026-01/mms/410618845","http://id.who.int/icd/release/11/2026-01/mms/1308280814","http://id.who.int/icd/release/11/2026-01/mms/1550841006","http://id.who.int/icd/release/11/2026-01/mms/1219462764","http://id.who.int/icd/release/11/2026-01/mms/521514084","http://id.who.int/icd/release/11/2026-01/mms/226408345","http://id.who.int/icd/release/11/2026-01/mms/358536454","http://id.who.int/icd/release/11/2026-01/mms/1083553185","http://id.who.int/icd/release/11/2026-01/mms/2108039829","http://id.who.int/icd/release/11/2026-01/mms/428602671","http://id.who.int/icd/release/11/2026-01/mms/2128446983","http://id.who.int/icd/release/11/2026-01/mms/1965497047","http://id.who.int/icd/release/11/2026-01/mms/1826383387","http://id.who.int/icd/release/11/2026-01/mms/1024952760","http://id.who.int/icd/release/11/2026-01/mms/2065413738","http://id.who.int/icd/release/11/2026-01/mms/1891884932","http://id.who.int/icd/release/11/2026-01/mms/1488076383","http://id.who.int/icd/release/11/2026-01/mms/732271914","http://id.who.int/icd/release/11/2026-01/mms/1792010545","http://id.who.int/icd/release/11/2026-01/mms/496794681","http://id.who.int/icd/release/11/2026-01/mms/1295816090"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1063986779/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/1063986779","title":{"@language":"en","@value":"Mesenchymal tumour of meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1143431981": {"method":"GET","path":"icd/release/11/2026-01/mms/1143431981","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1143431981","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1143431981","classKind":"category","code":"XA2T81","indexTerm":[{"label":{"@language":"en","@value":"Cranial pia mater"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/1143431981","title":{"@language":"en","@value":"Cranial pia mater"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1243042431": {"method":"GET","path":"icd/release/11/2026-01/mms/1243042431","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1243042431","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1243042431","classKind":"category","code":"XA9M51","indexTerm":[{"label":{"@language":"en","@value":"Cranial dura mater"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/1243042431","title":{"@language":"en","@value":"Cranial dura mater"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1255450803": {"method":"GET","path":"icd/release/11/2026-01/mms/1255450803","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1255450803","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1255450803","child":["http://id.who.int/icd/release/11/2026-01/mms/948063053","http://id.who.int/icd/release/11/2026-01/mms/978715456","http://id.who.int/icd/release/11/2026-01/mms/1855002887"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1255450803","title":{"@language":"en","@value":"Acinar cell neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1284492970": {"method":"GET","path":"icd/release/11/2026-01/mms/1284492970","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1284492970","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1284492970","child":["http://id.who.int/icd/release/11/2026-01/mms/259507478","http://id.who.int/icd/release/11/2026-01/mms/342177102","http://id.who.int/icd/release/11/2026-01/mms/1970850295"],"classKind":"category","code":"XA5AH0","indexTerm":[{"label":{"@language":"en","@value":"Spinal meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1537714794"],"source":"http://id.who.int/icd/entity/1284492970","title":{"@language":"en","@value":"Spinal meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1286751171": {"method":"GET","path":"icd/release/11/2026-01/mms/1286751171","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1286751171","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1286751171","child":["http://id.who.int/icd/release/11/2026-01/mms/1289308621","http://id.who.int/icd/release/11/2026-01/mms/136153868","http://id.who.int/icd/release/11/2026-01/mms/948797042","http://id.who.int/icd/release/11/2026-01/mms/1208997373"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1286751171","title":{"@language":"en","@value":"Adnexal and skin appendage neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1297170956": {"method":"GET","path":"icd/release/11/2026-01/mms/1297170956","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1297170956","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1297170956","classKind":"category","code":"2A01.2","indexTerm":[{"label":{"@language":"en","@value":"Primary neoplasm of meninges of unknown or unspecified type"}},{"label":{"@language":"en","@value":"Neoplasm of meninges of uncertain or unknown behaviour"}},{"foundationReference":"http://id.who.int/icd/entity/1845893753","label":{"@language":"en","@value":"Malignant neoplasms of meninges"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"Malignant neoplasm of cerebral meninges"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"brain meninges cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cerebral meningeal cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cerebral meninges cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cerebrum meningeal cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cranial meningeal cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cranial meninges cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cranium meningeal cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"cranium meninges cancer"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"primary malignant neoplasm of cerebral meninges"}},{"foundationReference":"http://id.who.int/icd/entity/2927658","label":{"@language":"en","@value":"tentorial cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1701274048","label":{"@language":"en","@value":"Malignant neoplasm of spinal meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1701274048","label":{"@language":"en","@value":"primary malignant neoplasm of spinal meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1701274048","label":{"@language":"en","@value":"spinal arachnoid cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1701274048","label":{"@language":"en","@value":"spinal meningeal cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"Malignant neoplasm of meninges, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"arachnoid cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"cancer of the meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"malignant meningeal neoplasm"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"malignant neoplasm of meninges NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"malignant tumour of meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"meningeal cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"primary malignant neoplasm of meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1809901418","label":{"@language":"en","@value":"subdural cancer"}},{"foundationReference":"http://id.who.int/icd/entity/786352810","label":{"@language":"en","@value":"Benign neoplasm of meninges, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/786352810","label":{"@language":"en","@value":"benign meningeal neoplasm"}},{"foundationReference":"http://id.who.int/icd/entity/786352810","label":{"@language":"en","@value":"benign meninges neoplasm"}},{"foundationReference":"http://id.who.int/icd/entity/786352810","label":{"@language":"en","@value":"benign neoplasm of meninges NOS"}},{"foundationReference":"http://id.who.int/icd/entity/786352810","label":{"@language":"en","@value":"benign tumour of meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1384842159","label":{"@language":"en","@value":"Psammoma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1831720135","label":{"@language":"en","@value":"Neoplasm of uncertain or unknown behaviour of cerebral meninges"}},{"foundationReference":"http://id.who.int/icd/entity/1841835095","label":{"@language":"en","@value":"Neoplasm of uncertain or unknown behaviour of spinal meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/220111447"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1297170956/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/1297170956","title":{"@language":"en","@value":"Primary neoplasm of meninges of unknown or unspecified type"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1401592171": {"method":"GET","path":"icd/release/11/2026-01/mms/1401592171","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1401592171","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1401592171","child":["http://id.who.int/icd/release/11/2026-01/mms/653305704","http://id.who.int/icd/release/11/2026-01/mms/1395468571","http://id.who.int/icd/release/11/2026-01/mms/1936976727","http://id.who.int/icd/release/11/2026-01/mms/1114507629"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1401592171","title":{"@language":"en","@value":"Adenomas and adenocarcinomas"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1414907749": {"method":"GET","path":"icd/release/11/2026-01/mms/1414907749","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1414907749","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1414907749","child":["http://id.who.int/icd/release/11/2026-01/mms/976077838","http://id.who.int/icd/release/11/2026-01/mms/1324810543","http://id.who.int/icd/release/11/2026-01/mms/33540540"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1414907749","title":{"@language":"en","@value":"Ductal and lobular neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1501519274": {"method":"GET","path":"icd/release/11/2026-01/mms/1501519274","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1501519274","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1501519274","child":["http://id.who.int/icd/release/11/2026-01/mms/161690729","http://id.who.int/icd/release/11/2026-01/mms/1352310002","http://id.who.int/icd/release/11/2026-01/mms/783234001","http://id.who.int/icd/release/11/2026-01/mms/759634326","http://id.who.int/icd/release/11/2026-01/mms/1588169218","http://id.who.int/icd/release/11/2026-01/mms/1501519274/unspecified"],"classKind":"category","code":"2A02","parent":["http://id.who.int/icd/release/11/2026-01/mms/879154182"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1501519274/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1150229943","http://id.who.int/icd/release/11/2026-01/mms/2108063439"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1501519274/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/1501519274","title":{"@language":"en","@value":"Primary neoplasm of spinal cord, cranial nerves, paraspinal nerves or remaining parts of central nervous system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1603120779": {"method":"GET","path":"icd/release/11/2026-01/mms/1603120779","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1603120779","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1603120779","child":["http://id.who.int/icd/release/11/2026-01/mms/893926364","http://id.who.int/icd/release/11/2026-01/mms/436781428"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1603120779","title":{"@language":"en","@value":"Complex epithelial neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/162852828": {"method":"GET","path":"icd/release/11/2026-01/mms/162852828","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/162852828","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#162852828","child":["http://id.who.int/icd/release/11/2026-01/mms/676729547","http://id.who.int/icd/release/11/2026-01/mms/1370766919","http://id.who.int/icd/release/11/2026-01/mms/2033599569","http://id.who.int/icd/release/11/2026-01/mms/2076240663"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/162852828","title":{"@language":"en","@value":"Epithelial neoplasms, NOS"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1630407678": {"method":"GET","path":"icd/release/11/2026-01/mms/1630407678","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1630407678","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1630407678","child":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"],"classKind":"chapter","code":"02","definition":{"@language":"en","@value":"An abnormal or uncontrolled cellular proliferation which is not coordinated with an organism's requirements for normal tissue growth, replacement or repair."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1630407678","title":{"@language":"en","@value":"Neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1719389232": {"method":"GET","path":"icd/release/11/2026-01/mms/1719389232","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1719389232","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1719389232","child":["http://id.who.int/icd/release/11/2026-01/mms/422307135","http://id.who.int/icd/release/11/2026-01/mms/1994022806","http://id.who.int/icd/release/11/2026-01/mms/915334913","http://id.who.int/icd/release/11/2026-01/mms/1247650801","http://id.who.int/icd/release/11/2026-01/mms/96344074","http://id.who.int/icd/release/11/2026-01/mms/677986724"],"classKind":"category","code":"2A00","indexTerm":[{"label":{"@language":"en","@value":"Primary neoplasms of brain"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/879154182"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1719389232/postcoordinationScale/relational","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/relational","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1190123007","http://id.who.int/icd/release/11/2026-01/mms/648538052","http://id.who.int/icd/release/11/2026-01/mms/1145558243","http://id.who.int/icd/release/11/2026-01/mms/1928353529","http://id.who.int/icd/release/11/2026-01/mms/1516145872","http://id.who.int/icd/release/11/2026-01/mms/548698273","http://id.who.int/icd/release/11/2026-01/mms/1172656077","http://id.who.int/icd/release/11/2026-01/mms/487792839","http://id.who.int/icd/release/11/2026-01/mms/687243922","http://id.who.int/icd/release/11/2026-01/mms/1294462156","http://id.who.int/icd/release/11/2026-01/mms/239911955","http://id.who.int/icd/release/11/2026-01/mms/1470045894","http://id.who.int/icd/release/11/2026-01/mms/2036167265","http://id.who.int/icd/release/11/2026-01/mms/820615985","http://id.who.int/icd/release/11/2026-01/mms/1013312453","http://id.who.int/icd/release/11/2026-01/mms/423444880"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1719389232/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1048482858"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1719389232/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1255450803","http://id.who.int/icd/release/11/2026-01/mms/1401592171","http://id.who.int/icd/release/11/2026-01/mms/1286751171","http://id.who.int/icd/release/11/2026-01/mms/493891342","http://id.who.int/icd/release/11/2026-01/mms/59671317","http://id.who.int/icd/release/11/2026-01/mms/1603120779","http://id.who.int/icd/release/11/2026-01/mms/1041548506","http://id.who.int/icd/release/11/2026-01/mms/1052315868","http://id.who.int/icd/release/11/2026-01/mms/1414907749","http://id.who.int/icd/release/11/2026-01/mms/162852828","http://id.who.int/icd/release/11/2026-01/mms/1978867629","http://id.who.int/icd/release/11/2026-01/mms/1025049113","http://id.who.int/icd/release/11/2026-01/mms/8987040","http://id.who.int/icd/release/11/2026-01/mms/218746635","http://id.who.int/icd/release/11/2026-01/mms/1079699653","http://id.who.int/icd/release/11/2026-01/mms/1983715813","http://id.who.int/icd/release/11/2026-01/mms/1878363789","http://id.who.int/icd/release/11/2026-01/mms/332064829","http://id.who.int/icd/release/11/2026-01/mms/578851160","http://id.who.int/icd/release/11/2026-01/mms/1716858530","http://id.who.int/icd/release/11/2026-01/mms/546679566","http://id.who.int/icd/release/11/2026-01/mms/854107677","http://id.who.int/icd/release/11/2026-01/mms/1260174985","http://id.who.int/icd/release/11/2026-01/mms/726115988","http://id.who.int/icd/release/11/2026-01/mms/2049079851","http://id.who.int/icd/release/11/2026-01/mms/79274524","http://id.who.int/icd/release/11/2026-01/mms/2022905621","http://id.who.int/icd/release/11/2026-01/mms/928474622","http://id.who.int/icd/release/11/2026-01/mms/108819171","http://id.who.int/icd/release/11/2026-01/mms/410618845","http://id.who.int/icd/release/11/2026-01/mms/1308280814","http://id.who.int/icd/release/11/2026-01/mms/1550841006","http://id.who.int/icd/release/11/2026-01/mms/1219462764","http://id.who.int/icd/release/11/2026-01/mms/521514084","http://id.who.int/icd/release/11/2026-01/mms/226408345","http://id.who.int/icd/release/11/2026-01/mms/358536454","http://id.who.int/icd/release/11/2026-01/mms/1083553185","http://id.who.int/icd/release/11/2026-01/mms/2108039829","http://id.who.int/icd/release/11/2026-01/mms/428602671","http://id.who.int/icd/release/11/2026-01/mms/2128446983","http://id.who.int/icd/release/11/2026-01/mms/1965497047","http://id.who.int/icd/release/11/2026-01/mms/1826383387","http://id.who.int/icd/release/11/2026-01/mms/1024952760","http://id.who.int/icd/release/11/2026-01/mms/2065413738","http://id.who.int/icd/release/11/2026-01/mms/1891884932","http://id.who.int/icd/release/11/2026-01/mms/1488076383","http://id.who.int/icd/release/11/2026-01/mms/732271914","http://id.who.int/icd/release/11/2026-01/mms/1792010545","http://id.who.int/icd/release/11/2026-01/mms/496794681","http://id.who.int/icd/release/11/2026-01/mms/1295816090"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1719389232/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/1719389232","title":{"@language":"en","@value":"Primary neoplasms of brain"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1753770831": {"method":"GET","path":"icd/release/11/2026-01/mms/1753770831","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1753770831","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1753770831","child":["http://id.who.int/icd/release/11/2026-01/mms/907939357","http://id.who.int/icd/release/11/2026-01/mms/1085519869"],"classKind":"category","code":"XA09H1","indexTerm":[{"label":{"@language":"en","@value":"Falx without further specification"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/1753770831","title":{"@language":"en","@value":"Falx without further specification"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1855002887": {"method":"GET","path":"icd/release/11/2026-01/mms/1855002887","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1855002887","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1855002887","child":["http://id.who.int/icd/release/11/2026-01/mms/1424224159"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1255450803"],"source":"http://id.who.int/icd/entity/1855002887","title":{"@language":"en","@value":"Acinar cell neoplasms, uncertain whether benign or malignant"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1978867629": {"method":"GET","path":"icd/release/11/2026-01/mms/1978867629","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1978867629","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1978867629","child":["http://id.who.int/icd/release/11/2026-01/mms/813068374","http://id.who.int/icd/release/11/2026-01/mms/1070594248","http://id.who.int/icd/release/11/2026-01/mms/285653930"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/1978867629","title":{"@language":"en","@value":"Fibroepithelial neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1979147242": {"method":"GET","path":"icd/release/11/2026-01/mms/1979147242","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1979147242","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1979147242","child":["http://id.who.int/icd/release/11/2026-01/mms/1243042431","http://id.who.int/icd/release/11/2026-01/mms/536810562","http://id.who.int/icd/release/11/2026-01/mms/1143431981","http://id.who.int/icd/release/11/2026-01/mms/613924498","http://id.who.int/icd/release/11/2026-01/mms/1753770831"],"classKind":"category","code":"XA6HA2","indexTerm":[{"label":{"@language":"en","@value":"Cerebral meninges"}},{"label":{"@language":"en","@value":"Brain meninges"}},{"label":{"@language":"en","@value":"Cranial meninges"}},{"label":{"@language":"en","@value":"Intracranial meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1537714794"],"source":"http://id.who.int/icd/entity/1979147242","title":{"@language":"en","@value":"Cerebral meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/220111447": {"method":"GET","path":"icd/release/11/2026-01/mms/220111447","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#220111447","child":["http://id.who.int/icd/release/11/2026-01/mms/672106711","http://id.who.int/icd/release/11/2026-01/mms/1063986779","http://id.who.int/icd/release/11/2026-01/mms/1297170956"],"classKind":"category","code":"2A01","indexTerm":[{"label":{"@language":"en","@value":"Primary neoplasms of meninges"}},{"label":{"@language":"en","@value":"primary neoplasm of spinal meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/879154182"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1255450803","http://id.who.int/icd/release/11/2026-01/mms/1401592171","http://id.who.int/icd/release/11/2026-01/mms/1286751171","http://id.who.int/icd/release/11/2026-01/mms/493891342","http://id.who.int/icd/release/11/2026-01/mms/59671317","http://id.who.int/icd/release/11/2026-01/mms/1603120779","http://id.who.int/icd/release/11/2026-01/mms/1041548506","http://id.who.int/icd/release/11/2026-01/mms/1052315868","http://id.who.int/icd/release/11/2026-01/mms/1414907749","http://id.who.int/icd/release/11/2026-01/mms/162852828","http://id.who.int/icd/release/11/2026-01/mms/1978867629","http://id.who.int/icd/release/11/2026-01/mms/1025049113","http://id.who.int/icd/release/11/2026-01/mms/8987040","http://id.who.int/icd/release/11/2026-01/mms/218746635","http://id.who.int/icd/release/11/2026-01/mms/1079699653","http://id.who.int/icd/release/11/2026-01/mms/1983715813","http://id.who.int/icd/release/11/2026-01/mms/1878363789","http://id.who.int/icd/release/11/2026-01/mms/332064829","http://id.who.int/icd/release/11/2026-01/mms/578851160","http://id.who.int/icd/release/11/2026-01/mms/1716858530","http://id.who.int/icd/release/11/2026-01/mms/546679566","http://id.who.int/icd/release/11/2026-01/mms/854107677","http://id.who.int/icd/release/11/2026-01/mms/1260174985","http://id.who.int/icd/release/11/2026-01/mms/726115988","http://id.who.int/icd/release/11/2026-01/mms/2049079851","http://id.who.int/icd/release/11/2026-01/mms/79274524","http://id.who.int/icd/release/11/2026-01/mms/2022905621","http://id.who.int/icd/release/11/2026-01/mms/928474622","http://id.who.int/icd/release/11/2026-01/mms/108819171","http://id.who.int/icd/release/11/2026-01/mms/410618845","http://id.who.int/icd/release/11/2026-01/mms/1308280814","http://id.who.int/icd/release/11/2026-01/mms/1550841006","http://id.who.int/icd/release/11/2026-01/mms/1219462764","http://id.who.int/icd/release/11/2026-01/mms/521514084","http://id.who.int/icd/release/11/2026-01/mms/226408345","http://id.who.int/icd/release/11/2026-01/mms/358536454","http://id.who.int/icd/release/11/2026-01/mms/1083553185","http://id.who.int/icd/release/11/2026-01/mms/2108039829","http://id.who.int/icd/release/11/2026-01/mms/428602671","http://id.who.int/icd/release/11/2026-01/mms/2128446983","http://id.who.int/icd/release/11/2026-01/mms/1965497047","http://id.who.int/icd/release/11/2026-01/mms/1826383387","http://id.who.int/icd/release/11/2026-01/mms/1024952760","http://id.who.int/icd/release/11/2026-01/mms/2065413738","http://id.who.int/icd/release/11/2026-01/mms/1891884932","http://id.who.int/icd/release/11/2026-01/mms/1488076383","http://id.who.int/icd/release/11/2026-01/mms/732271914","http://id.who.int/icd/release/11/2026-01/mms/1792010545","http://id.who.int/icd/release/11/2026-01/mms/496794681","http://id.who.int/icd/release/11/2026-01/mms/1295816090"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/220111447","title":{"@language":"en","@value":"Primary neoplasms of meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/322466810": {"method":"GET","path":"icd/release/11/2026-01/mms/322466810","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#322466810","classKind":"category","code":"MG30.10","definition":{"@language":"en","@value":"Chronic cancer pain is chronic pain caused by the primary cancer or metastases. It should be highly probable that the pain is due to cancer; if its genesis is vague, consider using codes in the section of chronic primary pain."},"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/925682659","label":{"@language":"en","@value":"Chronic visceral cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1223823468","label":{"@language":"en","@value":"Chronic bone cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1480100314","label":{"@language":"en","@value":"Chronic neuropathic cancer pain"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic cancer pain"}},{"label":{"@language":"en","@value":"chronic malignant pain"}},{"label":{"@language":"en","@value":"chronic metastases pain"}},{"label":{"@language":"en","@value":"chronic neoplasm pain"}},{"label":{"@language":"en","@value":"chronic neoplastic pain"}},{"foundationReference":"http://id.who.int/icd/entity/925682659","label":{"@language":"en","@value":"Chronic visceral cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1223823468","label":{"@language":"en","@value":"Chronic bone cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1480100314","label":{"@language":"en","@value":"Chronic neuropathic cancer pain"}}],"longDefinition":{"@language":"en","@value":"Chronic cancer pain is chronic pain caused by the primary cancer or metastases. It should be highly probable that the pain is due to cancer; if its genesis is vague, consider using codes in the section of chronic primary pain.\n\nChronic cancer pain is a presenting feature of cancer in over 30% of patients. About 64% of patients experience pain with advanced or persistent cancer. On average, each cancer patient will identify two distinct pains. In many patients, careful assessment is therefore required to distinguish pain caused by cancer from pain caused by cancer treatment or co-morbid conditions. In particular, it is common for these pains to overlap, for example, thoracic surgery for a lung cancer might cause post-surgical pain, which can be exacerbated by cancer recurrence in the same area. In these situations, the clinician must decide the predominant cause of pain and base treatment on this.\n\nDiagnostic Criteria.\n\nConditions A to C are fulfilled:\n\nA. Chronic pain (persistent or recurrent for longer than 3 months) is present.\n\nB. The pain is anatomically related to a known primary tumor or metastases confirmed on clinical and radiological examination.\n\nC. The pain is not better accounted for by another diagnosis of chronic pain"},"parent":["http://id.who.int/icd/release/11/2026-01/mms/785363034"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1007332872","http://id.who.int/icd/release/11/2026-01/mms/597444540"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/501504598","http://id.who.int/icd/release/11/2026-01/mms/932220680","http://id.who.int/icd/release/11/2026-01/mms/671508148","http://id.who.int/icd/release/11/2026-01/mms/579584480"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/137604848","http://id.who.int/icd/release/11/2026-01/mms/1926847105","http://id.who.int/icd/release/11/2026-01/mms/489218088","http://id.who.int/icd/release/11/2026-01/mms/2029211037"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/145592658","http://id.who.int/icd/release/11/2026-01/mms/1824378311","http://id.who.int/icd/release/11/2026-01/mms/1714449067","http://id.who.int/icd/release/11/2026-01/mms/1721227995"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/temporalPatternAndOnset","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/temporalPatternAndOnset","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1281193286","http://id.who.int/icd/release/11/2026-01/mms/1313511357","http://id.who.int/icd/release/11/2026-01/mms/47514516"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"]}],"source":"http://id.who.int/icd/entity/322466810","title":{"@language":"en","@value":"Chronic cancer pain"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/493891342": {"method":"GET","path":"icd/release/11/2026-01/mms/493891342","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/493891342","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#493891342","child":["http://id.who.int/icd/release/11/2026-01/mms/489842668","http://id.who.int/icd/release/11/2026-01/mms/1032412464","http://id.who.int/icd/release/11/2026-01/mms/765869078"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/493891342","title":{"@language":"en","@value":"Basal cell neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/536810562": {"method":"GET","path":"icd/release/11/2026-01/mms/536810562","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/536810562","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#536810562","classKind":"category","code":"XA6WL2","indexTerm":[{"label":{"@language":"en","@value":"Cranial arachnoid"}},{"label":{"@language":"en","@value":"Intracranial arachnoid"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/536810562","title":{"@language":"en","@value":"Cranial arachnoid"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/59671317": {"method":"GET","path":"icd/release/11/2026-01/mms/59671317","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/59671317","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#59671317","child":["http://id.who.int/icd/release/11/2026-01/mms/595063081","http://id.who.int/icd/release/11/2026-01/mms/2008137384","http://id.who.int/icd/release/11/2026-01/mms/2092277770"],"classKind":"block","code":"","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/955977370","label":{"@language":"en","@value":"Haemangiopericytic meningioma"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/955977370"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/411368752"],"source":"http://id.who.int/icd/entity/59671317","title":{"@language":"en","@value":"Blood vessel tumours"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/613924498": {"method":"GET","path":"icd/release/11/2026-01/mms/613924498","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/613924498","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#613924498","classKind":"category","code":"XA7N98","indexTerm":[{"label":{"@language":"en","@value":"Tentorium cerebelli"}},{"label":{"@language":"en","@value":"Tentorium, NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/613924498","title":{"@language":"en","@value":"Tentorium cerebelli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672106711": {"method":"GET","path":"icd/release/11/2026-01/mms/672106711","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672106711","child":["http://id.who.int/icd/release/11/2026-01/mms/1478862889","http://id.who.int/icd/release/11/2026-01/mms/672106711/other","http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified"],"classKind":"category","code":"2A01.0","parent":["http://id.who.int/icd/release/11/2026-01/mms/220111447"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/941774610","http://id.who.int/icd/release/11/2026-01/mms/41542502","http://id.who.int/icd/release/11/2026-01/mms/1647432031"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/672106711","title":{"@language":"en","@value":"Meningiomas"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/879154182": {"method":"GET","path":"icd/release/11/2026-01/mms/879154182","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182","blockId":"BlockL1-2A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#879154182","child":["http://id.who.int/icd/release/11/2026-01/mms/1719389232","http://id.who.int/icd/release/11/2026-01/mms/220111447","http://id.who.int/icd/release/11/2026-01/mms/1501519274","http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified"],"classKind":"block","code":"","codeRange":"2A00-2A0Z","definition":{"@language":"en","@value":"A benign or malignant neoplasm that affects the brain, meninges, or spinal cord. Representative examples of primary neoplasms include astrocytoma, oligodendroglioma, ependymoma, and meningioma."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/577085257","label":{"@language":"en","@value":"Malignant neoplasm metastasis in brain"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/577085257"},{"foundationReference":"http://id.who.int/icd/entity/15093038","label":{"@language":"en","@value":"Malignant neoplasm metastasis in meninges"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/15093038"},{"foundationReference":"http://id.who.int/icd/entity/800171581","label":{"@language":"en","@value":"Malignant neoplasm metastasis in spinal cord, cranial nerves or paraspinal nerves"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/800171581"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1630407678"],"source":"http://id.who.int/icd/entity/879154182","title":{"@language":"en","@value":"Neoplasms of central nervous system or related structures"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/879154182/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/879154182/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#879154182/unspecified","classKind":"category","code":"2A0Z","indexTerm":[{"label":{"@language":"en","@value":"Other and unspecified neoplasms of brain or central nervous system"}},{"foundationReference":"http://id.who.int/icd/entity/879154182","label":{"@language":"en","@value":"CNS - [central nervous system] neoplastic disease NOS"}},{"foundationReference":"http://id.who.int/icd/entity/879154182","label":{"@language":"en","@value":"central nervous system neoplastic disease NOS"}},{"foundationReference":"http://id.who.int/icd/entity/879154182","label":{"@language":"en","@value":"neoplasm of nervous system NOS"}},{"foundationReference":"http://id.who.int/icd/entity/879154182","label":{"@language":"en","@value":"neoplasms of brain or central nervous system"}},{"foundationReference":"http://id.who.int/icd/entity/539210076","label":{"@language":"en","@value":"Primary melanoma of the central nervous system"}},{"foundationReference":"http://id.who.int/icd/entity/25897519","label":{"@language":"en","@value":"Nonpolyposis Turcot syndrome"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/879154182"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1255450803","http://id.who.int/icd/release/11/2026-01/mms/1401592171","http://id.who.int/icd/release/11/2026-01/mms/1286751171","http://id.who.int/icd/release/11/2026-01/mms/493891342","http://id.who.int/icd/release/11/2026-01/mms/59671317","http://id.who.int/icd/release/11/2026-01/mms/1603120779","http://id.who.int/icd/release/11/2026-01/mms/1041548506","http://id.who.int/icd/release/11/2026-01/mms/1052315868","http://id.who.int/icd/release/11/2026-01/mms/1414907749","http://id.who.int/icd/release/11/2026-01/mms/162852828","http://id.who.int/icd/release/11/2026-01/mms/1978867629","http://id.who.int/icd/release/11/2026-01/mms/1025049113","http://id.who.int/icd/release/11/2026-01/mms/8987040","http://id.who.int/icd/release/11/2026-01/mms/218746635","http://id.who.int/icd/release/11/2026-01/mms/1079699653","http://id.who.int/icd/release/11/2026-01/mms/1983715813","http://id.who.int/icd/release/11/2026-01/mms/1878363789","http://id.who.int/icd/release/11/2026-01/mms/332064829","http://id.who.int/icd/release/11/2026-01/mms/578851160","http://id.who.int/icd/release/11/2026-01/mms/1716858530","http://id.who.int/icd/release/11/2026-01/mms/546679566","http://id.who.int/icd/release/11/2026-01/mms/854107677","http://id.who.int/icd/release/11/2026-01/mms/1260174985","http://id.who.int/icd/release/11/2026-01/mms/726115988","http://id.who.int/icd/release/11/2026-01/mms/2049079851","http://id.who.int/icd/release/11/2026-01/mms/79274524","http://id.who.int/icd/release/11/2026-01/mms/2022905621","http://id.who.int/icd/release/11/2026-01/mms/928474622","http://id.who.int/icd/release/11/2026-01/mms/108819171","http://id.who.int/icd/release/11/2026-01/mms/410618845","http://id.who.int/icd/release/11/2026-01/mms/1308280814","http://id.who.int/icd/release/11/2026-01/mms/1550841006","http://id.who.int/icd/release/11/2026-01/mms/1219462764","http://id.who.int/icd/release/11/2026-01/mms/521514084","http://id.who.int/icd/release/11/2026-01/mms/226408345","http://id.who.int/icd/release/11/2026-01/mms/358536454","http://id.who.int/icd/release/11/2026-01/mms/1083553185","http://id.who.int/icd/release/11/2026-01/mms/2108039829","http://id.who.int/icd/release/11/2026-01/mms/428602671","http://id.who.int/icd/release/11/2026-01/mms/2128446983","http://id.who.int/icd/release/11/2026-01/mms/1965497047","http://id.who.int/icd/release/11/2026-01/mms/1826383387","http://id.who.int/icd/release/11/2026-01/mms/1024952760","http://id.who.int/icd/release/11/2026-01/mms/2065413738","http://id.who.int/icd/release/11/2026-01/mms/1891884932","http://id.who.int/icd/release/11/2026-01/mms/1488076383","http://id.who.int/icd/release/11/2026-01/mms/732271914","http://id.who.int/icd/release/11/2026-01/mms/1792010545","http://id.who.int/icd/release/11/2026-01/mms/496794681","http://id.who.int/icd/release/11/2026-01/mms/1295816090"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1588637324","http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2023608436","http://id.who.int/icd/release/11/2026-01/mms/2001687278","http://id.who.int/icd/release/11/2026-01/mms/222322191","http://id.who.int/icd/release/11/2026-01/mms/841991559","http://id.who.int/icd/release/11/2026-01/mms/697502435"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"title":{"@language":"en","@value":"Other and unspecified neoplasms of brain or central nervous system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/948063053": {"method":"GET","path":"icd/release/11/2026-01/mms/948063053","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/948063053","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#948063053","child":["http://id.who.int/icd/release/11/2026-01/mms/1170903121"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1255450803"],"source":"http://id.who.int/icd/entity/948063053","title":{"@language":"en","@value":"Acinar cell neoplasms, benign"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/978715456": {"method":"GET","path":"icd/release/11/2026-01/mms/978715456","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/978715456","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#978715456","child":["http://id.who.int/icd/release/11/2026-01/mms/1322159869","http://id.who.int/icd/release/11/2026-01/mms/891498964","http://id.who.int/icd/release/11/2026-01/mms/553369473","http://id.who.int/icd/release/11/2026-01/mms/12605568"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1255450803"],"source":"http://id.who.int/icd/entity/978715456","title":{"@language":"en","@value":"Acinar cell neoplasms, malignant"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2A01": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2A01","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2A01","code":"2A01","stemId":"http://id.who.int/icd/release/11/2026-01/mms/220111447"},"request_body":null,"status":200}
+ }
+}

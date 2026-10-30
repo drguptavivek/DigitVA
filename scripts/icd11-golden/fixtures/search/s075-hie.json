@@ -1,0 +1,98 @@
+{
+ "id": "s075-hie",
+ "input": {
+  "id": "s075-hie",
+  "kind": "abbreviation",
+  "query": "HIE",
+  "source": "VAs-10.02",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #a409ac3cb2"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "AB52",
+       "has_coding_note": false,
+       "matching_text": "Deafness not otherwise specified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Deafness not otherwise specified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/947280473"
+      },
+      {
+       "code": "NA0Z",
+       "has_coding_note": true,
+       "matching_text": "Injuries to the head, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Injuries to the head, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/452386362/unspecified"
+      },
+      {
+       "code": "4A01.34",
+       "has_coding_note": false,
+       "matching_text": "Hyperimmunoglobulin E syndromes",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Hyperimmunoglobulin E syndromes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/223461798"
+      },
+      {
+       "code": "KB04",
+       "has_coding_note": false,
+       "matching_text": "Hypoxic ischaemic encephalopathy of newborn",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Hypoxic ischaemic encephalopathy of newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1281282034"
+      },
+      {
+       "code": "1C11.1",
+       "has_coding_note": false,
+       "matching_text": "Trench fever",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Trench fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1587737629"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "HIE",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #a409ac3cb2": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"10","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/947280473","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/947280473","important":false,"label":"HI - [hearing impairment]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/947280473","theCode":"AB52","title":"Deafness not otherwise specified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/452386362/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/452386362","important":false,"label":"HI - [head injury]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/452386362/unspecified","theCode":"NA0Z","title":"Injuries to the head, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"04","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/223461798","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/223461798","important":false,"label":"<em class='found'>HIE</em><em class='nonwbe'></em> - [Hyperimmunoglobulin E] syndrome","propertyId":"Synonym","propertyValueType":0,"score":-0.4171668479081394},{"foundationUri":"http://id.who.int/icd/entity/1561846514","important":false,"label":"AD-<em class='found'>HIE</em><em class='nonwbe'>S</em> - [Autosomal dominant hyperimmunoglobulin E] syndrome","propertyId":"Synonym","propertyValueType":1,"score":-1.2150228303307031},{"foundationUri":"http://id.who.int/icd/entity/1909398175","important":false,"label":"Autosomal recessive <em class='found'>HIE</em><em class='nonwbe'>S</em> - [Autosomal recessive hyperimmunoglobulin E] syndrome","propertyId":"Synonym","propertyValueType":1,"score":-1.5159206220937134}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.4171668479081394,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/223461798","theCode":"4A01.34","title":"Hyperimmunoglobulin E syndromes","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1281282034","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/10036778","important":false,"label":"<em class='found'>HIE</em><em class='nonwbe'></em> - [Hypoxic-ischaemic encephalopathy], severe","propertyId":"Synonym","propertyValueType":1,"score":-0.5648500107382521},{"foundationUri":"http://id.who.int/icd/entity/870467508","important":false,"label":"<em class='found'>HIE</em><em class='nonwbe'></em> - [Hypoxic-ischaemic encephalopathy], moderate","propertyId":"Synonym","propertyValueType":1,"score":-0.7137060021652961},{"foundationUri":"http://id.who.int/icd/entity/1051799633","important":false,"label":"<em class='found'>HIE</em><em class='nonwbe'></em> - [Hypoxic-ischaemic encephalopathy], mild","propertyId":"Synonym","propertyValueType":1,"score":-0.7200055356286481},{"foundationUri":"http://id.who.int/icd/entity/1281282034","important":false,"label":"<em class='found'>HIE</em><em class='nonwbe'></em> - [hypoxic ischaemic encephalopathy] of newborn","propertyId":"Synonym","propertyValueType":0,"score":-2.131979962490755},{"foundationUri":"http://id.who.int/icd/entity/870467508","important":false,"label":"Stage 2 hypoxic ischaemic encephalopathy [<em class='found'>HIE</em><em class='nonwbe'></em>] of newborn","propertyId":"Synonym","propertyValueType":1,"score":-8.43938376871181},{"foundationUri":"http://id.who.int/icd/entity/1051799633","important":false,"label":"Stage 1 hypoxic ischaemic encephalopathy [<em class='found'>HIE</em><em class='nonwbe'></em>] of newborn","propertyId":"Synonym","propertyValueType":1,"score":-8.469372794919785},{"foundationUri":"http://id.who.int/icd/entity/10036778","important":false,"label":"Stage 3 hypoxic ischaemic encephalopathy [<em class='found'>HIE</em><em class='nonwbe'></em>] of newborn","propertyId":"Synonym","propertyValueType":1,"score":-8.553054443532282}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5648500107382521,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1281282034","theCode":"KB04","title":"Hypoxic ischaemic encephalopathy of newborn","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1587737629","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1587737629","important":false,"label":"His-Werner disease","propertyId":"Synonym","propertyValueType":0,"score":-1.4508091001699182}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.4508091001699182,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1587737629","theCode":"1C11.1","title":"Trench fever","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"14","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/755558110","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1021286302","important":false,"label":"dermatitis <em class='found'>hie</em><em class='nonwbe'>malis</em>","propertyId":"Synonym","propertyValueType":1,"score":-2.2555615681863994}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.2555615681863994,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/755558110","theCode":"ED54","title":"Xerosis cutis or asteatosis","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/962827983","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/962827983","important":false,"label":"His bundle tachycardia","propertyId":"Synonym","propertyValueType":0,"score":-4.151026735892341}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.151026735892341,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/962827983","theCode":"BC81.1","title":"Junctional ectopic tachycardia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1061373903","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1061373903","important":false,"label":"admission to protect the individual from his or her surroundings or for isolation of individual after contact with infectious disease","propertyId":"Synonym","propertyValueType":0,"score":-10.242342199629281}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-10.242342199629281,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1061373903","theCode":"QC05.0","title":"Isolation","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=HIE%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

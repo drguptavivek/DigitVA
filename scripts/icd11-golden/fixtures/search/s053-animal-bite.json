@@ -1,0 +1,62 @@
+{
+ "id": "s053-animal-bite",
+ "input": {
+  "id": "s053-animal-bite",
+  "kind": "lay",
+  "query": "animal bite",
+  "source": "VAs-12.99",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #c142b0b019"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 2,
+     "items": [
+      {
+       "code": "ND31",
+       "has_coding_note": true,
+       "matching_text": "Open wounds involving multiple body regions",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Open wounds involving multiple body regions",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1478222501"
+      },
+      {
+       "code": "NE61",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "animal bite",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #c142b0b019": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1478222501","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/670851137","important":false,"label":"Multiple <em class='found'>animal</em> <em class='found'>bite</em><em class='nonwbe'>s</em>","propertyId":"Title","propertyValueType":1,"score":0.3266923429477936}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.3266923429477936,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1478222501","theCode":"ND31","title":"Open wounds involving multiple body regions","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1756897477","important":false,"label":"<em class='found'>bite</em><em class='nonwbe'></em> of venomous <em class='found'>animal</em>","propertyId":"Synonym","propertyValueType":1,"score":0.232335038379705}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.232335038379705,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","theCode":"NE61","title":"Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=animal+bite%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

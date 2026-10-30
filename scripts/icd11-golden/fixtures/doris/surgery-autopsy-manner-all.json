@@ -1,0 +1,203 @@
+{
+ "id": "surgery-autopsy-manner-all",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P45Y",
+    "Sex": 1
+   },
+   "Autopsy": {
+    "Findings": 1,
+    "WasRequested": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "DateOfExternalCauseOrPoisoning": "2026-05-30",
+    "DescriptionExternalCause": "Fell from a ladder",
+    "MannerOfDeath": 1,
+    "PlaceOfOccuranceExternalCause": 2
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NA07.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified",
+       "Text": "Head injury"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA60",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995",
+       "Text": "Fall"
+      }
+     ]
+    }
+   ],
+   "Surgery": {
+    "Date": "2026-06-01",
+    "Reason": "Craniotomy",
+    "WasPerformed": 1
+   }
+  },
+  "group": "adult",
+  "id": "surgery-autopsy-manner-all",
+  "source": "WHO DORIS certificate format",
+  "why": "Surgery, autopsy and manner blocks together"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NA07.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA60",
+    "POST icd/release/11/2026-01/doris #0b0ac982d6",
+    "POST icd/release/11/2026-01/codedit #0b0ac982d6"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P45Y",
+       "Sex": 1
+      },
+      "Autopsy": {
+       "Findings": 1,
+       "WasRequested": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "DateOfExternalCauseOrPoisoning": "2026-05-30",
+       "DescriptionExternalCause": "Fell from a ladder",
+       "MannerOfDeath": 1,
+       "PlaceOfOccuranceExternalCause": 2
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NA07.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified",
+          "Text": "Head injury"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA60",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995",
+          "Text": "Fall"
+         }
+        ]
+       }
+      ],
+      "Surgery": {
+       "Date": "2026-06-01",
+       "Reason": "Craniotomy",
+       "WasPerformed": 1
+      }
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA60/NA07.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NA07.Z - as postcoordination for the current TUC - PA60.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA60.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA60.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NA07.Z - as postcoordination for the current TUC - PA60.\n",
+       "stemCode": "PA60",
+       "stemURI": "http://id.who.int/icd/entity/415990995",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA60;PA60;;;0;SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA60;;;;;0;SP6: is not applicable with the current TSP PA60.;;;;BER\nSP7;False;PA60;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA60;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA60;;;;;0;M1: There is no special instruction applicable with TUC PA60.;;;;BER\nM2;False;PA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA60;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA60/NA07.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/415990995 / http://id.who.int/icd/release/11/mms/277610609/unspecified",
+       "warning": "Surgery is mentioned on the certificate, it needs manual check.\nSurgery is mentioned on the certificate, it needs manual check.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA60",
+       "role": "stem",
+       "title": "Fall",
+       "uri": "http://id.who.int/icd/release/11/mms/415990995"
+      },
+      {
+       "code": "NA07.Z",
+       "role": "postcoordinated",
+       "title": "Head injury",
+       "uri": "http://id.who.int/icd/release/11/mms/277610609/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P45Y",
+      "Sex": 1
+     },
+     "Autopsy": {
+      "Findings": 1,
+      "WasRequested": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "DateOfExternalCauseOrPoisoning": "2026-05-30",
+      "DescriptionExternalCause": "Fell from a ladder",
+      "MannerOfDeath": 1,
+      "PlaceOfOccuranceExternalCause": 2
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NA07.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified",
+         "Text": "Head injury"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA60",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995",
+         "Text": "Fall"
+        }
+       ]
+      }
+     ],
+     "Surgery": {
+      "Date": "2026-06-01",
+      "Reason": "Craniotomy",
+      "WasPerformed": 1
+     }
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NA07.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NA07.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NA07.Z","code":"NA07.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA60": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA60","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA60","code":"PA60","stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #0b0ac982d6": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P45Y\",\"Sex\":1},\"Autopsy\":{\"Findings\":1,\"WasRequested\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"DateOfExternalCauseOrPoisoning\":\"2026-05-30\",\"DescriptionExternalCause\":\"Fell from a ladder\",\"MannerOfDeath\":1,\"PlaceOfOccuranceExternalCause\":2},\"Part1\":[{\"Conditions\":[{\"Code\":\"NA07.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified\",\"Text\":\"Head injury\"}]},{\"Conditions\":[{\"Code\":\"PA60\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/415990995\",\"Text\":\"Fall\"}]}],\"Surgery\":{\"Date\":\"2026-06-01\",\"Reason\":\"Craniotomy\",\"WasPerformed\":1}}","status":200},
+  "POST icd/release/11/2026-01/doris #0b0ac982d6": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA60/NA07.Z","error":null,"reject":false,"report":"SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NA07.Z - as postcoordination for the current TUC - PA60.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA60.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA60.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NA07.Z - as postcoordination for the current TUC - PA60.\n","stemCode":"PA60","stemURI":"http://id.who.int/icd/entity/415990995","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA60;PA60;;;0;SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA60;;;;;0;SP6: is not applicable with the current TSP PA60.;;;;BER\nSP7;False;PA60;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA60;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA60;;;;;0;M1: There is no special instruction applicable with TUC PA60.;;;;BER\nM2;False;PA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA60;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA60/NA07.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/415990995 / http://id.who.int/icd/release/11/mms/277610609/unspecified","warning":"Surgery is mentioned on the certificate, it needs manual check.\nSurgery is mentioned on the certificate, it needs manual check.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P45Y\",\"Sex\":1},\"Autopsy\":{\"Findings\":1,\"WasRequested\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"DateOfExternalCauseOrPoisoning\":\"2026-05-30\",\"DescriptionExternalCause\":\"Fell from a ladder\",\"MannerOfDeath\":1,\"PlaceOfOccuranceExternalCause\":2},\"Part1\":[{\"Conditions\":[{\"Code\":\"NA07.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified\",\"Text\":\"Head injury\"}]},{\"Conditions\":[{\"Code\":\"PA60\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/415990995\",\"Text\":\"Fall\"}]}],\"Surgery\":{\"Date\":\"2026-06-01\",\"Reason\":\"Craniotomy\",\"WasPerformed\":1}}","status":200}
+ }
+}

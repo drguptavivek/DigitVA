@@ -1,0 +1,99 @@
+{
+ "id": "s203-syn-cad",
+ "input": {
+  "concept": "ischaemic heart disease",
+  "id": "s203-syn-cad",
+  "kind": "synonym",
+  "query": "CAD",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for ischaemic heart disease (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #1a2050ce88"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 11,
+     "items": [
+      {
+       "code": "BA8Z",
+       "has_coding_note": false,
+       "matching_text": "Diseases of coronary artery, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Diseases of coronary artery, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1059873720/unspecified"
+      },
+      {
+       "code": "8B22.C0",
+       "has_coding_note": false,
+       "matching_text": "CADASIL - [cerebral autosomal dominant arteriopathy with subcortical infarcts and leukoencephalopathy] syndrome",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "CADASIL - [cerebral autosomal dominant arteriopathy with subcortical infarcts and leukoencephalopathy] syndrome",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1621899838"
+      },
+      {
+       "code": "BA52.Z",
+       "has_coding_note": false,
+       "matching_text": "Coronary atherosclerosis, unspecified site",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Coronary atherosclerosis, unspecified site",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified"
+      },
+      {
+       "code": "8A6Z",
+       "has_coding_note": true,
+       "matching_text": "Epilepsy or seizures, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Epilepsy or seizures, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1397288146/unspecified"
+      },
+      {
+       "code": "NE61",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "CAD",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #1a2050ce88": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1059873720/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1059873720","important":true,"label":"<em class='found'>CAD</em><em class='nonwbe'></em> - [coronary artery disease]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1059873720/unspecified","theCode":"BA8Z","title":"Diseases of coronary artery, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1621899838","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1621899838","important":false,"label":"<em class='found'>CAD</em><em class='nonwbe'>ASIL</em> - [cerebral autosomal dominant arteriopathy with subcortical infarcts and leukoencephalopathy] syndrome","propertyId":"Synonym","propertyValueType":0,"score":-0.5590393395130124}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5590393395130124,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1621899838","theCode":"8B22.C0","title":"<em class='found'>CAD</em><em class='nonwbe'>ASIL</em> - [cerebral autosomal dominant arteriopathy with subcortical infarcts and leukoencephalopathy] syndrome","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1280712786","important":false,"label":"stenosing <em class='found'>CAD</em><em class='nonwbe'></em> - [coronary artery diseases]","propertyId":"Synonym","propertyValueType":0,"score":-1.2115968107354922},{"foundationUri":"http://id.who.int/icd/entity/1280712786","important":false,"label":"arteriosclerotic <em class='found'>CAD</em><em class='nonwbe'></em> - [coronary artery diseases]","propertyId":"Synonym","propertyValueType":0,"score":-2.835778283713639},{"foundationUri":"http://id.who.int/icd/entity/1280712786","important":false,"label":"atherosclerotic <em class='found'>CAD</em><em class='nonwbe'></em> - [coronary artery disease]","propertyId":"Synonym","propertyValueType":0,"score":-3.0868363610548766}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.2115968107354922,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified","theCode":"BA52.Z","title":"Coronary atherosclerosis, unspecified site","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1397288146/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1397288146","important":false,"label":"morbus <em class='found'>cad</em><em class='nonwbe'>ucus</em>","propertyId":"Synonym","propertyValueType":0,"score":-1.5960686833889328}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.5960686833889328,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1397288146/unspecified","theCode":"8A6Z","title":"Epilepsy or seizures, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1643202516","important":false,"label":"<em class='found'>cad</em><em class='nonwbe'>mium</em> poisoning","propertyId":"Synonym","propertyValueType":1,"score":-1.8195918795599089},{"foundationUri":"http://id.who.int/icd/entity/1643202516","important":false,"label":"Harmful effects of or exposure to noxious substances, Substances chiefly nonmedicinal as to source, Metals, <em class='found'>Cad</em><em class='nonwbe'>mium</em> or its compounds","propertyId":"Title","propertyValueType":1,"score":-6.37906513714202}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.8195918795599089,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","theCode":"NE61","title":"Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/911708419 & http://id.who.int/icd/release/11/2026-01/mms/1981509533","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.414768993356642,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/911708419","theCode":"PB36&XM0V73","title":"Unintentional exposure to or harmful effects of <em class='found'>cad</em><em class='nonwbe'>mium</em> or its compounds","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1593319304","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.5569841934180317,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1593319304","theCode":"8A45.20","title":"White matter disorder due to <em class='found'>CAD</em><em class='nonwbe'>ASIL</em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/846307814 & http://id.who.int/icd/release/11/2026-01/mms/1981509533","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.866471436579241,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/846307814","theCode":"PD05&XM0V73","title":"Intentional self-harm by exposure to or harmful effects of <em class='found'>cad</em><em class='nonwbe'>mium</em> or its compounds","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1625812450 & http://id.who.int/icd/release/11/2026-01/mms/1981509533","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.9116705523882365,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1625812450","theCode":"PH56&XM0V73","title":"Exposure to or harmful effects of undetermined intent of <em class='found'>cad</em><em class='nonwbe'>mium</em> or its compounds","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1095018767 & http://id.who.int/icd/release/11/2026-01/mms/1981509533","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.610630063047791,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1095018767","theCode":"PE95&XM0V73","title":"Assault by exposure to or harmful effects of <em class='found'>cad</em><em class='nonwbe'>mium</em> or its compounds","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1638226305","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1771903098","important":false,"label":"dependence on renal dialysis, chronic haemodialysis, standard chronic haemodialysis with graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-8.99423609737321},{"foundationUri":"http://id.who.int/icd/entity/144028211","important":false,"label":"dependence on renal dialysis, acute haemodialysis, other, with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-11.223907271863014},{"foundationUri":"http://id.who.int/icd/entity/519233602","important":false,"label":"dependence on renal dialysis, chronic haemodialysis, other, with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-11.231463784852673},{"foundationUri":"http://id.who.int/icd/entity/909536586","important":false,"label":"dependence on renal dialysis, chronic haemodialysis, frequent chronic haemodialysis with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-11.594582444291964},{"foundationUri":"http://id.who.int/icd/entity/8804741","important":false,"label":"dependence on renal dialysis, acute haemodialysis, acute intermittent haemodialysis with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-11.66328334386621},{"foundationUri":"http://id.who.int/icd/entity/567999651","important":false,"label":"dependence on renal dialysis, acute haemodialysis, continuous haemodiafiltration with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-12.638574564872588},{"foundationUri":"http://id.who.int/icd/entity/918789336","important":false,"label":"dependence on renal dialysis, acute haemodialysis, continuous haemofiltration with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-12.664529485469869},{"foundationUri":"http://id.who.int/icd/entity/669074953","important":false,"label":"dependence on renal dialysis, acute haemodialysis, slow long efficiency dialysis with arteriovenous graft, biologic, <em class='found'>cad</em><em class='nonwbe'>averic</em>","propertyId":"Synonym","propertyValueType":1,"score":-13.429803245088165}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-8.99423609737321,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1638226305","theCode":"QB42","title":"Dependence on renal dialysis","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=CAD%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

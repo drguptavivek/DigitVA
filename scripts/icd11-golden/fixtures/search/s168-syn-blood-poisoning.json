@@ -1,0 +1,75 @@
+{
+ "id": "s168-syn-blood-poisoning",
+ "input": {
+  "concept": "sepsis",
+  "id": "s168-syn-blood-poisoning",
+  "kind": "synonym",
+  "query": "blood poisoning",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for sepsis (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #7b6d95b66b"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "NE60",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of drugs, medicaments or biological substances, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of drugs, medicaments or biological substances, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1868408442"
+      },
+      {
+       "code": "PC98&XE13E",
+       "has_coding_note": false,
+       "matching_text": "Intentional self poisoning with or exposure to agents primarily affecting blood constituents",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Intentional self poisoning with or exposure to agents primarily affecting blood constituents",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1593715151 & http://id.who.int/icd/release/11/2026-01/mms/1234065952"
+      },
+      {
+       "code": "PC98",
+       "has_coding_note": false,
+       "matching_text": "Intentional self-harm by exposure to other or unspecified drug, medicament or biological substance",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Intentional self-harm by exposure to other or unspecified drug, medicament or biological substance",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1593715151"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "blood poisoning",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #7b6d95b66b": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/743465258","important":false,"label":"whole <em class='found'>blood</em> <em class='found'>poisoning</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.5368939320077554},{"foundationUri":"http://id.who.int/icd/entity/743465258","important":false,"label":"<em class='found'>Blood</em> <em class='found'>poisoning</em><em class='nonwbe'></em>, not elsewhere classified","propertyId":"Title","propertyValueType":1,"score":-0.5440718582324446}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5368939320077554,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","theCode":"NE60","title":"Harmful effects of drugs, medicaments or biological substances, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1593715151 & http://id.who.int/icd/release/11/2026-01/mms/1234065952","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.948363908976238,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1593715151","theCode":"PC98&XE13E","title":"Intentional self <em class='found'>poisoning</em><em class='nonwbe'></em> with or exposure to agents primarily affecting <em class='found'>blood</em> constituents","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1593715151","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1820439167","important":false,"label":"Intentional self-<em class='found'>poisoning</em><em class='nonwbe'></em> by exposure to or harmful effects of antimalarials or drugs acting on other <em class='found'>blood</em> protozoa","propertyId":"Synonym","propertyValueType":1,"score":-4.626730416531544}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.626730416531544,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1593715151","theCode":"PC98","title":"Intentional self-harm by exposure to other or unspecified drug, medicament or biological substance","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=blood+poisoning%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

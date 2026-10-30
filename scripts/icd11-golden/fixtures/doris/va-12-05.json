@@ -1,0 +1,167 @@
+{
+ "id": "va-12-05",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P31Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NE2Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified",
+       "Text": "Burns"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PB10",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2096449099",
+       "Text": "Kitchen fire"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-05",
+  "source": "VA cause VAs-12.05 Accidental exposure to smoke, fire and flames",
+  "why": "Accidental exposure to smoke, fire and flames: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NE2Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/PB10",
+    "POST icd/release/11/2026-01/doris #752e872942",
+    "POST icd/release/11/2026-01/codedit #752e872942"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P31Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NE2Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified",
+          "Text": "Burns"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PB10",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2096449099",
+          "Text": "Kitchen fire"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PB10/NE2Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PB10 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE2Z - as postcoordination for the current TUC - PB10.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PB10 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PB10.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PB10.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE2Z - as postcoordination for the current TUC - PB10.\n",
+       "stemCode": "PB10",
+       "stemURI": "http://id.who.int/icd/entity/2096449099",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PB10;PB10;;;0;SP3: PB10 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PB10;;;;;0;SP6: is not applicable with the current TSP PB10.;;;;BER\nSP7;False;PB10;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PB10;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PB10;;;;;0;M1: There is no special instruction applicable with TUC PB10.;;;;BER\nM2;False;PB10;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PB10;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PB10/NE2Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/2096449099 / http://id.who.int/icd/release/11/mms/163532889/unspecified",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PB10",
+       "role": "stem",
+       "title": "Kitchen fire",
+       "uri": "http://id.who.int/icd/release/11/mms/2096449099"
+      },
+      {
+       "code": "NE2Z",
+       "role": "postcoordinated",
+       "title": "Burns",
+       "uri": "http://id.who.int/icd/release/11/mms/163532889/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P31Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NE2Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified",
+         "Text": "Burns"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PB10",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2096449099",
+         "Text": "Kitchen fire"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NE2Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NE2Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NE2Z","code":"NE2Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PB10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PB10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PB10","code":"PB10","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2096449099"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #752e872942": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P31Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE2Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified\",\"Text\":\"Burns\"}]},{\"Conditions\":[{\"Code\":\"PB10\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2096449099\",\"Text\":\"Kitchen fire\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #752e872942": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PB10/NE2Z","error":null,"reject":false,"report":"SP3: PB10 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE2Z - as postcoordination for the current TUC - PB10.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PB10 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PB10.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PB10.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE2Z - as postcoordination for the current TUC - PB10.\n","stemCode":"PB10","stemURI":"http://id.who.int/icd/entity/2096449099","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PB10;PB10;;;0;SP3: PB10 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PB10;;;;;0;SP6: is not applicable with the current TSP PB10.;;;;BER\nSP7;False;PB10;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PB10;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PB10;;;;;0;M1: There is no special instruction applicable with TUC PB10.;;;;BER\nM2;False;PB10;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PB10;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PB10/NE2Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/2096449099 / http://id.who.int/icd/release/11/mms/163532889/unspecified","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P31Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE2Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified\",\"Text\":\"Burns\"}]},{\"Conditions\":[{\"Code\":\"PB10\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2096449099\",\"Text\":\"Kitchen fire\"}]}]}","status":200}
+ }
+}

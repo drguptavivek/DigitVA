@@ -7,9 +7,15 @@
 # 127.0.0.1:8382 (docker compose up -d icd_api_service), and our earlier DORIS suite's tests/fixtures
 # (ICD11-DORIS-kotlin-rust-source.zip, icd-offline-0.3, 2026-10-24) unpacked into SUITE_FIXTURES_DIR.
 #
-# usage: scripts/icd11-parity/run_phone.sh WORK_DIR SUITE_FIXTURES_DIR
+# Targeted run of a library built locally (engine-src/build.sh), without downloading the published archive: set ENGINE_SO to the
+# built digitva_icd11.so, STAGED to a phone folder that an earlier run left (lib/ with libssl.so, libcrypto.so and libc++_shared.so,
+# bundle_min/, data/), SUITE_FIXTURES_DIR to "-" and CERTIFICATES to a count (200 is enough to see a break); the 10,010 suite inputs are
+# then left out. The comparison is the same.
+#
+# usage: [ENGINE_SO=... STAGED=/data/local/tmp/DIR CERTIFICATES=200] scripts/icd11-parity/run_phone.sh WORK_DIR SUITE_FIXTURES_DIR|-
 set -euo pipefail
 work=$1 suite=$2
+local_so="${ENGINE_SO:-}" staged="${STAGED:-}" certificates="${CERTIFICATES:-10000}"
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 # shellcheck source=../icd11-engine.env
@@ -27,6 +33,10 @@ proxy=http://127.0.0.1:9   # nothing listens here: the engine's start-up downloa
 
 mkdir -p "$work"
 cd "$work"
+if [ -n "$local_so" ]; then
+  : "${staged:?set STAGED with ENGINE_SO}"
+  rm -rf lib && mkdir -p lib && cp "$local_so" lib/libdigitva_icd11.so
+else
 gh release download "$engine_tag" -R drguptavivek/DigitVA -p "icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" --clobber
 echo "$engine_sha  icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" | shasum -a 256 -c
 gh release download "$plus_tag" -R drguptavivek/DigitVA -p "$plus_apk" --clobber
@@ -35,14 +45,21 @@ rm -rf engine lib && mkdir -p engine lib
 tar -xzf "icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" -C engine
 unzip -q -j -o "$plus_apk" lib/arm64-v8a/libssl.so lib/arm64-v8a/libcrypto.so lib/arm64-v8a/libc++_shared.so -d lib
 cp engine/bridge-aot/pub-bionic/digitva_icd11.so lib/libdigitva_icd11.so
+fi
 
-python3 "$here/make_certificates.py" "$work/ours.jsonl"
+python3 "$here/make_certificates.py" "$work/ours.jsonl" "$certificates"
 python3 "$here/build_inputs.py" "$work/requests.tsv" "$work/ours.jsonl" "$suite"
 "$clang" -O2 -Wall -o phone_harness "$here/phone_harness.c" -ldl
 
-adb shell "rm -rf $device && mkdir -p $device/lib"
-adb push -q lib/. "$device/lib/"
-adb push -q engine/bundle_min engine/data phone_harness requests.tsv "$device/"
+if [ -n "$local_so" ]; then
+  adb shell "rm -rf $device && mkdir -p $device/lib && cp $staged/lib/libssl.so $staged/lib/libcrypto.so $staged/lib/libc++_shared.so $device/lib/ && cp -r $staged/bundle_min $staged/data $device/"
+  adb push -q lib/libdigitva_icd11.so "$device/lib/"
+  adb push -q phone_harness requests.tsv "$device/"
+else
+  adb shell "rm -rf $device && mkdir -p $device/lib"
+  adb push -q lib/. "$device/lib/"
+  adb push -q engine/bundle_min engine/data phone_harness requests.tsv "$device/"
+fi
 adb shell "cd $device && chmod 755 phone_harness && cp -r data work && \
   LD_LIBRARY_PATH=$device/lib HTTPS_PROXY=$proxy HTTP_PROXY=$proxy https_proxy=$proxy http_proxy=$proxy DOTNET_gcServer=0 \
   ./phone_harness $device/lib/libdigitva_icd11.so $device/bundle_min $device/work/ $device/requests.tsv > phone.tsv"

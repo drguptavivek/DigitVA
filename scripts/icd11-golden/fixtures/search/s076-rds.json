@@ -1,0 +1,86 @@
+{
+ "id": "s076-rds",
+ "input": {
+  "id": "s076-rds",
+  "kind": "abbreviation",
+  "query": "RDS",
+  "source": "VAs-10.02",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #4e49a83988"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "KB23.0Z",
+       "has_coding_note": false,
+       "matching_text": "Respiratory distress syndrome of newborn, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Respiratory distress syndrome of newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified"
+      },
+      {
+       "code": "9C81.0Z",
+       "has_coding_note": false,
+       "matching_text": "Third nerve palsy, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Third nerve palsy, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1652044346/unspecified"
+      },
+      {
+       "code": "NA04.2",
+       "has_coding_note": false,
+       "matching_text": "Injury of oculomotor nerve",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Injury of oculomotor nerve",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/624153676"
+      },
+      {
+       "code": "LA6Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified structural developmental anomalies of the neck",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified structural developmental anomalies of the neck",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1250212986/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "RDS",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #4e49a83988": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/343716587","important":false,"label":"<em class='found'>RDS</em><em class='nonwbe'></em> - [respiratory distress syndrome] of newborn","propertyId":"Synonym","propertyValueType":0,"score":-2.0475888781085962}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.0475888781085962,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified","theCode":"KB23.0Z","title":"Respiratory distress syndrome of newborn, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"09","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1652044346/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1652044346","important":false,"label":"3rd nerve palsy","propertyId":"Synonym","propertyValueType":0,"score":-3.082570533661155}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.082570533661155,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1652044346/unspecified","theCode":"9C81.0Z","title":"Third nerve palsy, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/624153676","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/624153676","important":false,"label":"oculomotor (3rd) nerve injury","propertyId":"Synonym","propertyValueType":0,"score":-3.4080203208065685}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.4080203208065685,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/624153676","theCode":"NA04.2","title":"Injury of oculomotor nerve","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"20","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1250212986/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/447434750","important":false,"label":"3rd Branchial cleft cyst","propertyId":"Title","propertyValueType":1,"score":-3.911063829239888}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.911063829239888,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1250212986/other","theCode":"LA6Y","title":"Other specified structural developmental anomalies of the neck","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=RDS%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

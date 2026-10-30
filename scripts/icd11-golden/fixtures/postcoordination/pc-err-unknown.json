@@ -1,0 +1,154 @@
+{
+ "built": [],
+ "id": "pc-err-unknown",
+ "input": {
+  "category": "error",
+  "id": "pc-err-unknown",
+  "source": "docs/kb/doris-certificate-ui-contract.md",
+  "stem": "ZZ99",
+  "why": "A code WHO does not know: CODE_NOT_FOUND on every operation"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "Select a valid ICD-11 code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "ZZ99"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99",
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "The selected code does not match its WHO URI."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "ZZ99",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "ICD-11 stem code was not found."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "ZZ99"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "ICD-11 stem code was not found."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "ZZ99"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "ICD-11 stem code was not found."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "ZZ99"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "ICD-11 stem code was not found."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "ZZ99"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ZZ99"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "ICD-11 stem code was not found."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "ZZ99"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/ZZ99": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/ZZ99","reply":"ZZ99 does not exist","request_body":null,"status":404}
+ }
+}

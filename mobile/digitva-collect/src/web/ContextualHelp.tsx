@@ -826,7 +826,7 @@ export function ContextualHelpBanner({ screen, testID, style }: ContextualHelpBa
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            <ScrollView style={styles.flyoutScroll} contentContainerStyle={styles.flyoutBody}>
+            <ScrollView keyboardDismissMode="on-drag" style={styles.flyoutScroll} contentContainerStyle={styles.flyoutBody}>
               <Text style={[styles.summaryText, { color: colors.text }]}>
                 {config.summary}
               </Text>

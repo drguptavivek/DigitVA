@@ -1,0 +1,99 @@
+{
+ "id": "s190-syn-acquired-immunodeficiency-syndrome",
+ "input": {
+  "concept": "HIV",
+  "id": "s190-syn-acquired-immunodeficiency-syndrome",
+  "kind": "synonym",
+  "query": "acquired immunodeficiency syndrome",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for HIV (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #37e7734190"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "1C62.3Z",
+       "has_coding_note": false,
+       "matching_text": "HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified"
+      },
+      {
+       "code": "1C62.Z",
+       "has_coding_note": false,
+       "matching_text": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified"
+      },
+      {
+       "code": "DC13",
+       "has_coding_note": false,
+       "matching_text": "Cholangitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Cholangitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1712178777"
+      },
+      {
+       "code": "1C62.2",
+       "has_coding_note": false,
+       "matching_text": "HIV disease clinical stage 3 without mention of tuberculosis or malaria",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "HIV disease clinical stage 3 without mention of tuberculosis or malaria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1294771889"
+      },
+      {
+       "code": "QC90.6",
+       "has_coding_note": false,
+       "matching_text": "Contact with or exposure to human immunodeficiency virus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Contact with or exposure to human immunodeficiency virus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1088648116"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "acquired immunodeficiency syndrome",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #37e7734190": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1871736427","important":true,"label":"<em class='found'>Acquired</em> <em class='found'>Immune</em> <em class='found'>Deficiency</em> <em class='found'>Syndrome</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1871736427","important":false,"label":"AIDS - [<em class='found'>acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":1,"score":0.6551382272881083}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified","theCode":"1C62.3Z","title":"HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1508081745","important":false,"label":"<em class='found'>acquired</em> <em class='found'>immune</em> <em class='found'>deficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>-related complex","propertyId":"Synonym","propertyValueType":0,"score":0.5722243402897998}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5722243402897998,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified","theCode":"1C62.Z","title":"Human <em class='found'>immunodeficiency</em> virus disease without mention of tuberculosis or malaria, clinical stage unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"13","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1712178777","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/694560815","important":false,"label":"<em class='found'>Acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em> cholangiopathy","propertyId":"Title","propertyValueType":1,"score":0.5616883371323508}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5616883371323508,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1712178777","theCode":"DC13","title":"Cholangitis","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1294771889","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/386699845","important":false,"label":"AIDS - [<em class='found'>acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>] enteropathy","propertyId":"Synonym","propertyValueType":1,"score":0.38881489782527806}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.38881489782527806,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1294771889","theCode":"1C62.2","title":"HIV disease clinical stage 3 without mention of tuberculosis or malaria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1088648116","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1088648116","important":false,"label":"contact with AIDS - [<em class='found'>acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>] virus","propertyId":"Synonym","propertyValueType":0,"score":0.3654417774885469}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.3654417774885469,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1088648116","theCode":"QC90.6","title":"Contact with or exposure to human <em class='found'>immunodeficiency</em> virus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"06","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1173624218","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1173624218","important":false,"label":"AIDS - [<em class='found'>acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>] dementia complex","propertyId":"Synonym","propertyValueType":0,"score":-0.10113252857205068}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.10113252857205068,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1173624218","theCode":"6D85.3","title":"Dementia due to human <em class='found'>immunodeficiency</em> virus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1044381913","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1044381913","important":false,"label":"Kaposi sarcoma associated with AIDS - [<em class='found'>acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-0.2745161066072605}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.2745161066072605,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1044381913","theCode":"1C62.30","title":"Kaposi sarcoma associated with human <em class='found'>immunodeficiency</em> virus disease without mention of tuberculosis or malaria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/956141777","important":false,"label":"cachexia associated with AIDS - [<em class='found'>acquired</em> <em class='found'>immunodeficiency</em> <em class='found'>syndrome</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":1,"score":-0.3293522375395056}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.3293522375395056,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/other","theCode":"1C62.3Y","title":"Other specified HIV disease clinical stage 4 without mention of tuberculosis or malaria","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=acquired+immunodeficiency+syndrome%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

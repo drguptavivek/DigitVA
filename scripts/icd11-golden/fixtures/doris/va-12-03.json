@@ -1,0 +1,170 @@
+{
+ "id": "va-12-03",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P72Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1,
+    "PlaceOfOccuranceExternalCause": 0
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NC72.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+       "Text": "Broken thigh bone"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA61",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1729453916",
+       "Text": "Fell from a roof"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-03",
+  "source": "VA cause VAs-12.03 Accidental fall",
+  "why": "Accidental fall: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "POST icd/release/11/2026-01/doris #f938bf54db",
+    "POST icd/release/11/2026-01/codedit #f938bf54db"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P72Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1,
+       "PlaceOfOccuranceExternalCause": 0
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NC72.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+          "Text": "Broken thigh bone"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA61",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1729453916",
+          "Text": "Fell from a roof"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA61/NC72.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA61 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA61.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA61 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA61.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA61.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA61.\n",
+       "stemCode": "PA61",
+       "stemURI": "http://id.who.int/icd/entity/1729453916",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA61;PA61;;;0;SP3: PA61 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA61;;;;;0;SP6: is not applicable with the current TSP PA61.;;;;BER\nSP7;False;PA61;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA61;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA61;;;;;0;M1: There is no special instruction applicable with TUC PA61.;;;;BER\nM2;False;PA61;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA61;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA61/NC72.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1729453916 / http://id.who.int/icd/release/11/mms/1810119958/unspecified",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA61",
+       "role": "stem",
+       "title": "Fell from a roof",
+       "uri": "http://id.who.int/icd/release/11/mms/1729453916"
+      },
+      {
+       "code": "NC72.Z",
+       "role": "postcoordinated",
+       "title": "Broken thigh bone",
+       "uri": "http://id.who.int/icd/release/11/mms/1810119958/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P72Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1,
+      "PlaceOfOccuranceExternalCause": 0
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NC72.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+         "Text": "Broken thigh bone"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA61",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1729453916",
+         "Text": "Fell from a roof"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NC72.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NC72.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NC72.Z","code":"NC72.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA61": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA61","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA61","code":"PA61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1729453916"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #f938bf54db": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P72Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1,\"PlaceOfOccuranceExternalCause\":0},\"Part1\":[{\"Conditions\":[{\"Code\":\"NC72.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified\",\"Text\":\"Broken thigh bone\"}]},{\"Conditions\":[{\"Code\":\"PA61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1729453916\",\"Text\":\"Fell from a roof\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #f938bf54db": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA61/NC72.Z","error":null,"reject":false,"report":"SP3: PA61 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA61.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA61 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA61.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA61.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA61.\n","stemCode":"PA61","stemURI":"http://id.who.int/icd/entity/1729453916","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA61;PA61;;;0;SP3: PA61 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA61;;;;;0;SP6: is not applicable with the current TSP PA61.;;;;BER\nSP7;False;PA61;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA61;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA61;;;;;0;M1: There is no special instruction applicable with TUC PA61.;;;;BER\nM2;False;PA61;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA61;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA61/NC72.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1729453916 / http://id.who.int/icd/release/11/mms/1810119958/unspecified","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P72Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1,\"PlaceOfOccuranceExternalCause\":0},\"Part1\":[{\"Conditions\":[{\"Code\":\"NC72.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified\",\"Text\":\"Broken thigh bone\"}]},{\"Conditions\":[{\"Code\":\"PA61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1729453916\",\"Text\":\"Fell from a roof\"}]}]}","status":200}
+ }
+}

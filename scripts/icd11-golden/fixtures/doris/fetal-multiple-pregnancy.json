@@ -1,0 +1,144 @@
+{
+ "id": "fetal-multiple-pregnancy",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "PT15H",
+    "Sex": 2
+   },
+   "FetalOrInfantDeath": {
+    "AgeMother": 30,
+    "BirthWeight": 1500,
+    "DeathWithin24h": 15,
+    "MultiplePregnancy": 1,
+    "PregnancyWeeks": 32
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "KA21.4Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+       "Text": "Premature"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "neonatal",
+  "id": "fetal-multiple-pregnancy",
+  "source": "VA cause VAs-10.01 Prematurity or low birth weight",
+  "why": "Twin neonate, death within 24 h"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA21.4Z",
+    "POST icd/release/11/2026-01/doris #4d543f279c",
+    "POST icd/release/11/2026-01/codedit #4d543f279c"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "PT15H",
+       "Sex": 2
+      },
+      "FetalOrInfantDeath": {
+       "AgeMother": 30,
+       "BirthWeight": 1500,
+       "DeathWithin24h": 15,
+       "MultiplePregnancy": 1,
+       "PregnancyWeeks": 32
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "KA21.4Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+          "Text": "Premature"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KA21.4Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: KA21.4Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KA21.4Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA21.4Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA21.4Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "KA21.4Z",
+       "stemURI": "http://id.who.int/icd/entity/1726201225/mms/unspecified",
+       "tabularReport": "MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;True;;KA21.4Z;KA21.4Z;;;0;SP1: KA21.4Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA21.4Z;;;;;0;SP6: is not applicable with the current TSP KA21.4Z.;;;;BER\nSP7;False;KA21.4Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA21.4Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;KA21.4Z;;;;;0;;;;1,M1: KA21.4Z is not to be used if the underlying cause is known or other specific conditions apply.,;BER\nM1;False;KA21.4Z;;;;;0;M1: There is no special instruction applicable with TUC KA21.4Z.;;;;BER\nM2;False;KA21.4Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA21.4Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1726201225/unspecified",
+       "warning": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\nM1: KA21.4Z is not to be used if the underlying cause is known or other specific conditions apply.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KA21.4Z",
+       "role": "stem",
+       "title": "Premature",
+       "uri": "http://id.who.int/icd/release/11/mms/1726201225/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "PT15H",
+      "Sex": 2
+     },
+     "FetalOrInfantDeath": {
+      "AgeMother": 30,
+      "BirthWeight": 1500,
+      "DeathWithin24h": 15,
+      "MultiplePregnancy": 1,
+      "PregnancyWeeks": 32
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "KA21.4Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+         "Text": "Premature"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/KA21.4Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA21.4Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA21.4Z","code":"KA21.4Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #4d543f279c": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"PT15H\",\"Sex\":2},\"FetalOrInfantDeath\":{\"AgeMother\":30,\"BirthWeight\":1500,\"DeathWithin24h\":15,\"MultiplePregnancy\":1,\"PregnancyWeeks\":32},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KA21.4Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified\",\"Text\":\"Premature\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #4d543f279c": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KA21.4Z","error":null,"reject":false,"report":"SP1: KA21.4Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KA21.4Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA21.4Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA21.4Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"KA21.4Z","stemURI":"http://id.who.int/icd/entity/1726201225/mms/unspecified","tabularReport":"MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;True;;KA21.4Z;KA21.4Z;;;0;SP1: KA21.4Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA21.4Z;;;;;0;SP6: is not applicable with the current TSP KA21.4Z.;;;;BER\nSP7;False;KA21.4Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA21.4Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;KA21.4Z;;;;;0;;;;1,M1: KA21.4Z is not to be used if the underlying cause is known or other specific conditions apply.,;BER\nM1;False;KA21.4Z;;;;;0;M1: There is no special instruction applicable with TUC KA21.4Z.;;;;BER\nM2;False;KA21.4Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA21.4Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1726201225/unspecified","warning":"The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\nM1: KA21.4Z is not to be used if the underlying cause is known or other specific conditions apply.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"PT15H\",\"Sex\":2},\"FetalOrInfantDeath\":{\"AgeMother\":30,\"BirthWeight\":1500,\"DeathWithin24h\":15,\"MultiplePregnancy\":1,\"PregnancyWeeks\":32},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KA21.4Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified\",\"Text\":\"Premature\"}]}]}","status":200}
+ }
+}

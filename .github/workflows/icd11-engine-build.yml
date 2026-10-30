@@ -1,0 +1,254 @@
+name: ICD-11 engine build
+
+# Builds libdigitva_icd11.so, the Collect Plus offline ICD-11 engine, on a hosted Linux x64 runner from public inputs
+# only: WHO's assemblies from whoicd/icd-api:2.6.0 (pulled by digest), WHO's data from its CDN (sha256 pinned), this
+# repository's engine-src, the .NET SDK pinned in engine-src/global.json and NDK 28.2.13676358. It then packages the
+# release archive with scripts/package-icd11-engine.sh and uploads library and archive as a short-lived workflow artifact.
+#
+# Fails when: the regenerated engine-src/rd_gen.xml differs from the committed one, the library lacks one of
+# digitva_icd11_init/_call/_free or exports any other digitva_* symbol, a LOAD segment is not 16 KB aligned, or a
+# download does not match its sha256.
+# Reports without failing: whether the library and the other archive files equal those of the release that
+# collect-plus-release.yml pins (that workflow records only the archive's sha256, not the library's).
+#
+# What this does not cover: the parity kit (scripts/icd11-parity, every op against WHO's container) and the shim's JNI
+# smoke (jni_smoke.sh) run the library on an arm64 Android phone over adb. A hosted runner has no such device and no
+# KVM for an arm64 emulator, so they stay manual, on a phone, for every engine build. A green run here proves the build
+# reproduces and the exports and alignment are right, not that the engine behaves.
+#
+# Nothing is published: no release, tag or package. Publishing stays scripts/publish-icd11-engine.sh, run by the owner.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - mobile/digitva-collect/modules/digitva-icd11/engine-src/**
+      - mobile/digitva-collect/modules/digitva-icd11/scripts/stage-engine.js
+      - scripts/package-icd11-engine.sh
+      - scripts/icd11-engine.env
+      - .github/workflows/icd11-engine-build.yml
+  push:
+    branches:
+      - main
+    paths:
+      - mobile/digitva-collect/modules/digitva-icd11/engine-src/**
+      - mobile/digitva-collect/modules/digitva-icd11/scripts/stage-engine.js
+      - scripts/package-icd11-engine.sh
+      - scripts/icd11-engine.env
+      - .github/workflows/icd11-engine-build.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: icd11-engine-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The ICD-API 2.6.0 image, by the digest of its OCI index (the same pin as vendor/who-icd11-api/src/bootstrap.rs).
+  ICD11_IMAGE: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
+  NDK_VERSION: 28.2.13676358
+  ENGINE_SRC: mobile/digitva-collect/modules/digitva-icd11/engine-src
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Free runner disk
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          # Toolchains this build does not use; the Android SDK stays, the .NET SDK is installed below.
+          sudo rm -rf /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      # The SDK version lives in engine-src/global.json only, so the Mac build and this one use the same one. A fresh
+      # install folder keeps the runner's own .NET versions out of the ASP.NET shared framework build.sh looks up.
+      - name: Install the .NET SDK pinned in global.json
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+        with:
+          global-json-file: ${{ env.ENGINE_SRC }}/global.json
+
+      - name: Install the Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The runner image no longer puts sdkmanager on PATH.
+          sdkmanager="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          [[ -x "$sdkmanager" ]] || { echo "sdkmanager not found under $ANDROID_HOME" >&2; exit 1; }
+          "$sdkmanager" "ndk;$NDK_VERSION"
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          dotnet --info
+
+      - name: Copy WHO's assemblies out of the pinned image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$ICD11_IMAGE"
+          id="$(docker create "$ICD11_IMAGE")"
+          docker cp "$id:/usr/share/icdapi" "$RUNNER_TEMP/icdapi"
+          docker rm "$id" > /dev/null
+          for f in ICD-API.dll DorisRuleEngine.dll OCT.dll appsettings.json appsettings.container.json Data/languageResources.txt; do
+            test -s "$RUNNER_TEMP/icdapi/$f" || { echo "missing $f in the image" >&2; exit 1; }
+          done
+
+      - name: Build the engine
+        shell: bash
+        run: ICDAPI_DIR="$RUNNER_TEMP/icdapi" "$ENGINE_SRC/build.sh" "$RUNNER_TEMP/engine-out"
+
+      # build.sh regenerated rd_gen.xml from the assemblies it just built against. The committed file must be what they produce.
+      - name: Check the committed rd_gen.xml is current
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code --stat -- "$ENGINE_SRC/rd_gen.xml"; then
+            echo "rd_gen.xml is stale: build.sh regenerated a different file. Run build.sh locally and commit it." >&2
+            exit 1
+          fi
+
+      - name: Check the library's exports and page alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          lib="$RUNNER_TEMP/engine-out/digitva_icd11.so"
+          bin="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          # A variable, not a pipe: grep -q would exit early and pipefail would read readelf's SIGPIPE as a failure.
+          header="$("$bin/llvm-readelf" -h "$lib")"
+          grep -Eq 'Machine: +AArch64' <<<"$header" || { echo "not an AArch64 library" >&2; exit 1; }
+          # NativeAOT writes the version suffix: "T digitva_icd11_call@@V1.0". The shim needs exactly these three.
+          exports="$("$bin/llvm-nm" -D --defined-only "$lib" | awk '{print $3}' | sed 's/@.*//' | { grep '^digitva_' || true; } | sort)"
+          expected=$'digitva_icd11_call\ndigitva_icd11_free\ndigitva_icd11_init'
+          if [[ "$exports" != "$expected" ]]; then
+            printf 'digitva_* exports are not exactly init, call and free:\n%s\n' "$exports" >&2
+            exit 1
+          fi
+          # Android 15 on 16 KB page devices maps only libraries whose LOAD segments are aligned to 16 KB.
+          loads=0
+          while read -r align; do
+            loads=$((loads + 1))
+            (( align >= 0x4000 && align % 0x4000 == 0 )) || { echo "LOAD segment alignment $align is not a multiple of 16 KB" >&2; exit 1; }
+          done < <("$bin/llvm-readelf" -lW "$lib" | awk '$1 == "LOAD" {print $NF}')
+          (( loads > 0 )) || { echo "no LOAD segments found" >&2; exit 1; }
+          echo "exports ok: $(echo "$exports" | tr '\n' ' '); $loads LOAD segments, all 16 KB aligned"
+
+      # WHO's data comes from WHO's CDN, not from the image. Hashes as in vendor/who-icd11-api/src/bootstrap.rs.
+      - name: Fetch WHO's data files and verify their sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+          spike="$RUNNER_TEMP/spike"
+          mkdir -p "$spike/data/DORIS_v2.1_1.2.0" "$spike/bundle_min/Data" "$spike/bridge-aot/pub-bionic"
+          fetch() { curl --fail --silent --show-error --location --retry 3 --output "$2" "$1"; }
+          fetch "https://icdcdn.who.int/customversions/icd11_2026-01-17_release-icf-mms_en.pbf.gz" "$spike/data/icd11_2026-01-17_release-icf-mms_en.pbf.gz"
+          fetch "https://icdcdn.who.int/released-index-files/ix_(2026-01-17)_foundation-icf-mms_en_v5.7.pbf.zip" "$spike/data/ix_(2026-01-17)_foundation-icf-mms_en_v5.7.pbf.zip"
+          fetch "https://icd11files.blob.core.windows.net/doris/DORIS_v2.1_1.2.0.zip" "$RUNNER_TEMP/DORIS_v2.1_1.2.0.zip"
+          echo "c4876903346d7bdd1ab6c83cfa1aa8690340174089703ecdce382cfa5a3a59ae  $RUNNER_TEMP/DORIS_v2.1_1.2.0.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/DORIS_v2.1_1.2.0.zip" -d "$spike/data/DORIS_v2.1_1.2.0"
+          (cd "$spike/data" && sha256sum -c - <<'EOF'
+          2fd67533b4c838723bd68b833a98ee6dab284339a6262f3f972251e97c331901  icd11_2026-01-17_release-icf-mms_en.pbf.gz
+          f7c1b463075b64bb49987a9fac66c2f072a2684e9654d0ddbcc2b408ef9e9952  ix_(2026-01-17)_foundation-icf-mms_en_v5.7.pbf.zip
+          180375a08bb600b3e321bcc302de759cd486ad8e775b0f9723307d964d9828f5  DORIS_v2.1_1.2.0/AddCodes.json
+          8c7c433cdedcbd47f0e67b85d42f4bb7dfab1bdbb1959e910642a05f98f67201  DORIS_v2.1_1.2.0/AgeRelated.csv
+          f2c4b054a7a6f25b5c223d94705a9f3adaf04783b439eaf727ac3a0a9f516cc4  DORIS_v2.1_1.2.0/MainSteps.json
+          a9d6dbacdfb12f8f2f9e2ed520d6f2a06851c4c23dea7a3a6297d9dcf356839f  DORIS_v2.1_1.2.0/OtherConditionMappings.json
+          6fc6c900c911dd582a6401e9aafeebe12892600126c915b9fc6ae5746ff1d6fa  DORIS_v2.1_1.2.0/Rules.json
+          ce76256b57d99383da7d77133c6ab52488c6ca2453a71f214280b829751ced75  DORIS_v2.1_1.2.0/ValueSets.json
+          edbe18d54167ea0d3ff3763336c538eb39487defa16e3054015b92e0905c3a31  DORIS_v2.1_1.2.0/info.json
+          EOF
+          )
+          # The bundle the engine reads at start-up is three files of the image.
+          cp "$RUNNER_TEMP/icdapi/appsettings.json" "$RUNNER_TEMP/icdapi/appsettings.container.json" "$spike/bundle_min/"
+          cp "$RUNNER_TEMP/icdapi/Data/languageResources.txt" "$spike/bundle_min/Data/"
+          cp "$RUNNER_TEMP/engine-out/digitva_icd11.so" "$spike/bridge-aot/pub-bionic/"
+
+      - name: Package the release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIGITVA_ICD11_SPIKE_DIR="$RUNNER_TEMP/spike" scripts/package-icd11-engine.sh "$RUNNER_TEMP/release"
+
+      - name: Record the checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          . scripts/icd11-engine.env
+          lib_sha="$(sha256sum "$RUNNER_TEMP/engine-out/digitva_icd11.so" | cut -d' ' -f1)"
+          archive_sha="$(cut -d' ' -f1 "$RUNNER_TEMP/release/icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz.sha256")"
+          {
+            echo "## ICD-11 engine ${ICD11_ENGINE_VERSION}"
+            echo
+            echo "| File | sha256 |"
+            echo "| --- | --- |"
+            echo "| digitva_icd11.so | \`$lib_sha\` |"
+            echo "| icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz | \`$archive_sha\` |"
+            echo
+            echo "Built from commit \`$GITHUB_SHA\` with .NET SDK \`$(dotnet --version)\`, NDK \`$NDK_VERSION\`, image \`$ICD11_IMAGE\`."
+            echo
+            echo "The parity kit and the shim's JNI smoke need an arm64 Android device and are not run here."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the library and the archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: icd11-engine-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/engine-out/digitva_icd11.so
+            ${{ runner.temp }}/release/
+
+      # Report only. The release is the one collect-plus-release.yml pins; it records the archive's sha256, so the library
+      # is compared by unpacking the release archive. Archives built on a Mac and on Linux differ in tar headers and
+      # mtime zone even for the same files, so the files are compared, not the archives.
+      - name: Compare with the pinned engine release
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pin() { awk -v k="$1:" '$1 == k {print $2}' .github/workflows/collect-plus-release.yml; }
+          tag="$(pin ICD11_ENGINE_TAG)"; pinned_sha="$(pin ICD11_ENGINE_SHA256)"
+          . scripts/icd11-engine.env
+          name="icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz"
+          {
+            echo "## Compared with the pinned release \`$tag\`"
+            echo
+            if [[ "$tag" != "icd11-engine-v${ICD11_ENGINE_VERSION}" ]]; then
+              echo "The pin (\`$tag\`) is not the version in scripts/icd11-engine.env (\`$ICD11_ENGINE_VERSION\`); this run is compared with the older release."
+              echo
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/pinned" "$RUNNER_TEMP/built"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "icd11-engine-*.tar.gz" --dir "$RUNNER_TEMP/pinned"
+          pinned="$(ls "$RUNNER_TEMP"/pinned/icd11-engine-*.tar.gz)"
+          actual="$(sha256sum "$pinned" | cut -d' ' -f1)"
+          echo "Release archive sha256 \`$actual\`, pinned \`$pinned_sha\`: $([[ "$actual" == "$pinned_sha" ]] && echo match || echo MISMATCH)" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "$RUNNER_TEMP/pinned/tree"
+          tar -xzf "$pinned" -C "$RUNNER_TEMP/pinned/tree"
+          tar -xzf "$RUNNER_TEMP/release/$name" -C "$RUNNER_TEMP/built"
+          sums() { (cd "$1" && find . -type f | sort | xargs sha256sum); }
+          sums "$RUNNER_TEMP/pinned/tree" > "$RUNNER_TEMP/pinned.sums"
+          sums "$RUNNER_TEMP/built" > "$RUNNER_TEMP/built.sums"
+          lib_pinned="$(grep 'digitva_icd11.so' "$RUNNER_TEMP/pinned.sums" | cut -d' ' -f1)"
+          lib_built="$(grep 'digitva_icd11.so' "$RUNNER_TEMP/built.sums" | cut -d' ' -f1)"
+          {
+            echo "- library in the pinned release: \`$lib_pinned\`"
+            echo "- library built here: \`$lib_built\`"
+            echo "- library: **$([[ "$lib_pinned" == "$lib_built" ]] && echo identical || echo DIFFERENT)**"
+            if diff "$RUNNER_TEMP/pinned.sums" "$RUNNER_TEMP/built.sums" > "$RUNNER_TEMP/sums.diff"; then
+              echo "- all files in the archive: **identical**"
+            else
+              echo '- files that differ:'
+              echo '```'
+              cat "$RUNNER_TEMP/sums.diff"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

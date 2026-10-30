@@ -1,0 +1,99 @@
+{
+ "id": "s167-syn-septicemia",
+ "input": {
+  "concept": "sepsis",
+  "id": "s167-syn-septicemia",
+  "kind": "synonym",
+  "query": "septicemia",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for sepsis (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #02ee7f1dc8"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 7,
+     "items": [
+      {
+       "code": "MA15.0",
+       "has_coding_note": false,
+       "matching_text": "Bacteraemia",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Bacteraemia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/770483821"
+      },
+      {
+       "code": "JB40.Z",
+       "has_coding_note": false,
+       "matching_text": "Infections in the puerperium, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Infections in the puerperium, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified"
+      },
+      {
+       "code": "MA15.1",
+       "has_coding_note": false,
+       "matching_text": "Fungaemia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Fungaemia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/910665623"
+      },
+      {
+       "code": "JB0D.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified complications of labour or delivery, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified complications of labour or delivery, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1124951812/other"
+      },
+      {
+       "code": "1C1C.20",
+       "has_coding_note": false,
+       "matching_text": "Acute meningococcaemia",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Acute meningococcaemia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/254600628"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "septicemia",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #02ee7f1dc8": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/770483821","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":true,"label":"Septicaemia","propertyId":"Title","propertyValueType":1,"score":1},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"streptococcal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.2505271365047266},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"staphylococcal septicaemia NOS (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.2616656681813785},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"salmonella septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.2962689201736675},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"pneumococcal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.391062716970006},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"anaerobic septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.572594258083967},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"listerial septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.641602830871472},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemia due to anaerobes (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.7099207941674806},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemic colibacillosis (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.9230143056972837},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"gram-negative septicaemia NOS (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.929120491231373},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemia due to streptococcus group A (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.095337166565752},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"staphylococcus aureus septicaemia NOS (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.117091034907207},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"streptococcus pyogenes septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.120029862994073},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemia due to streptococcus group B (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.385938342989769},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"group d streptococcal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.5421646358074454},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"gangrenous septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.595485017394525},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"Listeria monocytogenes septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-4.607863263844122},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemia due to coagulase-negative staphylococcus (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.070365695713319},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"Septicaemic plague (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.350463397725608},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"Septicaemic plague NOS (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.350463397725608},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"E coli septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.481674433026248},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"anthrax septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.528548503178081},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"Escherichia coli septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.76765980172629},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemia due to haemophilus influenzae [h. influenzae] (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-6.25255841092489},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"Pseudomonas aeruginosa septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-6.411369361266257},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"actinomycotic septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-7.458917261893504},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"Listeria monocytogenes septicaemia without mention of septic shock (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-8.70785580053942},{"foundationUri":"http://id.who.int/icd/entity/2093238381","important":false,"label":"septicaemic plague without mention of septic shock (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-9.450455934420907}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/770483821","theCode":"MA15.0","title":"Bacteraemia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/176527586","important":false,"label":"puerperal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.1510308969340635}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.1510308969340635,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified","theCode":"JB40.Z","title":"Infections in the puerperium, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/910665623","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/523617007","important":false,"label":"candida septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.362638986695549},{"foundationUri":"http://id.who.int/icd/entity/523617007","important":false,"label":"candidal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-5.14454796884923}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.362638986695549,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/910665623","theCode":"MA15.1","title":"Fungaemia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1909570991","important":false,"label":"septicaemia during labour (deprecated)","propertyId":"Synonym","propertyValueType":1,"score":-3.64589583521039}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.64589583521039,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other","theCode":"JB0D.Y","title":"Other specified complications of labour or delivery, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/254600628","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/254600628","important":false,"label":"acute meningococcal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":0,"score":-5.3675934817262405}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.3675934817262405,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/254600628","theCode":"1C1C.20","title":"Acute meningococcaemia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/832233624/other & http://id.who.int/icd/release/11/2026-01/mms/490003542","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1785145382","important":false,"label":"chronic meningococcal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":2,"score":-5.3751499947159}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.3751499947159,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/832233624/other","theCode":"1C1C.2Y&XT8W","title":"Chronic meningococcaemia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2072098125","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2072098125","important":false,"label":"acute adrenal insufficiency with meningococcal septicaemia (deprecated)","propertyId":"Synonym","propertyValueType":0,"score":-8.035779073250069}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.035779073250069,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2072098125","theCode":"1C1C.1","title":"Waterhouse-Friderichsen syndrome","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=septicemia%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

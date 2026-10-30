@@ -73,7 +73,7 @@ export function UpstreamChangesDialog({ formId, details, loading, error, onAccep
         >
           <Text accessibilityRole="header" style={{ ...typography.headline, color: colors.text }}>{t("dataChangesTitle")}</Text>
           {formId ? <Text style={{ fontSize: fontSize.caption, color: ui.mutedForeground }}>{t("dataChangesForm", { id: formId })}</Text> : null}
-          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.md }}>
+          <ScrollView keyboardDismissMode="on-drag" style={{ flexShrink: 1 }} contentContainerStyle={{ gap: spacing.md }}>
             {loading ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("loading")}</Text> : null}
             {error ? <Text accessibilityRole="alert" style={{ ...typography.subhead, color: ui.destructiveText }}>{error}</Text> : null}
             {details ? (

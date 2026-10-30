@@ -1,0 +1,1203 @@
+{
+ "built": [
+  {
+   "expression": "1A00&XN8P1",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN8P1",
+      "GET icd/release/11/2026-01/mms/257068234"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1A00&XN8P1",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Cholera",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1A00&XN8P1"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN8P1",
+      "GET icd/release/11/2026-01/mms/257068234"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1A00&XN8P1",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Cholera",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1A00&XN8P1",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/257068234",
+      "GET icd/release/11/2026-01/mms/135352227",
+      "GET icd/release/11/2026-01/mms/588616678",
+      "GET icd/release/11/2026-01/mms/1435254666",
+      "GET icd/release/11/2026-01/mms/135352227",
+      "GET icd/entity/911707612",
+      "GET icd/release/11/2026-01/mms/416025325",
+      "GET icd/release/11/2026-01/mms/2080365623",
+      "GET icd/release/11/2026-01/mms/344162786",
+      "GET icd/release/11/2026-01/mms/250688797",
+      "GET icd/release/11/2026-01/mms/1000894786",
+      "GET icd/release/11/2026-01/mms/794462570",
+      "GET icd/release/11/2026-01/mms/1528414070",
+      "GET icd/release/11/2026-01/mms/1780040028",
+      "GET icd/release/11/2026-01/mms/515117475",
+      "GET icd/release/11/2026-01/mms/135352227/other",
+      "GET icd/release/11/2026-01/mms/135352227/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "01",
+         "title": "Certain infectious or parasitic diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+        },
+        {
+         "code": "",
+         "title": "Gastroenteritis or colitis of infectious origin",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678"
+        },
+        {
+         "code": "",
+         "title": "Bacterial intestinal infections",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Cholera",
+        "asiatic cholera",
+        "cholera syndrome",
+        "epidemic cholera",
+        "Intestinal infection due to Vibrio cholerae",
+        "Enteritis due to cholera due to Vibrio cholerae, non-O1 strains",
+        "Cholera due to Vibrio cholerae O1, biovar cholerae",
+        "classical cholera",
+        "Enteritis due to Cholera due to Vibrio cholerae O1, biovar cholerae",
+        "Enteritis due to classical cholera",
+        "Cholera due to Vibrio cholerae O1, biovar eltor",
+        "cholera - vibrio cholerae 01 eltor biotype"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [
+        {
+         "code": "",
+         "title": "Infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/entity/911707612"
+        }
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1A00",
+        "title": "Cholera",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+       },
+       "selected_expression": {
+        "code": "1A00&XN8P1",
+        "stem_code": "1A00"
+       },
+       "siblings": [
+        {
+         "code": "1A01",
+         "has_children": false,
+         "title": "Intestinal infection due to other Vibrio",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/416025325"
+        },
+        {
+         "code": "1A02",
+         "has_children": false,
+         "title": "Intestinal infections due to Shigella",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2080365623"
+        },
+        {
+         "code": "1A03",
+         "has_children": true,
+         "title": "Intestinal infections due to Escherichia coli",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/344162786"
+        },
+        {
+         "code": "1A04",
+         "has_children": false,
+         "title": "Intestinal infections due to Clostridioides difficile",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/250688797"
+        },
+        {
+         "code": "1A05",
+         "has_children": false,
+         "title": "Intestinal infections due to Yersinia enterocolitica",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1000894786"
+        },
+        {
+         "code": "1A06",
+         "has_children": false,
+         "title": "Gastroenteritis due to Campylobacter",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/794462570"
+        },
+        {
+         "code": "1A07",
+         "has_children": true,
+         "title": "Typhoid fever",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070"
+        },
+        {
+         "code": "1A08",
+         "has_children": false,
+         "title": "Paratyphoid fever",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1780040028"
+        },
+        {
+         "code": "1A09",
+         "has_children": true,
+         "title": "Infections due to other Salmonella",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/515117475"
+        },
+        {
+         "code": "1A0Y",
+         "has_children": false,
+         "title": "Other specified bacterial intestinal infections",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227/other"
+        },
+        {
+         "code": "1A0Z",
+         "has_children": false,
+         "title": "Bacterial intestinal infections, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1A00&XN8P1"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/257068234"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1A00",
+        "title": "Cholera",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "1A00&XN8P1"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/257068234",
+      "GET icd/release/11/2026-01/mms/911707612",
+      "GET icd/release/11/2026-01/mms/381388700",
+      "GET icd/release/11/2026-01/mms/1935107489",
+      "GET icd/release/11/2026-01/mms/1645664101",
+      "GET icd/release/11/2026-01/mms/528118622",
+      "GET icd/release/11/2026-01/mms/1945127438",
+      "GET icd/release/11/2026-01/mms/188684108",
+      "GET icd/release/11/2026-01/mms/911707612/other",
+      "GET icd/release/11/2026-01/mms/911707612/unspecified"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1A00",
+        "title": "Cholera",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+       },
+       "terms": [
+        {
+         "code": "KA60",
+         "requires_postcoordination": false,
+         "title": "Sepsis of fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+        },
+        {
+         "code": "KA61",
+         "requires_postcoordination": true,
+         "title": "Other bacterial infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+        },
+        {
+         "code": "KA62",
+         "requires_postcoordination": false,
+         "title": "Viral infection in the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1645664101"
+        },
+        {
+         "code": "KA63",
+         "requires_postcoordination": false,
+         "title": "Fungal infection of fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/528118622"
+        },
+        {
+         "code": "KA64",
+         "requires_postcoordination": false,
+         "title": "Parasitic diseases in the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1945127438"
+        },
+        {
+         "code": "KA65",
+         "requires_postcoordination": false,
+         "title": "Neonatal infections of certain specified sites",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/188684108"
+        },
+        {
+         "code": "KA6Y",
+         "requires_postcoordination": false,
+         "title": "Other specified infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/other"
+        },
+        {
+         "code": "KA6Z",
+         "requires_postcoordination": false,
+         "title": "Infections of the fetus or newborn, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "1A00&XN8P1"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+      "GET icd/release/11/2026-01/mms/257068234"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "Cholera is a potentially epidemic and life-threatening infection of the intestine, characterised by extreme watery (secretory) diarrhoea often accompanied by vomiting, with rapid depletion of body fluids and salt that may result in hypovolemic shock and acidosis. Cholera outbreaks are caused by toxigenic strains of Vibrio cholerae serogroups O1 and O139. Serogroup O1 has two biovars; classical and eltor. Vibrio cholerae O1, biovar cholerae is classical type. Vibrio cholerae O1, biovar eltor is eltor type.",
+       "exclusions": [],
+       "fully_specified_name": "Intestinal infection due to Vibrio cholerae",
+       "inclusions": [
+        "cholera syndrome"
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1A00",
+        "title": "Cholera",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1A00&XN8P1"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911",
+   "why": "Vibrio cholerae O1 biovar cholerae"
+  },
+  {
+   "expression": "1A00/5A11",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "error": {
+        "code": "CODE_NOT_FOUND",
+        "message": "Select a valid ICD-11 code."
+       },
+       "schema_version": 1
+      },
+      "http_status": 422
+     },
+     "request": {
+      "code": "1A00/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "error": {
+        "code": "INVALID_SELECTION",
+        "message": "The selected code does not match its WHO URI."
+       },
+       "schema_version": 1
+      },
+      "http_status": 422
+     },
+     "request": {
+      "code": "1A00/5A11",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "error": {
+        "code": "CODE_NOT_FOUND",
+        "message": "ICD-11 expression was not found."
+       },
+       "schema_version": 1
+      },
+      "http_status": 422
+     },
+     "request": {
+      "code": "1A00/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "error": {
+        "code": "INVALID_INPUT",
+        "message": "Select one valid ICD-11 stem code."
+       },
+       "schema_version": 1
+      },
+      "http_status": 422
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "1A00/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "error": {
+        "code": "INVALID_INPUT",
+        "message": "Select one valid ICD-11 stem code."
+       },
+       "schema_version": 1
+      },
+      "http_status": 422
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "1A00/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "error": {
+        "code": "INVALID_INPUT",
+        "message": "Select one valid ICD-11 stem code."
+       },
+       "schema_version": 1
+      },
+      "http_status": 422
+     },
+     "request": {
+      "code": "1A00/5A11"
+     }
+    }
+   ],
+   "uri": null,
+   "why": "owner's example '1A00/5A11': WHO does not resolve it (expected not found)"
+  }
+ ],
+ "id": "pc-1a00",
+ "input": {
+  "built": [
+   {
+    "expression": "1A00&XN8P1",
+    "why": "Vibrio cholerae O1 biovar cholerae"
+   },
+   {
+    "expression": "1A00/5A11",
+    "why": "owner's example '1A00/5A11': WHO does not resolve it (expected not found)"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-1a00",
+  "source": "VAs-01.04; owner list 2026-10-29",
+  "stem": "1A00",
+  "why": "Cholera (VA cause 01.04): infectious agent axis"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1A00",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1A00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1A00",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1A00",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234",
+    "GET icd/release/11/2026-01/mms/194483911",
+    "GET icd/release/11/2026-01/mms/802386629",
+    "GET icd/release/11/2026-01/mms/21927667",
+    "GET icd/release/11/2026-01/mms/1215034670",
+    "GET icd/release/11/2026-01/mms/1839638766",
+    "GET icd/release/11/2026-01/mms/501791005",
+    "GET icd/release/11/2026-01/mms/1975056531",
+    "GET icd/release/11/2026-01/mms/828922344",
+    "GET icd/release/11/2026-01/mms/174465822",
+    "GET icd/release/11/2026-01/mms/612672352",
+    "GET icd/release/11/2026-01/mms/1882742628/other",
+    "GET icd/release/11/2026-01/mms/1882742628/unspecified"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "infectiousAgent",
+       "instruction": "use additional code, if desired",
+       "label": "Infectious agent",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/194483911",
+         "code": "XN8P1",
+         "has_children": false,
+         "title": "Vibrio cholerae O1, biovar cholerae",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/194483911"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/802386629",
+         "code": "XN62R",
+         "has_children": false,
+         "title": "Vibrio cholerae O1, biovar eltor",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/802386629"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/21927667",
+         "code": "XN8KD",
+         "has_children": false,
+         "title": "Vibrio cholerae O139",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/21927667"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/194483911",
+        "http://id.who.int/icd/release/11/2026-01/mms/802386629",
+        "http://id.who.int/icd/release/11/2026-01/mms/21927667"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+         "code": "MG50",
+         "has_children": true,
+         "title": "Finding of gram negative bacteria resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1839638766",
+         "code": "MG51",
+         "has_children": true,
+         "title": "Finding of gram positive bacteria resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1839638766"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/501791005",
+         "code": "MG52",
+         "has_children": true,
+         "title": "Finding of bacteria, neither gram negative nor positive, resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/501791005"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1975056531",
+         "code": "MG53",
+         "has_children": true,
+         "title": "Finding of virus resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1975056531"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/828922344",
+         "code": "MG54",
+         "has_children": false,
+         "title": "Finding of fungus resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/828922344"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/174465822",
+         "code": "MG55",
+         "has_children": true,
+         "title": "Finding of parasite resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/174465822"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/612672352",
+         "code": "MG56",
+         "has_children": false,
+         "title": "Finding of microorganism resistant to other multiple antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/612672352"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1882742628/other",
+         "code": "MG5Y",
+         "has_children": false,
+         "title": "Finding of other microorganism resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1882742628/other"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified",
+         "code": "MG5Z",
+         "has_children": false,
+         "title": "Finding of microorganism resistant to antimicrobial drugs, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+        "http://id.who.int/icd/release/11/2026-01/mms/1839638766",
+        "http://id.who.int/icd/release/11/2026-01/mms/501791005",
+        "http://id.who.int/icd/release/11/2026-01/mms/1975056531",
+        "http://id.who.int/icd/release/11/2026-01/mms/828922344",
+        "http://id.who.int/icd/release/11/2026-01/mms/174465822",
+        "http://id.who.int/icd/release/11/2026-01/mms/612672352",
+        "http://id.who.int/icd/release/11/2026-01/mms/1882742628/other",
+        "http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1A00",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1A00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234",
+    "GET icd/release/11/2026-01/mms/1215034670",
+    "GET icd/release/11/2026-01/mms/420676154",
+    "GET icd/release/11/2026-01/mms/1929872537",
+    "GET icd/release/11/2026-01/mms/916407020",
+    "GET icd/release/11/2026-01/mms/375810888",
+    "GET icd/release/11/2026-01/mms/690008608",
+    "GET icd/release/11/2026-01/mms/1758767625",
+    "GET icd/release/11/2026-01/mms/312500700",
+    "GET icd/release/11/2026-01/mms/243404922",
+    "GET icd/release/11/2026-01/mms/1724766645",
+    "GET icd/release/11/2026-01/mms/1837021781",
+    "GET icd/release/11/2026-01/mms/1385347061",
+    "GET icd/release/11/2026-01/mms/759983228"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.0",
+       "has_children": true,
+       "title": "Antibiotic resistant Acinetobacter baumannii",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/420676154"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.1",
+       "has_children": true,
+       "title": "Antibiotic resistant Campylobacter",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1929872537"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.2",
+       "has_children": true,
+       "title": "Antibiotic resistant Escherichia coli",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/916407020"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.3",
+       "has_children": true,
+       "title": "Antibiotic resistant Haemophilus influenzae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/375810888"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.4",
+       "has_children": true,
+       "title": "Antibiotic resistant Helicobacter pylori",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/690008608"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.5",
+       "has_children": true,
+       "title": "Antibiotic resistant Klebsiella pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1758767625"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.6",
+       "has_children": true,
+       "title": "Antibiotic resistant Neisseria gonorrhoeae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/312500700"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.7",
+       "has_children": true,
+       "title": "Antibiotic resistant Neisseria meningitidis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/243404922"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.8",
+       "has_children": true,
+       "title": "Antibiotic resistant Pseudomonas aeruginosa",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1724766645"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.9",
+       "has_children": true,
+       "title": "Antibiotic resistant Salmonella",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1837021781"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.A",
+       "has_children": true,
+       "title": "Antibiotic resistant Shigella",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1385347061"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.B",
+       "has_children": true,
+       "title": "Antibiotic resistant Vibrio",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/759983228"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1A00",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+    "stem_code": "1A00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234",
+    "GET icd/release/11/2026-01/mms/135352227",
+    "GET icd/release/11/2026-01/mms/588616678",
+    "GET icd/release/11/2026-01/mms/1435254666",
+    "GET icd/release/11/2026-01/mms/135352227",
+    "GET icd/entity/911707612",
+    "GET icd/release/11/2026-01/mms/416025325",
+    "GET icd/release/11/2026-01/mms/2080365623",
+    "GET icd/release/11/2026-01/mms/344162786",
+    "GET icd/release/11/2026-01/mms/250688797",
+    "GET icd/release/11/2026-01/mms/1000894786",
+    "GET icd/release/11/2026-01/mms/794462570",
+    "GET icd/release/11/2026-01/mms/1528414070",
+    "GET icd/release/11/2026-01/mms/1780040028",
+    "GET icd/release/11/2026-01/mms/515117475",
+    "GET icd/release/11/2026-01/mms/135352227/other",
+    "GET icd/release/11/2026-01/mms/135352227/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "01",
+       "title": "Certain infectious or parasitic diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+      },
+      {
+       "code": "",
+       "title": "Gastroenteritis or colitis of infectious origin",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678"
+      },
+      {
+       "code": "",
+       "title": "Bacterial intestinal infections",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Cholera",
+      "asiatic cholera",
+      "cholera syndrome",
+      "epidemic cholera",
+      "Intestinal infection due to Vibrio cholerae",
+      "Enteritis due to cholera due to Vibrio cholerae, non-O1 strains",
+      "Cholera due to Vibrio cholerae O1, biovar cholerae",
+      "classical cholera",
+      "Enteritis due to Cholera due to Vibrio cholerae O1, biovar cholerae",
+      "Enteritis due to classical cholera",
+      "Cholera due to Vibrio cholerae O1, biovar eltor",
+      "cholera - vibrio cholerae 01 eltor biotype"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/entity/911707612"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1A00",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "1A01",
+       "has_children": false,
+       "title": "Intestinal infection due to other Vibrio",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/416025325"
+      },
+      {
+       "code": "1A02",
+       "has_children": false,
+       "title": "Intestinal infections due to Shigella",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2080365623"
+      },
+      {
+       "code": "1A03",
+       "has_children": true,
+       "title": "Intestinal infections due to Escherichia coli",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/344162786"
+      },
+      {
+       "code": "1A04",
+       "has_children": false,
+       "title": "Intestinal infections due to Clostridioides difficile",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/250688797"
+      },
+      {
+       "code": "1A05",
+       "has_children": false,
+       "title": "Intestinal infections due to Yersinia enterocolitica",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1000894786"
+      },
+      {
+       "code": "1A06",
+       "has_children": false,
+       "title": "Gastroenteritis due to Campylobacter",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/794462570"
+      },
+      {
+       "code": "1A07",
+       "has_children": true,
+       "title": "Typhoid fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070"
+      },
+      {
+       "code": "1A08",
+       "has_children": false,
+       "title": "Paratyphoid fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1780040028"
+      },
+      {
+       "code": "1A09",
+       "has_children": true,
+       "title": "Infections due to other Salmonella",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/515117475"
+      },
+      {
+       "code": "1A0Y",
+       "has_children": false,
+       "title": "Other specified bacterial intestinal infections",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227/other"
+      },
+      {
+       "code": "1A0Z",
+       "has_children": false,
+       "title": "Bacterial intestinal infections, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1A00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1A00",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "1A00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234",
+    "GET icd/release/11/2026-01/mms/911707612",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/1935107489",
+    "GET icd/release/11/2026-01/mms/1645664101",
+    "GET icd/release/11/2026-01/mms/528118622",
+    "GET icd/release/11/2026-01/mms/1945127438",
+    "GET icd/release/11/2026-01/mms/188684108",
+    "GET icd/release/11/2026-01/mms/911707612/other",
+    "GET icd/release/11/2026-01/mms/911707612/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1A00",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "terms": [
+      {
+       "code": "KA60",
+       "requires_postcoordination": false,
+       "title": "Sepsis of fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+      },
+      {
+       "code": "KA61",
+       "requires_postcoordination": true,
+       "title": "Other bacterial infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+      },
+      {
+       "code": "KA62",
+       "requires_postcoordination": false,
+       "title": "Viral infection in the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1645664101"
+      },
+      {
+       "code": "KA63",
+       "requires_postcoordination": false,
+       "title": "Fungal infection of fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/528118622"
+      },
+      {
+       "code": "KA64",
+       "requires_postcoordination": false,
+       "title": "Parasitic diseases in the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1945127438"
+      },
+      {
+       "code": "KA65",
+       "requires_postcoordination": false,
+       "title": "Neonatal infections of certain specified sites",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/188684108"
+      },
+      {
+       "code": "KA6Y",
+       "requires_postcoordination": false,
+       "title": "Other specified infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/other"
+      },
+      {
+       "code": "KA6Z",
+       "requires_postcoordination": false,
+       "title": "Infections of the fetus or newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "1A00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "Cholera is a potentially epidemic and life-threatening infection of the intestine, characterised by extreme watery (secretory) diarrhoea often accompanied by vomiting, with rapid depletion of body fluids and salt that may result in hypovolemic shock and acidosis. Cholera outbreaks are caused by toxigenic strains of Vibrio cholerae serogroups O1 and O139. Serogroup O1 has two biovars; classical and eltor. Vibrio cholerae O1, biovar cholerae is classical type. Vibrio cholerae O1, biovar eltor is eltor type.",
+     "exclusions": [],
+     "fully_specified_name": "Intestinal infection due to Vibrio cholerae",
+     "inclusions": [
+      "cholera syndrome"
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1A00",
+      "title": "Cholera",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1A00"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/911707612": {"method":"GET","path":"icd/entity/911707612","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/911707612","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#911707612","child":["http://id.who.int/icd/entity/953221469","http://id.who.int/icd/entity/381388700","http://id.who.int/icd/entity/1935107489","http://id.who.int/icd/entity/1645664101","http://id.who.int/icd/entity/528118622","http://id.who.int/icd/entity/1945127438","http://id.who.int/icd/entity/188684108","http://id.who.int/icd/entity/492702806","http://id.who.int/icd/entity/587996426","http://id.who.int/icd/entity/1643777651"],"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1511167574","label":{"@language":"en","@value":"Asymptomatic human immunodeficiency virus infection"}},{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"congenital gonococcal infection"}},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"human immunodeficiency virus [HIV] disease"}},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"}},{"foundationReference":"http://id.who.int/icd/entity/82994689","label":{"@language":"en","@value":"Laboratory evidence of human immunodeficiency virus"}}],"inclusion":[{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}}],"parent":["http://id.who.int/icd/entity/1435254666","http://id.who.int/icd/entity/1306203631"],"synonym":[{"label":{"@language":"en","@value":"fetal infection"}},{"label":{"@language":"en","@value":"infection in perinatal period"}},{"label":{"@language":"en","@value":"infection of newborn NOS"}},{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}},{"label":{"@language":"en","@value":"newborn infection"}},{"label":{"@language":"en","@value":"newborn opportunistic infection"}},{"label":{"@language":"en","@value":"perinatal infection"}}],"title":{"@language":"en","@value":"Infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1000894786": {"method":"GET","path":"icd/release/11/2026-01/mms/1000894786","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1000894786","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1000894786","classKind":"category","code":"1A05","definition":{"@language":"en","@value":"A disease of the intestinal tract, caused by an infection with the gram-negative bacteria Yersinia enterocolitica. This disease commonly presents with a fever, diarrhoea, or abdominal pain. This disease may also lead to a systemic infection. Transmission is by the faecal-oral route from the ingestion of contaminated food or water, or direct contact with infected individuals or animal. Confirmation is by identification of Yersinia enterocolitica in a faecal sample."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/433889502","label":{"@language":"en","@value":"Postinfectious arthropathy in enteritis due to Yersinia enterocolitica"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1000894786"}],"indexTerm":[{"label":{"@language":"en","@value":"Intestinal infections due to Yersinia enterocolitica"}},{"label":{"@language":"en","@value":"Intestinal yersiniosis"}},{"foundationReference":"http://id.who.int/icd/entity/1807415433","label":{"@language":"en","@value":"Enteritis due to Yersinia enterocolitica"}},{"foundationReference":"http://id.who.int/icd/entity/1807415433","label":{"@language":"en","@value":"infectious enteritis due to yersinia enterocolitica"}},{"foundationReference":"http://id.who.int/icd/entity/433889502","label":{"@language":"en","@value":"Postinfectious arthropathy in enteritis due to Yersinia enterocolitica"}},{"foundationReference":"http://id.who.int/icd/entity/173749429","label":{"@language":"en","@value":"Colitis due to Yersinia enterocolitica"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1000894786/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/554373034"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/1000894786","title":{"@language":"en","@value":"Intestinal infections due to Yersinia enterocolitica"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1215034670": {"method":"GET","path":"icd/release/11/2026-01/mms/1215034670","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1215034670","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1215034670","child":["http://id.who.int/icd/release/11/2026-01/mms/420676154","http://id.who.int/icd/release/11/2026-01/mms/1929872537","http://id.who.int/icd/release/11/2026-01/mms/916407020","http://id.who.int/icd/release/11/2026-01/mms/375810888","http://id.who.int/icd/release/11/2026-01/mms/690008608","http://id.who.int/icd/release/11/2026-01/mms/1758767625","http://id.who.int/icd/release/11/2026-01/mms/312500700","http://id.who.int/icd/release/11/2026-01/mms/243404922","http://id.who.int/icd/release/11/2026-01/mms/1724766645","http://id.who.int/icd/release/11/2026-01/mms/1837021781","http://id.who.int/icd/release/11/2026-01/mms/1385347061","http://id.who.int/icd/release/11/2026-01/mms/759983228","http://id.who.int/icd/release/11/2026-01/mms/2009650394","http://id.who.int/icd/release/11/2026-01/mms/1215034670/other","http://id.who.int/icd/release/11/2026-01/mms/1215034670/unspecified"],"classKind":"category","code":"MG50","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/1215034670","title":{"@language":"en","@value":"Finding of gram negative bacteria resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/135352227": {"method":"GET","path":"icd/release/11/2026-01/mms/135352227","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227","blockId":"BlockL2-1A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#135352227","child":["http://id.who.int/icd/release/11/2026-01/mms/257068234","http://id.who.int/icd/release/11/2026-01/mms/416025325","http://id.who.int/icd/release/11/2026-01/mms/2080365623","http://id.who.int/icd/release/11/2026-01/mms/344162786","http://id.who.int/icd/release/11/2026-01/mms/250688797","http://id.who.int/icd/release/11/2026-01/mms/1000894786","http://id.who.int/icd/release/11/2026-01/mms/794462570","http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/1780040028","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/135352227/other","http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified"],"classKind":"block","code":"","codeRange":"1A00-1A0Z","definition":{"@language":"en","@value":"Any condition of the intestines, caused by an infection with a bacterial source."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/88597691","label":{"@language":"en","@value":"Helicobacter pylori induced gastritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/88597691"},{"foundationReference":"http://id.who.int/icd/entity/1417758377","label":{"@language":"en","@value":"Helicobacter pylori associated gastric ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1417758377"},{"foundationReference":"http://id.who.int/icd/entity/200296155","label":{"@language":"en","@value":"Helicobacter-pylori associated duodenitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/200296155"},{"foundationReference":"http://id.who.int/icd/entity/1358822175","label":{"@language":"en","@value":"Helicobacter-pylori associated duodenal ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1358822175"},{"foundationReference":"http://id.who.int/icd/entity/457169641","label":{"@language":"en","@value":"Helicobacter pylori associated and drug-induced gastric ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/457169641"},{"foundationReference":"http://id.who.int/icd/entity/1859513700","label":{"@language":"en","@value":"Helicobacter-pylori associated and drug-induced duodenal ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1859513700"},{"foundationReference":"http://id.who.int/icd/entity/1834648119","label":{"@language":"en","@value":"Bacterial foodborne intoxications"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1834648119"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2143116824","label":{"@language":"en","@value":"Abdominal actinomycosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2143116824"},{"foundationReference":"http://id.who.int/icd/entity/974967764","label":{"@language":"en","@value":"Listerial gastroenteritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/419706488/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/588616678"],"source":"http://id.who.int/icd/entity/135352227","title":{"@language":"en","@value":"Bacterial intestinal infections"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/135352227/other": {"method":"GET","path":"icd/release/11/2026-01/mms/135352227/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#135352227/other","classKind":"category","code":"1A0Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified bacterial intestinal infections"}},{"foundationReference":"http://id.who.int/icd/entity/1151962231","label":{"@language":"en","@value":"Enteritis due to Enterobacter"}},{"foundationReference":"http://id.who.int/icd/entity/1681048785","label":{"@language":"en","@value":"Colitis due to methicillin resistant Staphylococcus aureus"}},{"foundationReference":"http://id.who.int/icd/entity/1681048785","label":{"@language":"en","@value":"colitis due to MRSA - [methicillin-resistant Staphylococcus aureus]"}},{"foundationReference":"http://id.who.int/icd/entity/1446711512","label":{"@language":"en","@value":"Colitis due to Pseudomonas aeruginosa"}},{"foundationReference":"http://id.who.int/icd/entity/1776745893","label":{"@language":"en","@value":"Colitis due to Klebsiella oxytoca"}},{"foundationReference":"http://id.who.int/icd/entity/1584782555","label":{"@language":"en","@value":"Colonic spirochaetosis"}},{"foundationReference":"http://id.who.int/icd/entity/2017284467","label":{"@language":"en","@value":"Brachyspira colitis"}},{"foundationReference":"http://id.who.int/icd/entity/2017284467","label":{"@language":"en","@value":"Colonic infection due to Brachyspira pilosicoli"}},{"foundationReference":"http://id.who.int/icd/entity/858691435","label":{"@language":"en","@value":"Megacolon due to infectious colitis"}},{"foundationReference":"http://id.who.int/icd/entity/36782675","label":{"@language":"en","@value":"Enteritis due to Pseudomonas aeruginosa"}},{"foundationReference":"http://id.who.int/icd/entity/125643609","label":{"@language":"en","@value":"Neonatal bacterial intestinal infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/other/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1742998538/unspecified"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"title":{"@language":"en","@value":"Other specified bacterial intestinal infections"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/135352227/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/135352227/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#135352227/unspecified","classKind":"category","code":"1A0Z","indexTerm":[{"label":{"@language":"en","@value":"Bacterial intestinal infections, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/135352227","label":{"@language":"en","@value":"Bacterial enteritis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1561949126","label":{"@language":"en","@value":"Intestinal infections due to Salmonella"}},{"foundationReference":"http://id.who.int/icd/entity/1561949126","label":{"@language":"en","@value":"Intestinal infection due to Salmonella"}},{"foundationReference":"http://id.who.int/icd/entity/1851734799","label":{"@language":"en","@value":"Bacterial colitis"}},{"foundationReference":"http://id.who.int/icd/entity/1851734799","label":{"@language":"en","@value":"Phlegmonous colitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1742998538/unspecified"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"title":{"@language":"en","@value":"Bacterial intestinal infections, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1385347061": {"method":"GET","path":"icd/release/11/2026-01/mms/1385347061","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1385347061","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1385347061","child":["http://id.who.int/icd/release/11/2026-01/mms/149575780","http://id.who.int/icd/release/11/2026-01/mms/1067169197","http://id.who.int/icd/release/11/2026-01/mms/657712104","http://id.who.int/icd/release/11/2026-01/mms/50249252","http://id.who.int/icd/release/11/2026-01/mms/1385347061/other","http://id.who.int/icd/release/11/2026-01/mms/1385347061/unspecified"],"classKind":"category","code":"MG50.A","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1385347061","title":{"@language":"en","@value":"Antibiotic resistant Shigella"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1435254666": {"method":"GET","path":"icd/release/11/2026-01/mms/1435254666","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1435254666","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1435254666","child":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"],"classKind":"chapter","code":"01","definition":{"@language":"en","@value":"This chapter includes certain conditions caused by pathogenic organisms or microorganisms, such as bacteria, viruses, parasites or fungi."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1612485599","label":{"@language":"en","@value":"Infection arising from device, implant or graft, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1612485599"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"Infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/911707612"},{"foundationReference":"http://id.who.int/icd/entity/1965146397","label":{"@language":"en","@value":"Human prion diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965146397"},{"foundationReference":"http://id.who.int/icd/entity/142052508","label":{"@language":"en","@value":"Pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/142052508"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1435254666","title":{"@language":"en","@value":"Certain infectious or parasitic diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1528414070": {"method":"GET","path":"icd/release/11/2026-01/mms/1528414070","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1528414070","child":["http://id.who.int/icd/release/11/2026-01/mms/364534567","http://id.who.int/icd/release/11/2026-01/mms/1528414070/other","http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified"],"classKind":"category","code":"1A07","definition":{"@language":"en","@value":"A condition caused by an infection with the gram-negative bacteria Salmonella typhi. This condition is characterised by an acute sustained fever. This condition may present with weakness, stomach pains, headache, loss of appetite, or flat, rose-coloured spots. Transmission is by the faecal-oral route from the ingestion of contaminated food or water. Confirmation is by identification of Salmonella typhi in a faecal or blood sample."},"longDefinition":{"@language":"en","@value":"Acute systemic febrile infection caused by Salmonella typhi, with insidious onset of sustained fever, marked headache, malaise, anorexia, relative bradycardia, splenomegaly, non productive cough in the early stage of the illness, rose spots on the trunk in 25% of white skinned patients and constipation more often than diarrhoea in adults."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/512128824","http://id.who.int/icd/release/11/2026-01/mms/654702340","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/1370972705","http://id.who.int/icd/release/11/2026-01/mms/554373034","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/2044414353","http://id.who.int/icd/release/11/2026-01/mms/1112214727","http://id.who.int/icd/release/11/2026-01/mms/1472717853"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1837021781"]}],"source":"http://id.who.int/icd/entity/1528414070","title":{"@language":"en","@value":"Typhoid fever"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1645664101": {"method":"GET","path":"icd/release/11/2026-01/mms/1645664101","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1645664101","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1645664101","child":["http://id.who.int/icd/release/11/2026-01/mms/755611612","http://id.who.int/icd/release/11/2026-01/mms/1861788994","http://id.who.int/icd/release/11/2026-01/mms/2071159826","http://id.who.int/icd/release/11/2026-01/mms/1515465998","http://id.who.int/icd/release/11/2026-01/mms/1354629557","http://id.who.int/icd/release/11/2026-01/mms/1981771784","http://id.who.int/icd/release/11/2026-01/mms/453730080","http://id.who.int/icd/release/11/2026-01/mms/648536096","http://id.who.int/icd/release/11/2026-01/mms/1059053724","http://id.who.int/icd/release/11/2026-01/mms/1270001765","http://id.who.int/icd/release/11/2026-01/mms/788102641","http://id.who.int/icd/release/11/2026-01/mms/1645664101/other","http://id.who.int/icd/release/11/2026-01/mms/1645664101/unspecified"],"classKind":"category","code":"KA62","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a virus."},"longDefinition":{"@language":"en","@value":"Congential viral diseases are diseases caused by either the bloodborne transmission of a virus from a pregnant mother to the placenta and her fetus (horizontal infection) or less commonly a direct infection of the membranes and placenta transvaginally across the cervix (vertical transmission) during any point during gestation and through the first 28 days of life The clinical manifestations of these diseases vary depending on the viral agent and gestational age at exposure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1645664101/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1646490591"]}],"source":"http://id.who.int/icd/entity/1645664101","title":{"@language":"en","@value":"Viral infection in the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1724766645": {"method":"GET","path":"icd/release/11/2026-01/mms/1724766645","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1724766645","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1724766645","child":["http://id.who.int/icd/release/11/2026-01/mms/2104583029","http://id.who.int/icd/release/11/2026-01/mms/591039384","http://id.who.int/icd/release/11/2026-01/mms/1724766645/other","http://id.who.int/icd/release/11/2026-01/mms/1724766645/unspecified"],"classKind":"category","code":"MG50.8","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1724766645/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1435254666","http://id.who.int/icd/release/11/2026-01/mms/1630407678","http://id.who.int/icd/release/11/2026-01/mms/1766440644","http://id.who.int/icd/release/11/2026-01/mms/1954798891","http://id.who.int/icd/release/11/2026-01/mms/577470983","http://id.who.int/icd/release/11/2026-01/mms/21500692","http://id.who.int/icd/release/11/2026-01/mms/334423054","http://id.who.int/icd/release/11/2026-01/mms/274880002","http://id.who.int/icd/release/11/2026-01/mms/1296093776","http://id.who.int/icd/release/11/2026-01/mms/868865918","http://id.who.int/icd/release/11/2026-01/mms/1218729044","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/1639304259","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/714000734","http://id.who.int/icd/release/11/2026-01/mms/1306203631","http://id.who.int/icd/release/11/2026-01/mms/223744320","http://id.who.int/icd/release/11/2026-01/mms/1843895818","http://id.who.int/icd/release/11/2026-01/mms/435227771","http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/1249056269","http://id.who.int/icd/release/11/2026-01/mms/1596590595"]}],"source":"http://id.who.int/icd/entity/1724766645","title":{"@language":"en","@value":"Antibiotic resistant Pseudomonas aeruginosa"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/174465822": {"method":"GET","path":"icd/release/11/2026-01/mms/174465822","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/174465822","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#174465822","child":["http://id.who.int/icd/release/11/2026-01/mms/716575694","http://id.who.int/icd/release/11/2026-01/mms/174465822/other","http://id.who.int/icd/release/11/2026-01/mms/174465822/unspecified"],"classKind":"category","code":"MG55","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/174465822","title":{"@language":"en","@value":"Finding of parasite resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1758767625": {"method":"GET","path":"icd/release/11/2026-01/mms/1758767625","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1758767625","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1758767625","child":["http://id.who.int/icd/release/11/2026-01/mms/231529131","http://id.who.int/icd/release/11/2026-01/mms/1478794390","http://id.who.int/icd/release/11/2026-01/mms/939163862","http://id.who.int/icd/release/11/2026-01/mms/1054989766","http://id.who.int/icd/release/11/2026-01/mms/1210342233","http://id.who.int/icd/release/11/2026-01/mms/376419258","http://id.who.int/icd/release/11/2026-01/mms/1681393140","http://id.who.int/icd/release/11/2026-01/mms/1758767625/other","http://id.who.int/icd/release/11/2026-01/mms/1758767625/unspecified"],"classKind":"category","code":"MG50.5","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1758767625","title":{"@language":"en","@value":"Antibiotic resistant Klebsiella pneumoniae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1780040028": {"method":"GET","path":"icd/release/11/2026-01/mms/1780040028","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1780040028","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1780040028","classKind":"category","code":"1A08","definition":{"@language":"en","@value":"A condition caused by an infection with the gram-negative bacteria Salmonella paratyphi. This condition is characterised by an acute sustained fever. The individual may feel weak, have stomach pains, headache, loss of appetite, or a rash of flat, rose-coloured spots. Transmission is by ingestion of contaminated food or water. Confirmation is by identification of Salmonella paratyphi in a faecal or blood sample."},"indexTerm":[{"label":{"@language":"en","@value":"Paratyphoid fever"}},{"label":{"@language":"en","@value":"Infection due to Salmonella paratyphi"}},{"foundationReference":"http://id.who.int/icd/entity/1045590756","label":{"@language":"en","@value":"Paratyphoid fever A"}},{"foundationReference":"http://id.who.int/icd/entity/1045590756","label":{"@language":"en","@value":"paratyphoid A"}},{"foundationReference":"http://id.who.int/icd/entity/1045590756","label":{"@language":"en","@value":"salmonella infection paratyphi A"}},{"foundationReference":"http://id.who.int/icd/entity/1045590756","label":{"@language":"en","@value":"salmonella paratyphoid fever A"}},{"foundationReference":"http://id.who.int/icd/entity/1704920593","label":{"@language":"en","@value":"Enteritis due to paratyphoid fever A"}},{"foundationReference":"http://id.who.int/icd/entity/25782079","label":{"@language":"en","@value":"Colitis due to paratyphoid fever A"}},{"foundationReference":"http://id.who.int/icd/entity/1258234397","label":{"@language":"en","@value":"Paratyphoid fever B"}},{"foundationReference":"http://id.who.int/icd/entity/1258234397","label":{"@language":"en","@value":"paratyphoid b"}},{"foundationReference":"http://id.who.int/icd/entity/1258234397","label":{"@language":"en","@value":"salmonella infection paratyphi B"}},{"foundationReference":"http://id.who.int/icd/entity/1258234397","label":{"@language":"en","@value":"salmonella paratyphoid fever B"}},{"foundationReference":"http://id.who.int/icd/entity/1258234397","label":{"@language":"en","@value":"salmonella schottmuelleri infection"}},{"foundationReference":"http://id.who.int/icd/entity/416227453","label":{"@language":"en","@value":"Enteritis due to paratyphoid fever B"}},{"foundationReference":"http://id.who.int/icd/entity/345609254","label":{"@language":"en","@value":"Colitis due to paratyphoid fever B"}},{"foundationReference":"http://id.who.int/icd/entity/800386953","label":{"@language":"en","@value":"Paratyphoid fever C"}},{"foundationReference":"http://id.who.int/icd/entity/800386953","label":{"@language":"en","@value":"paratyphoid C"}},{"foundationReference":"http://id.who.int/icd/entity/800386953","label":{"@language":"en","@value":"salmonella hirschfeldii infection"}},{"foundationReference":"http://id.who.int/icd/entity/800386953","label":{"@language":"en","@value":"salmonella infection paratyphi C"}},{"foundationReference":"http://id.who.int/icd/entity/800386953","label":{"@language":"en","@value":"salmonella paratyphoid fever C"}},{"foundationReference":"http://id.who.int/icd/entity/1781535490","label":{"@language":"en","@value":"Enteritis due to paratyphoid fever C"}},{"foundationReference":"http://id.who.int/icd/entity/725907799","label":{"@language":"en","@value":"Colitis due to paratyphoid fever C"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1780040028/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/833038527","http://id.who.int/icd/release/11/2026-01/mms/1423652218","http://id.who.int/icd/release/11/2026-01/mms/77655243"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1780040028/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1370972705","http://id.who.int/icd/release/11/2026-01/mms/2044414353","http://id.who.int/icd/release/11/2026-01/mms/1112214727","http://id.who.int/icd/release/11/2026-01/mms/1472717853"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1780040028/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1837021781"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/1780040028","title":{"@language":"en","@value":"Paratyphoid fever"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1837021781": {"method":"GET","path":"icd/release/11/2026-01/mms/1837021781","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1837021781","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1837021781","child":["http://id.who.int/icd/release/11/2026-01/mms/1891254232","http://id.who.int/icd/release/11/2026-01/mms/1586922538","http://id.who.int/icd/release/11/2026-01/mms/292396308","http://id.who.int/icd/release/11/2026-01/mms/1837021781/other","http://id.who.int/icd/release/11/2026-01/mms/1837021781/unspecified"],"classKind":"category","code":"MG50.9","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1837021781","title":{"@language":"en","@value":"Antibiotic resistant Salmonella"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1839638766": {"method":"GET","path":"icd/release/11/2026-01/mms/1839638766","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1839638766","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1839638766","child":["http://id.who.int/icd/release/11/2026-01/mms/1446152257","http://id.who.int/icd/release/11/2026-01/mms/40564846","http://id.who.int/icd/release/11/2026-01/mms/1980186627","http://id.who.int/icd/release/11/2026-01/mms/1839638766/other","http://id.who.int/icd/release/11/2026-01/mms/1839638766/unspecified"],"classKind":"category","code":"MG51","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/1839638766","title":{"@language":"en","@value":"Finding of gram positive bacteria resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1882742628/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1882742628/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1882742628/other","classKind":"category","code":"MG5Y","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"indexTerm":[{"label":{"@language":"en","@value":"Finding of other microorganism resistant to antimicrobial drugs"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"title":{"@language":"en","@value":"Finding of other microorganism resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1882742628/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1882742628/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1882742628/unspecified","classKind":"category","code":"MG5Z","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"indexTerm":[{"label":{"@language":"en","@value":"Finding of microorganism resistant to antimicrobial drugs, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"title":{"@language":"en","@value":"Finding of microorganism resistant to antimicrobial drugs, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/188684108": {"method":"GET","path":"icd/release/11/2026-01/mms/188684108","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#188684108","child":["http://id.who.int/icd/release/11/2026-01/mms/358047372","http://id.who.int/icd/release/11/2026-01/mms/244932428","http://id.who.int/icd/release/11/2026-01/mms/78758887","http://id.who.int/icd/release/11/2026-01/mms/1880920858","http://id.who.int/icd/release/11/2026-01/mms/1366690608","http://id.who.int/icd/release/11/2026-01/mms/188684108/other"],"classKind":"category","code":"KA65","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2040953952","label":{"@language":"en","@value":"Neonatal tracheitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2040953952"},{"foundationReference":"http://id.who.int/icd/entity/2002735219","label":{"@language":"en","@value":"Neonatal skin infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2002735219"}],"indexTerm":[{"label":{"@language":"en","@value":"Neonatal infections of certain specified sites"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1644747126","http://id.who.int/icd/release/11/2026-01/mms/687250607","http://id.who.int/icd/release/11/2026-01/mms/1509166126"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"source":"http://id.who.int/icd/entity/188684108","title":{"@language":"en","@value":"Neonatal infections of certain specified sites"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1929872537": {"method":"GET","path":"icd/release/11/2026-01/mms/1929872537","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1929872537","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1929872537","child":["http://id.who.int/icd/release/11/2026-01/mms/1071250765","http://id.who.int/icd/release/11/2026-01/mms/1929872537/other","http://id.who.int/icd/release/11/2026-01/mms/1929872537/unspecified"],"classKind":"category","code":"MG50.1","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1929872537","title":{"@language":"en","@value":"Antibiotic resistant Campylobacter"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935107489": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489","child":["http://id.who.int/icd/release/11/2026-01/mms/576751653","http://id.who.int/icd/release/11/2026-01/mms/864425294","http://id.who.int/icd/release/11/2026-01/mms/1935107489/other","http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"],"classKind":"category","code":"KA61","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/358047372","label":{"@language":"en","@value":"Neonatal conjunctivitis or dacryocystitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/358047372"},{"foundationReference":"http://id.who.int/icd/entity/1880920858","label":{"@language":"en","@value":"Neonatal infectious mastitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1880920858"},{"foundationReference":"http://id.who.int/icd/entity/78758887","label":{"@language":"en","@value":"Neonatal urinary tract infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/78758887"},{"foundationReference":"http://id.who.int/icd/entity/244932428","label":{"@language":"en","@value":"Omphalitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/244932428"},{"foundationReference":"http://id.who.int/icd/entity/1366690608","label":{"@language":"en","@value":"Neonatal meningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1366690608"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1926763926","label":{"@language":"en","@value":"Early congenital syphilis, latent"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1926763926"},{"foundationReference":"http://id.who.int/icd/entity/395565060","label":{"@language":"en","@value":"Early congenital syphilis, symptomatic"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/395565060"},{"foundationReference":"http://id.who.int/icd/entity/1681155693","label":{"@language":"en","@value":"Neonatal necrotising fasciitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1681155693"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/756297560","label":{"@language":"en","@value":"Neonatal pyogenic skin infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/756297560"},{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"Congenital pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"source":"http://id.who.int/icd/entity/1935107489","title":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/194483911": {"method":"GET","path":"icd/release/11/2026-01/mms/194483911","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/194483911","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#194483911","classKind":"category","code":"XN8P1","indexTerm":[{"label":{"@language":"en","@value":"Vibrio cholerae O1, biovar cholerae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/824826401"],"source":"http://id.who.int/icd/entity/194483911","title":{"@language":"en","@value":"Vibrio cholerae O1, biovar cholerae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1945127438": {"method":"GET","path":"icd/release/11/2026-01/mms/1945127438","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1945127438","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1945127438","child":["http://id.who.int/icd/release/11/2026-01/mms/1194018225","http://id.who.int/icd/release/11/2026-01/mms/738335517","http://id.who.int/icd/release/11/2026-01/mms/1945127438/other","http://id.who.int/icd/release/11/2026-01/mms/1945127438/unspecified"],"classKind":"category","code":"KA64","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a parasite."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/587996426","label":{"@language":"en","@value":"Congenital syphilis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/587996426"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1945127438/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1439886552","http://id.who.int/icd/release/11/2026-01/mms/817691561","http://id.who.int/icd/release/11/2026-01/mms/1786908147","http://id.who.int/icd/release/11/2026-01/mms/793136270","http://id.who.int/icd/release/11/2026-01/mms/255141529/other","http://id.who.int/icd/release/11/2026-01/mms/255141529/unspecified"]}],"source":"http://id.who.int/icd/entity/1945127438","title":{"@language":"en","@value":"Parasitic diseases in the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1975056531": {"method":"GET","path":"icd/release/11/2026-01/mms/1975056531","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1975056531","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1975056531","child":["http://id.who.int/icd/release/11/2026-01/mms/132072037","http://id.who.int/icd/release/11/2026-01/mms/1975056531/other","http://id.who.int/icd/release/11/2026-01/mms/1975056531/unspecified"],"classKind":"category","code":"MG53","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/1975056531","title":{"@language":"en","@value":"Finding of virus resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2080365623": {"method":"GET","path":"icd/release/11/2026-01/mms/2080365623","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2080365623","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2080365623","classKind":"category","code":"1A02","definition":{"@language":"en","@value":"A disease caused by an infection with the gram-negative bacteria genus Shigella. This disease is characterised by an acute onset of small volume diarrhoea, accompanied by fever and nausea. This disease may also present with toxaemia, vomiting, cramps, and tenesmus. Transmission is by ingestion of contaminated food, or direct contact. Confirmation is by identification of Shigella in a faecal sample."},"indexTerm":[{"label":{"@language":"en","@value":"Intestinal infections due to Shigella"}},{"label":{"@language":"en","@value":"bacillary colitis"}},{"label":{"@language":"en","@value":"bacillary dysentery NOS"}},{"label":{"@language":"en","@value":"shigella enteritis"}},{"label":{"@language":"en","@value":"shigellosis"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"Shigellosis due to Shigella dysenteriae"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"Group A shigellosis"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"Schmitz dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"Shiga-Kruse dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"bacillary dysentery due to shigella dysenteriae"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"bacillary dysentery due to shigella group A"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"dysentery due to bacillus schmitz"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"dysentery due to bacillus schmitz-stutzer"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"dysentery due to bacillus shiga"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"dysentery due to bacillus shiga-kruse"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"infection due to bacillus shiga"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"infection due to bacillus shiga-kruse"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"infection due to shigella dysenteriae"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"infection due to shigella group A"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"infection due to shigella schmitzii"}},{"foundationReference":"http://id.who.int/icd/entity/1181145033","label":{"@language":"en","@value":"shiga dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/1088295491","label":{"@language":"en","@value":"Enteritis in shigellosis due to Shigella dysenteriae"}},{"foundationReference":"http://id.who.int/icd/entity/1088295491","label":{"@language":"en","@value":"Enteritis in Shigellosis due to Group A shigellosis"}},{"foundationReference":"http://id.who.int/icd/entity/1088295491","label":{"@language":"en","@value":"Enteritis in Shigellosis due to Shiga-Kruse dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/371596818","label":{"@language":"en","@value":"Colitis in shigellosis due to Shigella dysenteriae"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"Shigellosis due to Shigella flexneri"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"Flexner dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"Group B shigellosis"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"Hiss-Russell dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"bacillary dysentery due to shigella flexneri"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"bacillary dysentery due to shigella group B"}},{"deprecated":true,"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"bacillus flexner infection (deprecated)"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"dysentery due to bacillus flexneri"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"infection due to group B shigella"}},{"foundationReference":"http://id.who.int/icd/entity/590158429","label":{"@language":"en","@value":"shigella flexneri infection"}},{"foundationReference":"http://id.who.int/icd/entity/79738335","label":{"@language":"en","@value":"Enteritis in shigellosis due to Shigella flexneri"}},{"foundationReference":"http://id.who.int/icd/entity/79738335","label":{"@language":"en","@value":"Group B shigellosis resulting in enteritis"}},{"foundationReference":"http://id.who.int/icd/entity/565526380","label":{"@language":"en","@value":"Colitis in shigellosis due to Shigella flexneri"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"Shigellosis due to Shigella boydii"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"Boyd dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"Group C shigellosis"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"bacillary dysentery due to shigella boydii"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"bacillary dysentery due to shigella group C"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"infection due to group C shigella"}},{"foundationReference":"http://id.who.int/icd/entity/1468025508","label":{"@language":"en","@value":"infection due to shigella boydii"}},{"foundationReference":"http://id.who.int/icd/entity/2097835090","label":{"@language":"en","@value":"Enteritis in shigellosis due to Shigella boydii"}},{"foundationReference":"http://id.who.int/icd/entity/2097835090","label":{"@language":"en","@value":"Group C shigellosis resulting in enteritis"}},{"foundationReference":"http://id.who.int/icd/entity/980970745","label":{"@language":"en","@value":"Colitis in shigellosis due to Shigella boydii"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"Shigellosis due to Shigella sonnei"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"Group D shigellosis"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"Sonne dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"bacillary dysentery due to shigella group D"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"bacillary dysentery due to shigella sonnei"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"infection due to group D shigella"}},{"foundationReference":"http://id.who.int/icd/entity/852199222","label":{"@language":"en","@value":"infection due to shigella sonnei"}},{"foundationReference":"http://id.who.int/icd/entity/1884887987","label":{"@language":"en","@value":"Enteritis in shigellosis due to Shigella sonnei"}},{"foundationReference":"http://id.who.int/icd/entity/1884887987","label":{"@language":"en","@value":"Group D shigellosis resulting in enteritis"}},{"foundationReference":"http://id.who.int/icd/entity/141670656","label":{"@language":"en","@value":"Colitis in shigellosis due to Shigella sonnei"}},{"foundationReference":"http://id.who.int/icd/entity/704377697","label":{"@language":"en","@value":"Bacterial colitis due to Shigella"}},{"foundationReference":"http://id.who.int/icd/entity/1955742846","label":{"@language":"en","@value":"Bacterial enteritis due to Shigella"}},{"foundationReference":"http://id.who.int/icd/entity/793651617","label":{"@language":"en","@value":"Sepsis due to shigella without mention of septic shock"}},{"foundationReference":"http://id.who.int/icd/entity/793651617","label":{"@language":"en","@value":"Sepsis due to shigella NOS"}},{"foundationReference":"http://id.who.int/icd/entity/458723679","label":{"@language":"en","@value":"Sepsis due to shigella with septic shock"}}],"longDefinition":{"@language":"en","@value":"An acute bacterial disease involving the distal small intestine and colon, characterized by loose stools of small volume accompanied by fever, nausea and sometimes toxoemia, vomiting, cramps and tenesmus."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2080365623/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1095665982","http://id.who.int/icd/release/11/2026-01/mms/1527363560","http://id.who.int/icd/release/11/2026-01/mms/80471749","http://id.who.int/icd/release/11/2026-01/mms/512546847"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2080365623/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2080365623/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1385347061"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/2080365623","title":{"@language":"en","@value":"Intestinal infections due to Shigella"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/21927667": {"method":"GET","path":"icd/release/11/2026-01/mms/21927667","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/21927667","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#21927667","classKind":"category","code":"XN8KD","indexTerm":[{"label":{"@language":"en","@value":"Vibrio cholerae O139"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/824826401"],"source":"http://id.who.int/icd/entity/21927667","title":{"@language":"en","@value":"Vibrio cholerae O139"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/243404922": {"method":"GET","path":"icd/release/11/2026-01/mms/243404922","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/243404922","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#243404922","child":["http://id.who.int/icd/release/11/2026-01/mms/1071495840","http://id.who.int/icd/release/11/2026-01/mms/243404922/other","http://id.who.int/icd/release/11/2026-01/mms/243404922/unspecified"],"classKind":"category","code":"MG50.7","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/243404922","title":{"@language":"en","@value":"Antibiotic resistant Neisseria meningitidis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/250688797": {"method":"GET","path":"icd/release/11/2026-01/mms/250688797","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/250688797","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#250688797","classKind":"category","code":"1A04","definition":{"@language":"en","@value":"A disease of the colon, caused by an infection with toxigenic strains of the gram-positive bacteria Clostridioides difficile (formerly known as Clostridium difficile). This disease is characterised by colitis, diarrhoea, abdominal pain, and fever. Transmission is commonly by direct or indirect contact. A disturbance of the normal bacterial flora of the colon, e.g. due to antibiotic treatment, facilitates the development of an intestinal infection with Clostridioides difficile. Confirmation is by identification of Clostridioides difficile in a faecal sample."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"}],"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/2114593305","label":{"@language":"en","@value":"Pseudomembranous colitis"}}],"indexTerm":[{"label":{"@language":"en","@value":"Intestinal infections due to Clostridioides difficile"}},{"label":{"@language":"en","@value":"C diff colitis"}},{"label":{"@language":"en","@value":"C difficile"}},{"label":{"@language":"en","@value":"C difficile infection"}},{"label":{"@language":"en","@value":"C. difficile colitis"}},{"label":{"@language":"en","@value":"CDAD – [clostridioides difficile associated diarrhoea]"}},{"label":{"@language":"en","@value":"CDAD – [clostridium difficile associated diarrhoea]"}},{"label":{"@language":"en","@value":"Clostridium difficile colitis"}},{"label":{"@language":"en","@value":"Clostridium difficile diarrhoea"}},{"label":{"@language":"en","@value":"Clostridium difficile gastroenteritis"}},{"label":{"@language":"en","@value":"colitis due to Clostridium difficile"}},{"label":{"@language":"en","@value":"enterocolitis due to Clostridium difficile"}},{"label":{"@language":"en","@value":"foodborne clostridium difficile infection"}},{"label":{"@language":"en","@value":"necrotizing enterocolitis due to clostridium difficile infection"}},{"foundationReference":"http://id.who.int/icd/entity/2114593305","label":{"@language":"en","@value":"Pseudomembranous colitis"}},{"foundationReference":"http://id.who.int/icd/entity/2114593305","label":{"@language":"en","@value":"PMC - [pseudomembranous colitis]"}},{"foundationReference":"http://id.who.int/icd/entity/1047622632","label":{"@language":"en","@value":"Megacolon due to Clostridioides difficile"}},{"foundationReference":"http://id.who.int/icd/entity/1047622632","label":{"@language":"en","@value":"megacolon due to Clostridium difficile"}}],"longDefinition":{"@language":"en","@value":"Clostridioides difficile is a gram-positive, anaerobic, spore-forming bacillus that is responsible for the development of antibiotic-associated diarrhoea and colitis. C difficile colitis results from a disturbance of the normal bacterial flora of the colon, colonization with C difficile, and release of toxins that cause mucosal inflammation and damage."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/250688797/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1742998538/unspecified"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/250688797/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1158914813","http://id.who.int/icd/release/11/2026-01/mms/1323892810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/250688797/postcoordinationScale/temporalPatternAndOnset","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/temporalPatternAndOnset","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1122666181","http://id.who.int/icd/release/11/2026-01/mms/1721353160"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/250688797","title":{"@language":"en","@value":"Intestinal infections due to Clostridioides difficile"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/257068234": {"method":"GET","path":"icd/release/11/2026-01/mms/257068234","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/257068234","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#257068234","classKind":"category","code":"1A00","definition":{"@language":"en","@value":"Cholera is a potentially epidemic and life-threatening infection of the intestine, characterised by extreme watery (secretory) diarrhoea often accompanied by vomiting, with rapid depletion of body fluids and salt that may result in hypovolemic shock and acidosis. Cholera outbreaks are caused by toxigenic strains of Vibrio cholerae serogroups O1 and O139. Serogroup O1 has two biovars; classical and eltor. Vibrio cholerae O1, biovar cholerae is classical type. Vibrio cholerae O1, biovar eltor is eltor type."},"fullySpecifiedName":{"@language":"en","@value":"Intestinal infection due to Vibrio cholerae"},"inclusion":[{"label":{"@language":"en","@value":"cholera syndrome"}}],"indexTerm":[{"label":{"@language":"en","@value":"Cholera"}},{"label":{"@language":"en","@value":"asiatic cholera"}},{"label":{"@language":"en","@value":"cholera syndrome"}},{"label":{"@language":"en","@value":"epidemic cholera"}},{"label":{"@language":"en","@value":"Intestinal infection due to Vibrio cholerae"}},{"foundationReference":"http://id.who.int/icd/entity/1170831944","label":{"@language":"en","@value":"Enteritis due to cholera due to Vibrio cholerae, non-O1 strains"}},{"foundationReference":"http://id.who.int/icd/entity/1205958647","label":{"@language":"en","@value":"Cholera due to Vibrio cholerae O1, biovar cholerae"}},{"foundationReference":"http://id.who.int/icd/entity/1205958647","label":{"@language":"en","@value":"classical cholera"}},{"foundationReference":"http://id.who.int/icd/entity/1384028266","label":{"@language":"en","@value":"Enteritis due to Cholera due to Vibrio cholerae O1, biovar cholerae"}},{"foundationReference":"http://id.who.int/icd/entity/1384028266","label":{"@language":"en","@value":"Enteritis due to classical cholera"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"Cholera due to Vibrio cholerae O1, biovar eltor"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"cholera - vibrio cholerae 01 eltor biotype"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"cholera due to Cholera eltor"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"cholera due to Vibrio cholerae 01, Cholera eltor"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"Enteritis due to cholera due to Vibrio cholerae O1, biovar eltor"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"Enteritis due to cholera due to Cholera eltor"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"eltor enteritis"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"infectious enteritis due to vibrio cholerae 01, biovar eltor"}},{"foundationReference":"http://id.who.int/icd/entity/1972085775","label":{"@language":"en","@value":"Cholera due to Vibrio cholerae O139"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/257068234/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/194483911","http://id.who.int/icd/release/11/2026-01/mms/802386629","http://id.who.int/icd/release/11/2026-01/mms/21927667"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/257068234/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/257068234","title":{"@language":"en","@value":"Cholera"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/312500700": {"method":"GET","path":"icd/release/11/2026-01/mms/312500700","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/312500700","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#312500700","child":["http://id.who.int/icd/release/11/2026-01/mms/2135031716","http://id.who.int/icd/release/11/2026-01/mms/1146062162","http://id.who.int/icd/release/11/2026-01/mms/1924181975","http://id.who.int/icd/release/11/2026-01/mms/754665268","http://id.who.int/icd/release/11/2026-01/mms/303916412","http://id.who.int/icd/release/11/2026-01/mms/312500700/other","http://id.who.int/icd/release/11/2026-01/mms/312500700/unspecified"],"classKind":"category","code":"MG50.6","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/312500700","title":{"@language":"en","@value":"Antibiotic resistant Neisseria gonorrhoeae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/344162786": {"method":"GET","path":"icd/release/11/2026-01/mms/344162786","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/344162786","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#344162786","child":["http://id.who.int/icd/release/11/2026-01/mms/2099226249","http://id.who.int/icd/release/11/2026-01/mms/408185629","http://id.who.int/icd/release/11/2026-01/mms/1828273122","http://id.who.int/icd/release/11/2026-01/mms/162723448","http://id.who.int/icd/release/11/2026-01/mms/344162786/other","http://id.who.int/icd/release/11/2026-01/mms/344162786/unspecified"],"classKind":"category","code":"1A03","definition":{"@language":"en","@value":"Any condition of the gastrointestinal system, caused by an infection with the gram-negative bacteria Escherichia coli."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/344162786/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1292092042"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/344162786/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/916407020"]}],"source":"http://id.who.int/icd/entity/344162786","title":{"@language":"en","@value":"Intestinal infections due to Escherichia coli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/375810888": {"method":"GET","path":"icd/release/11/2026-01/mms/375810888","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/375810888","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#375810888","child":["http://id.who.int/icd/release/11/2026-01/mms/1773711561","http://id.who.int/icd/release/11/2026-01/mms/375810888/other","http://id.who.int/icd/release/11/2026-01/mms/375810888/unspecified"],"classKind":"category","code":"MG50.3","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/375810888","title":{"@language":"en","@value":"Antibiotic resistant Haemophilus influenzae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381388700": {"method":"GET","path":"icd/release/11/2026-01/mms/381388700","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381388700","classKind":"category","code":"KA60","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/622600769","label":{"@language":"en","@value":"Sepsis without septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/622600769"},{"foundationReference":"http://id.who.int/icd/entity/1683090852","label":{"@language":"en","@value":"Sepsis with septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1683090852"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1244991579","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified staphylococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"},{"foundationReference":"http://id.who.int/icd/entity/1540590898","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified streptococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis of fetus or newborn"}},{"label":{"@language":"en","@value":"congenital sepsis"}},{"label":{"@language":"en","@value":"neonatal sepsis"}},{"label":{"@language":"en","@value":"perinatal sepsis"}},{"label":{"@language":"en","@value":"sepsis neonatorum"}},{"foundationReference":"http://id.who.int/icd/entity/1559390111","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to streptococcus, group A"}},{"foundationReference":"http://id.who.int/icd/entity/1559390111","label":{"@language":"en","@value":"neonatal sepsis due to streptococcus, group A"}},{"foundationReference":"http://id.who.int/icd/entity/1050165412","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/1050165412","label":{"@language":"en","@value":"neonatal sepsis due to streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/796843471","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to Staphylococcus aureus infection"}},{"foundationReference":"http://id.who.int/icd/entity/796843471","label":{"@language":"en","@value":"neonatal sepsis due to Staphylococcus aureus infection"}},{"foundationReference":"http://id.who.int/icd/entity/970687439","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to Escherichia coli infection"}},{"foundationReference":"http://id.who.int/icd/entity/970687439","label":{"@language":"en","@value":"neonatal sepsis due to Escherichia coli"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/519468631","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628"]}],"source":"http://id.who.int/icd/entity/381388700","title":{"@language":"en","@value":"Sepsis of fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/416025325": {"method":"GET","path":"icd/release/11/2026-01/mms/416025325","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/416025325","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#416025325","classKind":"category","code":"1A01","indexTerm":[{"label":{"@language":"en","@value":"Intestinal infection due to other Vibrio"}},{"foundationReference":"http://id.who.int/icd/entity/59746265","label":{"@language":"en","@value":"Infections due to Vibrio parahaemolyticus"}},{"foundationReference":"http://id.who.int/icd/entity/830895072","label":{"@language":"en","@value":"Infections due to Vibrio vulnificus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/416025325/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1860930306","http://id.who.int/icd/release/11/2026-01/mms/1808959816"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/416025325/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1975056531"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/416025325","title":{"@language":"en","@value":"Intestinal infection due to other Vibrio"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/420676154": {"method":"GET","path":"icd/release/11/2026-01/mms/420676154","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/420676154","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#420676154","child":["http://id.who.int/icd/release/11/2026-01/mms/985248618","http://id.who.int/icd/release/11/2026-01/mms/460245224","http://id.who.int/icd/release/11/2026-01/mms/501000672","http://id.who.int/icd/release/11/2026-01/mms/1038705052","http://id.who.int/icd/release/11/2026-01/mms/420676154/other","http://id.who.int/icd/release/11/2026-01/mms/420676154/unspecified"],"classKind":"category","code":"MG50.0","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/420676154","title":{"@language":"en","@value":"Antibiotic resistant Acinetobacter baumannii"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/501791005": {"method":"GET","path":"icd/release/11/2026-01/mms/501791005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/501791005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#501791005","child":["http://id.who.int/icd/release/11/2026-01/mms/672063490","http://id.who.int/icd/release/11/2026-01/mms/501791005/other","http://id.who.int/icd/release/11/2026-01/mms/501791005/unspecified"],"classKind":"category","code":"MG52","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/501791005","title":{"@language":"en","@value":"Finding of bacteria, neither gram negative nor positive, resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/515117475": {"method":"GET","path":"icd/release/11/2026-01/mms/515117475","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/515117475","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#515117475","child":["http://id.who.int/icd/release/11/2026-01/mms/1520312138","http://id.who.int/icd/release/11/2026-01/mms/515117475/other","http://id.who.int/icd/release/11/2026-01/mms/515117475/unspecified"],"classKind":"category","code":"1A09","codingNote":{"@language":"en","@value":"Infection or foodborne intoxication due to any Salmonella species other than S. typhi and S. paratyphi"},"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/515117475/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/835461809","http://id.who.int/icd/release/11/2026-01/mms/1026261221","http://id.who.int/icd/release/11/2026-01/mms/1390033486","http://id.who.int/icd/release/11/2026-01/mms/674287165","http://id.who.int/icd/release/11/2026-01/mms/1925624032","http://id.who.int/icd/release/11/2026-01/mms/387784021","http://id.who.int/icd/release/11/2026-01/mms/754360113","http://id.who.int/icd/release/11/2026-01/mms/645609565","http://id.who.int/icd/release/11/2026-01/mms/2027235374","http://id.who.int/icd/release/11/2026-01/mms/1918406466","http://id.who.int/icd/release/11/2026-01/mms/158960147","http://id.who.int/icd/release/11/2026-01/mms/1127114614","http://id.who.int/icd/release/11/2026-01/mms/752868831","http://id.who.int/icd/release/11/2026-01/mms/1446324654","http://id.who.int/icd/release/11/2026-01/mms/214128499","http://id.who.int/icd/release/11/2026-01/mms/1763244742","http://id.who.int/icd/release/11/2026-01/mms/1610441879","http://id.who.int/icd/release/11/2026-01/mms/1433453563","http://id.who.int/icd/release/11/2026-01/mms/724017588","http://id.who.int/icd/release/11/2026-01/mms/1062252094","http://id.who.int/icd/release/11/2026-01/mms/1519059849","http://id.who.int/icd/release/11/2026-01/mms/1973482281","http://id.who.int/icd/release/11/2026-01/mms/2133677125","http://id.who.int/icd/release/11/2026-01/mms/1438415237","http://id.who.int/icd/release/11/2026-01/mms/1597103849","http://id.who.int/icd/release/11/2026-01/mms/1603694233","http://id.who.int/icd/release/11/2026-01/mms/16904506","http://id.who.int/icd/release/11/2026-01/mms/801682008","http://id.who.int/icd/release/11/2026-01/mms/1428309543","http://id.who.int/icd/release/11/2026-01/mms/1096108463","http://id.who.int/icd/release/11/2026-01/mms/613344284","http://id.who.int/icd/release/11/2026-01/mms/195368124","http://id.who.int/icd/release/11/2026-01/mms/19444696","http://id.who.int/icd/release/11/2026-01/mms/733584918","http://id.who.int/icd/release/11/2026-01/mms/557070714","http://id.who.int/icd/release/11/2026-01/mms/563317004","http://id.who.int/icd/release/11/2026-01/mms/1746285300","http://id.who.int/icd/release/11/2026-01/mms/1823188172","http://id.who.int/icd/release/11/2026-01/mms/1713767336","http://id.who.int/icd/release/11/2026-01/mms/1641869584"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/515117475/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/684930313","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/1210263011"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/515117475/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1837021781"]}],"source":"http://id.who.int/icd/entity/515117475","title":{"@language":"en","@value":"Infections due to other Salmonella"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/528118622": {"method":"GET","path":"icd/release/11/2026-01/mms/528118622","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/528118622","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#528118622","child":["http://id.who.int/icd/release/11/2026-01/mms/1888209399","http://id.who.int/icd/release/11/2026-01/mms/1791817517","http://id.who.int/icd/release/11/2026-01/mms/1080592090","http://id.who.int/icd/release/11/2026-01/mms/528118622/other","http://id.who.int/icd/release/11/2026-01/mms/528118622/unspecified"],"classKind":"category","code":"KA63","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a fungal agent."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/528118622/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1913468488","http://id.who.int/icd/release/11/2026-01/mms/2087283296","http://id.who.int/icd/release/11/2026-01/mms/1968108845","http://id.who.int/icd/release/11/2026-01/mms/2055968951","http://id.who.int/icd/release/11/2026-01/mms/1438584733","http://id.who.int/icd/release/11/2026-01/mms/132287989","http://id.who.int/icd/release/11/2026-01/mms/1326582778","http://id.who.int/icd/release/11/2026-01/mms/390527954","http://id.who.int/icd/release/11/2026-01/mms/1802307036","http://id.who.int/icd/release/11/2026-01/mms/1866587875","http://id.who.int/icd/release/11/2026-01/mms/1303003466","http://id.who.int/icd/release/11/2026-01/mms/566562143","http://id.who.int/icd/release/11/2026-01/mms/1676389165","http://id.who.int/icd/release/11/2026-01/mms/532698403","http://id.who.int/icd/release/11/2026-01/mms/268777657","http://id.who.int/icd/release/11/2026-01/mms/547567937","http://id.who.int/icd/release/11/2026-01/mms/404370038","http://id.who.int/icd/release/11/2026-01/mms/807637046","http://id.who.int/icd/release/11/2026-01/mms/579570784","http://id.who.int/icd/release/11/2026-01/mms/646368820","http://id.who.int/icd/release/11/2026-01/mms/1357848258","http://id.who.int/icd/release/11/2026-01/mms/730271848","http://id.who.int/icd/release/11/2026-01/mms/1939815950/other","http://id.who.int/icd/release/11/2026-01/mms/1939815950/unspecified"]}],"source":"http://id.who.int/icd/entity/528118622","title":{"@language":"en","@value":"Fungal infection of fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/588616678": {"method":"GET","path":"icd/release/11/2026-01/mms/588616678","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/588616678","blockId":"BlockL1-1A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#588616678","child":["http://id.who.int/icd/release/11/2026-01/mms/135352227","http://id.who.int/icd/release/11/2026-01/mms/1834648119","http://id.who.int/icd/release/11/2026-01/mms/30738976","http://id.who.int/icd/release/11/2026-01/mms/2092703582","http://id.who.int/icd/release/11/2026-01/mms/1688127370"],"classKind":"block","code":"","codeRange":"1A00-1A40.Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/730271848","label":{"@language":"en","@value":"Intestinal fungal infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/730271848"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/588616678","title":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/612672352": {"method":"GET","path":"icd/release/11/2026-01/mms/612672352","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/612672352","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#612672352","classKind":"category","code":"MG56","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"indexTerm":[{"label":{"@language":"en","@value":"Finding of microorganism resistant to other multiple antimicrobial drugs"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/612672352","title":{"@language":"en","@value":"Finding of microorganism resistant to other multiple antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/690008608": {"method":"GET","path":"icd/release/11/2026-01/mms/690008608","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/690008608","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#690008608","child":["http://id.who.int/icd/release/11/2026-01/mms/2003524291","http://id.who.int/icd/release/11/2026-01/mms/690008608/other","http://id.who.int/icd/release/11/2026-01/mms/690008608/unspecified"],"classKind":"category","code":"MG50.4","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/690008608","title":{"@language":"en","@value":"Antibiotic resistant Helicobacter pylori"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/759983228": {"method":"GET","path":"icd/release/11/2026-01/mms/759983228","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/759983228","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#759983228","child":["http://id.who.int/icd/release/11/2026-01/mms/1078292002","http://id.who.int/icd/release/11/2026-01/mms/759983228/other","http://id.who.int/icd/release/11/2026-01/mms/759983228/unspecified"],"classKind":"category","code":"MG50.B","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/759983228","title":{"@language":"en","@value":"Antibiotic resistant Vibrio"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/794462570": {"method":"GET","path":"icd/release/11/2026-01/mms/794462570","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/794462570","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#794462570","classKind":"category","code":"1A06","indexTerm":[{"label":{"@language":"en","@value":"Gastroenteritis due to Campylobacter"}},{"foundationReference":"http://id.who.int/icd/entity/521644150","label":{"@language":"en","@value":"Enteritis due to Campylobacter"}},{"foundationReference":"http://id.who.int/icd/entity/521644150","label":{"@language":"en","@value":"campylobacter diarrhoea"}},{"foundationReference":"http://id.who.int/icd/entity/521644150","label":{"@language":"en","@value":"enteric campylobacteriosis"}},{"foundationReference":"http://id.who.int/icd/entity/521644150","label":{"@language":"en","@value":"infectious enteritis due to campylobacter"}},{"foundationReference":"http://id.who.int/icd/entity/521644150","label":{"@language":"en","@value":"intestinal infection due to campylobacter"}},{"foundationReference":"http://id.who.int/icd/entity/886535028","label":{"@language":"en","@value":"Colitis due to Campylobacter"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/794462570/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1964711990"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/794462570/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1929872537"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/794462570","title":{"@language":"en","@value":"Gastroenteritis due to Campylobacter"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/802386629": {"method":"GET","path":"icd/release/11/2026-01/mms/802386629","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/802386629","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#802386629","classKind":"category","code":"XN62R","indexTerm":[{"label":{"@language":"en","@value":"Vibrio cholerae O1, biovar eltor"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/824826401"],"source":"http://id.who.int/icd/entity/802386629","title":{"@language":"en","@value":"Vibrio cholerae O1, biovar eltor"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/828922344": {"method":"GET","path":"icd/release/11/2026-01/mms/828922344","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/828922344","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#828922344","classKind":"category","code":"MG54","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"indexTerm":[{"label":{"@language":"en","@value":"Finding of fungus resistant to antimicrobial drugs"}},{"foundationReference":"http://id.who.int/icd/entity/262385601","label":{"@language":"en","@value":"Antifungal resistant Candidozyma auris"}},{"foundationReference":"http://id.who.int/icd/entity/262385601","label":{"@language":"en","@value":"antifungal resistant Candida auris"}},{"foundationReference":"http://id.who.int/icd/entity/713755283","label":{"@language":"en","@value":"Antifungal resistant Aspergillus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/828922344","title":{"@language":"en","@value":"Finding of fungus resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612","blockId":"BlockL1-KA6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612","child":["http://id.who.int/icd/release/11/2026-01/mms/381388700","http://id.who.int/icd/release/11/2026-01/mms/1935107489","http://id.who.int/icd/release/11/2026-01/mms/1645664101","http://id.who.int/icd/release/11/2026-01/mms/528118622","http://id.who.int/icd/release/11/2026-01/mms/1945127438","http://id.who.int/icd/release/11/2026-01/mms/188684108","http://id.who.int/icd/release/11/2026-01/mms/911707612/other","http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"],"classKind":"block","code":"","codeRange":"KA60-KA6Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1511167574","label":{"@language":"en","@value":"Asymptomatic human immunodeficiency virus infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/574153866"},{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"congenital gonococcal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/609214049"},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"human immunodeficiency virus [HIV] disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1000704511"},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/588616678"},{"foundationReference":"http://id.who.int/icd/entity/82994689","label":{"@language":"en","@value":"Laboratory evidence of human immunodeficiency virus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/82994689"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/953221469","label":{"@language":"en","@value":"Fetus or newborn affected by maternal infectious diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/953221469"},{"foundationReference":"http://id.who.int/icd/entity/587996426","label":{"@language":"en","@value":"Congenital syphilis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/587996426"}],"inclusion":[{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1306203631"],"source":"http://id.who.int/icd/entity/911707612","title":{"@language":"en","@value":"Infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612/other": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612/other","classKind":"category","code":"KA6Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified infections of the fetus or newborn"}},{"foundationReference":"http://id.who.int/icd/entity/492702806","label":{"@language":"en","@value":"Neonatal hyperbilirubinaemia due to red cell haemolysis with infection"}},{"foundationReference":"http://id.who.int/icd/entity/492702806","label":{"@language":"en","@value":"Neonatal hyperbilirubinemia secondary to red cell haemolysis with infection"}},{"foundationReference":"http://id.who.int/icd/entity/1643777651","label":{"@language":"en","@value":"Intra-amniotic infection of fetus"}},{"foundationReference":"http://id.who.int/icd/entity/1643777651","label":{"@language":"en","@value":"intra-amniotic infection of fetus nos"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"title":{"@language":"en","@value":"Other specified infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612/unspecified","classKind":"category","code":"KA6Z","indexTerm":[{"label":{"@language":"en","@value":"Infections of the fetus or newborn, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"fetal infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infection in perinatal period"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infection of newborn NOS"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infections acquired in utero or during birth"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"newborn infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"newborn opportunistic infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"perinatal infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"title":{"@language":"en","@value":"Infections of the fetus or newborn, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/916407020": {"method":"GET","path":"icd/release/11/2026-01/mms/916407020","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/916407020","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#916407020","child":["http://id.who.int/icd/release/11/2026-01/mms/419354269","http://id.who.int/icd/release/11/2026-01/mms/1297406018","http://id.who.int/icd/release/11/2026-01/mms/81233849","http://id.who.int/icd/release/11/2026-01/mms/1446899496","http://id.who.int/icd/release/11/2026-01/mms/146561458","http://id.who.int/icd/release/11/2026-01/mms/410435592","http://id.who.int/icd/release/11/2026-01/mms/1483134068","http://id.who.int/icd/release/11/2026-01/mms/976332273","http://id.who.int/icd/release/11/2026-01/mms/916407020/other","http://id.who.int/icd/release/11/2026-01/mms/916407020/unspecified"],"classKind":"category","code":"MG50.2","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/916407020","title":{"@language":"en","@value":"Antibiotic resistant Escherichia coli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A00": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A00","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A00","code":"1A00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1","code":"1A00&XN8P1","infectiousAgent":["XN8P1"],"stemCode":"1A00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A00%2F5A11","reply":"the entity 5A11 does not exist in any valueset for the entity http://id.who.int/icd/entity/257068234","request_body":null,"status":404},
+  "GET icd/release/11/2026-01/mms/codeinfo/XN8P1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XN8P1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XN8P1","code":"XN8P1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/194483911"},"request_body":null,"status":200}
+ }
+}

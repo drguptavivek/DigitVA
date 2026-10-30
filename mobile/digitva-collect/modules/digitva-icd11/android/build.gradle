@@ -49,6 +49,10 @@ configurations {
 }
 dependencies {
   opensslAar "io.github.ronickg:openssl:${opensslVersion}@aar"
+  // JVM unit tests (src/test, run by "gradlew :digitva-icd11:testReleaseUnitTest" in CI): plain JUnit 4, no Robolectric. org.json is android.jar's
+  // stub in a unit test, so the real implementation comes first on the test classpath.
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20231013'
 }
 def opensslLibsDir = layout.buildDirectory.dir('openssl-jnilibs/arm64-v8a')
 tasks.register('extractOpenSsl', Copy) {
@@ -77,6 +81,10 @@ android {
       path 'CMakeLists.txt'
       version '3.22.1'
     }
+  }
+  testOptions {
+    // android.jar's Trace and Log are stubs that throw in a unit test; the code under test only calls them for tracing and logging.
+    unitTests.returnDefaultValues = true
   }
   lintOptions {
     abortOnError false

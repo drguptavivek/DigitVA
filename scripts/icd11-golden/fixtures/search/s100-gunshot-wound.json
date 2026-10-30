@@ -1,0 +1,98 @@
+{
+ "id": "s100-gunshot-wound",
+ "input": {
+  "id": "s100-gunshot-wound",
+  "kind": "injury",
+  "query": "gunshot wound",
+  "source": "VAs-12.09",
+  "why": "injury or external-cause wording"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #355844ef5f"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "PA80.Z",
+       "has_coding_note": false,
+       "matching_text": "Unintentionally struck by projectile from unspecified firearm",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentionally struck by projectile from unspecified firearm",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1914986834/unspecified"
+      },
+      {
+       "code": "NB51.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified open wound of abdomen, lower back or pelvis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified open wound of abdomen, lower back or pelvis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1691530288/other"
+      },
+      {
+       "code": "NA21.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified open wound of neck",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified open wound of neck",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/883416062/other"
+      },
+      {
+       "code": "ND51.Y",
+       "has_coding_note": true,
+       "matching_text": "Other specified injuries of spine or trunk, level unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified injuries of spine or trunk, level unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1453089907/other"
+      },
+      {
+       "code": "NA81.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified open wound of thorax",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified open wound of thorax",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/857209897/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "gunshot wound",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #355844ef5f": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1914986834/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1914986834","important":true,"label":"<em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1914986834","important":false,"label":"multiple <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'>s</em>","propertyId":"Synonym","propertyValueType":0,"score":0.6293302189922259},{"foundationUri":"http://id.who.int/icd/entity/1914986834","important":false,"label":"GSW - [<em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.5038744677621921}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1914986834/unspecified","theCode":"PA80.Z","title":"Unintentionally struck by projectile from unspecified firearm","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1691530288/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1438929658","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of the abdomen","propertyId":"Title","propertyValueType":1,"score":0.5711243034206729}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5711243034206729,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1691530288/other","theCode":"NB51.Y","title":"Other specified open <em class='found'>wound</em><em class='nonwbe'></em> of abdomen, lower back or pelvis","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/883416062/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/771796795","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of the neck","propertyId":"Title","propertyValueType":1,"score":0.5630243718036226}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5630243718036226,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/883416062/other","theCode":"NA21.Y","title":"Other specified open <em class='found'>wound</em><em class='nonwbe'></em> of neck","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1453089907/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1703893195","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of back","propertyId":"Title","propertyValueType":1,"score":0.5455101498362358},{"foundationUri":"http://id.who.int/icd/entity/1251868976","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of torso","propertyId":"Title","propertyValueType":1,"score":0.5384224010697585}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5455101498362358,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1453089907/other","theCode":"ND51.Y","title":"Other specified injuries of spine or trunk, level unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/857209897/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2113021601","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> to chest","propertyId":"Title","propertyValueType":1,"score":0.5343160332450976},{"foundationUri":"http://id.who.int/icd/entity/1787309689","important":false,"label":"Self inflicted <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> to chest","propertyId":"Title","propertyValueType":1,"score":0.2983259209679535}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5343160332450976,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/857209897/other","theCode":"NA81.Y","title":"Other specified open <em class='found'>wound</em><em class='nonwbe'></em> of thorax","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2060841540","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2060841540","important":false,"label":"self-inflicted <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.47066945070505184}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.47066945070505184,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2060841540","theCode":"PC50.1","title":"Intentional self-harm by projectile from rifle, <em class='found'>shotgun</em> or larger firearm","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1667404773/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of head","propertyId":"Title","propertyValueType":1,"score":0.4515600109943493},{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"<em class='found'>shotgun</em> <em class='found'>wound</em><em class='nonwbe'></em> of the head","propertyId":"Synonym","propertyValueType":1,"score":0.4515600109943493},{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"contact <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of head","propertyId":"Synonym","propertyValueType":1,"score":0.364335319737251},{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"single <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> to the head","propertyId":"Synonym","propertyValueType":1,"score":0.34567013951230513},{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"perforating <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of head","propertyId":"Synonym","propertyValueType":1,"score":0.344043908303674},{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"penetrating <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of the head","propertyId":"Synonym","propertyValueType":1,"score":0.320871954946024},{"foundationUri":"http://id.who.int/icd/entity/338694467","important":false,"label":"intraoral <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> of head","propertyId":"Synonym","propertyValueType":1,"score":0.22850584458094228},{"foundationUri":"http://id.who.int/icd/entity/687839246","important":false,"label":"Self-inflicted <em class='found'>gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> to the head","propertyId":"Title","propertyValueType":1,"score":0.21556989871720514}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.4515600109943493,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1667404773/other","theCode":"NA01.Y","title":"Other specified open <em class='found'>wound</em><em class='nonwbe'></em> of head","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1287322576/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1287322576","important":false,"label":"<em class='found'>Gunshot</em> <em class='found'>wound</em><em class='nonwbe'></em> at hands of another NOS","propertyId":"Synonym","propertyValueType":0,"score":0.3812264388178891}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.3812264388178891,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1287322576/unspecified","theCode":"PE20.Z","title":"Assault by being struck by projectile from unspecified firearm","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=gunshot+wound%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

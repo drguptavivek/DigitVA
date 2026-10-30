@@ -1,0 +1,37 @@
+{
+ "id": "s088-asma",
+ "input": {
+  "id": "s088-asma",
+  "kind": "typo",
+  "query": "asma",
+  "source": "VAs-05.02",
+  "why": "misspelling a hurried user types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #bdd7e93d4a"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 0,
+     "items": [],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "asma",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #bdd7e93d4a": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=asma%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

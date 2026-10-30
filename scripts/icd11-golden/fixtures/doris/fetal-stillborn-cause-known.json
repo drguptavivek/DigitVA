@@ -1,0 +1,164 @@
+{
+ "id": "fetal-stillborn-cause-known",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2
+   },
+   "FetalOrInfantDeath": {
+    "BirthWeight": 2000,
+    "PregnancyWeeks": 34,
+    "Stillborn": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "KD3B.0",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1947342847",
+       "Text": "Stillbirth"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "KA02.0",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/877196425",
+       "Text": "Placental problem"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "stillbirth",
+  "id": "fetal-stillborn-cause-known",
+  "source": "VA cause VAs-11.02 Macerated stillbirth",
+  "why": "Stillbirth with a known cause (placental)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/KA02.0",
+    "POST icd/release/11/2026-01/doris #957efab46c",
+    "POST icd/release/11/2026-01/codedit #957efab46c"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "Sex": 2
+      },
+      "FetalOrInfantDeath": {
+       "BirthWeight": 2000,
+       "PregnancyWeeks": 34,
+       "Stillborn": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "KD3B.0",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1947342847",
+          "Text": "Stillbirth"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "KA02.0",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/877196425",
+          "Text": "Placental problem"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KA02.0",
+       "error": null,
+       "reject": false,
+       "report": "SP3: KA02.0 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: KA02.0 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA02.0.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA02.0.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "KA02.0",
+       "stemURI": "http://id.who.int/icd/entity/877196425",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;KA02.0;KA02.0;;;0;SP3: KA02.0 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA02.0;;;;;0;SP6: is not applicable with the current TSP KA02.0.;;;;BER\nSP7;False;KA02.0;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA02.0;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KA02.0;;;;;0;M1: There is no special instruction applicable with TUC KA02.0.;;;;BER\nM2;False;KA02.0;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA02.0;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/877196425",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KA02.0",
+       "role": "stem",
+       "title": "Placental problem",
+       "uri": "http://id.who.int/icd/release/11/mms/877196425"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "Sex": 2
+     },
+     "FetalOrInfantDeath": {
+      "BirthWeight": 2000,
+      "PregnancyWeeks": 34,
+      "Stillborn": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "KD3B.0",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1947342847",
+         "Text": "Stillbirth"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "KA02.0",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/877196425",
+         "Text": "Placental problem"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/KA02.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA02.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA02.0","code":"KA02.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/877196425"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KD3B.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KD3B.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KD3B.0","code":"KD3B.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1947342847"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #957efab46c": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"Sex\":2},\"FetalOrInfantDeath\":{\"BirthWeight\":2000,\"PregnancyWeeks\":34,\"Stillborn\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KD3B.0\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1947342847\",\"Text\":\"Stillbirth\"}]},{\"Conditions\":[{\"Code\":\"KA02.0\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/877196425\",\"Text\":\"Placental problem\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #957efab46c": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KA02.0","error":null,"reject":false,"report":"SP3: KA02.0 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: KA02.0 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA02.0.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA02.0.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"KA02.0","stemURI":"http://id.who.int/icd/entity/877196425","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;KA02.0;KA02.0;;;0;SP3: KA02.0 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA02.0;;;;;0;SP6: is not applicable with the current TSP KA02.0.;;;;BER\nSP7;False;KA02.0;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA02.0;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KA02.0;;;;;0;M1: There is no special instruction applicable with TUC KA02.0.;;;;BER\nM2;False;KA02.0;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA02.0;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/877196425","warning":null},"request_body":"{\"AdministrativeData\":{\"Sex\":2},\"FetalOrInfantDeath\":{\"BirthWeight\":2000,\"PregnancyWeeks\":34,\"Stillborn\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KD3B.0\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1947342847\",\"Text\":\"Stillbirth\"}]},{\"Conditions\":[{\"Code\":\"KA02.0\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/877196425\",\"Text\":\"Placental problem\"}]}]}","status":200}
+ }
+}

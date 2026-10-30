@@ -2,12 +2,6 @@ package expo.modules.digitvaicd11
 
 /** JNI surface of src/main/cpp/shim.c. Single-threaded use only (see DigitvaIcd11Module). */
 internal object EngineJni {
-  /** Ops in the order shim.c indexes its function table. */
-  const val SEARCH = 0
-  const val CODEINFO = 1
-  const val DORIS = 2
-  const val CODEDIT = 3
-
   private var shimLoaded = false
 
   /**
@@ -35,12 +29,18 @@ internal object EngineJni {
     return shimLoaded
   }
 
-  /** 0 on success, else a small code; never an engine message. */
+  /**
+   * 0 on success, else a small code; never an engine message: 1 the path could not be read, 2 `dlopen` failed, 3 the library lacks
+   * `digitva_icd11_init`, `digitva_icd11_free` or `digitva_icd11_call` (an engine from before 2026.10.29), which is refused.
+   */
   @JvmStatic external fun load(path: String): Int
 
   /** 0 on success, 1 when the engine reported an error, 2 when [load] has not succeeded. */
   @JvmStatic external fun initEngine(bundleDir: String, dataDir: String): Int
 
-  /** Response bytes (UTF-8 JSON) or null; status[0] receives the HTTP-style status the engine reports. */
-  @JvmStatic external fun call(op: Int, input: String, status: IntArray): ByteArray?
+  /**
+   * One call: op name and JSON arguments (the bridge's `digitva_icd11_call`; Bridge.cs holds the list of ops). Null when no engine
+   * is loaded or it returns nothing; status[0] receives the engine's status.
+   */
+  @JvmStatic external fun callOp(op: String, json: String, status: IntArray): ByteArray?
 }

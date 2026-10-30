@@ -1,0 +1,62 @@
+{
+ "id": "s046-bleeding-after-delivery",
+ "input": {
+  "id": "s046-bleeding-after-delivery",
+  "kind": "lay",
+  "query": "bleeding after delivery",
+  "source": "VAs-09.04; scripts/icd11-parity/queries.json",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #9ed5f553fa"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 2,
+     "items": [
+      {
+       "code": "JA43.3/3B14.Z",
+       "has_coding_note": false,
+       "matching_text": "Postpartum coagulation defects [Other inherited coagulation factor deficiency with bleeding tendency, unspecified]",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Postpartum coagulation defects [Other inherited coagulation factor deficiency with bleeding tendency, unspecified]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/573771682/unspecified"
+      },
+      {
+       "code": "JA43.3/3B15",
+       "has_coding_note": false,
+       "matching_text": "Postpartum coagulation defects [Inherited coagulation factor deficiency without bleeding tendency]",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Postpartum coagulation defects [Inherited coagulation factor deficiency without bleeding tendency]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/1795705470"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "bleeding after delivery",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #9ed5f553fa": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/573771682/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.21703503634774127,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B14.Z","title":"<em class='found'>Postpartum</em> coagulation defects [Other inherited coagulation factor deficiency with <em class='found'>bleeding</em> tendency, unspecified]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/1795705470","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.2356940358569353,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B15","title":"<em class='found'>Postpartum</em> coagulation defects [Inherited coagulation factor deficiency without <em class='found'>bleeding</em> tendency]","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=bleeding+after+delivery%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

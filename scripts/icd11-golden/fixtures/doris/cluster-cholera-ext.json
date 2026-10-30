@@ -1,0 +1,142 @@
+{
+ "id": "cluster-cholera-ext",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P6Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1A00&XN8P1",
+       "Interval": "P2D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911",
+       "Text": "Cholera O1 classical"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "child",
+  "id": "cluster-cholera-ext",
+  "source": "scripts/icd11-parity/queries.json",
+  "why": "Cholera with a causing-organism extension"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/codeinfo/XN8P1",
+    "POST icd/release/11/2026-01/doris #f7a26f07aa",
+    "POST icd/release/11/2026-01/codedit #f7a26f07aa",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A00",
+    "GET icd/release/11/2026-01/mms/257068234",
+    "GET icd/release/11/2026-01/mms/codeinfo/XN8P1",
+    "GET icd/release/11/2026-01/mms/194483911"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P6Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1A00&XN8P1",
+          "Interval": "P2D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911",
+          "Text": "Cholera O1 classical"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-994",
+       "report": "The following condition (1A00&XN8P1) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.",
+       "tabularReport": "0,\"The following condition (1A00&XN8P1) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.\",FER-CE-994;1A00&XN8P1;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1A00&XN8P1",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 1A00&XN8P1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1A00&XN8P1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1A00&XN8P1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1A00&XN8P1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1A00",
+       "stemURI": "http://id.who.int/icd/entity/257068234",
+       "tabularReport": "SP1;True;;1A00&XN8P1;1A00&XN8P1;;;0;SP1: 1A00&XN8P1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1A00&XN8P1;;;;;0;SP6: is not applicable with the current TSP 1A00&XN8P1.;;;;BER\nSP7;False;1A00&XN8P1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1A00&XN8P1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1A00&XN8P1;;;;;0;M1: There is no special instruction applicable with TUC 1A00&XN8P1.;;;;BER\nM2;False;1A00&XN8P1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1A00&XN8P1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/257068234 & http://id.who.int/icd/release/11/mms/194483911",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1A00",
+       "role": "stem",
+       "title": "Cholera",
+       "uri": "http://id.who.int/icd/release/11/mms/257068234"
+      },
+      {
+       "code": "XN8P1",
+       "role": "extension",
+       "title": "Vibrio cholerae O1, biovar cholerae",
+       "uri": "http://id.who.int/icd/release/11/mms/194483911"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P6Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1A00&XN8P1",
+         "Interval": "P2D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911",
+         "Text": "Cholera O1 classical"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/194483911": {"method":"GET","path":"icd/release/11/2026-01/mms/194483911","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/194483911","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#194483911","classKind":"category","code":"XN8P1","indexTerm":[{"label":{"@language":"en","@value":"Vibrio cholerae O1, biovar cholerae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/824826401"],"source":"http://id.who.int/icd/entity/194483911","title":{"@language":"en","@value":"Vibrio cholerae O1, biovar cholerae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/257068234": {"method":"GET","path":"icd/release/11/2026-01/mms/257068234","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/257068234","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#257068234","classKind":"category","code":"1A00","definition":{"@language":"en","@value":"Cholera is a potentially epidemic and life-threatening infection of the intestine, characterised by extreme watery (secretory) diarrhoea often accompanied by vomiting, with rapid depletion of body fluids and salt that may result in hypovolemic shock and acidosis. Cholera outbreaks are caused by toxigenic strains of Vibrio cholerae serogroups O1 and O139. Serogroup O1 has two biovars; classical and eltor. Vibrio cholerae O1, biovar cholerae is classical type. Vibrio cholerae O1, biovar eltor is eltor type."},"fullySpecifiedName":{"@language":"en","@value":"Intestinal infection due to Vibrio cholerae"},"inclusion":[{"label":{"@language":"en","@value":"cholera syndrome"}}],"indexTerm":[{"label":{"@language":"en","@value":"Cholera"}},{"label":{"@language":"en","@value":"asiatic cholera"}},{"label":{"@language":"en","@value":"cholera syndrome"}},{"label":{"@language":"en","@value":"epidemic cholera"}},{"label":{"@language":"en","@value":"Intestinal infection due to Vibrio cholerae"}},{"foundationReference":"http://id.who.int/icd/entity/1170831944","label":{"@language":"en","@value":"Enteritis due to cholera due to Vibrio cholerae, non-O1 strains"}},{"foundationReference":"http://id.who.int/icd/entity/1205958647","label":{"@language":"en","@value":"Cholera due to Vibrio cholerae O1, biovar cholerae"}},{"foundationReference":"http://id.who.int/icd/entity/1205958647","label":{"@language":"en","@value":"classical cholera"}},{"foundationReference":"http://id.who.int/icd/entity/1384028266","label":{"@language":"en","@value":"Enteritis due to Cholera due to Vibrio cholerae O1, biovar cholerae"}},{"foundationReference":"http://id.who.int/icd/entity/1384028266","label":{"@language":"en","@value":"Enteritis due to classical cholera"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"Cholera due to Vibrio cholerae O1, biovar eltor"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"cholera - vibrio cholerae 01 eltor biotype"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"cholera due to Cholera eltor"}},{"foundationReference":"http://id.who.int/icd/entity/581614179","label":{"@language":"en","@value":"cholera due to Vibrio cholerae 01, Cholera eltor"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"Enteritis due to cholera due to Vibrio cholerae O1, biovar eltor"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"Enteritis due to cholera due to Cholera eltor"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"eltor enteritis"}},{"foundationReference":"http://id.who.int/icd/entity/375406584","label":{"@language":"en","@value":"infectious enteritis due to vibrio cholerae 01, biovar eltor"}},{"foundationReference":"http://id.who.int/icd/entity/1972085775","label":{"@language":"en","@value":"Cholera due to Vibrio cholerae O139"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/135352227"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/257068234/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/194483911","http://id.who.int/icd/release/11/2026-01/mms/802386629","http://id.who.int/icd/release/11/2026-01/mms/21927667"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/257068234/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/257068234","title":{"@language":"en","@value":"Cholera"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A00": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A00","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A00","code":"1A00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A00%26XN8P1","code":"1A00&XN8P1","infectiousAgent":["XN8P1"],"stemCode":"1A00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XN8P1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XN8P1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XN8P1","code":"XN8P1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/194483911"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #f7a26f07aa": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-994","report":"The following condition (1A00&XN8P1) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.","tabularReport":"0,\"The following condition (1A00&XN8P1) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.\",FER-CE-994;1A00&XN8P1;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P6Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1A00&XN8P1\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911\",\"Text\":\"Cholera O1 classical\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #f7a26f07aa": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1A00&XN8P1","error":null,"reject":false,"report":"SP1: 1A00&XN8P1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1A00&XN8P1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1A00&XN8P1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1A00&XN8P1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1A00","stemURI":"http://id.who.int/icd/entity/257068234","tabularReport":"SP1;True;;1A00&XN8P1;1A00&XN8P1;;;0;SP1: 1A00&XN8P1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1A00&XN8P1;;;;;0;SP6: is not applicable with the current TSP 1A00&XN8P1.;;;;BER\nSP7;False;1A00&XN8P1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1A00&XN8P1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1A00&XN8P1;;;;;0;M1: There is no special instruction applicable with TUC 1A00&XN8P1.;;;;BER\nM2;False;1A00&XN8P1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1A00&XN8P1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/257068234 & http://id.who.int/icd/release/11/mms/194483911","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P6Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1A00&XN8P1\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911\",\"Text\":\"Cholera O1 classical\"}]}]}","status":200}
+ }
+}

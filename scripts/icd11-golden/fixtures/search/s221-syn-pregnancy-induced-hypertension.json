@@ -1,0 +1,99 @@
+{
+ "id": "s221-syn-pregnancy-induced-hypertension",
+ "input": {
+  "concept": "eclampsia",
+  "id": "s221-syn-pregnancy-induced-hypertension",
+  "kind": "synonym",
+  "query": "pregnancy induced hypertension",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for eclampsia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #98c825ba72"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 6,
+     "items": [
+      {
+       "code": "JA23",
+       "has_coding_note": false,
+       "matching_text": "Gestational hypertension",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Gestational hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2118553363"
+      },
+      {
+       "code": "JA21",
+       "has_coding_note": false,
+       "matching_text": "Pre-eclampsia superimposed on chronic hypertension",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Pre-eclampsia superimposed on chronic hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1872761464"
+      },
+      {
+       "code": "JA24.Z",
+       "has_coding_note": false,
+       "matching_text": "Pre-eclampsia, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Pre-eclampsia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified"
+      },
+      {
+       "code": "JA22",
+       "has_coding_note": false,
+       "matching_text": "Gestational oedema or proteinuria without hypertension",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Gestational oedema or proteinuria without hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/453853831"
+      },
+      {
+       "code": "JA25.3",
+       "has_coding_note": false,
+       "matching_text": "Eclampsia, time period unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Eclampsia, time period unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/250375350"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "pregnancy induced hypertension",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #98c825ba72": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2118553363","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2118553363","important":true,"label":"<em class='found'>Pregnancy</em>-<em class='found'>induced</em> <em class='found'>hypertension</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/2118553363","important":true,"label":"<em class='found'>hypertension</em><em class='nonwbe'></em> <em class='found'>induced</em> by <em class='found'>pregnancy</em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/2118553363","important":false,"label":"PIH - [<em class='found'>pregnancy</em>-<em class='found'>induced</em> <em class='found'>hypertension</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-0.6362899272130975},{"foundationUri":"http://id.who.int/icd/entity/2118553363","important":false,"label":"gestational [<em class='found'>pregnancy</em>-<em class='found'>induced</em>] <em class='found'>hypertension</em><em class='nonwbe'></em> without significant proteinuria","propertyId":"Synonym","propertyValueType":0,"score":-2.227033735961742}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2118553363","theCode":"JA23","title":"Gestational <em class='found'>hypertension</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"superimposed PIH - [<em class='found'>pregnancy</em>-<em class='found'>induced</em> <em class='found'>hypertension</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-1.5290465820077428}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.5290465820077428,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","theCode":"JA21","title":"Pre-eclampsia superimposed on chronic <em class='found'>hypertension</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"gestational [<em class='found'>pregnancy</em>-<em class='found'>induced</em>] <em class='found'>hypertension</em><em class='nonwbe'></em> with significant proteinuria","propertyId":"Synonym","propertyValueType":0,"score":-2.0107678797385073}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.0107678797385073,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified","theCode":"JA24.Z","title":"Pre-eclampsia, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/453853831","important":false,"isLeaf":false,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/453853831","important":false,"label":"<em class='found'>Pregnancy</em>-<em class='found'>induced</em> oedema and proteinuria without <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.50451268820184}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.50451268820184,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/453853831","theCode":"JA22","title":"Gestational oedema or proteinuria without <em class='found'>hypertension</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/250375350","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/17700269","important":false,"label":"Eclampsia with <em class='found'>pregnancy</em>-<em class='found'>induced</em> or pre-existing <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.5355882571941057},{"foundationUri":"http://id.who.int/icd/entity/1979552354","important":false,"label":"Convulsions following gestational [<em class='found'>pregnancy</em>-<em class='found'>induced</em>] <em class='found'>hypertension</em><em class='nonwbe'></em> with significant proteinuria","propertyId":"Title","propertyValueType":1,"score":-3.4884298497430324},{"foundationUri":"http://id.who.int/icd/entity/718945235","important":false,"label":"Convulsions following gestational [<em class='found'>pregnancy</em>-<em class='found'>induced</em>] <em class='found'>hypertension</em><em class='nonwbe'></em> without significant proteinuria","propertyId":"Title","propertyValueType":1,"score":-3.704695705966267},{"foundationUri":"http://id.who.int/icd/entity/890149511","important":false,"label":"Convulsions following gestational [<em class='found'>pregnancy</em>-<em class='found'>induced</em>] oedema and proteinuria without <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.329045081799386}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.5355882571941057,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/250375350","theCode":"JA25.3","title":"Eclampsia, time period unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/342852506","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/342852506","important":false,"label":"Fetus and newborn affected or suspected to be affected by <em class='found'>pregnancy</em>-<em class='found'>induced</em> oedema and proteinuria without <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.707051924029615}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.707051924029615,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/342852506","theCode":"KA00.1","title":"Fetus or newborn affected by gestational oedema or proteinuria without <em class='found'>hypertension</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=pregnancy+induced+hypertension%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

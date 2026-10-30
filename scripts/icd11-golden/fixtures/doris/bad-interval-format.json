@@ -1,0 +1,65 @@
+{
+ "id": "bad-interval-format",
+ "input": {
+  "certificate": {
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Interval": "3 days",
+       "Text": "MI"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "invalid",
+  "id": "bad-interval-format",
+  "source": "app/services/doris_certificate.py",
+  "why": "Interval that is not ISO 8601"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "Must be a valid ISO 8601 duration.",
+        "path": "certificate.Part1[0].Conditions[0].Interval"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Interval": "3 days",
+         "Text": "MI"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+
+ }
+}

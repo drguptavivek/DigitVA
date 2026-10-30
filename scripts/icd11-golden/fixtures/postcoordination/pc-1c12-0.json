@@ -1,0 +1,769 @@
+{
+ "built": [
+  {
+   "expression": "1C12.0/CA40.0Y",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
+      "GET icd/release/11/2026-01/mms/1287021540"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1C12.0/CA40.0Y",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Whooping cough due to Bordetella pertussis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1C12.0/CA40.0Y"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
+      "GET icd/release/11/2026-01/mms/1287021540"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1C12.0/CA40.0Y",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Whooping cough due to Bordetella pertussis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1C12.0/CA40.0Y",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/1287021540",
+      "GET icd/release/11/2026-01/mms/2064398473",
+      "GET icd/release/11/2026-01/mms/487269828",
+      "GET icd/release/11/2026-01/mms/1435254666",
+      "GET icd/release/11/2026-01/mms/2064398473",
+      "GET icd/entity/1935107489",
+      "GET icd/release/11/2026-01/mms/704491122",
+      "GET icd/release/11/2026-01/mms/2064398473/other",
+      "GET icd/release/11/2026-01/mms/2064398473/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "01",
+         "title": "Certain infectious or parasitic diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+        },
+        {
+         "code": "",
+         "title": "Other bacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/487269828"
+        },
+        {
+         "code": "1C12",
+         "title": "Whooping cough",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2064398473"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Whooping cough due to Bordetella pertussis",
+        "Bordetella pertussis infection",
+        "Pneumonia due to whooping cough due to Bordetella pertussis",
+        "pneumonia due to whooping cough",
+        "pneumonia in pertussis",
+        "pneumonia in whooping cough",
+        "pneumonia with pertussis",
+        "pneumonia with whooping cough"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [
+        {
+         "code": "",
+         "title": "Other bacterial infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/entity/1935107489"
+        }
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1C12.0",
+        "title": "Whooping cough due to Bordetella pertussis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+       },
+       "selected_expression": {
+        "code": "1C12.0/CA40.0Y",
+        "stem_code": "1C12.0"
+       },
+       "siblings": [
+        {
+         "code": "1C12.1",
+         "has_children": false,
+         "title": "Whooping cough due to Bordetella parapertussis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/704491122"
+        },
+        {
+         "code": "1C12.Y",
+         "has_children": false,
+         "title": "Other specified whooping cough",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2064398473/other"
+        },
+        {
+         "code": "1C12.Z",
+         "has_children": false,
+         "title": "Whooping cough, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2064398473/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1C12.0/CA40.0Y"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/1287021540"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1C12.0",
+        "title": "Whooping cough due to Bordetella pertussis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "1C12.0/CA40.0Y"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/1287021540",
+      "GET icd/release/11/2026-01/mms/1935107489",
+      "GET icd/release/11/2026-01/mms/576751653",
+      "GET icd/release/11/2026-01/mms/864425294",
+      "GET icd/release/11/2026-01/mms/1935107489/other",
+      "GET icd/release/11/2026-01/mms/1935107489/unspecified"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": {
+        "code": "KA61/1C12.0",
+        "title": "Other bacterial infections of the fetus or newborn / Whooping cough due to Bordetella pertussis",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1C12.0",
+        "title": "Whooping cough due to Bordetella pertussis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+       },
+       "terms": [
+        {
+         "code": "KA61",
+         "requires_postcoordination": true,
+         "title": "Other bacterial infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+        },
+        {
+         "code": "KA61.0",
+         "requires_postcoordination": false,
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/576751653"
+        },
+        {
+         "code": "KA61.1",
+         "requires_postcoordination": false,
+         "title": "Neonatal listeriosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/864425294"
+        },
+        {
+         "code": "KA61.Y",
+         "requires_postcoordination": true,
+         "title": "Other specified bacterial infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"
+        },
+        {
+         "code": "KA61.Z",
+         "requires_postcoordination": true,
+         "title": "Bacterial infection of the fetus or newborn, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "1C12.0/CA40.0Y"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+      "GET icd/release/11/2026-01/mms/1287021540"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "A disease of the upper respiratory tract, caused by an infection of the gram-negative bacteria Bordetella pertussis. This disease typically presents with paroxysmal cough, inspiratory whoop, and fainting or vomiting after coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Bordetella pertussis from nasopharyngeal samples or sputum, or detection of antibodies against Bordetella pertussis.",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1C12.0",
+        "title": "Whooping cough due to Bordetella pertussis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1C12.0/CA40.0Y"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other",
+   "why": "whooping cough with pneumonia"
+  }
+ ],
+ "id": "pc-1c12-0",
+ "input": {
+  "built": [
+   {
+    "expression": "1C12.0/CA40.0Y",
+    "why": "whooping cough with pneumonia"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-1c12-0",
+  "source": "scripts/icd11-parity/queries.json",
+  "stem": "1C12.0",
+  "why": "Whooping cough: stem of the WHO search cluster 1C12.0/CA40.0Y"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1C12.0",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1C12.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1C12.0",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1C12.0",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540",
+    "GET icd/release/11/2026-01/mms/1323682030"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+         "code": "CA40.0",
+         "has_children": true,
+         "title": "Bacterial pneumonia",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1323682030"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1C12.0",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1C12.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540",
+    "GET icd/release/11/2026-01/mms/1323682030",
+    "GET icd/release/11/2026-01/mms/1258650683",
+    "GET icd/release/11/2026-01/mms/680186620",
+    "GET icd/release/11/2026-01/mms/732824952",
+    "GET icd/release/11/2026-01/mms/1250089989",
+    "GET icd/release/11/2026-01/mms/963399569",
+    "GET icd/release/11/2026-01/mms/801706385",
+    "GET icd/release/11/2026-01/mms/1533297008",
+    "GET icd/release/11/2026-01/mms/1480627948",
+    "GET icd/release/11/2026-01/mms/1043303674",
+    "GET icd/release/11/2026-01/mms/1323682030/other",
+    "GET icd/release/11/2026-01/mms/1323682030/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasManifestation",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.00",
+       "has_children": false,
+       "title": "Pneumonia due to Chlamydophila pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1258650683"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.01",
+       "has_children": false,
+       "title": "Pneumonia due to Escherichia coli",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/680186620"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.02",
+       "has_children": false,
+       "title": "Pneumonia due to Haemophilus influenzae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/732824952"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.03",
+       "has_children": false,
+       "title": "Pneumonia due to Klebsiella pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1250089989"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.04",
+       "has_children": false,
+       "title": "Pneumonia due to Mycoplasma pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/963399569"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.05",
+       "has_children": false,
+       "title": "Pneumonia due to Pseudomonas aeruginosa",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/801706385"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.06",
+       "has_children": false,
+       "title": "Pneumonia due to Staphylococcus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1533297008"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.07",
+       "has_children": false,
+       "title": "Pneumonia due to Streptococcus pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1480627948"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.08",
+       "has_children": false,
+       "title": "Pneumonia due to beta-haemolytic Streptococcus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1043303674"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.0Y",
+       "has_children": false,
+       "title": "Pneumonia due to other specified bacteria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+       "code": "CA40.0Z",
+       "has_children": false,
+       "title": "Bacterial pneumonia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1C12.0",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasManifestation",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030",
+    "stem_code": "1C12.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540",
+    "GET icd/release/11/2026-01/mms/2064398473",
+    "GET icd/release/11/2026-01/mms/487269828",
+    "GET icd/release/11/2026-01/mms/1435254666",
+    "GET icd/release/11/2026-01/mms/2064398473",
+    "GET icd/entity/1935107489",
+    "GET icd/release/11/2026-01/mms/704491122",
+    "GET icd/release/11/2026-01/mms/2064398473/other",
+    "GET icd/release/11/2026-01/mms/2064398473/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "01",
+       "title": "Certain infectious or parasitic diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+      },
+      {
+       "code": "",
+       "title": "Other bacterial diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/487269828"
+      },
+      {
+       "code": "1C12",
+       "title": "Whooping cough",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2064398473"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Whooping cough due to Bordetella pertussis",
+      "Bordetella pertussis infection",
+      "Pneumonia due to whooping cough due to Bordetella pertussis",
+      "pneumonia due to whooping cough",
+      "pneumonia in pertussis",
+      "pneumonia in whooping cough",
+      "pneumonia with pertussis",
+      "pneumonia with whooping cough"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Other bacterial infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/entity/1935107489"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1C12.0",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "1C12.1",
+       "has_children": false,
+       "title": "Whooping cough due to Bordetella parapertussis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/704491122"
+      },
+      {
+       "code": "1C12.Y",
+       "has_children": false,
+       "title": "Other specified whooping cough",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2064398473/other"
+      },
+      {
+       "code": "1C12.Z",
+       "has_children": false,
+       "title": "Whooping cough, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2064398473/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1C12.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1C12.0",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "1C12.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540",
+    "GET icd/release/11/2026-01/mms/1935107489",
+    "GET icd/release/11/2026-01/mms/576751653",
+    "GET icd/release/11/2026-01/mms/864425294",
+    "GET icd/release/11/2026-01/mms/1935107489/other",
+    "GET icd/release/11/2026-01/mms/1935107489/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": {
+      "code": "KA61/1C12.0",
+      "title": "Other bacterial infections of the fetus or newborn / Whooping cough due to Bordetella pertussis",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1C12.0",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "terms": [
+      {
+       "code": "KA61",
+       "requires_postcoordination": true,
+       "title": "Other bacterial infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+      },
+      {
+       "code": "KA61.0",
+       "requires_postcoordination": false,
+       "title": "Congenital tuberculosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/576751653"
+      },
+      {
+       "code": "KA61.1",
+       "requires_postcoordination": false,
+       "title": "Neonatal listeriosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/864425294"
+      },
+      {
+       "code": "KA61.Y",
+       "requires_postcoordination": true,
+       "title": "Other specified bacterial infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"
+      },
+      {
+       "code": "KA61.Z",
+       "requires_postcoordination": true,
+       "title": "Bacterial infection of the fetus or newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "1C12.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "A disease of the upper respiratory tract, caused by an infection of the gram-negative bacteria Bordetella pertussis. This disease typically presents with paroxysmal cough, inspiratory whoop, and fainting or vomiting after coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Bordetella pertussis from nasopharyngeal samples or sputum, or detection of antibodies against Bordetella pertussis.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1C12.0",
+      "title": "Whooping cough due to Bordetella pertussis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1287021540"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1C12.0"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/1935107489": {"method":"GET","path":"icd/entity/1935107489","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1935107489","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1935107489","child":["http://id.who.int/icd/entity/576751653","http://id.who.int/icd/entity/1926763926","http://id.who.int/icd/entity/395565060","http://id.who.int/icd/entity/1681155693","http://id.who.int/icd/entity/2085616610","http://id.who.int/icd/entity/864425294","http://id.who.int/icd/entity/481049648","http://id.who.int/icd/entity/1734918639","http://id.who.int/icd/entity/1540590898","http://id.who.int/icd/entity/1244991579","http://id.who.int/icd/entity/1552961115","http://id.who.int/icd/entity/141267925","http://id.who.int/icd/entity/756297560","http://id.who.int/icd/entity/594985340"],"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/358047372","label":{"@language":"en","@value":"Neonatal conjunctivitis or dacryocystitis"}},{"foundationReference":"http://id.who.int/icd/entity/1880920858","label":{"@language":"en","@value":"Neonatal infectious mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/78758887","label":{"@language":"en","@value":"Neonatal urinary tract infection"}},{"foundationReference":"http://id.who.int/icd/entity/244932428","label":{"@language":"en","@value":"Omphalitis of newborn"}},{"foundationReference":"http://id.who.int/icd/entity/1366690608","label":{"@language":"en","@value":"Neonatal meningitis"}}],"parent":["http://id.who.int/icd/entity/487269828","http://id.who.int/icd/entity/911707612"],"synonym":[{"label":{"@language":"en","@value":"congenital bacterial infections of newborn"}}],"title":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1043303674": {"method":"GET","path":"icd/release/11/2026-01/mms/1043303674","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1043303674","classKind":"category","code":"CA40.08","definition":{"@language":"en","@value":"A disease of the lungs, caused by an infection with the gram-positive bacteria beta-haemolytic Streptococcus. This disease is characterised by an acute onset of fever and chills, or rigors. This presents with chest pain, productive cough, dyspnoea, tachypnoea, hypoxia, or tachycardia. Transmission is by inhalation of infected inspiratory secretions, or direct contact."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2083072661","label":{"@language":"en","@value":"Congenital pneumonia due to streptococcus, group B"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"inclusion":[{"label":{"@language":"en","@value":"pneumonia due to Streptococcus, group B"}}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to beta-haemolytic Streptococcus"}},{"label":{"@language":"en","@value":"Group B streptococcal pneumonia"}},{"label":{"@language":"en","@value":"pneumonia due to Streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/774177126","label":{"@language":"en","@value":"Early-onset pneumonia due to Group B Streptococcus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2025140111","http://id.who.int/icd/release/11/2026-01/mms/942223947"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/2024199586","http://id.who.int/icd/release/11/2026-01/mms/1765820617","http://id.who.int/icd/release/11/2026-01/mms/189285942","http://id.who.int/icd/release/11/2026-01/mms/795057595","http://id.who.int/icd/release/11/2026-01/mms/1298895686","http://id.who.int/icd/release/11/2026-01/mms/1552748079"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1043303674/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1839638766"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/1043303674","title":{"@language":"en","@value":"Pneumonia due to beta-haemolytic Streptococcus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1250089989": {"method":"GET","path":"icd/release/11/2026-01/mms/1250089989","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1250089989","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1250089989","classKind":"category","code":"CA40.03","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-negative bacteria Klebsiella pneumoniae. This infection common presents with thick, haemorrhagic, mucoid sputum. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Klebsiella pneumoniae in a sputum sample."},"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Klebsiella pneumoniae"}},{"label":{"@language":"en","@value":"klebsiella lobar pneumonia"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1250089989/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1250089989/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1250089989/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1250089989/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/2024199586","http://id.who.int/icd/release/11/2026-01/mms/1765820617","http://id.who.int/icd/release/11/2026-01/mms/189285942","http://id.who.int/icd/release/11/2026-01/mms/795057595","http://id.who.int/icd/release/11/2026-01/mms/1298895686","http://id.who.int/icd/release/11/2026-01/mms/1552748079"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1250089989/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1758767625"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/1250089989","title":{"@language":"en","@value":"Pneumonia due to Klebsiella pneumoniae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1258650683": {"method":"GET","path":"icd/release/11/2026-01/mms/1258650683","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1258650683","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1258650683","classKind":"category","code":"CA40.00","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-negative bacteria Chlamydia pneumoniae. This disease commonly presents with a gradual onset of cough with low-grade fever. This disease may also present with pharyngitis, laryngitis, and sinusitis. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Chlamydia pneumoniae in a sputum sample."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1842329598","label":{"@language":"en","@value":"Congenital pneumonia due to Chlamydia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Chlamydophila pneumoniae"}},{"label":{"@language":"en","@value":"pneumonia due to Chlamydia"}},{"label":{"@language":"en","@value":"pneumonia due to Chlamydia pneumoniae"}},{"label":{"@language":"en","@value":"pneumonia due to Chlamydiaceae"}},{"foundationReference":"http://id.who.int/icd/entity/1064952615","label":{"@language":"en","@value":"Late-onset pneumonia due to Chlamydia"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1258650683/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1258650683/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1258650683/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1258650683/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1258650683/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/1258650683","title":{"@language":"en","@value":"Pneumonia due to Chlamydophila pneumoniae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1287021540": {"method":"GET","path":"icd/release/11/2026-01/mms/1287021540","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1287021540","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1287021540","classKind":"category","code":"1C12.0","definition":{"@language":"en","@value":"A disease of the upper respiratory tract, caused by an infection of the gram-negative bacteria Bordetella pertussis. This disease typically presents with paroxysmal cough, inspiratory whoop, and fainting or vomiting after coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Bordetella pertussis from nasopharyngeal samples or sputum, or detection of antibodies against Bordetella pertussis."},"indexTerm":[{"label":{"@language":"en","@value":"Whooping cough due to Bordetella pertussis"}},{"label":{"@language":"en","@value":"Bordetella pertussis infection"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"Pneumonia due to whooping cough due to Bordetella pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia due to whooping cough"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia in pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia in whooping cough"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia with pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia with whooping cough"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2064398473"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1287021540/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1935107489"],"source":"http://id.who.int/icd/entity/1287021540","title":{"@language":"en","@value":"Whooping cough due to Bordetella pertussis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1323682030": {"method":"GET","path":"icd/release/11/2026-01/mms/1323682030","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1323682030","child":["http://id.who.int/icd/release/11/2026-01/mms/1258650683","http://id.who.int/icd/release/11/2026-01/mms/680186620","http://id.who.int/icd/release/11/2026-01/mms/732824952","http://id.who.int/icd/release/11/2026-01/mms/1250089989","http://id.who.int/icd/release/11/2026-01/mms/963399569","http://id.who.int/icd/release/11/2026-01/mms/801706385","http://id.who.int/icd/release/11/2026-01/mms/1533297008","http://id.who.int/icd/release/11/2026-01/mms/1480627948","http://id.who.int/icd/release/11/2026-01/mms/1043303674","http://id.who.int/icd/release/11/2026-01/mms/1323682030/other","http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"],"classKind":"category","code":"CA40.0","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with a bacterial source. This disease is characterised by fever, lethargy, headache, myalgia, vomiting, or coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of the bacterial source in a sputum sample."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"Congenital pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"},{"foundationReference":"http://id.who.int/icd/entity/390042715","label":{"@language":"en","@value":"Legionellosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/390042715"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/452367246","label":{"@language":"en","@value":"Pulmonary actinomycosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/452367246"},{"foundationReference":"http://id.who.int/icd/entity/101604109","label":{"@language":"en","@value":"Pulmonary nocardiosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/101604109"},{"foundationReference":"http://id.who.int/icd/entity/424434722","label":{"@language":"en","@value":"Legionnaires disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/424434722"}],"inclusion":[{"label":{"@language":"en","@value":"bronchopneumonia due to bacteria other than S. pneumoniae and H. influenzae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/142052508"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/833290117"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/840155638","http://id.who.int/icd/release/11/2026-01/mms/2058300982","http://id.who.int/icd/release/11/2026-01/mms/980168338","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/1937339080","http://id.who.int/icd/release/11/2026-01/mms/2113860626"]}],"source":"http://id.who.int/icd/entity/1323682030","title":{"@language":"en","@value":"Bacterial pneumonia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1323682030/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1323682030/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1323682030/other","classKind":"category","code":"CA40.0Y","indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to other specified bacteria"}},{"foundationReference":"http://id.who.int/icd/entity/1689714965","label":{"@language":"en","@value":"Pneumonia due to Acinetobacter"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"Pneumonia due to other streptococci"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"pneumonia due to streptococcus NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"streptococcal bronchopneumonia NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"streptococcal pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"streptococcal purulent pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1546093061","label":{"@language":"en","@value":"Pneumonia due to other aerobic Gram-negative bacteria"}},{"foundationReference":"http://id.who.int/icd/entity/138548297","label":{"@language":"en","@value":"Pneumonia due to Serratia marcescens"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"Pneumonia due to proteus"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"acute proteus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"proteus double pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"proteus lobar pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"proteus purulent pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"Pneumonia in Chlamydia psittaci infection"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"ornithosis with pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"pneumonia in Chlamydophila psittaci infection"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"respiratory ornithosis"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"respiratory psittacosis"}},{"foundationReference":"http://id.who.int/icd/entity/1734922521","label":{"@language":"en","@value":"Early-onset pneumonia due to Listeria monocytogenes"}},{"foundationReference":"http://id.who.int/icd/entity/1714052626","label":{"@language":"en","@value":"Pneumonia due to Enterobacter"}},{"foundationReference":"http://id.who.int/icd/entity/1714052626","label":{"@language":"en","@value":"enterobacter pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/268364503","label":{"@language":"en","@value":"Late-onset pneumonia due to Klebsiella"}},{"foundationReference":"http://id.who.int/icd/entity/1601698397","label":{"@language":"en","@value":"Late-onset pneumonia due to other bacteria"}},{"foundationReference":"http://id.who.int/icd/entity/1245083795","label":{"@language":"en","@value":"Pneumonia in spirochaetal, not elsewhere classified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/606208893","http://id.who.int/icd/release/11/2026-01/mms/1874454144","http://id.who.int/icd/release/11/2026-01/mms/1522409994","http://id.who.int/icd/release/11/2026-01/mms/509021347","http://id.who.int/icd/release/11/2026-01/mms/1785213202","http://id.who.int/icd/release/11/2026-01/mms/718893335","http://id.who.int/icd/release/11/2026-01/mms/1964711990","http://id.who.int/icd/release/11/2026-01/mms/176665435","http://id.who.int/icd/release/11/2026-01/mms/1526491884","http://id.who.int/icd/release/11/2026-01/mms/1978113063","http://id.who.int/icd/release/11/2026-01/mms/1895892604","http://id.who.int/icd/release/11/2026-01/mms/465867565","http://id.who.int/icd/release/11/2026-01/mms/1619465677","http://id.who.int/icd/release/11/2026-01/mms/809107389","http://id.who.int/icd/release/11/2026-01/mms/797046553","http://id.who.int/icd/release/11/2026-01/mms/565298763","http://id.who.int/icd/release/11/2026-01/mms/1258154716","http://id.who.int/icd/release/11/2026-01/mms/12651959","http://id.who.int/icd/release/11/2026-01/mms/468349501","http://id.who.int/icd/release/11/2026-01/mms/1068406335","http://id.who.int/icd/release/11/2026-01/mms/551388955","http://id.who.int/icd/release/11/2026-01/mms/1532703292","http://id.who.int/icd/release/11/2026-01/mms/1273847800","http://id.who.int/icd/release/11/2026-01/mms/1578336142","http://id.who.int/icd/release/11/2026-01/mms/1893350624","http://id.who.int/icd/release/11/2026-01/mms/352424277","http://id.who.int/icd/release/11/2026-01/mms/984423506","http://id.who.int/icd/release/11/2026-01/mms/977078705","http://id.who.int/icd/release/11/2026-01/mms/1783025664","http://id.who.int/icd/release/11/2026-01/mms/1634656297","http://id.who.int/icd/release/11/2026-01/mms/1409902713","http://id.who.int/icd/release/11/2026-01/mms/749698918","http://id.who.int/icd/release/11/2026-01/mms/190524601","http://id.who.int/icd/release/11/2026-01/mms/1848062332","http://id.who.int/icd/release/11/2026-01/mms/1528886538","http://id.who.int/icd/release/11/2026-01/mms/1046276301","http://id.who.int/icd/release/11/2026-01/mms/547766313","http://id.who.int/icd/release/11/2026-01/mms/837115999","http://id.who.int/icd/release/11/2026-01/mms/1248056702","http://id.who.int/icd/release/11/2026-01/mms/2140128219","http://id.who.int/icd/release/11/2026-01/mms/1537645708","http://id.who.int/icd/release/11/2026-01/mms/814156624","http://id.who.int/icd/release/11/2026-01/mms/243989463","http://id.who.int/icd/release/11/2026-01/mms/524436822","http://id.who.int/icd/release/11/2026-01/mms/275796787","http://id.who.int/icd/release/11/2026-01/mms/778020718","http://id.who.int/icd/release/11/2026-01/mms/507535969","http://id.who.int/icd/release/11/2026-01/mms/1852144030","http://id.who.int/icd/release/11/2026-01/mms/237808899","http://id.who.int/icd/release/11/2026-01/mms/1420836726","http://id.who.int/icd/release/11/2026-01/mms/192048727","http://id.who.int/icd/release/11/2026-01/mms/1798986860","http://id.who.int/icd/release/11/2026-01/mms/988763316","http://id.who.int/icd/release/11/2026-01/mms/1367609484","http://id.who.int/icd/release/11/2026-01/mms/1189225448","http://id.who.int/icd/release/11/2026-01/mms/1414907878","http://id.who.int/icd/release/11/2026-01/mms/1542213496","http://id.who.int/icd/release/11/2026-01/mms/1879790283","http://id.who.int/icd/release/11/2026-01/mms/950578131","http://id.who.int/icd/release/11/2026-01/mms/777929410","http://id.who.int/icd/release/11/2026-01/mms/1503622535","http://id.who.int/icd/release/11/2026-01/mms/311270238","http://id.who.int/icd/release/11/2026-01/mms/925617298","http://id.who.int/icd/release/11/2026-01/mms/1225222637","http://id.who.int/icd/release/11/2026-01/mms/103211928","http://id.who.int/icd/release/11/2026-01/mms/322809168","http://id.who.int/icd/release/11/2026-01/mms/2116096692","http://id.who.int/icd/release/11/2026-01/mms/568542103","http://id.who.int/icd/release/11/2026-01/mms/1151295060","http://id.who.int/icd/release/11/2026-01/mms/235145545","http://id.who.int/icd/release/11/2026-01/mms/2122752710","http://id.who.int/icd/release/11/2026-01/mms/708898123","http://id.who.int/icd/release/11/2026-01/mms/80817633","http://id.who.int/icd/release/11/2026-01/mms/870681014","http://id.who.int/icd/release/11/2026-01/mms/1927114867","http://id.who.int/icd/release/11/2026-01/mms/1495276771","http://id.who.int/icd/release/11/2026-01/mms/1645734341","http://id.who.int/icd/release/11/2026-01/mms/684652094","http://id.who.int/icd/release/11/2026-01/mms/841906326","http://id.who.int/icd/release/11/2026-01/mms/1283744438","http://id.who.int/icd/release/11/2026-01/mms/120175840","http://id.who.int/icd/release/11/2026-01/mms/1465017681","http://id.who.int/icd/release/11/2026-01/mms/752144496","http://id.who.int/icd/release/11/2026-01/mms/2023517537","http://id.who.int/icd/release/11/2026-01/mms/1371953258","http://id.who.int/icd/release/11/2026-01/mms/1302046997"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/833290117"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/840155638","http://id.who.int/icd/release/11/2026-01/mms/2058300982","http://id.who.int/icd/release/11/2026-01/mms/980168338","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/1937339080","http://id.who.int/icd/release/11/2026-01/mms/2113860626"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"title":{"@language":"en","@value":"Pneumonia due to other specified bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1323682030/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1323682030/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1323682030/unspecified","classKind":"category","code":"CA40.0Z","indexTerm":[{"label":{"@language":"en","@value":"Bacterial pneumonia, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"Bacterial pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"acute bacillus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"acute bacterial pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacillus double pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacillus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacteria pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacterial double pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacterial lobar pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacterial purulent pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bronchopneumonia due to bacteria other than S. pneumoniae and H. influenzae"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bronchopneumonia due to bacteria other than Streptococcus pneumoniae and Haemophilus influenzae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/833290117"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/840155638","http://id.who.int/icd/release/11/2026-01/mms/2058300982","http://id.who.int/icd/release/11/2026-01/mms/980168338","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/1937339080","http://id.who.int/icd/release/11/2026-01/mms/2113860626"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"title":{"@language":"en","@value":"Bacterial pneumonia, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1435254666": {"method":"GET","path":"icd/release/11/2026-01/mms/1435254666","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1435254666","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1435254666","child":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"],"classKind":"chapter","code":"01","definition":{"@language":"en","@value":"This chapter includes certain conditions caused by pathogenic organisms or microorganisms, such as bacteria, viruses, parasites or fungi."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1612485599","label":{"@language":"en","@value":"Infection arising from device, implant or graft, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1612485599"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"Infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/911707612"},{"foundationReference":"http://id.who.int/icd/entity/1965146397","label":{"@language":"en","@value":"Human prion diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965146397"},{"foundationReference":"http://id.who.int/icd/entity/142052508","label":{"@language":"en","@value":"Pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/142052508"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1435254666","title":{"@language":"en","@value":"Certain infectious or parasitic diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1480627948": {"method":"GET","path":"icd/release/11/2026-01/mms/1480627948","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1480627948","classKind":"category","code":"CA40.07","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-positive bacteria Streptococcus pneumoniae. This disease is characterised by an acute onset of fever and chills, or rigors. This disease may also present with chest pain, productive cough, dyspnoea, tachypnoea, hypoxia, or tachycardia. Transmission is by inhalation of infected respiratory secretions, or indirect contact. Confirmation is by identification of Streptococcus pneumoniae in a sputum sample."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1043303674","label":{"@language":"en","@value":"Pneumonia due to beta-haemolytic Streptococcus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1043303674"},{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"congenital pneumonia due to S. pneumoniae"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"Pneumonia due to other streptococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"}],"inclusion":[{"label":{"@language":"en","@value":"Bronchopneumonia due to S. pneumoniae"}}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Streptococcus pneumoniae"}},{"label":{"@language":"en","@value":"Bronchopneumonia due to S. pneumoniae"}},{"label":{"@language":"en","@value":"Bronchopneumonia due to streptococcus pneumoniae"}},{"label":{"@language":"en","@value":"pneumococcal lobar pneumonia"}},{"label":{"@language":"en","@value":"pneumococcal pneumonia"}},{"label":{"@language":"en","@value":"pneumococcus pneumonia"}},{"label":{"@language":"en","@value":"pyemic pneumococcal embolism with pneumonia"}},{"label":{"@language":"en","@value":"streptococcal pneumoniae pneumonia"}},{"label":{"@language":"en","@value":"streptococcus pneumoniae lobar pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/545922797","label":{"@language":"en","@value":"Early-onset pneumonia due to Streptococcus pneumoniae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/2024199586","http://id.who.int/icd/release/11/2026-01/mms/1765820617","http://id.who.int/icd/release/11/2026-01/mms/189285942","http://id.who.int/icd/release/11/2026-01/mms/795057595","http://id.who.int/icd/release/11/2026-01/mms/1298895686","http://id.who.int/icd/release/11/2026-01/mms/1552748079"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/40564846"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/1480627948","title":{"@language":"en","@value":"Pneumonia due to Streptococcus pneumoniae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1533297008": {"method":"GET","path":"icd/release/11/2026-01/mms/1533297008","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1533297008","classKind":"category","code":"CA40.06","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-positive bacteria Staphylococcus. This disease is characterised by fever, cough, dyspnoea, and pulmonary abscesses."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/425912065","label":{"@language":"en","@value":"Congenital pneumonia due to staphylococcus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Staphylococcus"}},{"label":{"@language":"en","@value":"acute staphylococcal pneumonia"}},{"label":{"@language":"en","@value":"staphylococcal bronchopneumonia"}},{"label":{"@language":"en","@value":"staphylococcal double pneumonia"}},{"label":{"@language":"en","@value":"staphylococcal lobar pneumonia"}},{"label":{"@language":"en","@value":"staphylococcal pneumonia"}},{"label":{"@language":"en","@value":"staphylococcal purulent pneumonia"}},{"label":{"@language":"en","@value":"staphylococcus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/372910626","label":{"@language":"en","@value":"Late acquired pneumonia due to Coagulase negative Staphylococci methicillin sensitive"}},{"foundationReference":"http://id.who.int/icd/entity/589813419","label":{"@language":"en","@value":"Late-onset pneumonia due to Staphylococcus aureus"}}],"longDefinition":{"@language":"en","@value":"This is an inflammatory condition of the lung—affecting primarily the microscopic air sacs known as alveoli, due to a genus of Gram-positive bacteria known as Staphylococcus."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/428956900"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/875272781","http://id.who.int/icd/release/11/2026-01/mms/1365268441","http://id.who.int/icd/release/11/2026-01/mms/1609027855"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1446152257"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/1533297008","title":{"@language":"en","@value":"Pneumonia due to Staphylococcus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935107489": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489","child":["http://id.who.int/icd/release/11/2026-01/mms/576751653","http://id.who.int/icd/release/11/2026-01/mms/864425294","http://id.who.int/icd/release/11/2026-01/mms/1935107489/other","http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"],"classKind":"category","code":"KA61","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/358047372","label":{"@language":"en","@value":"Neonatal conjunctivitis or dacryocystitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/358047372"},{"foundationReference":"http://id.who.int/icd/entity/1880920858","label":{"@language":"en","@value":"Neonatal infectious mastitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1880920858"},{"foundationReference":"http://id.who.int/icd/entity/78758887","label":{"@language":"en","@value":"Neonatal urinary tract infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/78758887"},{"foundationReference":"http://id.who.int/icd/entity/244932428","label":{"@language":"en","@value":"Omphalitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/244932428"},{"foundationReference":"http://id.who.int/icd/entity/1366690608","label":{"@language":"en","@value":"Neonatal meningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1366690608"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1926763926","label":{"@language":"en","@value":"Early congenital syphilis, latent"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1926763926"},{"foundationReference":"http://id.who.int/icd/entity/395565060","label":{"@language":"en","@value":"Early congenital syphilis, symptomatic"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/395565060"},{"foundationReference":"http://id.who.int/icd/entity/1681155693","label":{"@language":"en","@value":"Neonatal necrotising fasciitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1681155693"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/756297560","label":{"@language":"en","@value":"Neonatal pyogenic skin infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/756297560"},{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"Congenital pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"source":"http://id.who.int/icd/entity/1935107489","title":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935107489/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489/other","classKind":"category","code":"KA61.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified bacterial infections of the fetus or newborn"}},{"foundationReference":"http://id.who.int/icd/entity/481049648","label":{"@language":"en","@value":"Congenital clostridium infection"}},{"foundationReference":"http://id.who.int/icd/entity/481049648","label":{"@language":"en","@value":"congenital clostridial infection"}},{"foundationReference":"http://id.who.int/icd/entity/1734918639","label":{"@language":"en","@value":"Congenital salmonella infection"}},{"foundationReference":"http://id.who.int/icd/entity/1540590898","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified streptococci"}},{"foundationReference":"http://id.who.int/icd/entity/1244991579","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified staphylococci"}},{"foundationReference":"http://id.who.int/icd/entity/1552961115","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to anaerobes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935107489"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"title":{"@language":"en","@value":"Other specified bacterial infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935107489/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489/unspecified","classKind":"category","code":"KA61.Z","indexTerm":[{"label":{"@language":"en","@value":"Bacterial infection of the fetus or newborn, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1935107489","label":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},{"foundationReference":"http://id.who.int/icd/entity/1935107489","label":{"@language":"en","@value":"congenital bacterial infections of newborn"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935107489"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"title":{"@language":"en","@value":"Bacterial infection of the fetus or newborn, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2064398473": {"method":"GET","path":"icd/release/11/2026-01/mms/2064398473","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2064398473","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2064398473","child":["http://id.who.int/icd/release/11/2026-01/mms/1287021540","http://id.who.int/icd/release/11/2026-01/mms/704491122","http://id.who.int/icd/release/11/2026-01/mms/2064398473/other","http://id.who.int/icd/release/11/2026-01/mms/2064398473/unspecified"],"classKind":"category","code":"1C12","definition":{"@language":"en","@value":"A disease of the upper respiratory tract, caused by an infection with the gram-negative bacteria Bordetella. This disease typically presents with paroxysmal cough, inspiratory whoop, and fainting or vomiting after coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Bordetella from nasopharyngeal samples or sputum, or detection of antibodies against Bordetella."},"longDefinition":{"@language":"en","@value":"An acute bacterial infection of the respiratory tract caused by bordetella pertussis."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/487269828"],"source":"http://id.who.int/icd/entity/2064398473","title":{"@language":"en","@value":"Whooping cough"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2064398473/other": {"method":"GET","path":"icd/release/11/2026-01/mms/2064398473/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2064398473/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2064398473/other","classKind":"category","code":"1C12.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified whooping cough"}},{"foundationReference":"http://id.who.int/icd/entity/1110566194","label":{"@language":"en","@value":"Whooping cough due to other Bordetella species"}},{"foundationReference":"http://id.who.int/icd/entity/248071133","label":{"@language":"en","@value":"Whooping cough due to Bordetella bronchiseptica"}},{"foundationReference":"http://id.who.int/icd/entity/248071133","label":{"@language":"en","@value":"whooping cough due to b. bronchiseptica"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2064398473"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1935107489"],"title":{"@language":"en","@value":"Other specified whooping cough"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2064398473/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/2064398473/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2064398473/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2064398473/unspecified","classKind":"category","code":"1C12.Z","indexTerm":[{"label":{"@language":"en","@value":"Whooping cough, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"Whooping cough"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"WC - [whooping cough]"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"bordetella infection"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"bordetellosis"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"tussis convulsiva"}},{"foundationReference":"http://id.who.int/icd/entity/2064398473","label":{"@language":"en","@value":"whooping cough, unspecified organism"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2064398473"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1935107489"],"title":{"@language":"en","@value":"Whooping cough, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/487269828": {"method":"GET","path":"icd/release/11/2026-01/mms/487269828","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/487269828","blockId":"BlockL1-1C1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#487269828","child":["http://id.who.int/icd/release/11/2026-01/mms/1697630330","http://id.who.int/icd/release/11/2026-01/mms/1938462328","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/1793762788","http://id.who.int/icd/release/11/2026-01/mms/262236278","http://id.who.int/icd/release/11/2026-01/mms/2085616610","http://id.who.int/icd/release/11/2026-01/mms/1920227791","http://id.who.int/icd/release/11/2026-01/mms/508032285","http://id.who.int/icd/release/11/2026-01/mms/1966578342","http://id.who.int/icd/release/11/2026-01/mms/390042715","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/6555116","http://id.who.int/icd/release/11/2026-01/mms/1664016479","http://id.who.int/icd/release/11/2026-01/mms/840525023","http://id.who.int/icd/release/11/2026-01/mms/1465035083","http://id.who.int/icd/release/11/2026-01/mms/1186214944","http://id.who.int/icd/release/11/2026-01/mms/1600014919","http://id.who.int/icd/release/11/2026-01/mms/1320736556","http://id.who.int/icd/release/11/2026-01/mms/965498095","http://id.who.int/icd/release/11/2026-01/mms/1127435854","http://id.who.int/icd/release/11/2026-01/mms/1981846","http://id.who.int/icd/release/11/2026-01/mms/1012026026","http://id.who.int/icd/release/11/2026-01/mms/520429137","http://id.who.int/icd/release/11/2026-01/mms/2129350166","http://id.who.int/icd/release/11/2026-01/mms/168432503","http://id.who.int/icd/release/11/2026-01/mms/698540116","http://id.who.int/icd/release/11/2026-01/mms/114886962","http://id.who.int/icd/release/11/2026-01/mms/487269828/other","http://id.who.int/icd/release/11/2026-01/mms/487269828/unspecified"],"classKind":"block","code":"","codeRange":"1C10-1C4Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1935107489","label":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489"},{"foundationReference":"http://id.who.int/icd/entity/540889641","label":{"@language":"en","@value":"Bacterial duodenitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/590662611/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/487269828","title":{"@language":"en","@value":"Other bacterial diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/576751653": {"method":"GET","path":"icd/release/11/2026-01/mms/576751653","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/576751653","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#576751653","classKind":"category","code":"KA61.0","definition":{"@language":"en","@value":"A disease affecting infants, caused by an infection with the bacteria Mycobacterium tuberculosis in utero. Transmission is by vertical transmission."},"indexTerm":[{"label":{"@language":"en","@value":"Congenital tuberculosis"}},{"label":{"@language":"en","@value":"congenital necrotic tuberculosis"}},{"label":{"@language":"en","@value":"congenital tuberculous degeneration"}},{"label":{"@language":"en","@value":"congenital tuberculous gangrene"}},{"label":{"@language":"en","@value":"congenital tuberculous infection"}}],"longDefinition":{"@language":"en","@value":"Congenital tuberculosis is the infection with Mycobacterium tuberculosis complex to the infant of a mother with haematogenously spread tuberculosis or by aspiration of infected amniotic fluid in cases of tuberculosis endometritis. If a mother is infected with tuberculosis, which is an airborne infectious disease, congenital tuberculosis may occur through bloodborne transmission to the placenta or genital tract. Symptoms are most often seen in the second or third week of life, and may include poor weight gain, lethargy, irritability, and cough. In addition to pulmonary involvement, transmission and infection in the bone, skin, kidney and brain may be seen."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935107489"],"source":"http://id.who.int/icd/entity/576751653","title":{"@language":"en","@value":"Congenital tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/680186620": {"method":"GET","path":"icd/release/11/2026-01/mms/680186620","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#680186620","classKind":"category","code":"CA40.01","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-negative bacteria Escherichia coli. This disease is characterised by fever, cough, and dyspnoea. Transmission is commonly by inhalation of infected respiratory secretions. Confirmation is by identification of Escherichia coli in blood, sputum, or pleural fluid samples."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/264747265","label":{"@language":"en","@value":"Congenital pneumonia due to Escherichia coli"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Escherichia coli"}},{"label":{"@language":"en","@value":"Escherichia coli lobar pneumonia"}},{"label":{"@language":"en","@value":"pneumonia due to E. coli"}},{"foundationReference":"http://id.who.int/icd/entity/1217905496","label":{"@language":"en","@value":"Early-onset pneumonia due to Escherichia coli"}},{"foundationReference":"http://id.who.int/icd/entity/1884466761","label":{"@language":"en","@value":"Late-onset pneumonia due to Escherichia coli"}}],"longDefinition":{"@language":"en","@value":"This is an inflammatory condition of the lung—affecting primarily the microscopic air sacs known as alveoli, due to a Gram-negative, rod-shaped bacterium that is commonly found in the lower intestine of warm-blooded organisms (endotherms)."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1292092042"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680186620/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/916407020"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/680186620","title":{"@language":"en","@value":"Pneumonia due to Escherichia coli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/704491122": {"method":"GET","path":"icd/release/11/2026-01/mms/704491122","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/704491122","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#704491122","classKind":"category","code":"1C12.1","definition":{"@language":"en","@value":"A disease of the upper respiratory tract, caused by an infection of the gram-negative bacteria Bordetella parapertussis. This disease typically presents with a mild clinical presentation of paroxysmal cough, inspiratory whoop, and fainting or vomiting after coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Bordetella parapertussis from nasopharyngeal samples or sputum, or detection of antibodies against Bordetella parapertussis."},"indexTerm":[{"label":{"@language":"en","@value":"Whooping cough due to Bordetella parapertussis"}},{"label":{"@language":"en","@value":"infection due to Bordetella parapertussis"}},{"label":{"@language":"en","@value":"whooping cough due to b. parapertussis"}},{"foundationReference":"http://id.who.int/icd/entity/1599259291","label":{"@language":"en","@value":"Pneumonia due to whooping cough due to Bordetella parapertussis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2064398473"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/704491122/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1935107489"],"source":"http://id.who.int/icd/entity/704491122","title":{"@language":"en","@value":"Whooping cough due to Bordetella parapertussis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/732824952": {"method":"GET","path":"icd/release/11/2026-01/mms/732824952","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#732824952","classKind":"category","code":"CA40.02","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-negative bacteria Haemophilus influenzae. This disease is characterised by cough, shortness of breath, fever, chills, muscle aches, and chest pain. Transmission is by inhalation of infected respiratory secretions or direct contact. Confirmation is by identification of Haemophilus influenzae in blood or other typically sterile body fluid."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"Congenital pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"inclusion":[{"label":{"@language":"en","@value":"bronchopneumonia due to H. influenzae"}}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Haemophilus influenzae"}},{"label":{"@language":"en","@value":"bronchopneumonia due to H. influenzae"}},{"label":{"@language":"en","@value":"bronchopneumonia due to hemophilus influenzae"}},{"label":{"@language":"en","@value":"haemophilus influenzae lobar pneumonia"}},{"label":{"@language":"en","@value":"pneumonia due to H. influenzae"}},{"label":{"@language":"en","@value":"pneumonia due to hemophilus influenzae"}},{"foundationReference":"http://id.who.int/icd/entity/594966149","label":{"@language":"en","@value":"Early-onset pneumonia due to Haemophilus influenzae"}},{"foundationReference":"http://id.who.int/icd/entity/594966149","label":{"@language":"en","@value":"early-onset pneumonia due to H. influenzae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/84990681","http://id.who.int/icd/release/11/2026-01/mms/734892846"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/2024199586","http://id.who.int/icd/release/11/2026-01/mms/1765820617","http://id.who.int/icd/release/11/2026-01/mms/189285942","http://id.who.int/icd/release/11/2026-01/mms/795057595","http://id.who.int/icd/release/11/2026-01/mms/1298895686","http://id.who.int/icd/release/11/2026-01/mms/1552748079"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/732824952/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/732824952","title":{"@language":"en","@value":"Pneumonia due to Haemophilus influenzae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/801706385": {"method":"GET","path":"icd/release/11/2026-01/mms/801706385","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/801706385","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#801706385","classKind":"category","code":"CA40.05","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with the gram-negative bacteria Pseudomonas aeruginosa. This disease is characterised by fever, cough, and dyspnoea."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1787589781","label":{"@language":"en","@value":"Congenital pneumonia due to Pseudomonas aeruginosa"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Pseudomonas aeruginosa"}},{"label":{"@language":"en","@value":"pseudomonal pneumonia"}},{"label":{"@language":"en","@value":"pseudomonas lobar pneumonia"}},{"label":{"@language":"en","@value":"pseudomonas pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/334593909","label":{"@language":"en","@value":"Early-onset pneumonia due to Pseudomonas aeruginosa"}},{"foundationReference":"http://id.who.int/icd/entity/747160508","label":{"@language":"en","@value":"Late-onset pneumonia due to Pseudomonas aeruginosa"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/801706385/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/801706385/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/801706385/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/801706385/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/2024199586","http://id.who.int/icd/release/11/2026-01/mms/1765820617","http://id.who.int/icd/release/11/2026-01/mms/189285942","http://id.who.int/icd/release/11/2026-01/mms/795057595","http://id.who.int/icd/release/11/2026-01/mms/1298895686","http://id.who.int/icd/release/11/2026-01/mms/1552748079"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/801706385/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1724766645"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/801706385","title":{"@language":"en","@value":"Pneumonia due to Pseudomonas aeruginosa"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/864425294": {"method":"GET","path":"icd/release/11/2026-01/mms/864425294","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/864425294","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#864425294","classKind":"category","code":"KA61.1","definition":{"@language":"en","@value":"A condition affecting fetuses or neonates, caused by an infection with the gram-positive bacteria Listeria. This condition is characterised by respiratory distress in the neonate, by stillbirth, or by abortion. Transmission is by vertical transmission. Confirmation is by identification of Listeria in the neonate and mother."},"indexTerm":[{"label":{"@language":"en","@value":"Neonatal listeriosis"}},{"label":{"@language":"en","@value":"Neonatal disseminated listeriosis"}},{"label":{"@language":"en","@value":"congenital listeria monocytogenes infection"}},{"label":{"@language":"en","@value":"congenital listeriosis"}},{"label":{"@language":"en","@value":"fetal listeriosis"}}],"longDefinition":{"@language":"en","@value":"Neonatal listeriosis is an infection caused by the bacterium Listeria monocytogenes, and is acquired either transplacentally, during delivery, or following birth. An infection transplacentally can lead to fetal dissemination with the formation of granulomas, for instance, in the lungs, brain, and skin. If amniotic fluid or vaginal secretions are swallowed, this can lead to a perinatal infection in the lungs and manifest as shock and respiratory distress in the first few days of life. Premature delivery, miscarriage, stillbirth, or neonatal sepsis is common."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935107489"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/864425294/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]}],"source":"http://id.who.int/icd/entity/864425294","title":{"@language":"en","@value":"Neonatal listeriosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/963399569": {"method":"GET","path":"icd/release/11/2026-01/mms/963399569","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/963399569","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#963399569","classKind":"category","code":"CA40.04","definition":{"@language":"en","@value":"A disease of the pulmonary system, caused by an infection with Mycoplasma pneumoniae. This infection commonly presents with a non-productive cough, chest pain, or fever. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Mycoplasma pneumoniae in a sputum sample."},"indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to Mycoplasma pneumoniae"}},{"label":{"@language":"en","@value":"Eaton agent pneumonia"}},{"label":{"@language":"en","@value":"endemic pneumonia"}},{"label":{"@language":"en","@value":"infection by PPLO - [pleuropneumonia-like-organism]"}},{"label":{"@language":"en","@value":"mycoplasma infection with Eaton agent"}},{"label":{"@language":"en","@value":"mycoplasmal pneumonia"}},{"label":{"@language":"en","@value":"pneumonia due to PPLO - [pleuropneumonia-like-organism]"}},{"label":{"@language":"en","@value":"primary atypical pneumonia due to mycoplasma pneumoniae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/963399569/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/963399569/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/963399569/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/963399569/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/2024199586","http://id.who.int/icd/release/11/2026-01/mms/1765820617","http://id.who.int/icd/release/11/2026-01/mms/189285942","http://id.who.int/icd/release/11/2026-01/mms/795057595","http://id.who.int/icd/release/11/2026-01/mms/1298895686","http://id.who.int/icd/release/11/2026-01/mms/1552748079"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/963399569/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"source":"http://id.who.int/icd/entity/963399569","title":{"@language":"en","@value":"Pneumonia due to Mycoplasma pneumoniae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1C12.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1C12.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1C12.0","code":"1C12.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1287021540"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1C12.0%2fCA40.0Y","code":"1C12.0/CA40.0Y","hasManifestation":["CA40.0Y"],"stemCode":"1C12.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1287021540"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.0Y","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.0Y","code":"CA40.0Y","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"},"request_body":null,"status":200}
+ }
+}

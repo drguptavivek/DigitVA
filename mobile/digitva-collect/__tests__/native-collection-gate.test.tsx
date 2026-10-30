@@ -110,6 +110,16 @@ it("blocks a direct native collection route for a confirmed role-only account", 
   await act(async () => tree.unmount());
 });
 
+it("lets the Try DORIS demo route through with no account at all", async () => {
+  mockPathname = "/doris-demo";
+  mockParams = {};
+  mockState.accounts = [];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate routeName="doris-demo">demo screen</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("demo screen");
+  await act(async () => tree.unmount());
+});
+
 it("keeps mixed-role native collection routes available", async () => {
   mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: true, registration_access: true }];
   let tree!: ReturnType<typeof create>;

@@ -1,0 +1,138 @@
+{
+ "id": "va-09-01",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P26Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MaternalDeath": {
+    "PregnancyContribute": 1,
+    "TimeFromPregnancy": 0,
+    "WasPregnant": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "JA01.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified",
+       "Text": "Ruptured ectopic pregnancy"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-09-01",
+  "source": "VA cause VAs-09.01 Ectopic pregnancy",
+  "why": "Ectopic pregnancy: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA01.Z",
+    "POST icd/release/11/2026-01/doris #ec3a10b7f2",
+    "POST icd/release/11/2026-01/codedit #ec3a10b7f2"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P26Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MaternalDeath": {
+       "PregnancyContribute": 1,
+       "TimeFromPregnancy": 0,
+       "WasPregnant": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "JA01.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified",
+          "Text": "Ruptured ectopic pregnancy"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "JA01.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: JA01.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA01.Z - remains the TUC.\n\n\nFull report:\nSP1: JA01.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA01.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA01.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA01.Z - remains the TUC.\n",
+       "stemCode": "JA01.Z",
+       "stemURI": "http://id.who.int/icd/entity/1563334645/mms/unspecified",
+       "tabularReport": "MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JA01.Z;JA01.Z;;;0;SP1: JA01.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA01.Z;;;;;0;SP6: is not applicable with the current TSP JA01.Z.;;;;BER\nSP7;False;JA01.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA01.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA01.Z;;;;;0;M1: There is no special instruction applicable with TUC JA01.Z.;;;;BER\nM2;False;JA01.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA01.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA01.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA01.Z;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA01.Z - remains the TUC.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1563334645/unspecified",
+       "warning": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "JA01.Z",
+       "role": "stem",
+       "title": "Ruptured ectopic pregnancy",
+       "uri": "http://id.who.int/icd/release/11/mms/1563334645/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P26Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MaternalDeath": {
+      "PregnancyContribute": 1,
+      "TimeFromPregnancy": 0,
+      "WasPregnant": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "JA01.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified",
+         "Text": "Ruptured ectopic pregnancy"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/JA01.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA01.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA01.Z","code":"JA01.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #ec3a10b7f2": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P26Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JA01.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified\",\"Text\":\"Ruptured ectopic pregnancy\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #ec3a10b7f2": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"JA01.Z","error":null,"reject":false,"report":"SP1: JA01.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA01.Z - remains the TUC.\n\n\nFull report:\nSP1: JA01.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA01.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA01.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA01.Z - remains the TUC.\n","stemCode":"JA01.Z","stemURI":"http://id.who.int/icd/entity/1563334645/mms/unspecified","tabularReport":"MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JA01.Z;JA01.Z;;;0;SP1: JA01.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA01.Z;;;;;0;SP6: is not applicable with the current TSP JA01.Z.;;;;BER\nSP7;False;JA01.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA01.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA01.Z;;;;;0;M1: There is no special instruction applicable with TUC JA01.Z.;;;;BER\nM2;False;JA01.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA01.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA01.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA01.Z;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA01.Z - remains the TUC.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1563334645/unspecified","warning":"Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P26Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JA01.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified\",\"Text\":\"Ruptured ectopic pregnancy\"}]}]}","status":200}
+ }
+}

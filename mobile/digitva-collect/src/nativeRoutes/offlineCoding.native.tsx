@@ -39,7 +39,7 @@ import { codingContextFromInterview, createAllowabilityIndex, extractIcd11CodeEx
 import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
 import { errorText, Button, Screen, useUiStyles } from "../ui";
 import { t } from "../i18n";
-import { createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
+import { createGuidanceRequester, createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
 import type { JsonRequester, WorkspaceApi } from "../workspace/api";
 import type { CodingWriteReply, DorisProcessReply, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
 import { offlineEngine } from "../offlineEngine";
@@ -92,7 +92,7 @@ function offlineCodingStore(db: Db, assertAllowed: () => Promise<void>): Offline
 }
 
 /** Keep DorisPanel's in-memory request state tied to its open local store across account refreshes. */
-const requesters = new WeakMap<Db, JsonRequester>();
+const requesters = new WeakMap<Db, { target: { route: JsonRequester }; request: JsonRequester }>();
 const CODING_EVENTS = new Set(["coding_opened", "doris_processed", "initial_saved", "final_saved"]);
 const CODING_CLIENT_EVENTS = ["coding_opened", "doris_processed", "initial_saved"] as const;
 
@@ -104,13 +104,19 @@ function codingTimeline(value: unknown): WorkflowTimelineEvent[] {
   return events;
 }
 
-function offlineRequester(db: Db): JsonRequester {
-  let request = requesters.get(db);
-  if (!request) {
-    request = async () => { throw new Error("offline_server_unavailable"); };
-    requesters.set(db, request);
+/**
+ * The requester DorisPanel keys its in-memory drafts on, so its identity stays one per open store across account
+ * refreshes; what it answers with (the guidance routes of the current editor, see createGuidanceRequester) is swapped in.
+ */
+function offlineRequester(db: Db, route: JsonRequester): JsonRequester {
+  let entry = requesters.get(db);
+  if (!entry) {
+    const target = { route };
+    entry = { target, request: (path, init) => target.route(path, init) };
+    requesters.set(db, entry);
   }
-  return request;
+  entry.target.route = route;
+  return entry.request;
 }
 
 /** Device + coder-profile references a save records for a future sync's provenance (never the profile itself). */
@@ -176,8 +182,7 @@ function offlineWorkspaceApi(
       await assertAllowed();
       const expression = extractIcd11CodeExpression(code);
       if (expression && isCluster(expression)) {
-        const info = await editor.onCodeInfo(expression);
-        return getBundledVaDefinition(expression, info.item.primary_stem ?? undefined);
+        return getBundledVaDefinition(expression, await editor.primaryStem(expression));
       }
       return getBundledVaDefinition(code);
     },
@@ -428,7 +433,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
     () => offlineWorkspaceApi(db, editor, lastReply, timeline, clientDraftId, (draftId) => draftAnswersSha256(db, draftId), assertAllowed),
     [editor, clientDraftId, db, assertAllowed],
   );
-  const request = offlineRequester(db);
+  const request = offlineRequester(db, createGuidanceRequester(editor, clientDraftId, assertAllowed));
 
   const smartvaIsCurrent = smartvaAvailable === true && !!loaded?.smartvaOptions &&
     isLocalSmartVaCurrent(smartvaCache, smartvaAnswersHash, loaded.smartvaOptions.optionsDigest, smartvaVersion);
@@ -555,7 +560,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         {smartvaAvailable === false ? <Text style={styles.muted}>{t("localSmartVaUnavailable")}</Text> : null}
       </View> : <View style={[styles.card, { gap: 8 }]}>
         <Text style={styles.muted}>{t("localSmartVaOptionsNeeded")}</Text>
-        {smartvaFailure ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+        {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
         <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
       </View>}
       <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
@@ -694,13 +699,11 @@ export default function OfflineCoding() {
     // The list reopens after a save: its statuses come from the store again.
     setReloadTick((tick) => tick + 1);
   };
+  // The case renders its own Screen (title and banner); wrapping it here would show both twice.
+  if (selected) return <OfflineCase key={selected} db={db} userId={userId} clientDraftId={selected} account={account} onDone={closeCase} />;
   return (
     <Screen title="Offline coding">
-      {selected ? (
-        <OfflineCase key={selected} db={db} userId={userId} clientDraftId={selected} account={account} onDone={closeCase} />
-      ) : (
-        <OfflineCaseList key={reloadTick} db={db} account={account} onOpen={setSelected} />
-      )}
+      <OfflineCaseList key={reloadTick} db={db} account={account} onOpen={setSelected} />
     </Screen>
   );
 }

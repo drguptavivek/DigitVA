@@ -1,0 +1,891 @@
+{
+ "built": [
+  {
+   "expression": "JB64.4/BD54",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+      "GET icd/release/11/2026-01/mms/1380872553"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JB64.4/BD54",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB64.4/BD54"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+      "GET icd/release/11/2026-01/mms/1380872553"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JB64.4/BD54",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB64.4/BD54",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/1380872553",
+      "GET icd/release/11/2026-01/mms/1298211163",
+      "GET icd/release/11/2026-01/mms/1781019902",
+      "GET icd/release/11/2026-01/mms/714000734",
+      "GET icd/release/11/2026-01/mms/1298211163",
+      "GET icd/release/11/2026-01/mms/1426960900",
+      "GET icd/release/11/2026-01/mms/809926550",
+      "GET icd/release/11/2026-01/mms/1156263785",
+      "GET icd/release/11/2026-01/mms/564191997",
+      "GET icd/release/11/2026-01/mms/923122941",
+      "GET icd/release/11/2026-01/mms/1135143938",
+      "GET icd/release/11/2026-01/mms/652419480",
+      "GET icd/release/11/2026-01/mms/1717433410",
+      "GET icd/release/11/2026-01/mms/1298211163/other"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "18",
+         "title": "Pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+        },
+        {
+         "code": "",
+         "title": "Certain obstetric conditions, not elsewhere classified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1781019902"
+        },
+        {
+         "code": "JB64",
+         "title": "Certain maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1298211163"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "Spontaneous coronary artery dissection complicating pregnancy, childbirth or the puerperium",
+        "Cerebrovascular disorder in the puerperium",
+        "puerperal cerebrovascular disease",
+        "Acute puerperal cerebrovascular disease",
+        "Puerperal brain haemorrhage",
+        "Puerperal cerebellar haemorrhage",
+        "Puerperal cerebral arterial thrombosis",
+        "Stroke in the puerperium",
+        "Puerperal stroke",
+        "Puerperal ventricular haemorrhage",
+        "Puerperal cerebral thrombosis"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB64.4",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+       },
+       "selected_expression": {
+        "code": "JB64.4/BD54",
+        "stem_code": "JB64.4"
+       },
+       "siblings": [
+        {
+         "code": "JB64.0",
+         "has_children": false,
+         "title": "Anaemia complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1426960900"
+        },
+        {
+         "code": "JB64.1",
+         "has_children": false,
+         "title": "Other diseases of the blood or blood-forming organs or certain disorders involving the immune mechanism complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/809926550"
+        },
+        {
+         "code": "JB64.2",
+         "has_children": false,
+         "title": "Endocrine, nutritional or metabolic diseases complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156263785"
+        },
+        {
+         "code": "JB64.3",
+         "has_children": false,
+         "title": "Diseases of the nervous system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/564191997"
+        },
+        {
+         "code": "JB64.5",
+         "has_children": false,
+         "title": "Diseases of the respiratory system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/923122941"
+        },
+        {
+         "code": "JB64.6",
+         "has_children": false,
+         "title": "Diseases of the digestive system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1135143938"
+        },
+        {
+         "code": "JB64.7",
+         "has_children": false,
+         "title": "Diseases of the skin complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/652419480"
+        },
+        {
+         "code": "JB64.8",
+         "has_children": false,
+         "title": "Congenital anomaly complicating pregnancy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1717433410"
+        },
+        {
+         "code": "JB64.Y",
+         "has_children": false,
+         "title": "Other specified maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1298211163/other"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB64.4/BD54"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/1380872553"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB64.4",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "JB64.4/BD54"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/1380872553"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB64.4",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "JB64.4/BD54"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+      "GET icd/release/11/2026-01/mms/1380872553",
+      "GET icd/release/11/2026-01/mms/1429154898",
+      "GET icd/release/11/2026-01/mms/1218807936",
+      "GET icd/release/11/2026-01/mms/1042184245",
+      "GET icd/release/11/2026-01/mms/2146411734",
+      "GET icd/release/11/2026-01/mms/42381716",
+      "GET icd/release/11/2026-01/mms/482174292"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter.",
+       "definition": "",
+       "exclusions": [
+        {
+         "code": "JA05.7",
+         "title": "Other venous complications following abortion, ectopic or molar pregnancy"
+        },
+        {
+         "code": "JB44.3",
+         "title": "Cardiomyopathy in the puerperium"
+        },
+        {
+         "code": "",
+         "title": "Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"
+        },
+        {
+         "code": "JB42",
+         "title": "Obstetric embolism"
+        },
+        {
+         "code": "JB41",
+         "title": "Venous complications in the puerperium"
+        },
+        {
+         "code": "JA61",
+         "title": "venous complications and cerebrovenous sinus thrombosis in pregnancy"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB64.4",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB64.4/BD54"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684",
+   "why": "maternal composite: related category joined with the stem"
+  }
+ ],
+ "id": "pc-jb64-4",
+ "input": {
+  "built": [
+   {
+    "expression": "JB64.4/BD54",
+    "why": "maternal composite: related category joined with the stem"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-jb64-4",
+  "source": "docs/kb/doris-picker-who-behaviour-rules.md rule 10",
+  "stem": "JB64.4",
+  "why": "Maternal-chapter stem of the composite JB64.4/BD54 (KB rule 10)"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JB64.4",
+      "has_coding_note": true,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB64.4"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JB64.4",
+      "has_coding_note": true,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB64.4",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553",
+    "GET icd/release/11/2026-01/mms/924915526",
+    "GET icd/release/11/2026-01/mms/1663360295",
+    "GET icd/release/11/2026-01/mms/1964269418",
+    "GET icd/release/11/2026-01/mms/1059873720",
+    "GET icd/release/11/2026-01/mms/1703442464",
+    "GET icd/release/11/2026-01/mms/1296696944",
+    "GET icd/release/11/2026-01/mms/162683166",
+    "GET icd/release/11/2026-01/mms/1121431779",
+    "GET icd/release/11/2026-01/mms/291726710",
+    "GET icd/release/11/2026-01/mms/2135151223",
+    "GET icd/release/11/2026-01/mms/1457291912",
+    "GET icd/release/11/2026-01/mms/1458683894"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+         "code": "",
+         "has_children": true,
+         "title": "Hypertensive diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1663360295",
+         "code": "",
+         "has_children": true,
+         "title": "Hypotension",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1663360295"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1964269418",
+         "code": "",
+         "has_children": true,
+         "title": "Ischaemic heart diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1964269418"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1059873720",
+         "code": "",
+         "has_children": true,
+         "title": "Diseases of coronary artery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1059873720"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1703442464",
+         "code": "",
+         "has_children": true,
+         "title": "Pulmonary heart disease or diseases of pulmonary circulation",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1703442464"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1296696944",
+         "code": "",
+         "has_children": true,
+         "title": "Pericarditis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1296696944"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/162683166",
+         "code": "",
+         "has_children": true,
+         "title": "Acute or subacute endocarditis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/162683166"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1121431779",
+         "code": "",
+         "has_children": true,
+         "title": "Heart valve diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1121431779"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/291726710",
+         "code": "BC20",
+         "has_children": true,
+         "title": "Chronic rheumatic heart diseases, not elsewhere classified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/291726710"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2135151223",
+         "code": "",
+         "has_children": true,
+         "title": "Diseases of the myocardium or cardiac chambers",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2135151223"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1457291912",
+         "code": "",
+         "has_children": true,
+         "title": "Cardiac arrhythmia",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1457291912"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+         "code": "",
+         "has_children": true,
+         "title": "Heart failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+        "http://id.who.int/icd/release/11/2026-01/mms/1663360295",
+        "http://id.who.int/icd/release/11/2026-01/mms/1964269418",
+        "http://id.who.int/icd/release/11/2026-01/mms/1059873720",
+        "http://id.who.int/icd/release/11/2026-01/mms/1703442464",
+        "http://id.who.int/icd/release/11/2026-01/mms/1296696944",
+        "http://id.who.int/icd/release/11/2026-01/mms/162683166",
+        "http://id.who.int/icd/release/11/2026-01/mms/1121431779",
+        "http://id.who.int/icd/release/11/2026-01/mms/291726710",
+        "http://id.who.int/icd/release/11/2026-01/mms/2135151223",
+        "http://id.who.int/icd/release/11/2026-01/mms/1457291912",
+        "http://id.who.int/icd/release/11/2026-01/mms/1458683894"
+       ],
+       "truncated": true
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JB64.4",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB64.4"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553",
+    "GET icd/release/11/2026-01/mms/924915526",
+    "GET icd/release/11/2026-01/mms/761947693",
+    "GET icd/release/11/2026-01/mms/1210166201",
+    "GET icd/release/11/2026-01/mms/1015872326",
+    "GET icd/release/11/2026-01/mms/1002963291",
+    "GET icd/release/11/2026-01/mms/1331849426"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+       "code": "BA00",
+       "has_children": true,
+       "title": "Essential hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/761947693"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+       "code": "BA01",
+       "has_children": false,
+       "title": "Hypertensive heart disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1210166201"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+       "code": "BA02",
+       "has_children": false,
+       "title": "Hypertensive renal disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1015872326"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+       "code": "BA03",
+       "has_children": false,
+       "title": "Hypertensive crisis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1002963291"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+       "code": "BA04",
+       "has_children": true,
+       "title": "Secondary hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1331849426"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JB64.4",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/924915526",
+    "stem_code": "JB64.4"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553",
+    "GET icd/release/11/2026-01/mms/1298211163",
+    "GET icd/release/11/2026-01/mms/1781019902",
+    "GET icd/release/11/2026-01/mms/714000734",
+    "GET icd/release/11/2026-01/mms/1298211163",
+    "GET icd/release/11/2026-01/mms/1426960900",
+    "GET icd/release/11/2026-01/mms/809926550",
+    "GET icd/release/11/2026-01/mms/1156263785",
+    "GET icd/release/11/2026-01/mms/564191997",
+    "GET icd/release/11/2026-01/mms/923122941",
+    "GET icd/release/11/2026-01/mms/1135143938",
+    "GET icd/release/11/2026-01/mms/652419480",
+    "GET icd/release/11/2026-01/mms/1717433410",
+    "GET icd/release/11/2026-01/mms/1298211163/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "18",
+       "title": "Pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+      },
+      {
+       "code": "",
+       "title": "Certain obstetric conditions, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1781019902"
+      },
+      {
+       "code": "JB64",
+       "title": "Certain maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1298211163"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "Spontaneous coronary artery dissection complicating pregnancy, childbirth or the puerperium",
+      "Cerebrovascular disorder in the puerperium",
+      "puerperal cerebrovascular disease",
+      "Acute puerperal cerebrovascular disease",
+      "Puerperal brain haemorrhage",
+      "Puerperal cerebellar haemorrhage",
+      "Puerperal cerebral arterial thrombosis",
+      "Stroke in the puerperium",
+      "Puerperal stroke",
+      "Puerperal ventricular haemorrhage",
+      "Puerperal cerebral thrombosis"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB64.4",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "JB64.0",
+       "has_children": false,
+       "title": "Anaemia complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1426960900"
+      },
+      {
+       "code": "JB64.1",
+       "has_children": false,
+       "title": "Other diseases of the blood or blood-forming organs or certain disorders involving the immune mechanism complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/809926550"
+      },
+      {
+       "code": "JB64.2",
+       "has_children": false,
+       "title": "Endocrine, nutritional or metabolic diseases complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156263785"
+      },
+      {
+       "code": "JB64.3",
+       "has_children": false,
+       "title": "Diseases of the nervous system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/564191997"
+      },
+      {
+       "code": "JB64.5",
+       "has_children": false,
+       "title": "Diseases of the respiratory system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/923122941"
+      },
+      {
+       "code": "JB64.6",
+       "has_children": false,
+       "title": "Diseases of the digestive system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1135143938"
+      },
+      {
+       "code": "JB64.7",
+       "has_children": false,
+       "title": "Diseases of the skin complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/652419480"
+      },
+      {
+       "code": "JB64.8",
+       "has_children": false,
+       "title": "Congenital anomaly complicating pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1717433410"
+      },
+      {
+       "code": "JB64.Y",
+       "has_children": false,
+       "title": "Other specified maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1298211163/other"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB64.4"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB64.4",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "JB64.4"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB64.4",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "JB64.4"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553",
+    "GET icd/release/11/2026-01/mms/1429154898",
+    "GET icd/release/11/2026-01/mms/1218807936",
+    "GET icd/release/11/2026-01/mms/1042184245",
+    "GET icd/release/11/2026-01/mms/2146411734",
+    "GET icd/release/11/2026-01/mms/42381716",
+    "GET icd/release/11/2026-01/mms/482174292"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter.",
+     "definition": "",
+     "exclusions": [
+      {
+       "code": "JA05.7",
+       "title": "Other venous complications following abortion, ectopic or molar pregnancy"
+      },
+      {
+       "code": "JB44.3",
+       "title": "Cardiomyopathy in the puerperium"
+      },
+      {
+       "code": "",
+       "title": "Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"
+      },
+      {
+       "code": "JB42",
+       "title": "Obstetric embolism"
+      },
+      {
+       "code": "JB41",
+       "title": "Venous complications in the puerperium"
+      },
+      {
+       "code": "JA61",
+       "title": "venous complications and cerebrovenous sinus thrombosis in pregnancy"
+      }
+     ],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB64.4",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB64.4"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1002963291": {"method":"GET","path":"icd/release/11/2026-01/mms/1002963291","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1002963291","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1002963291","classKind":"category","code":"BA03","indexTerm":[{"label":{"@language":"en","@value":"Hypertensive crisis"}},{"foundationReference":"http://id.who.int/icd/entity/244762378","label":{"@language":"en","@value":"Hypertensive emergency"}},{"foundationReference":"http://id.who.int/icd/entity/244762378","label":{"@language":"en","@value":"hypertensive crisis with acute organ damage"}},{"foundationReference":"http://id.who.int/icd/entity/244762378","label":{"@language":"en","@value":"severely elevated blood pressure with acute organ damage"}},{"foundationReference":"http://id.who.int/icd/entity/956687992","label":{"@language":"en","@value":"Hypertensive urgency"}},{"foundationReference":"http://id.who.int/icd/entity/956687992","label":{"@language":"en","@value":"hypertensive crisis without acute organ damage"}},{"foundationReference":"http://id.who.int/icd/entity/956687992","label":{"@language":"en","@value":"severely elevated blood pressure without acute organ damage"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/924915526"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1002963291/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/761947693","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1331849426"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1910517058"],"source":"http://id.who.int/icd/entity/1002963291","title":{"@language":"en","@value":"Hypertensive crisis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1015872326": {"method":"GET","path":"icd/release/11/2026-01/mms/1015872326","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1015872326","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1015872326","classKind":"category","code":"BA02","definition":{"@language":"en","@value":"Hypertensive renal disease is a medical condition referring to damage to the kidney due to chronic high blood pressure."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1331849426","label":{"@language":"en","@value":"Secondary hypertension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1331849426"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1388356450","label":{"@language":"en","@value":"Pre-existing hypertensive renal disease complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1388356450"},{"foundationReference":"http://id.who.int/icd/entity/931884792","label":{"@language":"en","@value":"Pre-existing hypertensive heart and renal disease complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/931884792"}],"inclusion":[{"label":{"@language":"en","@value":"hypertensive nephropathy"}}],"indexTerm":[{"label":{"@language":"en","@value":"Hypertensive renal disease"}},{"label":{"@language":"en","@value":"hypertension with nephropathy"}},{"label":{"@language":"en","@value":"hypertension with renal disease"}},{"label":{"@language":"en","@value":"hypertensive nephropathy"}},{"foundationReference":"http://id.who.int/icd/entity/575338965","label":{"@language":"en","@value":"Hypertensive renal disease with renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/575338965","label":{"@language":"en","@value":"Hypertensive renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/575338965","label":{"@language":"en","@value":"hypertensive chronic renal insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/575338965","label":{"@language":"en","@value":"hypertensive renal sclerosis with renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/575338965","label":{"@language":"en","@value":"kidney hypertension with renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/575338965","label":{"@language":"en","@value":"renal insufficiency with hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/1704023753","label":{"@language":"en","@value":"Hypertensive uraemia"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"Hypertensive renal disease without renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"Hypertensive renal disease NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"arteriosclerotic kidney"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"arteriosclerotic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"renal arteriosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"renal arteriosclerotic disease"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"renal sclerosis, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"renal vascular insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"renovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"sclerosis of kidney"}},{"foundationReference":"http://id.who.int/icd/entity/1233564311","label":{"@language":"en","@value":"sclerotic kidney"}},{"foundationReference":"http://id.who.int/icd/entity/1771347021","label":{"@language":"en","@value":"Arteriolar nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1771347021","label":{"@language":"en","@value":"arterionephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1771347021","label":{"@language":"en","@value":"arteriosclerotic nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1771347021","label":{"@language":"en","@value":"chronic nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1771347021","label":{"@language":"en","@value":"hyaline arteriolar nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1035414356","label":{"@language":"en","@value":"Arteriosclerotic Bright disease"}},{"foundationReference":"http://id.who.int/icd/entity/1035414356","label":{"@language":"en","@value":"arteriolar nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/1035414356","label":{"@language":"en","@value":"arteriosclerotic nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/1035414356","label":{"@language":"en","@value":"interstitial arteriosclerotic nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/423589168","label":{"@language":"en","@value":"Arteriolar sclerosis of renal arterioles"}},{"foundationReference":"http://id.who.int/icd/entity/423589168","label":{"@language":"en","@value":"arteriosclerosis of renal arterioles"}},{"foundationReference":"http://id.who.int/icd/entity/423589168","label":{"@language":"en","@value":"renal arterioles arteriosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/423589168","label":{"@language":"en","@value":"renal arterioles arteriosclerotic disease"}},{"foundationReference":"http://id.who.int/icd/entity/1608753233","label":{"@language":"en","@value":"Chronic arteriosclerotic nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/902024598","label":{"@language":"en","@value":"Chronic kidney disease due to hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/772622990","label":{"@language":"en","@value":"Glomerular diseases due to hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/1878591797","label":{"@language":"en","@value":"Nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/1621457207","label":{"@language":"en","@value":"Unspecified contracted kidney due to hypertension"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/924915526"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1015872326/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1002963291","http://id.who.int/icd/release/11/2026-01/mms/761526554"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1388356450","http://id.who.int/icd/entity/931884792"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1910517058"],"source":"http://id.who.int/icd/entity/1015872326","title":{"@language":"en","@value":"Hypertensive renal disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1042184245": {"method":"GET","path":"icd/release/11/2026-01/mms/1042184245","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1042184245","blockId":"BlockL1-JA2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1042184245","child":["http://id.who.int/icd/release/11/2026-01/mms/183230446","http://id.who.int/icd/release/11/2026-01/mms/1872761464","http://id.who.int/icd/release/11/2026-01/mms/453853831","http://id.who.int/icd/release/11/2026-01/mms/2118553363","http://id.who.int/icd/release/11/2026-01/mms/229121159","http://id.who.int/icd/release/11/2026-01/mms/1759760659","http://id.who.int/icd/release/11/2026-01/mms/1042184245/unspecified"],"classKind":"block","code":"","codeRange":"JA20-JA2Z","definition":{"@language":"en","@value":"Any disorder affecting pregnant females, characterised by excessive systemic fluid build-up, excess serum proteins in the urine, and abnormally elevated blood pressure during pregnancy, childbirth, or the puerperium."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/714000734"],"source":"http://id.who.int/icd/entity/1042184245","title":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1059873720": {"method":"GET","path":"icd/release/11/2026-01/mms/1059873720","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1059873720","blockId":"BlockL1-BA8","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1059873720","child":["http://id.who.int/icd/release/11/2026-01/mms/777924269","http://id.who.int/icd/release/11/2026-01/mms/498053587","http://id.who.int/icd/release/11/2026-01/mms/438290657","http://id.who.int/icd/release/11/2026-01/mms/121422033","http://id.who.int/icd/release/11/2026-01/mms/508262464","http://id.who.int/icd/release/11/2026-01/mms/1752457658","http://id.who.int/icd/release/11/2026-01/mms/1059873720/other","http://id.who.int/icd/release/11/2026-01/mms/1059873720/unspecified"],"classKind":"block","code":"","codeRange":"BA81-BA8Z","definition":{"@language":"en","@value":"Conditions affecting the blood perfusion of the heart."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1280712786","label":{"@language":"en","@value":"Coronary atherosclerosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1280712786"},{"foundationReference":"http://id.who.int/icd/entity/764209567","label":{"@language":"en","@value":"Cardiac transplant associated coronary allograft vasculopathy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/764209567"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1059873720","title":{"@language":"en","@value":"Diseases of coronary artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1121431779": {"method":"GET","path":"icd/release/11/2026-01/mms/1121431779","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1121431779","blockId":"BlockL1-BB6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1121431779","child":["http://id.who.int/icd/release/11/2026-01/mms/1997348476","http://id.who.int/icd/release/11/2026-01/mms/1609206873","http://id.who.int/icd/release/11/2026-01/mms/1843615838","http://id.who.int/icd/release/11/2026-01/mms/1146446025","http://id.who.int/icd/release/11/2026-01/mms/1942372791","http://id.who.int/icd/release/11/2026-01/mms/1363514322","http://id.who.int/icd/release/11/2026-01/mms/606429336","http://id.who.int/icd/release/11/2026-01/mms/1121431779/unspecified"],"classKind":"block","code":"","codeRange":"BB60-BC0Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/871612151","label":{"@language":"en","@value":"Acute rheumatic fever"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/871612151"},{"foundationReference":"http://id.who.int/icd/entity/1833285474","label":{"@language":"en","@value":"Structural developmental anomalies of the circulatory system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1833285474"},{"foundationReference":"http://id.who.int/icd/entity/1691908317","label":{"@language":"en","@value":"Congenital anomaly of a ventriculo-arterial valve or adjacent regions"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1691908317"},{"foundationReference":"http://id.who.int/icd/entity/1983503623","label":{"@language":"en","@value":"Atypical truncal valve"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1832500366/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1121431779","title":{"@language":"en","@value":"Heart valve diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1135143938": {"method":"GET","path":"icd/release/11/2026-01/mms/1135143938","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1135143938","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1135143938","classKind":"category","code":"JB64.6","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1110228123","label":{"@language":"en","@value":"Liver disorders in pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1110228123"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the digestive system complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1135143938/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1167594753","http://id.who.int/icd/release/11/2026-01/mms/1594312948","http://id.who.int/icd/release/11/2026-01/mms/914520008","http://id.who.int/icd/release/11/2026-01/mms/2086488820","http://id.who.int/icd/release/11/2026-01/mms/1980672892","http://id.who.int/icd/release/11/2026-01/mms/1644587915","http://id.who.int/icd/release/11/2026-01/mms/1305923085","http://id.who.int/icd/release/11/2026-01/mms/1784240230","http://id.who.int/icd/release/11/2026-01/mms/587365414","http://id.who.int/icd/release/11/2026-01/mms/1726554290","http://id.who.int/icd/release/11/2026-01/mms/851941810","http://id.who.int/icd/release/11/2026-01/mms/1265113635","http://id.who.int/icd/release/11/2026-01/mms/696703416","http://id.who.int/icd/release/11/2026-01/mms/1294458332","http://id.who.int/icd/release/11/2026-01/mms/598093212","http://id.who.int/icd/release/11/2026-01/mms/132592466","http://id.who.int/icd/release/11/2026-01/mms/2031646451","http://id.who.int/icd/release/11/2026-01/mms/1256772020/other","http://id.who.int/icd/release/11/2026-01/mms/1256772020/unspecified"]}],"source":"http://id.who.int/icd/entity/1135143938","title":{"@language":"en","@value":"Diseases of the digestive system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1156263785": {"method":"GET","path":"icd/release/11/2026-01/mms/1156263785","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1156263785","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1156263785","classKind":"category","code":"JB64.2","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"Any disease affecting pregnant females, characterised by endocrine, nutrition, or metabolic manifestations that complicate pregnancy, childbirth, or the puerperium."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/1867773640","label":{"@language":"en","@value":"Malnutrition in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1867773640"},{"foundationReference":"http://id.who.int/icd/entity/1577113218","label":{"@language":"en","@value":"Postpartum thyroiditis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1577113218"}],"indexTerm":[{"label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1156263785/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/461716838","http://id.who.int/icd/release/11/2026-01/mms/1671987290","http://id.who.int/icd/release/11/2026-01/mms/155258022","http://id.who.int/icd/release/11/2026-01/mms/1915134721"]}],"source":"http://id.who.int/icd/entity/1156263785","title":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1210166201": {"method":"GET","path":"icd/release/11/2026-01/mms/1210166201","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1210166201","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1210166201","classKind":"category","code":"BA01","definition":{"@language":"en","@value":"Hypertensive heart disease is a term applied generally to heart diseases, such as left ventricular hypertrophy, coronary artery disease, cardiac arrhythmias, and congestive heart failure, that are caused by direct or indirect effects of hypertension. Uncontrolled and prolonged hypertension can lead to a variety of changes in the myocardial structure, coronary vasculature, and conduction system of the heart."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/644739997","label":{"@language":"en","@value":"Pre-existing hypertensive heart disease complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/644739997"},{"foundationReference":"http://id.who.int/icd/entity/931884792","label":{"@language":"en","@value":"Pre-existing hypertensive heart and renal disease complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/931884792"}],"indexTerm":[{"label":{"@language":"en","@value":"Hypertensive heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"Hypertensive heart disease with heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"Congestive heart failure due to hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"Hypertensive heart disease with congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"Hypertensive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"Left ventricular failure due to hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"benign hypertensive heart disease with congestive cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"benign hypertensive heart disease with congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"benign hypertensive heart disease with heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"hypertensive CCF - [congestive cardiac failure]"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"hypertensive cardiorespiratory failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"hypertensive congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"hypertensive left ventricular failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"malignant hypertensive heart disease with congestive cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"malignant hypertensive heart disease with congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/600660459","label":{"@language":"en","@value":"malignant hypertensive heart disease with heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"Hypertensive heart disease without heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"HCVD - [hypertensive cardiovascular disease]"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"HHD - [hypertensive heart disease]"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"Hypertensive heart disease without congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"Hypertensive heart disease, not otherwise specified"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"benign hypertensive cardiovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"benign hypertensive heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"cardiovascular hypertension disease"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"essential hypertensive cardiovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive arteriosclerotic cardiovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive cardiac disease NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive cardiac hypertrophy"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive cardiopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive cardiovascular collapse"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive cardiovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive heart"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive myocardial degeneration"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive myocardial insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive myocardium degeneration"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"hypertensive myocardium insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1208029865","label":{"@language":"en","@value":"malignant hypertensive heart disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/924915526"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1210166201/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1002963291","http://id.who.int/icd/release/11/2026-01/mms/1458683894"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/644739997","http://id.who.int/icd/entity/931884792"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1910517058"],"source":"http://id.who.int/icd/entity/1210166201","title":{"@language":"en","@value":"Hypertensive heart disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1218807936": {"method":"GET","path":"icd/release/11/2026-01/mms/1218807936","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1218807936","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1218807936","classKind":"category","code":"JB44.3","definition":{"@language":"en","@value":"A group of diseases in which the dominant feature is the involvement of the cardiac muscle itself occurring in puerperium, the period of 6-8 weeks after giving birth. Cardiomyopathies are classified according to their predominant pathophysiological features or their etiological/pathological factors."},"indexTerm":[{"label":{"@language":"en","@value":"Cardiomyopathy in the puerperium"}},{"label":{"@language":"en","@value":"postpartum cardiomyopathy"}},{"label":{"@language":"en","@value":"postpartum dilated cardiomyopathy"}},{"label":{"@language":"en","@value":"puerperal cardiomyopathy"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/648899097"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1218807936/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/282225286"]}],"source":"http://id.who.int/icd/entity/1218807936","title":{"@language":"en","@value":"Cardiomyopathy in the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1296696944": {"method":"GET","path":"icd/release/11/2026-01/mms/1296696944","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1296696944","blockId":"BlockL1-BB2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1296696944","child":["http://id.who.int/icd/release/11/2026-01/mms/2099186145","http://id.who.int/icd/release/11/2026-01/mms/1473004877","http://id.who.int/icd/release/11/2026-01/mms/1722995229","http://id.who.int/icd/release/11/2026-01/mms/216782575","http://id.who.int/icd/release/11/2026-01/mms/304055010","http://id.who.int/icd/release/11/2026-01/mms/2002014072","http://id.who.int/icd/release/11/2026-01/mms/1296696944/other","http://id.who.int/icd/release/11/2026-01/mms/1296696944/unspecified"],"classKind":"block","code":"","codeRange":"BB20-BB2Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1537774422","label":{"@language":"en","@value":"Pneumopericardium originating in the perinatal period"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1537774422"},{"foundationReference":"http://id.who.int/icd/entity/869759708","label":{"@language":"en","@value":"Acute rheumatic pericarditis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/869759708"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1296696944","title":{"@language":"en","@value":"Pericarditis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1298211163": {"method":"GET","path":"icd/release/11/2026-01/mms/1298211163","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1298211163","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1298211163","child":["http://id.who.int/icd/release/11/2026-01/mms/1426960900","http://id.who.int/icd/release/11/2026-01/mms/809926550","http://id.who.int/icd/release/11/2026-01/mms/1156263785","http://id.who.int/icd/release/11/2026-01/mms/564191997","http://id.who.int/icd/release/11/2026-01/mms/1380872553","http://id.who.int/icd/release/11/2026-01/mms/923122941","http://id.who.int/icd/release/11/2026-01/mms/1135143938","http://id.who.int/icd/release/11/2026-01/mms/652419480","http://id.who.int/icd/release/11/2026-01/mms/1717433410","http://id.who.int/icd/release/11/2026-01/mms/1298211163/other"],"classKind":"category","code":"JB64","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/673901775","label":{"@language":"en","@value":"infectious and parasitic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/673901775"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/949403359","label":{"@language":"en","@value":"when the reason for maternal care is that the condition is known or suspected to have affected the fetus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/949403359"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"},{"foundationReference":"http://id.who.int/icd/entity/2013366661","label":{"@language":"en","@value":"Injury complicating pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2013366661"},{"foundationReference":"http://id.who.int/icd/entity/1017603201","label":{"@language":"en","@value":"Maternal care for tumour of corpus uteri"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1017603201"},{"foundationReference":"http://id.who.int/icd/entity/2046208198","label":{"@language":"en","@value":"Infections of genitourinary tract in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2046208198"},{"foundationReference":"http://id.who.int/icd/entity/194200207","label":{"@language":"en","@value":"Infection of obstetric surgical wound"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/194200207"},{"foundationReference":"http://id.who.int/icd/entity/1859686171","label":{"@language":"en","@value":"Other infection of genital tract following delivery"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1859686171"},{"foundationReference":"http://id.who.int/icd/entity/443932646","label":{"@language":"en","@value":"Urinary tract infection following delivery"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/443932646"},{"foundationReference":"http://id.who.int/icd/entity/1574794059","label":{"@language":"en","@value":"Maternal care for abnormality of pelvic organs"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1574794059"},{"foundationReference":"http://id.who.int/icd/entity/994777876","label":{"@language":"en","@value":"Postpartum acute renal failure"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/994777876"},{"foundationReference":"http://id.who.int/icd/entity/778346821","label":{"@language":"en","@value":"Postpartum inversion of uterus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/778346821"},{"foundationReference":"http://id.who.int/icd/entity/1139189645","label":{"@language":"en","@value":"Infections of breast associated with childbirth"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1139189645"},{"foundationReference":"http://id.who.int/icd/entity/927725428","label":{"@language":"en","@value":"Certain specified disorders of breast or lactation associated with childbirth"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/927725428"}],"indexTerm":[{"label":{"@language":"en","@value":"Certain maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1781019902"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1298211163/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1630407678","http://id.who.int/icd/release/11/2026-01/mms/868865918","http://id.who.int/icd/release/11/2026-01/mms/1218729044","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1932345217","http://id.who.int/icd/release/11/2026-01/mms/438200634","http://id.who.int/icd/release/11/2026-01/mms/1870522325"]}],"source":"http://id.who.int/icd/entity/1298211163","title":{"@language":"en","@value":"Certain maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1298211163/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1298211163/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1298211163/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1298211163/other","classKind":"category","code":"JB64.Y","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"indexTerm":[{"label":{"@language":"en","@value":"Other specified maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1790163073","label":{"@language":"en","@value":"Neoplasm complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1957488885","label":{"@language":"en","@value":"Sleep-wake disorders complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1690419507","label":{"@language":"en","@value":"Diseases of the visual system complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/904910338","label":{"@language":"en","@value":"Diseases of the ear or mastoid process complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/889859730","label":{"@language":"en","@value":"Diseases of musculoskeletal system or connective tissue complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1964826343","label":{"@language":"en","@value":"Diseases of genitourinary system complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1298211163/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1630407678","http://id.who.int/icd/release/11/2026-01/mms/868865918","http://id.who.int/icd/release/11/2026-01/mms/1218729044","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1932345217","http://id.who.int/icd/release/11/2026-01/mms/438200634","http://id.who.int/icd/release/11/2026-01/mms/1870522325"]}],"title":{"@language":"en","@value":"Other specified maternal diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1331849426": {"method":"GET","path":"icd/release/11/2026-01/mms/1331849426","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1331849426","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1331849426","child":["http://id.who.int/icd/release/11/2026-01/mms/2056837116","http://id.who.int/icd/release/11/2026-01/mms/1975822334","http://id.who.int/icd/release/11/2026-01/mms/1894811648","http://id.who.int/icd/release/11/2026-01/mms/1331849426/other","http://id.who.int/icd/release/11/2026-01/mms/1331849426/unspecified"],"classKind":"category","code":"BA04","definition":{"@language":"en","@value":"Defined through the measurement of the blood pressure using cuff method with a sitting systolic blood pressure above 140 mmHg or a sitting diastolic blood pressure above 90 mmHg in three consequent measurements with an identifiable cause."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/843843448","label":{"@language":"en","@value":"involving vessels of brain"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/843843448"},{"foundationReference":"http://id.who.int/icd/entity/1564321837","label":{"@language":"en","@value":"involving vessels of eye"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1564321837"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1147534692","label":{"@language":"en","@value":"Pre-existing secondary hypertension complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1147534692"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/924915526"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1331849426/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1002963291"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1331849426/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2110009016","http://id.who.int/icd/release/11/2026-01/mms/572581721","http://id.who.int/icd/release/11/2026-01/mms/1470387017","http://id.who.int/icd/release/11/2026-01/mms/1654321425","http://id.who.int/icd/release/11/2026-01/mms/172733763","http://id.who.int/icd/release/11/2026-01/mms/1937534076","http://id.who.int/icd/release/11/2026-01/mms/280853107","http://id.who.int/icd/release/11/2026-01/mms/658360080","http://id.who.int/icd/release/11/2026-01/mms/1210263011","http://id.who.int/icd/release/11/2026-01/mms/2004408087","http://id.who.int/icd/release/11/2026-01/mms/856359002","http://id.who.int/icd/release/11/2026-01/mms/1868408442","http://id.who.int/icd/release/11/2026-01/mms/1583926619","http://id.who.int/icd/release/11/2026-01/mms/1323892810","http://id.who.int/icd/release/11/2026-01/mms/1111647054"]}],"source":"http://id.who.int/icd/entity/1331849426","title":{"@language":"en","@value":"Secondary hypertension"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1380872553": {"method":"GET","path":"icd/release/11/2026-01/mms/1380872553","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1380872553","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1380872553","classKind":"category","code":"JB64.4","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1429154898","label":{"@language":"en","@value":"Other venous complications following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1429154898"},{"foundationReference":"http://id.who.int/icd/entity/1218807936","label":{"@language":"en","@value":"Cardiomyopathy in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1218807936"},{"foundationReference":"http://id.who.int/icd/entity/1042184245","label":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1042184245"},{"foundationReference":"http://id.who.int/icd/entity/2146411734","label":{"@language":"en","@value":"Obstetric embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2146411734"},{"foundationReference":"http://id.who.int/icd/entity/42381716","label":{"@language":"en","@value":"Venous complications in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/42381716"},{"foundationReference":"http://id.who.int/icd/entity/482174292","label":{"@language":"en","@value":"venous complications and cerebrovenous sinus thrombosis in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/482174292"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/204839514","label":{"@language":"en","@value":"Spontaneous coronary artery dissection complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/824741370","label":{"@language":"en","@value":"Cerebrovascular disorder in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/824741370","label":{"@language":"en","@value":"puerperal cerebrovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1686274855","label":{"@language":"en","@value":"Acute puerperal cerebrovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/368203354","label":{"@language":"en","@value":"Puerperal brain haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/77083840","label":{"@language":"en","@value":"Puerperal cerebellar haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/2086366132","label":{"@language":"en","@value":"Puerperal cerebral arterial thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/59093051","label":{"@language":"en","@value":"Stroke in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/59093051","label":{"@language":"en","@value":"Puerperal stroke"}},{"foundationReference":"http://id.who.int/icd/entity/323955085","label":{"@language":"en","@value":"Puerperal ventricular haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/863691215","label":{"@language":"en","@value":"Puerperal cerebral thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/1831930158","label":{"@language":"en","@value":"Puerperal cortical haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1932417368","label":{"@language":"en","@value":"Puerperal cerebral haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1205593054","label":{"@language":"en","@value":"Puerperal extradural haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1460763240","label":{"@language":"en","@value":"Puerperal intracranial haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/684696039","label":{"@language":"en","@value":"Puerperal intrapontine haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/399192161","label":{"@language":"en","@value":"Puerperal subarachnoid haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1968578463","label":{"@language":"en","@value":"Puerperal subdural haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1534764129","label":{"@language":"en","@value":"Puerperal subcortical haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/394885249","label":{"@language":"en","@value":"Puerperal pontine haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/558212158","label":{"@language":"en","@value":"Cardiomyopathy complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/722760722","label":{"@language":"en","@value":"Intracerebral haemorrhage, complicating pregnancy, childbirth or puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1964889107","label":{"@language":"en","@value":"Puerperal bulbar haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/621610924","label":{"@language":"en","@value":"Puerperal apoplexy"}},{"foundationReference":"http://id.who.int/icd/entity/1523833891","label":{"@language":"en","@value":"Puerperal cardiac thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/433210333","label":{"@language":"en","@value":"Puerperal meningeal haemorrhage"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1380872553/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/924915526","http://id.who.int/icd/release/11/2026-01/mms/1663360295","http://id.who.int/icd/release/11/2026-01/mms/1964269418","http://id.who.int/icd/release/11/2026-01/mms/1059873720","http://id.who.int/icd/release/11/2026-01/mms/1703442464","http://id.who.int/icd/release/11/2026-01/mms/1296696944","http://id.who.int/icd/release/11/2026-01/mms/162683166","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/291726710","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/1457291912","http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/1164983645","http://id.who.int/icd/release/11/2026-01/mms/723430526","http://id.who.int/icd/release/11/2026-01/mms/1025888387","http://id.who.int/icd/release/11/2026-01/mms/1925333068","http://id.who.int/icd/release/11/2026-01/mms/185569509","http://id.who.int/icd/release/11/2026-01/mms/267653319","http://id.who.int/icd/release/11/2026-01/mms/539975693","http://id.who.int/icd/release/11/2026-01/mms/966120194","http://id.who.int/icd/release/11/2026-01/mms/1651137927","http://id.who.int/icd/release/11/2026-01/mms/426429380/other","http://id.who.int/icd/release/11/2026-01/mms/426429380/unspecified"]}],"source":"http://id.who.int/icd/entity/1380872553","title":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1426960900": {"method":"GET","path":"icd/release/11/2026-01/mms/1426960900","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1426960900","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1426960900","classKind":"category","code":"JB64.0","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"A condition of the circulatory system affecting pregnant females, characterised by a haemoglobin level below 11 grams per decilitre that complicates pregnancy, childbirth, or the puerperium."},"indexTerm":[{"label":{"@language":"en","@value":"Anaemia complicating pregnancy, childbirth or the puerperium"}},{"label":{"@language":"en","@value":"anaemia in mother complicating pregnancy, childbirth or puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/663716152","label":{"@language":"en","@value":"Anaemia of or complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1830082093","label":{"@language":"en","@value":"Anaemia of the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1830082093","label":{"@language":"en","@value":"puerperal anaemia"}},{"foundationReference":"http://id.who.int/icd/entity/1509007767","label":{"@language":"en","@value":"Aplastic and other anaemias complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1729594335","label":{"@language":"en","@value":"Haemolytic anaemias complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/764204228","label":{"@language":"en","@value":"Macrocytic anaemia of or complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/82047986","label":{"@language":"en","@value":"Megaloblastic anaemia of or complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1363803437","label":{"@language":"en","@value":"Nutritional anaemias complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1792653435","label":{"@language":"en","@value":"Valsuani's disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1426960900/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/963670118","http://id.who.int/icd/release/11/2026-01/mms/162762794","http://id.who.int/icd/release/11/2026-01/mms/330259189","http://id.who.int/icd/release/11/2026-01/mms/975559344","http://id.who.int/icd/release/11/2026-01/mms/1980066564","http://id.who.int/icd/release/11/2026-01/mms/502834133","http://id.who.int/icd/release/11/2026-01/mms/1981248479","http://id.who.int/icd/release/11/2026-01/mms/235504456","http://id.who.int/icd/release/11/2026-01/mms/899830967","http://id.who.int/icd/release/11/2026-01/mms/457885282","http://id.who.int/icd/release/11/2026-01/mms/492611740","http://id.who.int/icd/release/11/2026-01/mms/1981095916","http://id.who.int/icd/release/11/2026-01/mms/586921197","http://id.who.int/icd/release/11/2026-01/mms/746336827","http://id.who.int/icd/release/11/2026-01/mms/324845131","http://id.who.int/icd/release/11/2026-01/mms/224336967/other","http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified"]}],"source":"http://id.who.int/icd/entity/1426960900","title":{"@language":"en","@value":"Anaemia complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1429154898": {"method":"GET","path":"icd/release/11/2026-01/mms/1429154898","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1429154898","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1429154898","classKind":"category","code":"JA05.7","indexTerm":[{"label":{"@language":"en","@value":"Other venous complications following abortion, ectopic or molar pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1600570808","label":{"@language":"en","@value":"Thrombosis of pregnancy following abortion"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1403588899"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1429154898/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/708418764","http://id.who.int/icd/release/11/2026-01/mms/925320484","http://id.who.int/icd/release/11/2026-01/mms/1197943614","http://id.who.int/icd/release/11/2026-01/mms/1252082051","http://id.who.int/icd/release/11/2026-01/mms/2057222152","http://id.who.int/icd/release/11/2026-01/mms/1078773185","http://id.who.int/icd/release/11/2026-01/mms/723430526/other","http://id.who.int/icd/release/11/2026-01/mms/723430526/unspecified"]}],"source":"http://id.who.int/icd/entity/1429154898","title":{"@language":"en","@value":"Other venous complications following abortion, ectopic or molar pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1457291912": {"method":"GET","path":"icd/release/11/2026-01/mms/1457291912","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1457291912","blockId":"BlockL1-BC6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1457291912","child":["http://id.who.int/icd/release/11/2026-01/mms/1661573494","http://id.who.int/icd/release/11/2026-01/mms/396675465","http://id.who.int/icd/release/11/2026-01/mms/109261437","http://id.who.int/icd/release/11/2026-01/mms/486643502","http://id.who.int/icd/release/11/2026-01/mms/1833795233","http://id.who.int/icd/release/11/2026-01/mms/1524522975","http://id.who.int/icd/release/11/2026-01/mms/1694741164","http://id.who.int/icd/release/11/2026-01/mms/1377295685","http://id.who.int/icd/release/11/2026-01/mms/1798038448","http://id.who.int/icd/release/11/2026-01/mms/1136528654","http://id.who.int/icd/release/11/2026-01/mms/1457291912/other","http://id.who.int/icd/release/11/2026-01/mms/1457291912/unspecified"],"classKind":"block","code":"","codeRange":"BC60-BC9Z","definition":{"@language":"en","@value":"This is any of a large and heterogeneous group of conditions in which there is abnormal electrical activity in the heart. The heartbeat may be too fast or too slow, and may be regular or irregular."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/395422191","label":{"@language":"en","@value":"Cardiac arrest"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/395422191"},{"foundationReference":"http://id.who.int/icd/entity/88964541","label":{"@language":"en","@value":"Cardiac arrhythmias in the neonate"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/88964541"},{"foundationReference":"http://id.who.int/icd/entity/145841876","label":{"@language":"en","@value":"Dysfunction or complication of pacemaker, pacemaker lead or implantable cardioverter defibrillator, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/145841876"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1457291912","title":{"@language":"en","@value":"Cardiac arrhythmia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1458683894": {"method":"GET","path":"icd/release/11/2026-01/mms/1458683894","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894","blockId":"BlockL1-BD1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1458683894","child":["http://id.who.int/icd/release/11/2026-01/mms/2136808878","http://id.who.int/icd/release/11/2026-01/mms/437702716","http://id.who.int/icd/release/11/2026-01/mms/1754821737","http://id.who.int/icd/release/11/2026-01/mms/1594578199","http://id.who.int/icd/release/11/2026-01/mms/1992125824","http://id.who.int/icd/release/11/2026-01/mms/1458683894/other","http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"],"classKind":"block","code":"","codeRange":"BD10-BD1Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1403588899","label":{"@language":"en","@value":"complicating abortion or ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1403588899"},{"foundationReference":"http://id.who.int/icd/entity/37695035","label":{"@language":"en","@value":"complicating obstetric surgery and procedures"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/37695035"},{"foundationReference":"http://id.who.int/icd/entity/506055626","label":{"@language":"en","@value":"Heart failure following cardiac surgery or due to presence of cardiac prosthesis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/506055626"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1611051049","label":{"@language":"en","@value":"Neonatal cardiac failure"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1611051049"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1458683894","title":{"@language":"en","@value":"Heart failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/162683166": {"method":"GET","path":"icd/release/11/2026-01/mms/162683166","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/162683166","blockId":"BlockL1-BB4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#162683166","child":["http://id.who.int/icd/release/11/2026-01/mms/512128824","http://id.who.int/icd/release/11/2026-01/mms/341681029","http://id.who.int/icd/release/11/2026-01/mms/920547808","http://id.who.int/icd/release/11/2026-01/mms/162683166/other","http://id.who.int/icd/release/11/2026-01/mms/162683166/unspecified"],"classKind":"block","code":"","codeRange":"BB40-BB4Z","definition":{"@language":"en","@value":"A condition characterised by inflammation of endocardium"},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1453111118","label":{"@language":"en","@value":"Acute rheumatic endocarditis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1453111118"},{"foundationReference":"http://id.who.int/icd/entity/1234499051","label":{"@language":"en","@value":"Systemic lupus erythematosus with cardiac involvement"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/749596428/other"},{"foundationReference":"http://id.who.int/icd/entity/367810165","label":{"@language":"en","@value":"Typhoid fever with heart involvement"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/162683166","title":{"@language":"en","@value":"Acute or subacute endocarditis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1663360295": {"method":"GET","path":"icd/release/11/2026-01/mms/1663360295","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1663360295","blockId":"BlockL1-BA2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1663360295","child":["http://id.who.int/icd/release/11/2026-01/mms/1713204963","http://id.who.int/icd/release/11/2026-01/mms/56009591","http://id.who.int/icd/release/11/2026-01/mms/1663360295/other","http://id.who.int/icd/release/11/2026-01/mms/1663360295/unspecified"],"classKind":"block","code":"","codeRange":"BA20-BA2Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/914484324","label":{"@language":"en","@value":"Maternal hypotension syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/914484324"},{"foundationReference":"http://id.who.int/icd/entity/1164022950","label":{"@language":"en","@value":"cardiovascular collapse"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1164022950"},{"foundationReference":"http://id.who.int/icd/entity/2054210520","label":{"@language":"en","@value":"Nonspecific low blood-pressure reading"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2054210520"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/363695674","label":{"@language":"en","@value":"Intracranial hypotension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/363695674"},{"foundationReference":"http://id.who.int/icd/entity/1344774532","label":{"@language":"en","@value":"Neonatal hypotension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1344774532"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1663360295","title":{"@language":"en","@value":"Hypotension"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1703442464": {"method":"GET","path":"icd/release/11/2026-01/mms/1703442464","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1703442464","blockId":"BlockL1-BB0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1703442464","child":["http://id.who.int/icd/release/11/2026-01/mms/1014964218","http://id.who.int/icd/release/11/2026-01/mms/1496633964","http://id.who.int/icd/release/11/2026-01/mms/610125614","http://id.who.int/icd/release/11/2026-01/mms/409140736","http://id.who.int/icd/release/11/2026-01/mms/1703442464/other","http://id.who.int/icd/release/11/2026-01/mms/1703442464/unspecified"],"classKind":"block","code":"","codeRange":"BB00-BB0Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1703442464","title":{"@language":"en","@value":"Pulmonary heart disease or diseases of pulmonary circulation"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1717433410": {"method":"GET","path":"icd/release/11/2026-01/mms/1717433410","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1717433410","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1717433410","classKind":"category","code":"JB64.8","indexTerm":[{"label":{"@language":"en","@value":"Congenital anomaly complicating pregnancy"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1717433410/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/258484393","http://id.who.int/icd/release/11/2026-01/mms/770439884","http://id.who.int/icd/release/11/2026-01/mms/939957586","http://id.who.int/icd/release/11/2026-01/mms/775270311","http://id.who.int/icd/release/11/2026-01/mms/223744320/other","http://id.who.int/icd/release/11/2026-01/mms/223744320/unspecified"]}],"source":"http://id.who.int/icd/entity/1717433410","title":{"@language":"en","@value":"Congenital anomaly complicating pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1781019902": {"method":"GET","path":"icd/release/11/2026-01/mms/1781019902","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1781019902","blockId":"BlockL1-JB6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1781019902","child":["http://id.who.int/icd/release/11/2026-01/mms/1151689960","http://id.who.int/icd/release/11/2026-01/mms/805843993","http://id.who.int/icd/release/11/2026-01/mms/1430518157","http://id.who.int/icd/release/11/2026-01/mms/673901775","http://id.who.int/icd/release/11/2026-01/mms/1298211163","http://id.who.int/icd/release/11/2026-01/mms/569289074","http://id.who.int/icd/release/11/2026-01/mms/1781019902/other","http://id.who.int/icd/release/11/2026-01/mms/1781019902/unspecified"],"classKind":"block","code":"","codeRange":"JB60-JB6Z","definition":{"@language":"en","@value":"Any condition characterised by an obstetric complication, condition, disease, or death during pregnancy, labour and delivery, or the puerperium that is not elsewhere classified."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/714000734"],"source":"http://id.who.int/icd/entity/1781019902","title":{"@language":"en","@value":"Certain obstetric conditions, not elsewhere classified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1964269418": {"method":"GET","path":"icd/release/11/2026-01/mms/1964269418","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1964269418","blockId":"BlockL1-BA4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1964269418","child":["http://id.who.int/icd/release/11/2026-01/mms/1829545371","http://id.who.int/icd/release/11/2026-01/mms/1221742343","http://id.who.int/icd/release/11/2026-01/mms/1584861447","http://id.who.int/icd/release/11/2026-01/mms/1964269418/unspecified"],"classKind":"block","code":"","codeRange":"BA40-BA6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1964269418","title":{"@language":"en","@value":"Ischaemic heart diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2135151223": {"method":"GET","path":"icd/release/11/2026-01/mms/2135151223","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2135151223","blockId":"BlockL1-BC4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2135151223","child":["http://id.who.int/icd/release/11/2026-01/mms/331846068","http://id.who.int/icd/release/11/2026-01/mms/678320952","http://id.who.int/icd/release/11/2026-01/mms/1018829714","http://id.who.int/icd/release/11/2026-01/mms/282225286","http://id.who.int/icd/release/11/2026-01/mms/226977635","http://id.who.int/icd/release/11/2026-01/mms/273368763","http://id.who.int/icd/release/11/2026-01/mms/386434514","http://id.who.int/icd/release/11/2026-01/mms/2135151223/other","http://id.who.int/icd/release/11/2026-01/mms/2135151223/unspecified"],"classKind":"block","code":"","codeRange":"BC40-BC4Z","definition":{"@language":"en","@value":"This refers to diseases of a type of involuntary striated muscle found in the walls and histological foundation of the heart, with specific reference to the atrial and ventricular chambers, as well as the myocardium itself."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/2135151223","title":{"@language":"en","@value":"Diseases of the myocardium or cardiac chambers"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2146411734": {"method":"GET","path":"icd/release/11/2026-01/mms/2146411734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2146411734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2146411734","child":["http://id.who.int/icd/release/11/2026-01/mms/1508858290","http://id.who.int/icd/release/11/2026-01/mms/1017418792","http://id.who.int/icd/release/11/2026-01/mms/1208599769","http://id.who.int/icd/release/11/2026-01/mms/759302477","http://id.who.int/icd/release/11/2026-01/mms/2146411734/other","http://id.who.int/icd/release/11/2026-01/mms/2146411734/unspecified"],"classKind":"category","code":"JB42","definition":{"@language":"en","@value":"A condition characterised by the lodging of a blood clot, a fat globule or a gas bubble (embolus) in the bloodstream, which can cause a blockage associated with the physiological and other changes that occur during the period of time from conception to delivery (pregnancy), during labour and delivery (childbirth) or during the approximately six weeks after delivery during which the uterus returns to the original size (puerperium)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/925311663","label":{"@language":"en","@value":"Embolism following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/925311663"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1421997617"],"source":"http://id.who.int/icd/entity/2146411734","title":{"@language":"en","@value":"Obstetric embolism"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/291726710": {"method":"GET","path":"icd/release/11/2026-01/mms/291726710","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/291726710","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#291726710","child":["http://id.who.int/icd/release/11/2026-01/mms/593565106","http://id.who.int/icd/release/11/2026-01/mms/291726710/other","http://id.who.int/icd/release/11/2026-01/mms/291726710/unspecified"],"classKind":"category","code":"BC20","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/535094176","label":{"@language":"en","@value":"Acute rheumatic fever with heart involvement"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/535094176"},{"foundationReference":"http://id.who.int/icd/entity/153725862","label":{"@language":"en","@value":"Rheumatic mitral valve stenosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/153725862"},{"foundationReference":"http://id.who.int/icd/entity/1818388016","label":{"@language":"en","@value":"Rheumatic mitral valve insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1818388016"},{"foundationReference":"http://id.who.int/icd/entity/1665071312","label":{"@language":"en","@value":"Rheumatic mitral valve prolapse"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1665071312"},{"foundationReference":"http://id.who.int/icd/entity/416233167","label":{"@language":"en","@value":"Rheumatic mitral stenosis with insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/416233167"},{"foundationReference":"http://id.who.int/icd/entity/145623962","label":{"@language":"en","@value":"Rheumatic aortic valve stenosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/145623962"},{"foundationReference":"http://id.who.int/icd/entity/1843774992","label":{"@language":"en","@value":"Rheumatic aortic valve insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1843774992"},{"foundationReference":"http://id.who.int/icd/entity/424187633","label":{"@language":"en","@value":"Rheumatic aortic stenosis with insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/424187633"},{"foundationReference":"http://id.who.int/icd/entity/341230363","label":{"@language":"en","@value":"Rheumatic tricuspid valve stenosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/341230363"},{"foundationReference":"http://id.who.int/icd/entity/1897729679","label":{"@language":"en","@value":"Rheumatic tricuspid valve insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1897729679"},{"foundationReference":"http://id.who.int/icd/entity/95444592","label":{"@language":"en","@value":"Rheumatic tricuspid valve stenosis with insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/95444592"},{"foundationReference":"http://id.who.int/icd/entity/769120660","label":{"@language":"en","@value":"Rheumatic pulmonary valve stenosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/769120660"},{"foundationReference":"http://id.who.int/icd/entity/73523461","label":{"@language":"en","@value":"Rheumatic pulmonary valve insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/73523461"},{"foundationReference":"http://id.who.int/icd/entity/162912369","label":{"@language":"en","@value":"Rheumatic pulmonary valve stenosis with insufficiency"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/162912369"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/291726710","title":{"@language":"en","@value":"Chronic rheumatic heart diseases, not elsewhere classified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/42381716": {"method":"GET","path":"icd/release/11/2026-01/mms/42381716","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/42381716","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#42381716","child":["http://id.who.int/icd/release/11/2026-01/mms/392923664","http://id.who.int/icd/release/11/2026-01/mms/1914718106","http://id.who.int/icd/release/11/2026-01/mms/109909861","http://id.who.int/icd/release/11/2026-01/mms/1673976561","http://id.who.int/icd/release/11/2026-01/mms/42381716/other","http://id.who.int/icd/release/11/2026-01/mms/42381716/unspecified"],"classKind":"category","code":"JB41","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/2146411734","label":{"@language":"en","@value":"Obstetric embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2146411734"},{"foundationReference":"http://id.who.int/icd/entity/482174292","label":{"@language":"en","@value":"Venous complications in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/482174292"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1421997617"],"source":"http://id.who.int/icd/entity/42381716","title":{"@language":"en","@value":"Venous complications in the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/482174292": {"method":"GET","path":"icd/release/11/2026-01/mms/482174292","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/482174292","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#482174292","child":["http://id.who.int/icd/release/11/2026-01/mms/1853305829","http://id.who.int/icd/release/11/2026-01/mms/188546673","http://id.who.int/icd/release/11/2026-01/mms/2140253838","http://id.who.int/icd/release/11/2026-01/mms/450519836","http://id.who.int/icd/release/11/2026-01/mms/1765077136","http://id.who.int/icd/release/11/2026-01/mms/209665306","http://id.who.int/icd/release/11/2026-01/mms/482174292/other","http://id.who.int/icd/release/11/2026-01/mms/482174292/unspecified"],"classKind":"category","code":"JA61","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1208599769","label":{"@language":"en","@value":"obstetric pulmonary embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1208599769"},{"foundationReference":"http://id.who.int/icd/entity/1403588899","label":{"@language":"en","@value":"Complications following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1403588899"},{"foundationReference":"http://id.who.int/icd/entity/42381716","label":{"@language":"en","@value":"Venous complications in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/42381716"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/21112155"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/482174292/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/708418764","http://id.who.int/icd/release/11/2026-01/mms/925320484","http://id.who.int/icd/release/11/2026-01/mms/1197943614","http://id.who.int/icd/release/11/2026-01/mms/1252082051","http://id.who.int/icd/release/11/2026-01/mms/2057222152","http://id.who.int/icd/release/11/2026-01/mms/1078773185","http://id.who.int/icd/release/11/2026-01/mms/723430526/other","http://id.who.int/icd/release/11/2026-01/mms/723430526/unspecified"]}],"source":"http://id.who.int/icd/entity/482174292","title":{"@language":"en","@value":"Venous complications in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/564191997": {"method":"GET","path":"icd/release/11/2026-01/mms/564191997","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/564191997","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#564191997","classKind":"category","code":"JB64.3","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"Any disorder or disease of the nervous system affecting pregnant females leading to complications during pregnancy, childbirth, or puerperium."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth or the puerperium"}},{"label":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth and the puerperium"}},{"label":{"@language":"en","@value":"pregnancy management affected by diseases of the nervous system"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/564191997/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/384289569","http://id.who.int/icd/release/11/2026-01/mms/1719545571","http://id.who.int/icd/release/11/2026-01/mms/724748131","http://id.who.int/icd/release/11/2026-01/mms/1397288146","http://id.who.int/icd/release/11/2026-01/mms/28995849","http://id.who.int/icd/release/11/2026-01/mms/843843448","http://id.who.int/icd/release/11/2026-01/mms/2021326314","http://id.who.int/icd/release/11/2026-01/mms/1861279867","http://id.who.int/icd/release/11/2026-01/mms/1730644960","http://id.who.int/icd/release/11/2026-01/mms/1297080916","http://id.who.int/icd/release/11/2026-01/mms/76906748","http://id.who.int/icd/release/11/2026-01/mms/1119245712","http://id.who.int/icd/release/11/2026-01/mms/23958598","http://id.who.int/icd/release/11/2026-01/mms/1397803237","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/81068077","http://id.who.int/icd/release/11/2026-01/mms/988657115","http://id.who.int/icd/release/11/2026-01/mms/1510094736","http://id.who.int/icd/release/11/2026-01/mms/1743839677","http://id.who.int/icd/release/11/2026-01/mms/1125774661","http://id.who.int/icd/release/11/2026-01/mms/1296093776/other","http://id.who.int/icd/release/11/2026-01/mms/1296093776/unspecified"]}],"source":"http://id.who.int/icd/entity/564191997","title":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/652419480": {"method":"GET","path":"icd/release/11/2026-01/mms/652419480","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/652419480","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#652419480","classKind":"category","code":"JB64.7","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"Diseases of the skin or subcutaneous tissue not specifically related to pregnancy but which contribute to increased morbidity during pregnancy, childbirth or the puerperium, for example genetic blistering disorders or lichen sclerosus."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1405755890","label":{"@language":"en","@value":"Gestational pemphigoid"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1405755890"},{"foundationReference":"http://id.who.int/icd/entity/968694549","label":{"@language":"en","@value":"Polymorphic eruption of pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/968694549"},{"foundationReference":"http://id.who.int/icd/entity/522040577","label":{"@language":"en","@value":"Pregnancy dermatoses"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/522040577"},{"foundationReference":"http://id.who.int/icd/entity/1401753686","label":{"@language":"en","@value":"Pruritus of pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1401753686"},{"foundationReference":"http://id.who.int/icd/entity/1405755890","label":{"@language":"en","@value":"Herpes gestationis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1405755890"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the skin complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/652419480/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/384984571","http://id.who.int/icd/release/11/2026-01/mms/533054712","http://id.who.int/icd/release/11/2026-01/mms/237197715","http://id.who.int/icd/release/11/2026-01/mms/106304476","http://id.who.int/icd/release/11/2026-01/mms/157326074","http://id.who.int/icd/release/11/2026-01/mms/1569145337","http://id.who.int/icd/release/11/2026-01/mms/602989108","http://id.who.int/icd/release/11/2026-01/mms/1803768976","http://id.who.int/icd/release/11/2026-01/mms/489508344","http://id.who.int/icd/release/11/2026-01/mms/1223380074","http://id.who.int/icd/release/11/2026-01/mms/1397253045","http://id.who.int/icd/release/11/2026-01/mms/1173690756","http://id.who.int/icd/release/11/2026-01/mms/141396655","http://id.who.int/icd/release/11/2026-01/mms/1336446723","http://id.who.int/icd/release/11/2026-01/mms/1365615047","http://id.who.int/icd/release/11/2026-01/mms/1639304259/other","http://id.who.int/icd/release/11/2026-01/mms/1639304259/unspecified"]}],"source":"http://id.who.int/icd/entity/652419480","title":{"@language":"en","@value":"Diseases of the skin complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/714000734": {"method":"GET","path":"icd/release/11/2026-01/mms/714000734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/714000734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#714000734","child":["http://id.who.int/icd/release/11/2026-01/mms/877352786","http://id.who.int/icd/release/11/2026-01/mms/1042184245","http://id.who.int/icd/release/11/2026-01/mms/903303141","http://id.who.int/icd/release/11/2026-01/mms/21112155","http://id.who.int/icd/release/11/2026-01/mms/1864248550","http://id.who.int/icd/release/11/2026-01/mms/299840850","http://id.who.int/icd/release/11/2026-01/mms/973282267","http://id.who.int/icd/release/11/2026-01/mms/1421997617","http://id.who.int/icd/release/11/2026-01/mms/1781019902","http://id.who.int/icd/release/11/2026-01/mms/207290928"],"classKind":"chapter","code":"18","codingNote":{"@language":"en","@value":"The codes included in this chapter are to be used for conditions related to or aggravated by the pregnancy, childbirth or by the puerperium (maternal causes or obstetric causes)"},"definition":{"@language":"en","@value":"A group of conditions characterised as occurring during the period of time from conception to delivery (pregnancy), during labour and delivery (childbirth) or during the approximately six weeks after delivery during which the uterus returns to the original size (puerperium)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/262236278","label":{"@language":"en","@value":"Obstetrical tetanus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/262236278"},{"foundationReference":"http://id.who.int/icd/entity/768216194","label":{"@language":"en","@value":"Postpartum necrosis of pituitary gland"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/768216194"},{"foundationReference":"http://id.who.int/icd/entity/850137482","label":{"@language":"en","@value":"External causes (for mortality)"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/850137482"},{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1144140024","label":{"@language":"en","@value":"Contact with health services for reasons associated with reproduction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1144140024"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/714000734","title":{"@language":"en","@value":"Pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/761947693": {"method":"GET","path":"icd/release/11/2026-01/mms/761947693","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/761947693","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#761947693","child":["http://id.who.int/icd/release/11/2026-01/mms/1917449952","http://id.who.int/icd/release/11/2026-01/mms/1461918574","http://id.who.int/icd/release/11/2026-01/mms/1788452129","http://id.who.int/icd/release/11/2026-01/mms/761947693/other","http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"],"classKind":"category","code":"BA00","definition":{"@language":"en","@value":"Essential (primary) hypertension, accounting for 95% of all cases of hypertension, is defined as high blood pressure for which a secondary cause cannot be found."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/843843448","label":{"@language":"en","@value":"Cerebrovascular diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/843843448"},{"foundationReference":"http://id.who.int/icd/entity/1564321837","label":{"@language":"en","@value":"Background retinopathy and retinal vascular changes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1564321837"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1126579721","label":{"@language":"en","@value":"Pre-existing essential hypertension complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1126579721"}],"inclusion":[{"label":{"@language":"en","@value":"high blood pressure"}}],"longDefinition":{"@language":"en","@value":"Defined through the measurement of the blood pressure using cuff method with a sitting systolic blood pressure above 140mmHg or a sitting diastolic blood pressure above 90mmHg in three consequent measurements. No specific medical cause can be found."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/924915526"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/761947693/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1002963291"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/761947693/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1246329047","http://id.who.int/icd/release/11/2026-01/mms/1932645783","http://id.who.int/icd/release/11/2026-01/mms/1679405399"]}],"source":"http://id.who.int/icd/entity/761947693","title":{"@language":"en","@value":"Essential hypertension"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/809926550": {"method":"GET","path":"icd/release/11/2026-01/mms/809926550","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/809926550","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#809926550","classKind":"category","code":"JB64.1","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"Any disease affecting pregnant females, characterised by pathological changes to the blood and blood-forming organs and pathological changes involving the immune mechanism that complicate pregnancy, childbirth, or the puerperium not classified elsewhere."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/135898846","label":{"@language":"en","@value":"Intrapartum haemorrhage with coagulation defect"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/135898846"},{"foundationReference":"http://id.who.int/icd/entity/886384701","label":{"@language":"en","@value":"Antepartum haemorrhage with coagulation defect"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/886384701"}],"indexTerm":[{"label":{"@language":"en","@value":"Other diseases of the blood or blood-forming organs or certain disorders involving the immune mechanism complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/809926550/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1766440644","http://id.who.int/icd/release/11/2026-01/mms/1954798891"]}],"source":"http://id.who.int/icd/entity/809926550","title":{"@language":"en","@value":"Other diseases of the blood or blood-forming organs or certain disorders involving the immune mechanism complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/923122941": {"method":"GET","path":"icd/release/11/2026-01/mms/923122941","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/923122941","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#923122941","classKind":"category","code":"JB64.5","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the respiratory system complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/923122941/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1971756453","http://id.who.int/icd/release/11/2026-01/mms/1582386590","http://id.who.int/icd/release/11/2026-01/mms/915779102","http://id.who.int/icd/release/11/2026-01/mms/1332995100","http://id.who.int/icd/release/11/2026-01/mms/111658096","http://id.who.int/icd/release/11/2026-01/mms/390439470","http://id.who.int/icd/release/11/2026-01/mms/850824593","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/1654881561","http://id.who.int/icd/release/11/2026-01/mms/760239795","http://id.who.int/icd/release/11/2026-01/mms/761789312","http://id.who.int/icd/release/11/2026-01/mms/197934298/unspecified"]}],"source":"http://id.who.int/icd/entity/923122941","title":{"@language":"en","@value":"Diseases of the respiratory system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/924915526": {"method":"GET","path":"icd/release/11/2026-01/mms/924915526","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/924915526","blockId":"BlockL1-BA0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#924915526","child":["http://id.who.int/icd/release/11/2026-01/mms/761947693","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1002963291","http://id.who.int/icd/release/11/2026-01/mms/1331849426"],"classKind":"block","code":"","codeRange":"BA00-BA04.Z","definition":{"@language":"en","@value":"Although a continuous association exists between higher blood pressure (BP) and increased cardiovascular disease risk, it is useful to categorize BP levels for clinical and public health decision making."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1042184245","label":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1042184245"},{"foundationReference":"http://id.who.int/icd/entity/461779987","label":{"@language":"en","@value":"White coat hypertension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/461779987"},{"foundationReference":"http://id.who.int/icd/entity/1964269418","label":{"@language":"en","@value":"involving coronary vessels"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1964269418"},{"foundationReference":"http://id.who.int/icd/entity/1496633964","label":{"@language":"en","@value":"Pulmonary hypertension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1496633964"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1910517058","label":{"@language":"en","@value":"Neonatal hypertension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1910517058"}],"longDefinition":{"@language":"en","@value":"Recent guidelines categorise systemic hypertension into 4 levels on the basis of average BP measured in a healthcare setting (office pressures):\n\n• Normal: systolic BP < 120 mmHg and diastolic BP < 80 mmHg\n\n• Elevated: systolic BP 120-129 mmHg and diastolic BP < 80 mmHg\n\n• Stage 1 hypertension: systolic BP 130-139 mmHg or diastolic BP 80-89 mmHg\n\n• Stage 2 hypertension: systolic BP 140 mmHg or more, diastolic BP 90 mmHg or more\n\nIn children, systemic hypertension is defined as an average systolic or diastolic blood pressure equal or higher than the 95th percentile appropriate for the sex, age and height of the child.\n\nThe complications of uncontrolled or prolonged hypertension include damage to the blood vessels, heart, kidneys and brain."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"source":"http://id.who.int/icd/entity/924915526","title":{"@language":"en","@value":"Hypertensive diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BD54": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BD54","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD54","code":"BD54","stemId":"http://id.who.int/icd/release/11/2026-01/mms/74527684"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB64.4": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB64.4","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB64.4","code":"JB64.4","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1380872553"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB64.4%2fBD54","associatedWith":["BD54"],"code":"JB64.4/BD54","stemCode":"JB64.4","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1380872553"},"request_body":null,"status":200}
+ }
+}

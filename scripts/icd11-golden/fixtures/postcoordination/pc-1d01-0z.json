@@ -1,0 +1,759 @@
+{
+ "built": [],
+ "id": "pc-1d01-0z",
+ "input": {
+  "category": "mandatory",
+  "id": "pc-1d01-0z",
+  "source": "VAs-01.07",
+  "stem": "1D01.0Z",
+  "why": "Bacterial meningitis (VA cause 01.07): required axis with 25 roots"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1D01.0Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1D01.0Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1D01.0Z",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified",
+    "GET icd/release/11/2026-01/mms/751399056",
+    "GET icd/release/11/2026-01/mms/293771399",
+    "GET icd/release/11/2026-01/mms/1215034670",
+    "GET icd/release/11/2026-01/mms/1839638766",
+    "GET icd/release/11/2026-01/mms/588616678",
+    "GET icd/release/11/2026-01/mms/1904876434",
+    "GET icd/release/11/2026-01/mms/979278646",
+    "GET icd/release/11/2026-01/mms/1539889147",
+    "GET icd/release/11/2026-01/mms/1412960686",
+    "GET icd/release/11/2026-01/mms/1935092859",
+    "GET icd/release/11/2026-01/mms/487269828",
+    "GET icd/release/11/2026-01/mms/1000704511",
+    "GET icd/release/11/2026-01/mms/1104303944",
+    "GET icd/release/11/2026-01/mms/1959883044",
+    "GET icd/release/11/2026-01/mms/921595235",
+    "GET icd/release/11/2026-01/mms/1251496839"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/751399056",
+         "code": "1B91",
+         "has_children": false,
+         "title": "Leptospirosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/751399056"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/293771399",
+         "code": "",
+         "has_children": true,
+         "title": "Sepsis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/293771399"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/751399056",
+        "http://id.who.int/icd/release/11/2026-01/mms/293771399"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+         "code": "MG50",
+         "has_children": true,
+         "title": "Finding of gram negative bacteria resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1839638766",
+         "code": "MG51",
+         "has_children": true,
+         "title": "Finding of gram positive bacteria resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1839638766"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+        "http://id.who.int/icd/release/11/2026-01/mms/1839638766"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasCausingCondition",
+       "instruction": "code also",
+       "label": "Has causing condition",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+         "code": "",
+         "has_children": true,
+         "title": "Gastroenteritis or colitis of infectious origin",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904876434",
+         "code": "",
+         "has_children": true,
+         "title": "Predominantly sexually transmitted infections",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1904876434"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/979278646",
+         "code": "",
+         "has_children": true,
+         "title": "Mycobacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/979278646"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1539889147",
+         "code": "",
+         "has_children": true,
+         "title": "Certain staphylococcal or streptococcal diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1539889147"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1412960686",
+         "code": "",
+         "has_children": true,
+         "title": "Pyogenic bacterial infections of the skin or subcutaneous tissues",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1412960686"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1935092859",
+         "code": "",
+         "has_children": true,
+         "title": "Certain zoonotic bacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935092859"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/487269828",
+         "code": "",
+         "has_children": true,
+         "title": "Other bacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/487269828"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1000704511",
+         "code": "",
+         "has_children": true,
+         "title": "Human immunodeficiency virus disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1000704511"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1104303944",
+         "code": "",
+         "has_children": true,
+         "title": "Viral infections of the central nervous system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1104303944"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1959883044",
+         "code": "",
+         "has_children": true,
+         "title": "Dengue",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1959883044"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/921595235",
+         "code": "",
+         "has_children": true,
+         "title": "Certain arthropod-borne viral fevers",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/921595235"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1251496839",
+         "code": "",
+         "has_children": true,
+         "title": "Certain zoonotic viral diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1251496839"
+        }
+       ],
+       "required": true,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+        "http://id.who.int/icd/release/11/2026-01/mms/1904876434",
+        "http://id.who.int/icd/release/11/2026-01/mms/979278646",
+        "http://id.who.int/icd/release/11/2026-01/mms/1539889147",
+        "http://id.who.int/icd/release/11/2026-01/mms/1412960686",
+        "http://id.who.int/icd/release/11/2026-01/mms/1935092859",
+        "http://id.who.int/icd/release/11/2026-01/mms/487269828",
+        "http://id.who.int/icd/release/11/2026-01/mms/1000704511",
+        "http://id.who.int/icd/release/11/2026-01/mms/1104303944",
+        "http://id.who.int/icd/release/11/2026-01/mms/1959883044",
+        "http://id.who.int/icd/release/11/2026-01/mms/921595235",
+        "http://id.who.int/icd/release/11/2026-01/mms/1251496839"
+       ],
+       "truncated": true
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified",
+    "GET icd/release/11/2026-01/mms/293771399",
+    "GET icd/release/11/2026-01/mms/622600769",
+    "GET icd/release/11/2026-01/mms/1683090852"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasManifestation",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/293771399",
+       "code": "1G40",
+       "has_children": false,
+       "title": "Sepsis without septic shock",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/293771399",
+       "code": "1G41",
+       "has_children": false,
+       "title": "Sepsis with septic shock",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683090852"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/293771399",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasManifestation",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/293771399",
+    "stem_code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified",
+    "GET icd/release/11/2026-01/mms/1215034670",
+    "GET icd/release/11/2026-01/mms/420676154",
+    "GET icd/release/11/2026-01/mms/1929872537",
+    "GET icd/release/11/2026-01/mms/916407020",
+    "GET icd/release/11/2026-01/mms/375810888",
+    "GET icd/release/11/2026-01/mms/690008608",
+    "GET icd/release/11/2026-01/mms/1758767625",
+    "GET icd/release/11/2026-01/mms/312500700",
+    "GET icd/release/11/2026-01/mms/243404922",
+    "GET icd/release/11/2026-01/mms/1724766645",
+    "GET icd/release/11/2026-01/mms/1837021781",
+    "GET icd/release/11/2026-01/mms/1385347061",
+    "GET icd/release/11/2026-01/mms/759983228"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.0",
+       "has_children": true,
+       "title": "Antibiotic resistant Acinetobacter baumannii",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/420676154"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.1",
+       "has_children": true,
+       "title": "Antibiotic resistant Campylobacter",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1929872537"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.2",
+       "has_children": true,
+       "title": "Antibiotic resistant Escherichia coli",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/916407020"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.3",
+       "has_children": true,
+       "title": "Antibiotic resistant Haemophilus influenzae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/375810888"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.4",
+       "has_children": true,
+       "title": "Antibiotic resistant Helicobacter pylori",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/690008608"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.5",
+       "has_children": true,
+       "title": "Antibiotic resistant Klebsiella pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1758767625"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.6",
+       "has_children": true,
+       "title": "Antibiotic resistant Neisseria gonorrhoeae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/312500700"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.7",
+       "has_children": true,
+       "title": "Antibiotic resistant Neisseria meningitidis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/243404922"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.8",
+       "has_children": true,
+       "title": "Antibiotic resistant Pseudomonas aeruginosa",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1724766645"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.9",
+       "has_children": true,
+       "title": "Antibiotic resistant Salmonella",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1837021781"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.A",
+       "has_children": true,
+       "title": "Antibiotic resistant Shigella",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1385347061"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+       "code": "MG50.B",
+       "has_children": true,
+       "title": "Antibiotic resistant Vibrio",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/759983228"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1215034670",
+    "stem_code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified",
+    "GET icd/release/11/2026-01/mms/588616678",
+    "GET icd/release/11/2026-01/mms/135352227",
+    "GET icd/release/11/2026-01/mms/1834648119",
+    "GET icd/release/11/2026-01/mms/30738976",
+    "GET icd/release/11/2026-01/mms/2092703582",
+    "GET icd/release/11/2026-01/mms/1688127370"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasCausingCondition",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+       "code": "",
+       "has_children": true,
+       "title": "Bacterial intestinal infections",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/135352227"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+       "code": "",
+       "has_children": true,
+       "title": "Bacterial foodborne intoxications",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1834648119"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+       "code": "",
+       "has_children": true,
+       "title": "Viral intestinal infections",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/30738976"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+       "code": "",
+       "has_children": true,
+       "title": "Protozoal intestinal infections",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2092703582"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+       "code": "1A40",
+       "has_children": true,
+       "title": "Gastroenteritis or colitis without specification of infectious agent",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1688127370"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasCausingCondition",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/588616678",
+    "stem_code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified",
+    "GET icd/release/11/2026-01/mms/684930313",
+    "GET icd/release/11/2026-01/mms/121670633",
+    "GET icd/release/11/2026-01/mms/1585949804",
+    "GET icd/release/11/2026-01/mms/1435254666",
+    "GET icd/release/11/2026-01/mms/684930313",
+    "GET icd/entity/1366690608",
+    "GET icd/release/11/2026-01/mms/1005770900",
+    "GET icd/release/11/2026-01/mms/684930313/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "01",
+       "title": "Certain infectious or parasitic diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+      },
+      {
+       "code": "",
+       "title": "Non-viral or unspecified infections of the central nervous system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1585949804"
+      },
+      {
+       "code": "1D01",
+       "title": "Infectious meningitis, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/121670633"
+      },
+      {
+       "code": "1D01.0",
+       "title": "Bacterial meningitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Bacterial meningitis, unspecified",
+      "Bacterial meningitis",
+      "BM - [bacterial meningitis]",
+      "arachnoiditis bacterial",
+      "leptomeningitis bacterial",
+      "pachymeningitis bacterial",
+      "Bacterial meningitis, not elsewhere classified",
+      "bacterial cerebral meningitis",
+      "bacterial meningitis NOS",
+      "bacterial spinal meningitis",
+      "fibrinopurulent meningitis",
+      "fibrinopurulent spinal meningitis"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Neonatal meningitis",
+       "uri": "http://id.who.int/icd/entity/1366690608"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "1D01.00",
+       "has_children": false,
+       "title": "Meningitis due to Haemophilus influenzae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1005770900"
+      },
+      {
+       "code": "1D01.0Y",
+       "has_children": false,
+       "title": "Other specified bacterial meningitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/other"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified",
+    "GET icd/release/11/2026-01/mms/1366690608"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": {
+      "code": "KA65.4/1D01.0Z",
+      "title": "Neonatal meningitis / Bacterial meningitis, unspecified",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "terms": [
+      {
+       "code": "KA65.4",
+       "requires_postcoordination": false,
+       "title": "Neonatal meningitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1366690608"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "1D01.0Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z",
+    "GET icd/release/11/2026-01/mms/684930313/unspecified"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1D01.0Z",
+      "title": "Bacterial meningitis, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1D01.0Z"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/1366690608": {"method":"GET","path":"icd/entity/1366690608","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1366690608","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1366690608","parent":["http://id.who.int/icd/entity/1358604969","http://id.who.int/icd/entity/684930313","http://id.who.int/icd/entity/1137081791","http://id.who.int/icd/entity/121670633","http://id.who.int/icd/entity/1211767869"],"title":{"@language":"en","@value":"Neonatal meningitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1000704511": {"method":"GET","path":"icd/release/11/2026-01/mms/1000704511","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1000704511","blockId":"BlockL1-1C6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1000704511","child":["http://id.who.int/icd/release/11/2026-01/mms/236924369","http://id.who.int/icd/release/11/2026-01/mms/771273482","http://id.who.int/icd/release/11/2026-01/mms/1508081745"],"classKind":"block","code":"","codeRange":"1C60-1C62.Z","definition":{"@language":"en","@value":"A case of HIV (human immunodeficiency virus) infection is defined as an individual with HIV infection irrespective of clinical stage including severe or stage 4 clinical disease (also known as AIDS) confirmed by laboratory criteria according to country definitions and requirements. The clinical stages are based on the WHO clinical staging of established HIV infection."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/453730080","label":{"@language":"en","@value":"Congenital human immunodeficiency virus infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/453730080"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1000704511","title":{"@language":"en","@value":"Human immunodeficiency virus disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1005770900": {"method":"GET","path":"icd/release/11/2026-01/mms/1005770900","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1005770900","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1005770900","classKind":"category","code":"1D01.00","definition":{"@language":"en","@value":"This is an infectious disease caused by the inflammation of the protective membranes covering the brain and spinal cord known as the meninges. It develops in response to a bacterial infection of the cerebrospinal fluid by Haemophilus influenzae."},"indexTerm":[{"label":{"@language":"en","@value":"Meningitis due to Haemophilus influenzae"}},{"label":{"@language":"en","@value":"meningitis due to H. influenzae"}},{"foundationReference":"http://id.who.int/icd/entity/173741521","label":{"@language":"en","@value":"Haemophilus influenzae spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/173741521","label":{"@language":"en","@value":"spinal meningitis due to Haemophilus influenzae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/684930313"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1005770900/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1005770900/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1005770900/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/375810888","http://id.who.int/icd/release/11/2026-01/mms/734892846"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1366690608"],"source":"http://id.who.int/icd/entity/1005770900","title":{"@language":"en","@value":"Meningitis due to Haemophilus influenzae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1104303944": {"method":"GET","path":"icd/release/11/2026-01/mms/1104303944","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1104303944","blockId":"BlockL1-1C8","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1104303944","child":["http://id.who.int/icd/release/11/2026-01/mms/956664712","http://id.who.int/icd/release/11/2026-01/mms/588527933","http://id.who.int/icd/release/11/2026-01/mms/854762584","http://id.who.int/icd/release/11/2026-01/mms/1543765035","http://id.who.int/icd/release/11/2026-01/mms/682536148","http://id.who.int/icd/release/11/2026-01/mms/961032639","http://id.who.int/icd/release/11/2026-01/mms/1306878274","http://id.who.int/icd/release/11/2026-01/mms/804089791","http://id.who.int/icd/release/11/2026-01/mms/1040970454","http://id.who.int/icd/release/11/2026-01/mms/1530937152","http://id.who.int/icd/release/11/2026-01/mms/608978790","http://id.who.int/icd/release/11/2026-01/mms/1501615629","http://id.who.int/icd/release/11/2026-01/mms/1358604969","http://id.who.int/icd/release/11/2026-01/mms/307264938","http://id.who.int/icd/release/11/2026-01/mms/835129952","http://id.who.int/icd/release/11/2026-01/mms/1054675109","http://id.who.int/icd/release/11/2026-01/mms/1104303944/other","http://id.who.int/icd/release/11/2026-01/mms/1104303944/unspecified"],"classKind":"block","code":"","codeRange":"1C80-1C8Z","definition":{"@language":"en","@value":"Any disease of the central nervous system, caused by an infection with a viral source."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1959883044","label":{"@language":"en","@value":"Dengue"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1959883044"},{"foundationReference":"http://id.who.int/icd/entity/1208294714","label":{"@language":"en","@value":"Mumps"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1208294714"},{"foundationReference":"http://id.who.int/icd/entity/1017662917","label":{"@language":"en","@value":"Cytomegaloviral disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1017662917"},{"foundationReference":"http://id.who.int/icd/entity/1805574500","label":{"@language":"en","@value":"Varicella"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1805574500"},{"foundationReference":"http://id.who.int/icd/entity/523481501","label":{"@language":"en","@value":"Zoster"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/523481501"},{"foundationReference":"http://id.who.int/icd/entity/248851702","label":{"@language":"en","@value":"Herpes simplex infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/248851702"},{"foundationReference":"http://id.who.int/icd/entity/410022648","label":{"@language":"en","@value":"Rubella"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/410022648"},{"foundationReference":"http://id.who.int/icd/entity/1826431497","label":{"@language":"en","@value":"Measles"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1826431497"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/902939755","label":{"@language":"en","@value":"Progressive multifocal leukoencephalopathy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/902939755"},{"foundationReference":"http://id.who.int/icd/entity/1295135613","label":{"@language":"en","@value":"Enteroviral exanthematous fever"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1295135613"},{"foundationReference":"http://id.who.int/icd/entity/1627222936","label":{"@language":"en","@value":"Herpes simplex meningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1627222936"},{"foundationReference":"http://id.who.int/icd/entity/1098683540","label":{"@language":"en","@value":"Subacute sclerosing panencephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1098683540"},{"foundationReference":"http://id.who.int/icd/entity/1091013360","label":{"@language":"en","@value":"West Nile virus infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1091013360"},{"foundationReference":"http://id.who.int/icd/entity/951357413","label":{"@language":"en","@value":"Colorado tick fever"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/951357413"},{"foundationReference":"http://id.who.int/icd/entity/1818527310","label":{"@language":"en","@value":"Zoster meningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/415880883"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1104303944","title":{"@language":"en","@value":"Viral infections of the central nervous system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1215034670": {"method":"GET","path":"icd/release/11/2026-01/mms/1215034670","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1215034670","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1215034670","child":["http://id.who.int/icd/release/11/2026-01/mms/420676154","http://id.who.int/icd/release/11/2026-01/mms/1929872537","http://id.who.int/icd/release/11/2026-01/mms/916407020","http://id.who.int/icd/release/11/2026-01/mms/375810888","http://id.who.int/icd/release/11/2026-01/mms/690008608","http://id.who.int/icd/release/11/2026-01/mms/1758767625","http://id.who.int/icd/release/11/2026-01/mms/312500700","http://id.who.int/icd/release/11/2026-01/mms/243404922","http://id.who.int/icd/release/11/2026-01/mms/1724766645","http://id.who.int/icd/release/11/2026-01/mms/1837021781","http://id.who.int/icd/release/11/2026-01/mms/1385347061","http://id.who.int/icd/release/11/2026-01/mms/759983228","http://id.who.int/icd/release/11/2026-01/mms/2009650394","http://id.who.int/icd/release/11/2026-01/mms/1215034670/other","http://id.who.int/icd/release/11/2026-01/mms/1215034670/unspecified"],"classKind":"category","code":"MG50","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/1215034670","title":{"@language":"en","@value":"Finding of gram negative bacteria resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/121670633": {"method":"GET","path":"icd/release/11/2026-01/mms/121670633","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/121670633","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#121670633","child":["http://id.who.int/icd/release/11/2026-01/mms/684930313","http://id.who.int/icd/release/11/2026-01/mms/1137081791","http://id.who.int/icd/release/11/2026-01/mms/181304776","http://id.who.int/icd/release/11/2026-01/mms/731112897","http://id.who.int/icd/release/11/2026-01/mms/121670633/other","http://id.who.int/icd/release/11/2026-01/mms/121670633/unspecified"],"classKind":"category","code":"1D01","definition":{"@language":"en","@value":"A disease of the meninges, caused by an infection."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1585949804"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/121670633/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/121670633/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/236924369","http://id.who.int/icd/release/11/2026-01/mms/771273482","http://id.who.int/icd/release/11/2026-01/mms/1508081745"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/121670633/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"source":"http://id.who.int/icd/entity/121670633","title":{"@language":"en","@value":"Infectious meningitis, not elsewhere classified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1251496839": {"method":"GET","path":"icd/release/11/2026-01/mms/1251496839","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1251496839","blockId":"BlockL1-1D6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1251496839","child":["http://id.who.int/icd/release/11/2026-01/mms/694903163","http://id.who.int/icd/release/11/2026-01/mms/1652368287","http://id.who.int/icd/release/11/2026-01/mms/271833991","http://id.who.int/icd/release/11/2026-01/mms/1020283662","http://id.who.int/icd/release/11/2026-01/mms/1840423014","http://id.who.int/icd/release/11/2026-01/mms/652944603","http://id.who.int/icd/release/11/2026-01/mms/1251496839/other","http://id.who.int/icd/release/11/2026-01/mms/1251496839/unspecified"],"classKind":"block","code":"","codeRange":"1D60-1D6Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1790791774","label":{"@language":"en","@value":"COVID-19, virus identified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1790791774"},{"foundationReference":"http://id.who.int/icd/entity/414337773","label":{"@language":"en","@value":"Encephalitis due to Arenavirus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1652368287/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1251496839","title":{"@language":"en","@value":"Certain zoonotic viral diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/135352227": {"method":"GET","path":"icd/release/11/2026-01/mms/135352227","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/135352227","blockId":"BlockL2-1A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#135352227","child":["http://id.who.int/icd/release/11/2026-01/mms/257068234","http://id.who.int/icd/release/11/2026-01/mms/416025325","http://id.who.int/icd/release/11/2026-01/mms/2080365623","http://id.who.int/icd/release/11/2026-01/mms/344162786","http://id.who.int/icd/release/11/2026-01/mms/250688797","http://id.who.int/icd/release/11/2026-01/mms/1000894786","http://id.who.int/icd/release/11/2026-01/mms/794462570","http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/1780040028","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/135352227/other","http://id.who.int/icd/release/11/2026-01/mms/135352227/unspecified"],"classKind":"block","code":"","codeRange":"1A00-1A0Z","definition":{"@language":"en","@value":"Any condition of the intestines, caused by an infection with a bacterial source."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/88597691","label":{"@language":"en","@value":"Helicobacter pylori induced gastritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/88597691"},{"foundationReference":"http://id.who.int/icd/entity/1417758377","label":{"@language":"en","@value":"Helicobacter pylori associated gastric ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1417758377"},{"foundationReference":"http://id.who.int/icd/entity/200296155","label":{"@language":"en","@value":"Helicobacter-pylori associated duodenitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/200296155"},{"foundationReference":"http://id.who.int/icd/entity/1358822175","label":{"@language":"en","@value":"Helicobacter-pylori associated duodenal ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1358822175"},{"foundationReference":"http://id.who.int/icd/entity/457169641","label":{"@language":"en","@value":"Helicobacter pylori associated and drug-induced gastric ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/457169641"},{"foundationReference":"http://id.who.int/icd/entity/1859513700","label":{"@language":"en","@value":"Helicobacter-pylori associated and drug-induced duodenal ulcer"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1859513700"},{"foundationReference":"http://id.who.int/icd/entity/1834648119","label":{"@language":"en","@value":"Bacterial foodborne intoxications"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1834648119"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2143116824","label":{"@language":"en","@value":"Abdominal actinomycosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2143116824"},{"foundationReference":"http://id.who.int/icd/entity/974967764","label":{"@language":"en","@value":"Listerial gastroenteritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/419706488/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/588616678"],"source":"http://id.who.int/icd/entity/135352227","title":{"@language":"en","@value":"Bacterial intestinal infections"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1366690608": {"method":"GET","path":"icd/release/11/2026-01/mms/1366690608","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1366690608","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1366690608","classKind":"category","code":"KA65.4","indexTerm":[{"label":{"@language":"en","@value":"Neonatal meningitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/188684108"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1366690608/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"source":"http://id.who.int/icd/entity/1366690608","title":{"@language":"en","@value":"Neonatal meningitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1385347061": {"method":"GET","path":"icd/release/11/2026-01/mms/1385347061","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1385347061","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1385347061","child":["http://id.who.int/icd/release/11/2026-01/mms/149575780","http://id.who.int/icd/release/11/2026-01/mms/1067169197","http://id.who.int/icd/release/11/2026-01/mms/657712104","http://id.who.int/icd/release/11/2026-01/mms/50249252","http://id.who.int/icd/release/11/2026-01/mms/1385347061/other","http://id.who.int/icd/release/11/2026-01/mms/1385347061/unspecified"],"classKind":"category","code":"MG50.A","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1385347061","title":{"@language":"en","@value":"Antibiotic resistant Shigella"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1412960686": {"method":"GET","path":"icd/release/11/2026-01/mms/1412960686","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1412960686","blockId":"BlockL1-1B7","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1412960686","child":["http://id.who.int/icd/release/11/2026-01/mms/2144774073","http://id.who.int/icd/release/11/2026-01/mms/522973276","http://id.who.int/icd/release/11/2026-01/mms/971176543","http://id.who.int/icd/release/11/2026-01/mms/337308923","http://id.who.int/icd/release/11/2026-01/mms/1622653958","http://id.who.int/icd/release/11/2026-01/mms/46117627","http://id.who.int/icd/release/11/2026-01/mms/1412960686/other","http://id.who.int/icd/release/11/2026-01/mms/1412960686/unspecified"],"classKind":"block","code":"","codeRange":"1B70-1B7Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/579742959","label":{"@language":"en","@value":"Acute bacterial paronychia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/579742959"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1412960686","title":{"@language":"en","@value":"Pyogenic bacterial infections of the skin or subcutaneous tissues"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1435254666": {"method":"GET","path":"icd/release/11/2026-01/mms/1435254666","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1435254666","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1435254666","child":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"],"classKind":"chapter","code":"01","definition":{"@language":"en","@value":"This chapter includes certain conditions caused by pathogenic organisms or microorganisms, such as bacteria, viruses, parasites or fungi."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1612485599","label":{"@language":"en","@value":"Infection arising from device, implant or graft, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1612485599"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"Infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/911707612"},{"foundationReference":"http://id.who.int/icd/entity/1965146397","label":{"@language":"en","@value":"Human prion diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965146397"},{"foundationReference":"http://id.who.int/icd/entity/142052508","label":{"@language":"en","@value":"Pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/142052508"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1435254666","title":{"@language":"en","@value":"Certain infectious or parasitic diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1539889147": {"method":"GET","path":"icd/release/11/2026-01/mms/1539889147","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1539889147","blockId":"BlockL1-1B4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1539889147","child":["http://id.who.int/icd/release/11/2026-01/mms/871612151","http://id.who.int/icd/release/11/2026-01/mms/107294155","http://id.who.int/icd/release/11/2026-01/mms/1642172022","http://id.who.int/icd/release/11/2026-01/mms/705971711","http://id.who.int/icd/release/11/2026-01/mms/1331660907","http://id.who.int/icd/release/11/2026-01/mms/1539889147/other","http://id.who.int/icd/release/11/2026-01/mms/1539889147/unspecified"],"classKind":"block","code":"","codeRange":"1B40-1B5Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/114886962","label":{"@language":"en","@value":"Toxic shock syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/114886962"},{"foundationReference":"http://id.who.int/icd/entity/2098808565","label":{"@language":"en","@value":"Streptococcal tonsillitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2098808565"},{"foundationReference":"http://id.who.int/icd/entity/1177212968","label":{"@language":"en","@value":"Rheumatic myocarditis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1177212968"},{"foundationReference":"http://id.who.int/icd/entity/1473004877","label":{"@language":"en","@value":"Chronic rheumatic pericarditis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1473004877"},{"foundationReference":"http://id.who.int/icd/entity/392955595","label":{"@language":"en","@value":"Acute staphylococcal tonsillitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/260431605/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1539889147","title":{"@language":"en","@value":"Certain staphylococcal or streptococcal diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1585949804": {"method":"GET","path":"icd/release/11/2026-01/mms/1585949804","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1585949804","blockId":"BlockL1-1D0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1585949804","child":["http://id.who.int/icd/release/11/2026-01/mms/62637936","http://id.who.int/icd/release/11/2026-01/mms/121670633","http://id.who.int/icd/release/11/2026-01/mms/392898612","http://id.who.int/icd/release/11/2026-01/mms/1483190070","http://id.who.int/icd/release/11/2026-01/mms/2108355318","http://id.who.int/icd/release/11/2026-01/mms/634116368","http://id.who.int/icd/release/11/2026-01/mms/1585949804/other","http://id.who.int/icd/release/11/2026-01/mms/1585949804/unspecified"],"classKind":"block","code":"","codeRange":"1D00-1D0Z","definition":{"@language":"en","@value":"Any condition of the nervous system, caused by an infection with a bacterial, fungal, parasitic or unspecified source."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1551787512","label":{"@language":"en","@value":"Meningitis due to other or unspecified causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/121670633/unspecified"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1585949804","title":{"@language":"en","@value":"Non-viral or unspecified infections of the central nervous system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1683090852": {"method":"GET","path":"icd/release/11/2026-01/mms/1683090852","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1683090852","classKind":"category","code":"1G41","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"definition":{"@language":"en","@value":"Septic shock is a subset of sepsis in which circulatory, cellular and metabolic abnormalities are profound enough to substantially increase mortality."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},{"foundationReference":"http://id.who.int/icd/entity/2093238381","label":{"@language":"en","@value":"Septicaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/770483821"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis with septic shock"}},{"label":{"@language":"en","@value":"endotoxic shock"}},{"label":{"@language":"en","@value":"infectious shock"}},{"label":{"@language":"en","@value":"septic shock NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/293771399"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/74527684","http://id.who.int/icd/release/11/2026-01/mms/260431605","http://id.who.int/icd/release/11/2026-01/mms/2098808565","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/40398753","http://id.who.int/icd/release/11/2026-01/mms/2071113448","http://id.who.int/icd/release/11/2026-01/mms/775356003","http://id.who.int/icd/release/11/2026-01/mms/1351188281","http://id.who.int/icd/release/11/2026-01/mms/1824134974","http://id.who.int/icd/release/11/2026-01/mms/763951483","http://id.who.int/icd/release/11/2026-01/mms/410058129","http://id.who.int/icd/release/11/2026-01/mms/455330172","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/441183088","http://id.who.int/icd/release/11/2026-01/mms/1848472780","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/325070079","http://id.who.int/icd/entity/759302477"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/381388700"],"source":"http://id.who.int/icd/entity/1683090852","title":{"@language":"en","@value":"Sepsis with septic shock"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1688127370": {"method":"GET","path":"icd/release/11/2026-01/mms/1688127370","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1688127370","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1688127370","child":["http://id.who.int/icd/release/11/2026-01/mms/1160271562","http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified"],"classKind":"category","code":"1A40","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/116759077","label":{"@language":"en","@value":"noninfective diarrhoea"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/116759077"},{"foundationReference":"http://id.who.int/icd/entity/1478592418","label":{"@language":"en","@value":"Noninfectious neonatal diarrhoea"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1478592418"}],"inclusion":[{"label":{"@language":"en","@value":"enteritis septic"}},{"label":{"@language":"en","@value":"gastroenteritis septic"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/588616678"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1688127370/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651798887"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1688127370/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]}],"source":"http://id.who.int/icd/entity/1688127370","title":{"@language":"en","@value":"Gastroenteritis or colitis without specification of infectious agent"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1724766645": {"method":"GET","path":"icd/release/11/2026-01/mms/1724766645","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1724766645","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1724766645","child":["http://id.who.int/icd/release/11/2026-01/mms/2104583029","http://id.who.int/icd/release/11/2026-01/mms/591039384","http://id.who.int/icd/release/11/2026-01/mms/1724766645/other","http://id.who.int/icd/release/11/2026-01/mms/1724766645/unspecified"],"classKind":"category","code":"MG50.8","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1724766645/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1435254666","http://id.who.int/icd/release/11/2026-01/mms/1630407678","http://id.who.int/icd/release/11/2026-01/mms/1766440644","http://id.who.int/icd/release/11/2026-01/mms/1954798891","http://id.who.int/icd/release/11/2026-01/mms/577470983","http://id.who.int/icd/release/11/2026-01/mms/21500692","http://id.who.int/icd/release/11/2026-01/mms/334423054","http://id.who.int/icd/release/11/2026-01/mms/274880002","http://id.who.int/icd/release/11/2026-01/mms/1296093776","http://id.who.int/icd/release/11/2026-01/mms/868865918","http://id.who.int/icd/release/11/2026-01/mms/1218729044","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/1639304259","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/714000734","http://id.who.int/icd/release/11/2026-01/mms/1306203631","http://id.who.int/icd/release/11/2026-01/mms/223744320","http://id.who.int/icd/release/11/2026-01/mms/1843895818","http://id.who.int/icd/release/11/2026-01/mms/435227771","http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/1249056269","http://id.who.int/icd/release/11/2026-01/mms/1596590595"]}],"source":"http://id.who.int/icd/entity/1724766645","title":{"@language":"en","@value":"Antibiotic resistant Pseudomonas aeruginosa"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1758767625": {"method":"GET","path":"icd/release/11/2026-01/mms/1758767625","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1758767625","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1758767625","child":["http://id.who.int/icd/release/11/2026-01/mms/231529131","http://id.who.int/icd/release/11/2026-01/mms/1478794390","http://id.who.int/icd/release/11/2026-01/mms/939163862","http://id.who.int/icd/release/11/2026-01/mms/1054989766","http://id.who.int/icd/release/11/2026-01/mms/1210342233","http://id.who.int/icd/release/11/2026-01/mms/376419258","http://id.who.int/icd/release/11/2026-01/mms/1681393140","http://id.who.int/icd/release/11/2026-01/mms/1758767625/other","http://id.who.int/icd/release/11/2026-01/mms/1758767625/unspecified"],"classKind":"category","code":"MG50.5","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1758767625","title":{"@language":"en","@value":"Antibiotic resistant Klebsiella pneumoniae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1834648119": {"method":"GET","path":"icd/release/11/2026-01/mms/1834648119","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1834648119","blockId":"BlockL2-1A1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1834648119","child":["http://id.who.int/icd/release/11/2026-01/mms/1642556936","http://id.who.int/icd/release/11/2026-01/mms/78422942","http://id.who.int/icd/release/11/2026-01/mms/1879176035","http://id.who.int/icd/release/11/2026-01/mms/1722068323","http://id.who.int/icd/release/11/2026-01/mms/1834648119/other","http://id.who.int/icd/release/11/2026-01/mms/1834648119/unspecified"],"classKind":"block","code":"","codeRange":"1A10-1A1Z","definition":{"@language":"en","@value":"Any condition caused by an intoxication due to a bacterial toxin. Intoxication is by ingestion of contaminated food."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/267230803","label":{"@language":"en","@value":"Ichthyotoxism not specified as bacterial"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"},{"foundationReference":"http://id.who.int/icd/entity/419706488","label":{"@language":"en","@value":"Listeriosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/419706488"},{"foundationReference":"http://id.who.int/icd/entity/515117475","label":{"@language":"en","@value":"salmonella foodborne intoxication and infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/515117475"},{"foundationReference":"http://id.who.int/icd/entity/123208781","label":{"@language":"en","@value":"Harmful effects of or exposure to noxious substances, Substances chiefly nonmedicinal as to source, Other noxious substances eaten as food"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/588616678"],"source":"http://id.who.int/icd/entity/1834648119","title":{"@language":"en","@value":"Bacterial foodborne intoxications"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1837021781": {"method":"GET","path":"icd/release/11/2026-01/mms/1837021781","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1837021781","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1837021781","child":["http://id.who.int/icd/release/11/2026-01/mms/1891254232","http://id.who.int/icd/release/11/2026-01/mms/1586922538","http://id.who.int/icd/release/11/2026-01/mms/292396308","http://id.who.int/icd/release/11/2026-01/mms/1837021781/other","http://id.who.int/icd/release/11/2026-01/mms/1837021781/unspecified"],"classKind":"category","code":"MG50.9","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1837021781","title":{"@language":"en","@value":"Antibiotic resistant Salmonella"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1839638766": {"method":"GET","path":"icd/release/11/2026-01/mms/1839638766","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1839638766","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1839638766","child":["http://id.who.int/icd/release/11/2026-01/mms/1446152257","http://id.who.int/icd/release/11/2026-01/mms/40564846","http://id.who.int/icd/release/11/2026-01/mms/1980186627","http://id.who.int/icd/release/11/2026-01/mms/1839638766/other","http://id.who.int/icd/release/11/2026-01/mms/1839638766/unspecified"],"classKind":"category","code":"MG51","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1882742628"],"source":"http://id.who.int/icd/entity/1839638766","title":{"@language":"en","@value":"Finding of gram positive bacteria resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1904876434": {"method":"GET","path":"icd/release/11/2026-01/mms/1904876434","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1904876434","blockId":"BlockL1-1A6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1904876434","child":["http://id.who.int/icd/release/11/2026-01/mms/455894495","http://id.who.int/icd/release/11/2026-01/mms/609214049","http://id.who.int/icd/release/11/2026-01/mms/251474152","http://id.who.int/icd/release/11/2026-01/mms/1357024926","http://id.who.int/icd/release/11/2026-01/mms/764124124","http://id.who.int/icd/release/11/2026-01/mms/1220564554","http://id.who.int/icd/release/11/2026-01/mms/1372745524","http://id.who.int/icd/release/11/2026-01/mms/616315615","http://id.who.int/icd/release/11/2026-01/mms/641342831","http://id.who.int/icd/release/11/2026-01/mms/508325484","http://id.who.int/icd/release/11/2026-01/mms/1904876434/other","http://id.who.int/icd/release/11/2026-01/mms/1904876434/unspecified"],"classKind":"block","code":"","codeRange":"1A60-1A9Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/594689864","label":{"@language":"en","@value":"Arthropathy following genitourinary infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594689864"},{"foundationReference":"http://id.who.int/icd/entity/1486684763","label":{"@language":"en","@value":"Nonspecific and nongonococcal urethritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1486684763"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1720001875","label":{"@language":"en","@value":"Herpes simplex labialis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1720001875"},{"foundationReference":"http://id.who.int/icd/entity/1086416908","label":{"@language":"en","@value":"Herpes simplex gingivostomatitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1086416908"},{"foundationReference":"http://id.who.int/icd/entity/1806329739","label":{"@language":"en","@value":"Vulvovaginal candidosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1806329739"},{"foundationReference":"http://id.who.int/icd/entity/407172127","label":{"@language":"en","@value":"Candida balanoposthitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/407172127"},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"Human immunodeficiency virus disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1000704511"},{"foundationReference":"http://id.who.int/icd/entity/1029188220","label":{"@language":"en","@value":"Other infections with a predominantly sexual mode of transmission complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1029188220"},{"foundationReference":"http://id.who.int/icd/entity/1115270371","label":{"@language":"en","@value":"Candidosis of external genitalia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/284380638/unspecified"},{"foundationReference":"http://id.who.int/icd/entity/1665769364","label":{"@language":"en","@value":"Anogenital molluscum contagiosum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/82201615"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1904876434","title":{"@language":"en","@value":"Predominantly sexually transmitted infections"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1929872537": {"method":"GET","path":"icd/release/11/2026-01/mms/1929872537","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1929872537","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1929872537","child":["http://id.who.int/icd/release/11/2026-01/mms/1071250765","http://id.who.int/icd/release/11/2026-01/mms/1929872537/other","http://id.who.int/icd/release/11/2026-01/mms/1929872537/unspecified"],"classKind":"category","code":"MG50.1","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/1929872537","title":{"@language":"en","@value":"Antibiotic resistant Campylobacter"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935092859": {"method":"GET","path":"icd/release/11/2026-01/mms/1935092859","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935092859","blockId":"BlockL1-1B9","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935092859","child":["http://id.who.int/icd/release/11/2026-01/mms/1026551291","http://id.who.int/icd/release/11/2026-01/mms/751399056","http://id.who.int/icd/release/11/2026-01/mms/1563156715","http://id.who.int/icd/release/11/2026-01/mms/1596449540","http://id.who.int/icd/release/11/2026-01/mms/980168338","http://id.who.int/icd/release/11/2026-01/mms/730510331","http://id.who.int/icd/release/11/2026-01/mms/1233304838","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/2003001085","http://id.who.int/icd/release/11/2026-01/mms/304649065","http://id.who.int/icd/release/11/2026-01/mms/63835650","http://id.who.int/icd/release/11/2026-01/mms/1935092859/unspecified"],"classKind":"block","code":"","codeRange":"1B90-1B9Z","definition":{"@language":"en","@value":"This is a group of bacterial diseases that are transmitted to humans by contact with infected vertebrate animals."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1935092859","title":{"@language":"en","@value":"Certain zoonotic bacterial diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1959883044": {"method":"GET","path":"icd/release/11/2026-01/mms/1959883044","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1959883044","blockId":"BlockL1-1D2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1959883044","child":["http://id.who.int/icd/release/11/2026-01/mms/685093552","http://id.who.int/icd/release/11/2026-01/mms/1302232870","http://id.who.int/icd/release/11/2026-01/mms/56575149","http://id.who.int/icd/release/11/2026-01/mms/1959883044/unspecified"],"classKind":"block","code":"","codeRange":"1D20-1D2Z","definition":{"@language":"en","@value":"Dengue is a viral disease transmitted by the bite of a mosquito infected by dengue viruses. It is one disease entity with different clinical presentations and often with unpredictable clinical evolution and outcome. Most patients recover following a self-limiting non-severe clinical course like nausea, vomiting, rash, aches and pains, but a small proportion progress to severe disease, mostly characterised by plasma leakage with or without haemorrhage, although severe haemorrhages or severe organ impairment can occur, with or without dengue shock."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1959883044","title":{"@language":"en","@value":"Dengue"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2092703582": {"method":"GET","path":"icd/release/11/2026-01/mms/2092703582","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2092703582","blockId":"BlockL2-1A3","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2092703582","child":["http://id.who.int/icd/release/11/2026-01/mms/2090337975","http://id.who.int/icd/release/11/2026-01/mms/433310499","http://id.who.int/icd/release/11/2026-01/mms/1837013982","http://id.who.int/icd/release/11/2026-01/mms/137713224","http://id.who.int/icd/release/11/2026-01/mms/261748740","http://id.who.int/icd/release/11/2026-01/mms/1184241320","http://id.who.int/icd/release/11/2026-01/mms/435671752","http://id.who.int/icd/release/11/2026-01/mms/2092703582/other","http://id.who.int/icd/release/11/2026-01/mms/2092703582/unspecified"],"classKind":"block","code":"","codeRange":"1A30-1A3Z","definition":{"@language":"en","@value":"Any condition of the intestines, caused by an infection with a protozoal parasitic source."},"longDefinition":{"@language":"en","@value":"Parasitic diseases are defined as those caused by protozoa or helminths. The pathophysiology of the diseases caused by these organisms is determined by their life cycle. Mechanisms of diarrhoea production by intestinal protozoa are related to direct cytotoxic effects, the ability to invade, and/or effects of the immune response on the intestinal epithelium. No evidence suggests that intestinal protozoa produce enterotoxins."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/588616678"],"source":"http://id.who.int/icd/entity/2092703582","title":{"@language":"en","@value":"Protozoal intestinal infections"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/243404922": {"method":"GET","path":"icd/release/11/2026-01/mms/243404922","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/243404922","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#243404922","child":["http://id.who.int/icd/release/11/2026-01/mms/1071495840","http://id.who.int/icd/release/11/2026-01/mms/243404922/other","http://id.who.int/icd/release/11/2026-01/mms/243404922/unspecified"],"classKind":"category","code":"MG50.7","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/243404922","title":{"@language":"en","@value":"Antibiotic resistant Neisseria meningitidis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/293771399": {"method":"GET","path":"icd/release/11/2026-01/mms/293771399","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/293771399","blockId":"BlockL1-1G4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#293771399","child":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"],"classKind":"block","code":"","codeRange":"1G40-1G41","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/973161881","label":{"@language":"en","@value":"Systemic inflammatory response syndrome of noninfectious origin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/973161881"},{"foundationReference":"http://id.who.int/icd/entity/1909570991","label":{"@language":"en","@value":"Other infection during labour"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other"},{"foundationReference":"http://id.who.int/icd/entity/650231750","label":{"@language":"en","@value":"Genital tract or pelvic infection following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/650231750"},{"foundationReference":"http://id.who.int/icd/entity/286694084","label":{"@language":"en","@value":"Injury or harm arising following infusion, transfusion or therapeutic injection, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/286694084"},{"foundationReference":"http://id.who.int/icd/entity/63835650","label":{"@language":"en","@value":"Extraintestinal yersiniosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/63835650"},{"foundationReference":"http://id.who.int/icd/entity/2046292009","label":{"@language":"en","@value":"Disseminated gonococcal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2046292009"},{"foundationReference":"http://id.who.int/icd/entity/1664016479","label":{"@language":"en","@value":"Meningococcal disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1664016479"},{"foundationReference":"http://id.who.int/icd/entity/1952274258","label":{"@language":"en","@value":"Injury or harm arising from a procedure, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1952274258"},{"foundationReference":"http://id.who.int/icd/entity/980168338","label":{"@language":"en","@value":"Tularaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/980168338"},{"foundationReference":"http://id.who.int/icd/entity/945827199","label":{"@language":"en","@value":"Acute or fulminant melioidosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2129350166"},{"foundationReference":"http://id.who.int/icd/entity/1596449540","label":{"@language":"en","@value":"Plague"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1596449540"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/325070079","label":{"@language":"en","@value":"Puerperal sepsis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/325070079"},{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},{"foundationReference":"http://id.who.int/icd/entity/759302477","label":{"@language":"en","@value":"Obstetric pyaemic or septic embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/759302477"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/293771399","title":{"@language":"en","@value":"Sepsis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/30738976": {"method":"GET","path":"icd/release/11/2026-01/mms/30738976","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/30738976","blockId":"BlockL2-1A2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#30738976","child":["http://id.who.int/icd/release/11/2026-01/mms/749414717","http://id.who.int/icd/release/11/2026-01/mms/1185210745","http://id.who.int/icd/release/11/2026-01/mms/840750347","http://id.who.int/icd/release/11/2026-01/mms/1465325727","http://id.who.int/icd/release/11/2026-01/mms/1519125035","http://id.who.int/icd/release/11/2026-01/mms/30738976/other","http://id.who.int/icd/release/11/2026-01/mms/30738976/unspecified"],"classKind":"block","code":"","codeRange":"1A20-1A2Z","definition":{"@language":"en","@value":"Any condition of the intestines, caused by an infection with a viral source."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1138369337","label":{"@language":"en","@value":"Influenzal enteritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1235618695"},{"foundationReference":"http://id.who.int/icd/entity/1820270855","label":{"@language":"en","@value":"Influenzal gastroenteritis unspecified or specific virus not identified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1235618695"},{"foundationReference":"http://id.who.int/icd/entity/2130414509","label":{"@language":"en","@value":"influenza with involvement of gastrointestinal tract"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1235618695"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2107201116","label":{"@language":"en","@value":"Herpes simplex virus duodenitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/248851702/other"},{"foundationReference":"http://id.who.int/icd/entity/386699845","label":{"@language":"en","@value":"Human immunodeficiency virus disease enteritis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1294771889"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/588616678"],"source":"http://id.who.int/icd/entity/30738976","title":{"@language":"en","@value":"Viral intestinal infections"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/312500700": {"method":"GET","path":"icd/release/11/2026-01/mms/312500700","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/312500700","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#312500700","child":["http://id.who.int/icd/release/11/2026-01/mms/2135031716","http://id.who.int/icd/release/11/2026-01/mms/1146062162","http://id.who.int/icd/release/11/2026-01/mms/1924181975","http://id.who.int/icd/release/11/2026-01/mms/754665268","http://id.who.int/icd/release/11/2026-01/mms/303916412","http://id.who.int/icd/release/11/2026-01/mms/312500700/other","http://id.who.int/icd/release/11/2026-01/mms/312500700/unspecified"],"classKind":"category","code":"MG50.6","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/312500700","title":{"@language":"en","@value":"Antibiotic resistant Neisseria gonorrhoeae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/375810888": {"method":"GET","path":"icd/release/11/2026-01/mms/375810888","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/375810888","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#375810888","child":["http://id.who.int/icd/release/11/2026-01/mms/1773711561","http://id.who.int/icd/release/11/2026-01/mms/375810888/other","http://id.who.int/icd/release/11/2026-01/mms/375810888/unspecified"],"classKind":"category","code":"MG50.3","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/375810888","title":{"@language":"en","@value":"Antibiotic resistant Haemophilus influenzae"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/420676154": {"method":"GET","path":"icd/release/11/2026-01/mms/420676154","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/420676154","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#420676154","child":["http://id.who.int/icd/release/11/2026-01/mms/985248618","http://id.who.int/icd/release/11/2026-01/mms/460245224","http://id.who.int/icd/release/11/2026-01/mms/501000672","http://id.who.int/icd/release/11/2026-01/mms/1038705052","http://id.who.int/icd/release/11/2026-01/mms/420676154/other","http://id.who.int/icd/release/11/2026-01/mms/420676154/unspecified"],"classKind":"category","code":"MG50.0","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/420676154","title":{"@language":"en","@value":"Antibiotic resistant Acinetobacter baumannii"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/487269828": {"method":"GET","path":"icd/release/11/2026-01/mms/487269828","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/487269828","blockId":"BlockL1-1C1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#487269828","child":["http://id.who.int/icd/release/11/2026-01/mms/1697630330","http://id.who.int/icd/release/11/2026-01/mms/1938462328","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/1793762788","http://id.who.int/icd/release/11/2026-01/mms/262236278","http://id.who.int/icd/release/11/2026-01/mms/2085616610","http://id.who.int/icd/release/11/2026-01/mms/1920227791","http://id.who.int/icd/release/11/2026-01/mms/508032285","http://id.who.int/icd/release/11/2026-01/mms/1966578342","http://id.who.int/icd/release/11/2026-01/mms/390042715","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/6555116","http://id.who.int/icd/release/11/2026-01/mms/1664016479","http://id.who.int/icd/release/11/2026-01/mms/840525023","http://id.who.int/icd/release/11/2026-01/mms/1465035083","http://id.who.int/icd/release/11/2026-01/mms/1186214944","http://id.who.int/icd/release/11/2026-01/mms/1600014919","http://id.who.int/icd/release/11/2026-01/mms/1320736556","http://id.who.int/icd/release/11/2026-01/mms/965498095","http://id.who.int/icd/release/11/2026-01/mms/1127435854","http://id.who.int/icd/release/11/2026-01/mms/1981846","http://id.who.int/icd/release/11/2026-01/mms/1012026026","http://id.who.int/icd/release/11/2026-01/mms/520429137","http://id.who.int/icd/release/11/2026-01/mms/2129350166","http://id.who.int/icd/release/11/2026-01/mms/168432503","http://id.who.int/icd/release/11/2026-01/mms/698540116","http://id.who.int/icd/release/11/2026-01/mms/114886962","http://id.who.int/icd/release/11/2026-01/mms/487269828/other","http://id.who.int/icd/release/11/2026-01/mms/487269828/unspecified"],"classKind":"block","code":"","codeRange":"1C10-1C4Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1935107489","label":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489"},{"foundationReference":"http://id.who.int/icd/entity/540889641","label":{"@language":"en","@value":"Bacterial duodenitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/590662611/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/487269828","title":{"@language":"en","@value":"Other bacterial diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/588616678": {"method":"GET","path":"icd/release/11/2026-01/mms/588616678","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/588616678","blockId":"BlockL1-1A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#588616678","child":["http://id.who.int/icd/release/11/2026-01/mms/135352227","http://id.who.int/icd/release/11/2026-01/mms/1834648119","http://id.who.int/icd/release/11/2026-01/mms/30738976","http://id.who.int/icd/release/11/2026-01/mms/2092703582","http://id.who.int/icd/release/11/2026-01/mms/1688127370"],"classKind":"block","code":"","codeRange":"1A00-1A40.Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/730271848","label":{"@language":"en","@value":"Intestinal fungal infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/730271848"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/588616678","title":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/622600769": {"method":"GET","path":"icd/release/11/2026-01/mms/622600769","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#622600769","classKind":"category","code":"1G40","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"definition":{"@language":"en","@value":"Sepsis is defined as a life-threatening organ dysfunction caused by a dysregulated host response to infection."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/2093238381","label":{"@language":"en","@value":"Septicaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/770483821"},{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1375378681","label":{"@language":"en","@value":"Viral sepsis without mention of septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1136802325/other"},{"foundationReference":"http://id.who.int/icd/entity/513367650","label":{"@language":"en","@value":"Fungal sepsis without mention of septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1939815950/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis without septic shock"}},{"label":{"@language":"en","@value":"sepsis without septic shock with known organism"}},{"foundationReference":"http://id.who.int/icd/entity/455265504","label":{"@language":"en","@value":"Sepsis-associated hypotension"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"Unspecified sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"general septic intoxication"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"generalised sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"multiple pyemic embolism"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"pyemic embolism"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"sepsis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"septic intoxication"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"systemic infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/293771399"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/74527684","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1596449540","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/516585689","http://id.who.int/icd/release/11/2026-01/mms/520429137","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/684930313","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/237422666","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1913468488","http://id.who.int/icd/release/11/2026-01/mms/2055968951","http://id.who.int/icd/release/11/2026-01/mms/1438584733","http://id.who.int/icd/release/11/2026-01/mms/132287989","http://id.who.int/icd/release/11/2026-01/mms/1326582778","http://id.who.int/icd/release/11/2026-01/mms/390527954","http://id.who.int/icd/release/11/2026-01/mms/1802307036","http://id.who.int/icd/release/11/2026-01/mms/1866587875","http://id.who.int/icd/release/11/2026-01/mms/1676389165","http://id.who.int/icd/release/11/2026-01/mms/547567937","http://id.who.int/icd/release/11/2026-01/mms/1357848258","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/2098808565","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/40398753","http://id.who.int/icd/release/11/2026-01/mms/2071113448","http://id.who.int/icd/release/11/2026-01/mms/775356003","http://id.who.int/icd/release/11/2026-01/mms/1351188281","http://id.who.int/icd/release/11/2026-01/mms/1824134974","http://id.who.int/icd/release/11/2026-01/mms/763951483","http://id.who.int/icd/release/11/2026-01/mms/410058129","http://id.who.int/icd/release/11/2026-01/mms/455330172","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/441183088","http://id.who.int/icd/release/11/2026-01/mms/1848472780","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/325070079","http://id.who.int/icd/entity/759302477"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/381388700"],"source":"http://id.who.int/icd/entity/622600769","title":{"@language":"en","@value":"Sepsis without septic shock"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/684930313": {"method":"GET","path":"icd/release/11/2026-01/mms/684930313","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#684930313","child":["http://id.who.int/icd/release/11/2026-01/mms/1005770900","http://id.who.int/icd/release/11/2026-01/mms/684930313/other","http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"],"classKind":"category","code":"1D01.0","definition":{"@language":"en","@value":"Any disease of the meninges, caused by an infection with a bacterial source."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1656157931","label":{"@language":"en","@value":"bacterial meningoencephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1656157931"},{"foundationReference":"http://id.who.int/icd/entity/373833091","label":{"@language":"en","@value":"bacterial meningomyelitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/373833091"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/592562777","label":{"@language":"en","@value":"Pachymeningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/592562777"}],"inclusion":[{"label":{"@language":"en","@value":"arachnoiditis bacterial"}},{"label":{"@language":"en","@value":"leptomeningitis bacterial"}},{"label":{"@language":"en","@value":"pachymeningitis bacterial"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/121670633"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/606208893","http://id.who.int/icd/release/11/2026-01/mms/1874454144","http://id.who.int/icd/release/11/2026-01/mms/1785213202","http://id.who.int/icd/release/11/2026-01/mms/718893335","http://id.who.int/icd/release/11/2026-01/mms/1964711990","http://id.who.int/icd/release/11/2026-01/mms/1978113063","http://id.who.int/icd/release/11/2026-01/mms/1895892604","http://id.who.int/icd/release/11/2026-01/mms/465867565","http://id.who.int/icd/release/11/2026-01/mms/809107389","http://id.who.int/icd/release/11/2026-01/mms/1292092042","http://id.who.int/icd/release/11/2026-01/mms/12651959","http://id.who.int/icd/release/11/2026-01/mms/1889951404","http://id.who.int/icd/release/11/2026-01/mms/977078705","http://id.who.int/icd/release/11/2026-01/mms/1783025664","http://id.who.int/icd/release/11/2026-01/mms/2129504458","http://id.who.int/icd/release/11/2026-01/mms/1248056702","http://id.who.int/icd/release/11/2026-01/mms/1537645708","http://id.who.int/icd/release/11/2026-01/mms/1055740190","http://id.who.int/icd/release/11/2026-01/mms/237808899","http://id.who.int/icd/release/11/2026-01/mms/888671567","http://id.who.int/icd/release/11/2026-01/mms/1189225448","http://id.who.int/icd/release/11/2026-01/mms/568542103","http://id.who.int/icd/release/11/2026-01/mms/2122752710","http://id.who.int/icd/release/11/2026-01/mms/708898123","http://id.who.int/icd/release/11/2026-01/mms/80817633","http://id.who.int/icd/release/11/2026-01/mms/1495276771","http://id.who.int/icd/release/11/2026-01/mms/501248166","http://id.who.int/icd/release/11/2026-01/mms/1371953258"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/751399056","http://id.who.int/icd/release/11/2026-01/mms/293771399"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"source":"http://id.who.int/icd/entity/684930313","title":{"@language":"en","@value":"Bacterial meningitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/684930313/other": {"method":"GET","path":"icd/release/11/2026-01/mms/684930313/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#684930313/other","classKind":"category","code":"1D01.0Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified bacterial meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1134273059","label":{"@language":"en","@value":"Meningitis due to Enterobacter"}},{"foundationReference":"http://id.who.int/icd/entity/497267982","label":{"@language":"en","@value":"Meningitis due to Enterococcus"}},{"foundationReference":"http://id.who.int/icd/entity/497267982","label":{"@language":"en","@value":"Enterococcal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1855224446","label":{"@language":"en","@value":"Meningitis due to Escherichia coli"}},{"foundationReference":"http://id.who.int/icd/entity/1855224446","label":{"@language":"en","@value":"E coli meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1855224446","label":{"@language":"en","@value":"E coli spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/908937367","label":{"@language":"en","@value":"Meningitis due to Actinomycetales"}},{"foundationReference":"http://id.who.int/icd/entity/1404349890","label":{"@language":"en","@value":"Meningitis due to Tropheryma whipplei"}},{"foundationReference":"http://id.who.int/icd/entity/1327378915","label":{"@language":"en","@value":"Meningitis due to Klebsiella pneumoniae"}},{"foundationReference":"http://id.who.int/icd/entity/1327378915","label":{"@language":"en","@value":"Friedlander bacillus meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1327378915","label":{"@language":"en","@value":"Friedlander bacillus spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1327378915","label":{"@language":"en","@value":"Friedlander meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1327378915","label":{"@language":"en","@value":"Friedlander spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/44646083","label":{"@language":"en","@value":"Meningitis due to Treponema pallidum"}},{"foundationReference":"http://id.who.int/icd/entity/44646083","label":{"@language":"en","@value":"Meningeal syphilis"}},{"foundationReference":"http://id.who.int/icd/entity/23840474","label":{"@language":"en","@value":"Citrobacter meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/726591871","label":{"@language":"en","@value":"Meningitis due to Pseudomonas aeruginosa"}},{"foundationReference":"http://id.who.int/icd/entity/726591871","label":{"@language":"en","@value":"meningitis due to P. - [Pseudomonas] aeruginosa"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/684930313"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/other/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/606208893","http://id.who.int/icd/release/11/2026-01/mms/1874454144","http://id.who.int/icd/release/11/2026-01/mms/1785213202","http://id.who.int/icd/release/11/2026-01/mms/718893335","http://id.who.int/icd/release/11/2026-01/mms/1964711990","http://id.who.int/icd/release/11/2026-01/mms/1978113063","http://id.who.int/icd/release/11/2026-01/mms/1895892604","http://id.who.int/icd/release/11/2026-01/mms/465867565","http://id.who.int/icd/release/11/2026-01/mms/809107389","http://id.who.int/icd/release/11/2026-01/mms/1292092042","http://id.who.int/icd/release/11/2026-01/mms/12651959","http://id.who.int/icd/release/11/2026-01/mms/1889951404","http://id.who.int/icd/release/11/2026-01/mms/977078705","http://id.who.int/icd/release/11/2026-01/mms/1783025664","http://id.who.int/icd/release/11/2026-01/mms/2129504458","http://id.who.int/icd/release/11/2026-01/mms/1248056702","http://id.who.int/icd/release/11/2026-01/mms/1537645708","http://id.who.int/icd/release/11/2026-01/mms/1055740190","http://id.who.int/icd/release/11/2026-01/mms/237808899","http://id.who.int/icd/release/11/2026-01/mms/888671567","http://id.who.int/icd/release/11/2026-01/mms/1189225448","http://id.who.int/icd/release/11/2026-01/mms/568542103","http://id.who.int/icd/release/11/2026-01/mms/2122752710","http://id.who.int/icd/release/11/2026-01/mms/708898123","http://id.who.int/icd/release/11/2026-01/mms/80817633","http://id.who.int/icd/release/11/2026-01/mms/1495276771","http://id.who.int/icd/release/11/2026-01/mms/501248166","http://id.who.int/icd/release/11/2026-01/mms/1371953258"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/751399056","http://id.who.int/icd/release/11/2026-01/mms/293771399"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1366690608"],"title":{"@language":"en","@value":"Other specified bacterial meningitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/684930313/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/684930313/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#684930313/unspecified","classKind":"category","code":"1D01.0Z","indexTerm":[{"label":{"@language":"en","@value":"Bacterial meningitis, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/684930313","label":{"@language":"en","@value":"Bacterial meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/684930313","label":{"@language":"en","@value":"BM - [bacterial meningitis]"}},{"foundationReference":"http://id.who.int/icd/entity/684930313","label":{"@language":"en","@value":"arachnoiditis bacterial"}},{"foundationReference":"http://id.who.int/icd/entity/684930313","label":{"@language":"en","@value":"leptomeningitis bacterial"}},{"foundationReference":"http://id.who.int/icd/entity/684930313","label":{"@language":"en","@value":"pachymeningitis bacterial"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"Bacterial meningitis, not elsewhere classified"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"bacterial cerebral meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"bacterial meningitis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"bacterial spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"fibrinopurulent meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"fibrinopurulent spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"meningitis due to unspecified bacterium"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"purulent meningitis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"purulent spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"pyogenic meningitis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"pyogenic spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"suppurative meningitis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1346278360","label":{"@language":"en","@value":"suppurative spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/537912379","label":{"@language":"en","@value":"Gram negative meningitis, not elsewhere classified"}},{"foundationReference":"http://id.who.int/icd/entity/537912379","label":{"@language":"en","@value":"gram negative bacterial meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/537912379","label":{"@language":"en","@value":"gram negative bacterial spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/537912379","label":{"@language":"en","@value":"gram negative coccal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/42743392","label":{"@language":"en","@value":"Gram positive meningitis, not elsewhere classified"}},{"foundationReference":"http://id.who.int/icd/entity/42743392","label":{"@language":"en","@value":"gram positive coccal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/42743392","label":{"@language":"en","@value":"gram positive coccal spinal meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/42743392","label":{"@language":"en","@value":"gram positive rods bacterial meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/1001392299","label":{"@language":"en","@value":"Bacterial meningitis type identified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/684930313"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/751399056","http://id.who.int/icd/release/11/2026-01/mms/293771399"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1366690608"],"title":{"@language":"en","@value":"Bacterial meningitis, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/690008608": {"method":"GET","path":"icd/release/11/2026-01/mms/690008608","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/690008608","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#690008608","child":["http://id.who.int/icd/release/11/2026-01/mms/2003524291","http://id.who.int/icd/release/11/2026-01/mms/690008608/other","http://id.who.int/icd/release/11/2026-01/mms/690008608/unspecified"],"classKind":"category","code":"MG50.4","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/690008608","title":{"@language":"en","@value":"Antibiotic resistant Helicobacter pylori"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/751399056": {"method":"GET","path":"icd/release/11/2026-01/mms/751399056","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/751399056","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#751399056","classKind":"category","code":"1B91","definition":{"@language":"en","@value":"A disease caused by an infection with the gram-negative bacteria Leptospira. In the first phase, this disease is characterised by generalised illness (fever, chills, or myalgias) or individuals may be asymptomatic; in the second phase, the heart, liver, kidneys, or brain may be affected by the infection (symptoms are dependent on the site affected). Transmission is by ingestion of contaminated food or water, droplet transmission, or direct cutaneous contact. Confirmation is by identification of Leptospira in samples from the affected individual."},"indexTerm":[{"label":{"@language":"en","@value":"Leptospirosis"}},{"label":{"@language":"en","@value":"EIA - [equine infectious anaemia]"}},{"label":{"@language":"en","@value":"Nanukayami disease"}},{"label":{"@language":"en","@value":"Nanukayami fever"}},{"label":{"@language":"en","@value":"mud fever"}},{"label":{"@language":"en","@value":"seven-day fever"}},{"label":{"@language":"en","@value":"swamp fever"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Leptospira infection of liver"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Fiedler disease"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Haemorrhagic leptospiral jaundice"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Icteric leptospirosis"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Leptospiral epidemic jaundice"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Leptospirosis due to Leptospira interrogans serovar icterohaemorrhagiae"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Leptospirosis icterohaemorrhagica"}},{"foundationReference":"http://id.who.int/icd/entity/1554792661","label":{"@language":"en","@value":"Weil disease"}},{"foundationReference":"http://id.who.int/icd/entity/518398715","label":{"@language":"en","@value":"Leptospiral meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/518398715","label":{"@language":"en","@value":"aseptic leptospiral meningitis"}},{"foundationReference":"http://id.who.int/icd/entity/518398715","label":{"@language":"en","@value":"meningitis in leptospirosis"}},{"foundationReference":"http://id.who.int/icd/entity/815852228","label":{"@language":"en","@value":"Encephalitis due to Leptospira species"}},{"foundationReference":"http://id.who.int/icd/entity/947150524","label":{"@language":"en","@value":"Leptospira interrogans infection"}},{"foundationReference":"http://id.who.int/icd/entity/2038439173","label":{"@language":"en","@value":"Leptospira interrogans autumnalis infection"}},{"foundationReference":"http://id.who.int/icd/entity/2038439173","label":{"@language":"en","@value":"fever due to leptospira autumnalis"}},{"foundationReference":"http://id.who.int/icd/entity/2038439173","label":{"@language":"en","@value":"fort bragg fever"}},{"foundationReference":"http://id.who.int/icd/entity/2038439173","label":{"@language":"en","@value":"pretibial fever"}},{"foundationReference":"http://id.who.int/icd/entity/1766491315","label":{"@language":"en","@value":"Leptospira interrogans canicola infection"}},{"foundationReference":"http://id.who.int/icd/entity/1766491315","label":{"@language":"en","@value":"leptospirosis canicola"}},{"foundationReference":"http://id.who.int/icd/entity/215179750","label":{"@language":"en","@value":"Leptospira interrogans hebdomadis infection"}},{"foundationReference":"http://id.who.int/icd/entity/550924573","label":{"@language":"en","@value":"Leptospira interrogans pomona infection"}},{"foundationReference":"http://id.who.int/icd/entity/550924573","label":{"@language":"en","@value":"leptospirosis pomona"}}],"longDefinition":{"@language":"en","@value":"Leptospirosis is a disease that is caused by pathogenic spirochetes of the genus Leptospira. Leptospirosis is transmitted via direct contact with the body fluid of an acutely infected animal or by exposure to soil or fresh water contaminated with the urine of an animal that is a chronic carrier."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935092859"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/751399056/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1656157931","http://id.who.int/icd/release/11/2026-01/mms/684930313"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/751399056","title":{"@language":"en","@value":"Leptospirosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/759983228": {"method":"GET","path":"icd/release/11/2026-01/mms/759983228","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/759983228","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#759983228","child":["http://id.who.int/icd/release/11/2026-01/mms/1078292002","http://id.who.int/icd/release/11/2026-01/mms/759983228/other","http://id.who.int/icd/release/11/2026-01/mms/759983228/unspecified"],"classKind":"category","code":"MG50.B","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/759983228","title":{"@language":"en","@value":"Antibiotic resistant Vibrio"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/916407020": {"method":"GET","path":"icd/release/11/2026-01/mms/916407020","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/916407020","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#916407020","child":["http://id.who.int/icd/release/11/2026-01/mms/419354269","http://id.who.int/icd/release/11/2026-01/mms/1297406018","http://id.who.int/icd/release/11/2026-01/mms/81233849","http://id.who.int/icd/release/11/2026-01/mms/1446899496","http://id.who.int/icd/release/11/2026-01/mms/146561458","http://id.who.int/icd/release/11/2026-01/mms/410435592","http://id.who.int/icd/release/11/2026-01/mms/1483134068","http://id.who.int/icd/release/11/2026-01/mms/976332273","http://id.who.int/icd/release/11/2026-01/mms/916407020/other","http://id.who.int/icd/release/11/2026-01/mms/916407020/unspecified"],"classKind":"category","code":"MG50.2","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1215034670"],"source":"http://id.who.int/icd/entity/916407020","title":{"@language":"en","@value":"Antibiotic resistant Escherichia coli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/921595235": {"method":"GET","path":"icd/release/11/2026-01/mms/921595235","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/921595235","blockId":"BlockL1-1D4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#921595235","child":["http://id.who.int/icd/release/11/2026-01/mms/900389391","http://id.who.int/icd/release/11/2026-01/mms/951357413","http://id.who.int/icd/release/11/2026-01/mms/1356928923","http://id.who.int/icd/release/11/2026-01/mms/693244560","http://id.who.int/icd/release/11/2026-01/mms/854137188","http://id.who.int/icd/release/11/2026-01/mms/1276763930","http://id.who.int/icd/release/11/2026-01/mms/1091013360","http://id.who.int/icd/release/11/2026-01/mms/383352795","http://id.who.int/icd/release/11/2026-01/mms/1401438580","http://id.who.int/icd/release/11/2026-01/mms/1562906700","http://id.who.int/icd/release/11/2026-01/mms/946068954","http://id.who.int/icd/release/11/2026-01/mms/1288604967","http://id.who.int/icd/release/11/2026-01/mms/1105069515","http://id.who.int/icd/release/11/2026-01/mms/1085418398","http://id.who.int/icd/release/11/2026-01/mms/282121084","http://id.who.int/icd/release/11/2026-01/mms/921595235/other","http://id.who.int/icd/release/11/2026-01/mms/921595235/unspecified"],"classKind":"block","code":"","codeRange":"1D40-1D4Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1959883044","label":{"@language":"en","@value":"Dengue"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1959883044"},{"foundationReference":"http://id.who.int/icd/entity/36782335","label":{"@language":"en","@value":"Far Eastern tick-borne encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/36782335"},{"foundationReference":"http://id.who.int/icd/entity/1736084843","label":{"@language":"en","@value":"Central European tick-borne encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1736084843"},{"foundationReference":"http://id.who.int/icd/entity/1543765035","label":{"@language":"en","@value":"Western equine encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1543765035"},{"foundationReference":"http://id.who.int/icd/entity/682536148","label":{"@language":"en","@value":"Eastern equine encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/682536148"},{"foundationReference":"http://id.who.int/icd/entity/961032639","label":{"@language":"en","@value":"Japanese encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/961032639"},{"foundationReference":"http://id.who.int/icd/entity/1306878274","label":{"@language":"en","@value":"St Louis encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1306878274"},{"foundationReference":"http://id.who.int/icd/entity/804089791","label":{"@language":"en","@value":"Rocio viral encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/804089791"},{"foundationReference":"http://id.who.int/icd/entity/1040970454","label":{"@language":"en","@value":"Murray Valley encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1040970454"},{"foundationReference":"http://id.who.int/icd/entity/1530937152","label":{"@language":"en","@value":"California encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1530937152"},{"foundationReference":"http://id.who.int/icd/entity/608978790","label":{"@language":"en","@value":"Venezuelan equine encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/608978790"},{"foundationReference":"http://id.who.int/icd/entity/1501615629","label":{"@language":"en","@value":"La Crosse encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1501615629"},{"foundationReference":"http://id.who.int/icd/entity/975631454","label":{"@language":"en","@value":"Siberian tick-borne encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/975631454"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/921595235","title":{"@language":"en","@value":"Certain arthropod-borne viral fevers"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/979278646": {"method":"GET","path":"icd/release/11/2026-01/mms/979278646","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/979278646","blockId":"BlockL1-1B1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#979278646","child":["http://id.who.int/icd/release/11/2026-01/mms/2072728114","http://id.who.int/icd/release/11/2026-01/mms/149072669","http://id.who.int/icd/release/11/2026-01/mms/1839818377","http://id.who.int/icd/release/11/2026-01/mms/979278646/other","http://id.who.int/icd/release/11/2026-01/mms/979278646/unspecified"],"classKind":"block","code":"","codeRange":"1B10-1B2Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/979278646","title":{"@language":"en","@value":"Mycobacterial diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1D01.0Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1D01.0Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1D01.0Z","code":"1D01.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"},"request_body":null,"status":200}
+ }
+}

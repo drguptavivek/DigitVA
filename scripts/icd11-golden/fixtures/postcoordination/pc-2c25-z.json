@@ -1,0 +1,701 @@
+{
+ "built": [],
+ "id": "pc-2c25-z",
+ "input": {
+  "category": "optional",
+  "id": "pc-2c25-z",
+  "source": "VAs-02.03",
+  "stem": "2C25.Z",
+  "why": "Lung cancer (VA cause 02.03): severity and alternative severity axes"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "2C25.Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "2C25.Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2C25.Z",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified",
+    "GET icd/release/11/2026-01/mms/627678743",
+    "GET icd/release/11/2026-01/mms/271422288",
+    "GET icd/release/11/2026-01/mms/876572005",
+    "GET icd/release/11/2026-01/mms/1038788978",
+    "GET icd/release/11/2026-01/mms/1338477196",
+    "GET icd/release/11/2026-01/mms/1492119116",
+    "GET icd/release/11/2026-01/mms/1322869997",
+    "GET icd/release/11/2026-01/mms/1637303052",
+    "GET icd/release/11/2026-01/mms/322466810",
+    "GET icd/release/11/2026-01/mms/1409966790",
+    "GET icd/release/11/2026-01/mms/896293199",
+    "GET icd/release/11/2026-01/mms/1094217460",
+    "GET icd/release/11/2026-01/mms/238069351",
+    "GET icd/release/11/2026-01/mms/1863636238",
+    "GET icd/release/11/2026-01/mms/885826145",
+    "GET icd/release/11/2026-01/mms/1746207012",
+    "GET icd/release/11/2026-01/mms/303697349"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "laterality",
+       "instruction": "use additional code, if desired",
+       "label": "Laterality",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+         "code": "XK9J",
+         "has_children": false,
+         "title": "Bilateral",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+         "code": "XK8G",
+         "has_children": false,
+         "title": "Left",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+         "code": "XK9K",
+         "has_children": false,
+         "title": "Right",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978",
+         "code": "XK70",
+         "has_children": false,
+         "title": "Unilateral, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+        "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+        "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+        "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+         "code": "XA57M6",
+         "has_children": true,
+         "title": "Lung",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1492119116",
+         "code": "XA61M6",
+         "has_children": false,
+         "title": "Bronchus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1492119116"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1322869997",
+         "code": "XA5437",
+         "has_children": false,
+         "title": "Bronchioles",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1322869997"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1637303052",
+         "code": "XA5772",
+         "has_children": false,
+         "title": "Alveoli",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1637303052"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+        "http://id.who.int/icd/release/11/2026-01/mms/1492119116",
+        "http://id.who.int/icd/release/11/2026-01/mms/1322869997",
+        "http://id.who.int/icd/release/11/2026-01/mms/1637303052"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/322466810",
+         "code": "MG30.10",
+         "has_children": false,
+         "title": "Chronic cancer pain",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/322466810"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/322466810"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "hasSeverity",
+       "instruction": "use additional code, if desired",
+       "label": "Has severity",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1409966790",
+         "code": "XS1G",
+         "has_children": false,
+         "title": "Stage I",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1409966790"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/896293199",
+         "code": "XS4P",
+         "has_children": false,
+         "title": "Stage II",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/896293199"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1094217460",
+         "code": "XS6H",
+         "has_children": false,
+         "title": "Stage III",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1094217460"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/238069351",
+         "code": "XS9R",
+         "has_children": false,
+         "title": "Stage IV",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/238069351"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1409966790",
+        "http://id.who.int/icd/release/11/2026-01/mms/896293199",
+        "http://id.who.int/icd/release/11/2026-01/mms/1094217460",
+        "http://id.who.int/icd/release/11/2026-01/mms/238069351"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "hasAlternativeSeverity2",
+       "instruction": "use additional code, if desired",
+       "label": "Has alternative severity2",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1863636238",
+         "code": "XS0J",
+         "has_children": false,
+         "title": "A Remission / Free of disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1863636238"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/885826145",
+         "code": "XS05",
+         "has_children": true,
+         "title": "B Local Disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/885826145"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1746207012",
+         "code": "XS9S",
+         "has_children": false,
+         "title": "C Regional disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1746207012"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/303697349",
+         "code": "XS4Z",
+         "has_children": false,
+         "title": "D Distant disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/303697349"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1863636238",
+        "http://id.who.int/icd/release/11/2026-01/mms/885826145",
+        "http://id.who.int/icd/release/11/2026-01/mms/1746207012",
+        "http://id.who.int/icd/release/11/2026-01/mms/303697349"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified",
+    "GET icd/release/11/2026-01/mms/1338477196",
+    "GET icd/release/11/2026-01/mms/1857689745",
+    "GET icd/release/11/2026-01/mms/451817260",
+    "GET icd/release/11/2026-01/mms/1941241213",
+    "GET icd/release/11/2026-01/mms/1240651973",
+    "GET icd/release/11/2026-01/mms/1992239052",
+    "GET icd/release/11/2026-01/mms/1953208837",
+    "GET icd/release/11/2026-01/mms/2036696624"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA9TC5",
+       "has_children": true,
+       "title": "Main bronchus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1857689745"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA4JA0",
+       "has_children": false,
+       "title": "Carina",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/451817260"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA7EZ3",
+       "has_children": true,
+       "title": "Right lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1941241213"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA2UD3",
+       "has_children": true,
+       "title": "Left lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240651973"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA90M2",
+       "has_children": true,
+       "title": "Lobe of lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1992239052"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA2PV7",
+       "has_children": true,
+       "title": "Connective and other soft tissues of lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1953208837"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+       "code": "XA4U64",
+       "has_children": true,
+       "title": "Pulmonary artery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2036696624"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1338477196",
+    "stem_code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified",
+    "GET icd/release/11/2026-01/mms/885826145",
+    "GET icd/release/11/2026-01/mms/266800054",
+    "GET icd/release/11/2026-01/mms/589213071"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasAlternativeSeverity2",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/885826145",
+       "code": "XS0E",
+       "has_children": false,
+       "title": "Local limited",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/266800054"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/885826145",
+       "code": "XS67",
+       "has_children": false,
+       "title": "Locally advanced",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/589213071"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/885826145",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasAlternativeSeverity2",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/885826145",
+    "stem_code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified",
+    "GET icd/release/11/2026-01/mms/316539081",
+    "GET icd/release/11/2026-01/mms/1445684773",
+    "GET icd/release/11/2026-01/mms/1643222460",
+    "GET icd/release/11/2026-01/mms/2009008947",
+    "GET icd/release/11/2026-01/mms/1630407678",
+    "GET icd/release/11/2026-01/mms/316539081",
+    "GET icd/release/11/2026-01/mms/1418562110",
+    "GET icd/release/11/2026-01/mms/1800431439",
+    "GET icd/release/11/2026-01/mms/2045832550",
+    "GET icd/release/11/2026-01/mms/445249863",
+    "GET icd/release/11/2026-01/mms/1315163160",
+    "GET icd/release/11/2026-01/mms/1826627197",
+    "GET icd/release/11/2026-01/mms/316539081/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "02",
+       "title": "Neoplasms",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1630407678"
+      },
+      {
+       "code": "",
+       "title": "Malignant neoplasms, except primary neoplasms of lymphoid, haematopoietic, central nervous system or related tissues",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2009008947"
+      },
+      {
+       "code": "",
+       "title": "Malignant neoplasms, stated or presumed to be primary, of specified sites, except of lymphoid, haematopoietic, central nervous system or related tissues",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1643222460"
+      },
+      {
+       "code": "",
+       "title": "Malignant neoplasms of middle ear, respiratory or intrathoracic organs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1445684773"
+      },
+      {
+       "code": "2C25",
+       "title": "Malignant neoplasms of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Malignant neoplasms of bronchus or lung, unspecified",
+      "Malignant neoplasms of bronchus or lung",
+      "bronchiole cancer",
+      "bronchogenic cancer",
+      "malignant pulmonary adenomatosis of unspecified site",
+      "primary malignant neoplasm of lung",
+      "superior sulcus malignant tumour",
+      "Lower lobe lung cancer",
+      "Cancer of the main bronchus",
+      "main bronchial cancer",
+      "primary malignant neoplasm of main bronchus",
+      "Cancer of bronchus"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "2C25.0",
+       "has_children": false,
+       "title": "Adenocarcinoma of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1418562110"
+      },
+      {
+       "code": "2C25.1",
+       "has_children": false,
+       "title": "Small cell carcinoma of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1800431439"
+      },
+      {
+       "code": "2C25.2",
+       "has_children": false,
+       "title": "Squamous cell carcinoma of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2045832550"
+      },
+      {
+       "code": "2C25.3",
+       "has_children": false,
+       "title": "Large cell carcinoma of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/445249863"
+      },
+      {
+       "code": "2C25.4",
+       "has_children": false,
+       "title": "Carcinoid or other malignant neuroendocrine neoplasms of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1315163160"
+      },
+      {
+       "code": "2C25.5",
+       "has_children": false,
+       "title": "Unspecified malignant epithelial neoplasm of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1826627197"
+      },
+      {
+       "code": "2C25.Y",
+       "has_children": false,
+       "title": "Other specified malignant neoplasms of bronchus or lung",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/other"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "2C25.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "GET icd/release/11/2026-01/mms/316539081/unspecified"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2C25.Z",
+      "title": "Malignant neoplasms of bronchus or lung, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2C25.Z"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1038788978": {"method":"GET","path":"icd/release/11/2026-01/mms/1038788978","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1038788978","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1038788978","classKind":"category","code":"XK70","indexTerm":[{"label":{"@language":"en","@value":"Unilateral, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/1038788978","title":{"@language":"en","@value":"Unilateral, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1094217460": {"method":"GET","path":"icd/release/11/2026-01/mms/1094217460","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1094217460","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1094217460","classKind":"category","code":"XS6H","indexTerm":[{"label":{"@language":"en","@value":"Stage III"}},{"label":{"@language":"en","@value":"Stage 3"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2122233748"],"source":"http://id.who.int/icd/entity/1094217460","title":{"@language":"en","@value":"Stage III"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1240651973": {"method":"GET","path":"icd/release/11/2026-01/mms/1240651973","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1240651973","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1240651973","child":["http://id.who.int/icd/release/11/2026-01/mms/2114981322","http://id.who.int/icd/release/11/2026-01/mms/2046656918","http://id.who.int/icd/release/11/2026-01/mms/598495035"],"classKind":"category","code":"XA2UD3","indexTerm":[{"label":{"@language":"en","@value":"Left lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/1240651973","title":{"@language":"en","@value":"Left lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1315163160": {"method":"GET","path":"icd/release/11/2026-01/mms/1315163160","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1315163160","classKind":"category","code":"2C25.4","indexTerm":[{"label":{"@language":"en","@value":"Carcinoid or other malignant neuroendocrine neoplasms of bronchus or lung"}},{"label":{"@language":"en","@value":"carcinoid type bronchial adenoma"}},{"label":{"@language":"en","@value":"cylindroid type bronchial adenoma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1321751960","http://id.who.int/icd/release/11/2026-01/mms/477527598","http://id.who.int/icd/release/11/2026-01/mms/1509102037","http://id.who.int/icd/release/11/2026-01/mms/1609609938","http://id.who.int/icd/release/11/2026-01/mms/311089140","http://id.who.int/icd/release/11/2026-01/mms/1275963293","http://id.who.int/icd/release/11/2026-01/mms/522339131","http://id.who.int/icd/release/11/2026-01/mms/1704819468"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1315163160/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/1315163160","title":{"@language":"en","@value":"Carcinoid or other malignant neuroendocrine neoplasms of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1322869997": {"method":"GET","path":"icd/release/11/2026-01/mms/1322869997","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1322869997","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1322869997","classKind":"category","code":"XA5437","indexTerm":[{"label":{"@language":"en","@value":"Bronchioles"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/909890232"],"source":"http://id.who.int/icd/entity/1322869997","title":{"@language":"en","@value":"Bronchioles"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1338477196": {"method":"GET","path":"icd/release/11/2026-01/mms/1338477196","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1338477196","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1338477196","child":["http://id.who.int/icd/release/11/2026-01/mms/1857689745","http://id.who.int/icd/release/11/2026-01/mms/451817260","http://id.who.int/icd/release/11/2026-01/mms/1941241213","http://id.who.int/icd/release/11/2026-01/mms/1240651973","http://id.who.int/icd/release/11/2026-01/mms/1992239052","http://id.who.int/icd/release/11/2026-01/mms/1953208837","http://id.who.int/icd/release/11/2026-01/mms/2036696624"],"classKind":"category","code":"XA57M6","indexTerm":[{"label":{"@language":"en","@value":"Lung"}},{"label":{"@language":"en","@value":"Pulmonary, NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/909890232"],"source":"http://id.who.int/icd/entity/1338477196","title":{"@language":"en","@value":"Lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1409966790": {"method":"GET","path":"icd/release/11/2026-01/mms/1409966790","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1409966790","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1409966790","classKind":"category","code":"XS1G","indexTerm":[{"label":{"@language":"en","@value":"Stage I"}},{"label":{"@language":"en","@value":"Stage 1"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2122233748"],"source":"http://id.who.int/icd/entity/1409966790","title":{"@language":"en","@value":"Stage I"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1418562110": {"method":"GET","path":"icd/release/11/2026-01/mms/1418562110","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1418562110","classKind":"category","code":"2C25.0","definition":{"@language":"en","@value":"A carcinoma that arises from the lung and is characterised by the presence of malignant glandular epithelial cells. There is a male predilection with a male to female ratio of 2:1. Usually lung adenocarcinoma is asymptomatic and is identified through screening studies or as an incidental radiologic finding. If clinical symptoms are present they include shortness of breath, cough, hemoptysis, chest pain, and fever. Tobacco smoke is a known risk factor."},"indexTerm":[{"label":{"@language":"en","@value":"Adenocarcinoma of bronchus or lung"}},{"label":{"@language":"en","@value":"bronchiolar adenocarcinoma of unspecified site"}},{"label":{"@language":"en","@value":"lung adenocarcinoma"}},{"label":{"@language":"en","@value":"primary lung adenocarcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/662607999","label":{"@language":"en","@value":"Mucinous adenocarcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/248029418","label":{"@language":"en","@value":"Papillary adenocarcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/962298264","label":{"@language":"en","@value":"Solid carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/467162099","label":{"@language":"en","@value":"Clear cell adenocarcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/881834210","label":{"@language":"en","@value":"Acinar cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/737872831","label":{"@language":"en","@value":"Signet ring cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/158915034","label":{"@language":"en","@value":"Adenosquamous carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/809821999","label":{"@language":"en","@value":"Mucinous cystadenocarcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/315045196","label":{"@language":"en","@value":"Mixed subtype adenocarcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/626267190","label":{"@language":"en","@value":"Fetal adenocarcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1457701610","label":{"@language":"en","@value":"Lepidic adenocarcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/1607432003","label":{"@language":"en","@value":"Bronchioloalveolar adenocarcinoma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1607432003","label":{"@language":"en","@value":"bronchoalveolar adenocarcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/1927573002","label":{"@language":"en","@value":"Alveolar adenocarcinoma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/308108200","label":{"@language":"en","@value":"Metastatic adenocarcinoma of lung [primary adenocarcinoma of lung spreading elsewhere]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1637303052","http://id.who.int/icd/release/11/2026-01/mms/1322869997"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/12605568","http://id.who.int/icd/release/11/2026-01/mms/900837741","http://id.who.int/icd/release/11/2026-01/mms/1850906180","http://id.who.int/icd/release/11/2026-01/mms/888019865","http://id.who.int/icd/release/11/2026-01/mms/867718382","http://id.who.int/icd/release/11/2026-01/mms/2127202862","http://id.who.int/icd/release/11/2026-01/mms/1222083762","http://id.who.int/icd/release/11/2026-01/mms/818219493","http://id.who.int/icd/release/11/2026-01/mms/1450314987","http://id.who.int/icd/release/11/2026-01/mms/634292737","http://id.who.int/icd/release/11/2026-01/mms/1042894837","http://id.who.int/icd/release/11/2026-01/mms/2063199886","http://id.who.int/icd/release/11/2026-01/mms/1477968773","http://id.who.int/icd/release/11/2026-01/mms/1793155313","http://id.who.int/icd/release/11/2026-01/mms/1886142270","http://id.who.int/icd/release/11/2026-01/mms/529352875","http://id.who.int/icd/release/11/2026-01/mms/465106786"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2023608436","http://id.who.int/icd/release/11/2026-01/mms/2001687278","http://id.who.int/icd/release/11/2026-01/mms/222322191","http://id.who.int/icd/release/11/2026-01/mms/841991559","http://id.who.int/icd/release/11/2026-01/mms/697502435"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418562110/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/1418562110","title":{"@language":"en","@value":"Adenocarcinoma of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1445684773": {"method":"GET","path":"icd/release/11/2026-01/mms/1445684773","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1445684773","blockId":"BlockL3-2C2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1445684773","child":["http://id.who.int/icd/release/11/2026-01/mms/1078206702","http://id.who.int/icd/release/11/2026-01/mms/621800828","http://id.who.int/icd/release/11/2026-01/mms/1893076536","http://id.who.int/icd/release/11/2026-01/mms/75194057","http://id.who.int/icd/release/11/2026-01/mms/1630573405","http://id.who.int/icd/release/11/2026-01/mms/316539081","http://id.who.int/icd/release/11/2026-01/mms/855261561","http://id.who.int/icd/release/11/2026-01/mms/1718833206","http://id.who.int/icd/release/11/2026-01/mms/554855119","http://id.who.int/icd/release/11/2026-01/mms/2119272674"],"classKind":"block","code":"","codeRange":"2C20-2C29.Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1965082709","label":{"@language":"en","@value":"Malignant mesenchymal neoplasms"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965082709"},{"foundationReference":"http://id.who.int/icd/entity/1934564626","label":{"@language":"en","@value":"Mesotheliomas of peritoneum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1934564626"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1643222460"],"source":"http://id.who.int/icd/entity/1445684773","title":{"@language":"en","@value":"Malignant neoplasms of middle ear, respiratory or intrathoracic organs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1492119116": {"method":"GET","path":"icd/release/11/2026-01/mms/1492119116","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1492119116","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1492119116","classKind":"category","code":"XA61M6","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/277246160","label":{"@language":"en","@value":"Upper lobe, bronchus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/277246160"},{"foundationReference":"http://id.who.int/icd/entity/885167314","label":{"@language":"en","@value":"Middle lobe, bronchus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/885167314"},{"foundationReference":"http://id.who.int/icd/entity/1864033215","label":{"@language":"en","@value":"Lower lobe, bronchus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1864033215"},{"foundationReference":"http://id.who.int/icd/entity/1857689745","label":{"@language":"en","@value":"Main bronchus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1857689745"}],"indexTerm":[{"label":{"@language":"en","@value":"Bronchus"}},{"label":{"@language":"en","@value":"Bronchi"}},{"label":{"@language":"en","@value":"Bronchogenic"}},{"label":{"@language":"en","@value":"Bronchus, NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1953208837"],"source":"http://id.who.int/icd/entity/1492119116","title":{"@language":"en","@value":"Bronchus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1630407678": {"method":"GET","path":"icd/release/11/2026-01/mms/1630407678","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1630407678","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1630407678","child":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"],"classKind":"chapter","code":"02","definition":{"@language":"en","@value":"An abnormal or uncontrolled cellular proliferation which is not coordinated with an organism's requirements for normal tissue growth, replacement or repair."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1630407678","title":{"@language":"en","@value":"Neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1637303052": {"method":"GET","path":"icd/release/11/2026-01/mms/1637303052","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1637303052","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1637303052","classKind":"category","code":"XA5772","indexTerm":[{"label":{"@language":"en","@value":"Alveoli"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2081481761"],"source":"http://id.who.int/icd/entity/1637303052","title":{"@language":"en","@value":"Alveoli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1643222460": {"method":"GET","path":"icd/release/11/2026-01/mms/1643222460","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1643222460","blockId":"BlockL2-2B5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1643222460","child":["http://id.who.int/icd/release/11/2026-01/mms/1965082709","http://id.who.int/icd/release/11/2026-01/mms/794095161","http://id.who.int/icd/release/11/2026-01/mms/911859018","http://id.who.int/icd/release/11/2026-01/mms/1445684773","http://id.who.int/icd/release/11/2026-01/mms/1706880799","http://id.who.int/icd/release/11/2026-01/mms/442019384","http://id.who.int/icd/release/11/2026-01/mms/1950900731","http://id.who.int/icd/release/11/2026-01/mms/1047754165","http://id.who.int/icd/release/11/2026-01/mms/751805133","http://id.who.int/icd/release/11/2026-01/mms/1894406676","http://id.who.int/icd/release/11/2026-01/mms/1096290580","http://id.who.int/icd/release/11/2026-01/mms/1376721186","http://id.who.int/icd/release/11/2026-01/mms/1120037543","http://id.who.int/icd/release/11/2026-01/mms/1643222460/other","http://id.who.int/icd/release/11/2026-01/mms/1643222460/unspecified"],"classKind":"block","code":"","codeRange":"2B50-2D3Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/2009008947"],"source":"http://id.who.int/icd/entity/1643222460","title":{"@language":"en","@value":"Malignant neoplasms, stated or presumed to be primary, of specified sites, except of lymphoid, haematopoietic, central nervous system or related tissues"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1746207012": {"method":"GET","path":"icd/release/11/2026-01/mms/1746207012","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1746207012","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1746207012","classKind":"category","code":"XS9S","indexTerm":[{"label":{"@language":"en","@value":"C Regional disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1263546640"],"source":"http://id.who.int/icd/entity/1746207012","title":{"@language":"en","@value":"C Regional disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1800431439": {"method":"GET","path":"icd/release/11/2026-01/mms/1800431439","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1800431439","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1800431439","classKind":"category","code":"2C25.1","definition":{"@language":"en","@value":"A highly aggressive subtype of lung carcinoma characterised by the presence of malignant small cells and necrosis. Metastatic disease is usually present at the time of diagnosis."},"indexTerm":[{"label":{"@language":"en","@value":"Small cell carcinoma of bronchus or lung"}},{"label":{"@language":"en","@value":"oat cell carcinoma of unspecified site"}},{"label":{"@language":"en","@value":"small cell fusiform cell lung carcinoma of unspecified site"}},{"label":{"@language":"en","@value":"small cell intermediate cell lung carcinoma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/283530586","label":{"@language":"en","@value":"Small cell bronchial carcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/1851051911","label":{"@language":"en","@value":"Small cell lung cancer"}},{"foundationReference":"http://id.who.int/icd/entity/392248394","label":{"@language":"en","@value":"Combined small cell lung carcinoma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1800431439/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1800431439/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1800431439/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1800431439/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1800431439/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/1800431439","title":{"@language":"en","@value":"Small cell carcinoma of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1826627197": {"method":"GET","path":"icd/release/11/2026-01/mms/1826627197","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1826627197","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1826627197","classKind":"category","code":"2C25.5","indexTerm":[{"label":{"@language":"en","@value":"Unspecified malignant epithelial neoplasm of bronchus or lung"}},{"label":{"@language":"en","@value":"unspecified carcinoma of bronchus or lung"}},{"foundationReference":"http://id.who.int/icd/entity/79056340","label":{"@language":"en","@value":"Metastatic lung carcinoma [primary lung carcinoma spreading elsewhere]"}},{"foundationReference":"http://id.who.int/icd/entity/79056340","label":{"@language":"en","@value":"Metastatic carcinoma of lung [primary carcinoma of lung spreading elsewhere]"}},{"foundationReference":"http://id.who.int/icd/entity/947165291","label":{"@language":"en","@value":"Lung carcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/947165291","label":{"@language":"en","@value":"bronchogenic carcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/947165291","label":{"@language":"en","@value":"carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1034243845","label":{"@language":"en","@value":"Bronchus carcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/1034243845","label":{"@language":"en","@value":"carcinoma of bronchus"}},{"foundationReference":"http://id.who.int/icd/entity/577891921","label":{"@language":"en","@value":"Bronchiolar carcinoma of unspecified site"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826627197/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826627197/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826627197/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826627197/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826627197/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/1826627197","title":{"@language":"en","@value":"Unspecified malignant epithelial neoplasm of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1857689745": {"method":"GET","path":"icd/release/11/2026-01/mms/1857689745","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1857689745","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1857689745","child":["http://id.who.int/icd/release/11/2026-01/mms/841725132","http://id.who.int/icd/release/11/2026-01/mms/942203192"],"classKind":"category","code":"XA9TC5","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/451817260","label":{"@language":"en","@value":"Carina"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/451817260"},{"foundationReference":"http://id.who.int/icd/entity/2114981322","label":{"@language":"en","@value":"Hilum of left lung"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2114981322"},{"foundationReference":"http://id.who.int/icd/entity/971182104","label":{"@language":"en","@value":"Hilum of right lung"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/971182104"}],"indexTerm":[{"label":{"@language":"en","@value":"Main bronchus"}},{"foundationReference":"http://id.who.int/icd/entity/1441195961","label":{"@language":"en","@value":"Hilum of lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/1857689745","title":{"@language":"en","@value":"Main bronchus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1863636238": {"method":"GET","path":"icd/release/11/2026-01/mms/1863636238","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1863636238","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1863636238","classKind":"category","code":"XS0J","indexTerm":[{"label":{"@language":"en","@value":"A Remission / Free of disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1263546640"],"source":"http://id.who.int/icd/entity/1863636238","title":{"@language":"en","@value":"A Remission / Free of disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1941241213": {"method":"GET","path":"icd/release/11/2026-01/mms/1941241213","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1941241213","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1941241213","child":["http://id.who.int/icd/release/11/2026-01/mms/971182104","http://id.who.int/icd/release/11/2026-01/mms/764682130","http://id.who.int/icd/release/11/2026-01/mms/1467935713","http://id.who.int/icd/release/11/2026-01/mms/1576225933"],"classKind":"category","code":"XA7EZ3","indexTerm":[{"label":{"@language":"en","@value":"Right lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/1941241213","title":{"@language":"en","@value":"Right lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1953208837": {"method":"GET","path":"icd/release/11/2026-01/mms/1953208837","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1953208837","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1953208837","child":["http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/2081481761","http://id.who.int/icd/release/11/2026-01/mms/857222326","http://id.who.int/icd/release/11/2026-01/mms/805568052"],"classKind":"category","code":"XA2PV7","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1992239052","label":{"@language":"en","@value":"Lobe of lung"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1992239052"}],"indexTerm":[{"label":{"@language":"en","@value":"Connective and other soft tissues of lung"}},{"label":{"@language":"en","@value":"Tissues and structures of lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/1953208837","title":{"@language":"en","@value":"Connective and other soft tissues of lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1992239052": {"method":"GET","path":"icd/release/11/2026-01/mms/1992239052","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1992239052","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1992239052","child":["http://id.who.int/icd/release/11/2026-01/mms/1983574845","http://id.who.int/icd/release/11/2026-01/mms/922044675","http://id.who.int/icd/release/11/2026-01/mms/1013784154","http://id.who.int/icd/release/11/2026-01/mms/277246160","http://id.who.int/icd/release/11/2026-01/mms/885167314","http://id.who.int/icd/release/11/2026-01/mms/1864033215"],"classKind":"category","code":"XA90M2","indexTerm":[{"label":{"@language":"en","@value":"Lobe of lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/1992239052","title":{"@language":"en","@value":"Lobe of lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2009008947": {"method":"GET","path":"icd/release/11/2026-01/mms/2009008947","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2009008947","blockId":"BlockL1-2B5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2009008947","child":["http://id.who.int/icd/release/11/2026-01/mms/1643222460","http://id.who.int/icd/release/11/2026-01/mms/1594217552","http://id.who.int/icd/release/11/2026-01/mms/1917052637"],"classKind":"block","code":"","codeRange":"2B50-2E2Z","codingNote":{"@language":"en","@value":"For use of this category, reference should be made to the mortality coding rules and guidelines in the Reference Guide."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/879154182","label":{"@language":"en","@value":"Neoplasms of central nervous system or related structures"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/879154182"},{"foundationReference":"http://id.who.int/icd/entity/944754984","label":{"@language":"en","@value":"Neoplasms of haematopoietic or lymphoid tissues"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/944754984"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1630407678"],"source":"http://id.who.int/icd/entity/2009008947","title":{"@language":"en","@value":"Malignant neoplasms, except primary neoplasms of lymphoid, haematopoietic, central nervous system or related tissues"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2036696624": {"method":"GET","path":"icd/release/11/2026-01/mms/2036696624","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2036696624","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2036696624","child":["http://id.who.int/icd/release/11/2026-01/mms/1693767745","http://id.who.int/icd/release/11/2026-01/mms/1837026391","http://id.who.int/icd/release/11/2026-01/mms/1200701439","http://id.who.int/icd/release/11/2026-01/mms/1943846017","http://id.who.int/icd/release/11/2026-01/mms/1852527073"],"classKind":"category","code":"XA4U64","indexTerm":[{"label":{"@language":"en","@value":"Pulmonary artery"}},{"label":{"@language":"en","@value":"artery of lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/2036696624","title":{"@language":"en","@value":"Pulmonary artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2045832550": {"method":"GET","path":"icd/release/11/2026-01/mms/2045832550","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2045832550","classKind":"category","code":"2C25.2","definition":{"@language":"en","@value":"A carcinoma arising from malignant squamous bronchial epithelial cells and characterised by the presence of keratinization and/or intercellular bridges. Cigarette smoking and arsenic exposure are strongly associated with squamous cell lung carcinoma."},"indexTerm":[{"label":{"@language":"en","@value":"Squamous cell carcinoma of bronchus or lung"}},{"foundationReference":"http://id.who.int/icd/entity/1621184652","label":{"@language":"en","@value":"Papillary squamous cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1602010623","label":{"@language":"en","@value":"Basaloid squamous cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1760533633","label":{"@language":"en","@value":"Clear cell squamous cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1393753868","label":{"@language":"en","@value":"Squamous cell cancer of lung"}},{"foundationReference":"http://id.who.int/icd/entity/476588737","label":{"@language":"en","@value":"Small cell non-keratinizing squamous cell carcinoma of lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1738201981","http://id.who.int/icd/release/11/2026-01/mms/665703097","http://id.who.int/icd/release/11/2026-01/mms/402491490","http://id.who.int/icd/release/11/2026-01/mms/1919184181","http://id.who.int/icd/release/11/2026-01/mms/1575678579","http://id.who.int/icd/release/11/2026-01/mms/1572957963","http://id.who.int/icd/release/11/2026-01/mms/1545112705","http://id.who.int/icd/release/11/2026-01/mms/1038806115","http://id.who.int/icd/release/11/2026-01/mms/1181505860","http://id.who.int/icd/release/11/2026-01/mms/2041452145","http://id.who.int/icd/release/11/2026-01/mms/1455780263","http://id.who.int/icd/release/11/2026-01/mms/218610836","http://id.who.int/icd/release/11/2026-01/mms/1684085490"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2023608436","http://id.who.int/icd/release/11/2026-01/mms/2001687278","http://id.who.int/icd/release/11/2026-01/mms/222322191","http://id.who.int/icd/release/11/2026-01/mms/841991559","http://id.who.int/icd/release/11/2026-01/mms/697502435"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2045832550/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/2045832550","title":{"@language":"en","@value":"Squamous cell carcinoma of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/238069351": {"method":"GET","path":"icd/release/11/2026-01/mms/238069351","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/238069351","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#238069351","classKind":"category","code":"XS9R","indexTerm":[{"label":{"@language":"en","@value":"Stage IV"}},{"label":{"@language":"en","@value":"Stage 4"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2122233748"],"source":"http://id.who.int/icd/entity/238069351","title":{"@language":"en","@value":"Stage IV"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/266800054": {"method":"GET","path":"icd/release/11/2026-01/mms/266800054","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/266800054","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#266800054","classKind":"category","code":"XS0E","indexTerm":[{"label":{"@language":"en","@value":"Local limited"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/885826145"],"source":"http://id.who.int/icd/entity/266800054","title":{"@language":"en","@value":"Local limited"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271422288": {"method":"GET","path":"icd/release/11/2026-01/mms/271422288","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271422288","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271422288","classKind":"category","code":"XK8G","indexTerm":[{"label":{"@language":"en","@value":"Left"}},{"label":{"@language":"en","@value":"unilateral, left"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/271422288","title":{"@language":"en","@value":"Left"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/303697349": {"method":"GET","path":"icd/release/11/2026-01/mms/303697349","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/303697349","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#303697349","classKind":"category","code":"XS4Z","indexTerm":[{"label":{"@language":"en","@value":"D Distant disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1263546640"],"source":"http://id.who.int/icd/entity/303697349","title":{"@language":"en","@value":"D Distant disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/316539081": {"method":"GET","path":"icd/release/11/2026-01/mms/316539081","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#316539081","child":["http://id.who.int/icd/release/11/2026-01/mms/1418562110","http://id.who.int/icd/release/11/2026-01/mms/1800431439","http://id.who.int/icd/release/11/2026-01/mms/2045832550","http://id.who.int/icd/release/11/2026-01/mms/445249863","http://id.who.int/icd/release/11/2026-01/mms/1315163160","http://id.who.int/icd/release/11/2026-01/mms/1826627197","http://id.who.int/icd/release/11/2026-01/mms/316539081/other","http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"],"classKind":"category","code":"2C25","definition":{"@language":"en","@value":"Primary malignant neoplasm originating from tissues of bronchus or lung."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1965082709","label":{"@language":"en","@value":"Malignant mesenchymal neoplasms"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965082709"},{"foundationReference":"http://id.who.int/icd/entity/1976635094","label":{"@language":"en","@value":"Bronchus metastasis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1976635094"},{"foundationReference":"http://id.who.int/icd/entity/1976635094","label":{"@language":"en","@value":"Malignant neoplasm metastasis in lung"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1976635094"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/392248394","label":{"@language":"en","@value":"Combined small cell lung carcinoma"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1800431439"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1445684773"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/406219877","http://id.who.int/icd/release/11/2026-01/mms/978715456","http://id.who.int/icd/release/11/2026-01/mms/1936976727","http://id.who.int/icd/release/11/2026-01/mms/948797042","http://id.who.int/icd/release/11/2026-01/mms/1032412464","http://id.who.int/icd/release/11/2026-01/mms/2008137384","http://id.who.int/icd/release/11/2026-01/mms/436781428","http://id.who.int/icd/release/11/2026-01/mms/237449042","http://id.who.int/icd/release/11/2026-01/mms/2067562277","http://id.who.int/icd/release/11/2026-01/mms/33540540","http://id.who.int/icd/release/11/2026-01/mms/2033599569","http://id.who.int/icd/release/11/2026-01/mms/1070594248","http://id.who.int/icd/release/11/2026-01/mms/405907275","http://id.who.int/icd/release/11/2026-01/mms/544232350","http://id.who.int/icd/release/11/2026-01/mms/224576773","http://id.who.int/icd/release/11/2026-01/mms/1590381103","http://id.who.int/icd/release/11/2026-01/mms/1212072765","http://id.who.int/icd/release/11/2026-01/mms/993247490","http://id.who.int/icd/release/11/2026-01/mms/768160485","http://id.who.int/icd/release/11/2026-01/mms/41542502","http://id.who.int/icd/release/11/2026-01/mms/126336822","http://id.who.int/icd/release/11/2026-01/mms/7133488","http://id.who.int/icd/release/11/2026-01/mms/303158305","http://id.who.int/icd/release/11/2026-01/mms/1170831179","http://id.who.int/icd/release/11/2026-01/mms/197055658","http://id.who.int/icd/release/11/2026-01/mms/729262636","http://id.who.int/icd/release/11/2026-01/mms/1950026135","http://id.who.int/icd/release/11/2026-01/mms/1489884505","http://id.who.int/icd/release/11/2026-01/mms/1926367751","http://id.who.int/icd/release/11/2026-01/mms/646250719","http://id.who.int/icd/release/11/2026-01/mms/926511475","http://id.who.int/icd/release/11/2026-01/mms/142583829","http://id.who.int/icd/release/11/2026-01/mms/2090239636","http://id.who.int/icd/release/11/2026-01/mms/43213057","http://id.who.int/icd/release/11/2026-01/mms/1519436699","http://id.who.int/icd/release/11/2026-01/mms/763872677","http://id.who.int/icd/release/11/2026-01/mms/727519198","http://id.who.int/icd/release/11/2026-01/mms/84990552","http://id.who.int/icd/release/11/2026-01/mms/1276932319","http://id.who.int/icd/release/11/2026-01/mms/1544461014","http://id.who.int/icd/release/11/2026-01/mms/1073612076","http://id.who.int/icd/release/11/2026-01/mms/1408349555","http://id.who.int/icd/release/11/2026-01/mms/851774246","http://id.who.int/icd/release/11/2026-01/mms/1557412545","http://id.who.int/icd/release/11/2026-01/mms/1029961628","http://id.who.int/icd/release/11/2026-01/mms/1535830689","http://id.who.int/icd/release/11/2026-01/mms/1682040224","http://id.who.int/icd/release/11/2026-01/mms/398128844","http://id.who.int/icd/release/11/2026-01/mms/1251027837"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/316539081","title":{"@language":"en","@value":"Malignant neoplasms of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/316539081/other": {"method":"GET","path":"icd/release/11/2026-01/mms/316539081/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#316539081/other","classKind":"category","code":"2C25.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified malignant neoplasms of bronchus or lung"}},{"foundationReference":"http://id.who.int/icd/entity/1013574634","label":{"@language":"en","@value":"Bronchial endocrine tumour"}},{"foundationReference":"http://id.who.int/icd/entity/1013574634","label":{"@language":"en","@value":"Bronchial carcinoid tumour"}},{"foundationReference":"http://id.who.int/icd/entity/1013574634","label":{"@language":"en","@value":"Bronchial neuroendocrine tumour"}},{"foundationReference":"http://id.who.int/icd/entity/298757296","label":{"@language":"en","@value":"Bronchiolo-alveolar carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/860716757","label":{"@language":"en","@value":"Mucinous bronchiolo-alveolar carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/81682347","label":{"@language":"en","@value":"Non-mucinous bronchiolo-alveolar carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/761816892","label":{"@language":"en","@value":"Mixed mucinous or non-mucinous bronchiolo-alveolar carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1735332142","label":{"@language":"en","@value":"Pleuro-pulmonary blastoma"}},{"foundationReference":"http://id.who.int/icd/entity/1735332142","label":{"@language":"en","@value":"pulmonary blastoma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1173144395","label":{"@language":"en","@value":"Pleuro-pulmonary blastoma type I"}},{"foundationReference":"http://id.who.int/icd/entity/2094071232","label":{"@language":"en","@value":"Pleuro-pulmonary blastoma type II"}},{"foundationReference":"http://id.who.int/icd/entity/1582510043","label":{"@language":"en","@value":"Pleuro-pulmonary blastoma type III"}},{"foundationReference":"http://id.who.int/icd/entity/570768354","label":{"@language":"en","@value":"Pleuro-pulmonary blastoma family tumour susceptibility syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1042489672","label":{"@language":"en","@value":"Primary pulmonary lymphoma"}},{"foundationReference":"http://id.who.int/icd/entity/526496571","label":{"@language":"en","@value":"Salivary gland-type tumours of lung"}},{"foundationReference":"http://id.who.int/icd/entity/549215818","label":{"@language":"en","@value":"Adenoid cystic carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/388988728","label":{"@language":"en","@value":"Mucoepidermoid carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1070132501","label":{"@language":"en","@value":"Myoepithelial carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/230766866","label":{"@language":"en","@value":"Sarcomatoid carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/611778949","label":{"@language":"en","@value":"Pulmonary blastoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/611778949","label":{"@language":"en","@value":"Pneumoblastoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/333717755","label":{"@language":"en","@value":"Pleomorphic carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/828895902","label":{"@language":"en","@value":"Giant cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/506468751","label":{"@language":"en","@value":"Carcinosarcoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1358704720","label":{"@language":"en","@value":"Spindle cell carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1774194341","label":{"@language":"en","@value":"Undifferentiated carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/425844952","label":{"@language":"en","@value":"Pancoast tumour"}},{"foundationReference":"http://id.who.int/icd/entity/425844952","label":{"@language":"en","@value":"Pancoast syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1969743250","label":{"@language":"en","@value":"Non small cell lung cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1969743250","label":{"@language":"en","@value":"NSCLC - [non small cell lung cancer]"}},{"foundationReference":"http://id.who.int/icd/entity/1142572394","label":{"@language":"en","@value":"Mesothelial carcinoma of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1772497507","label":{"@language":"en","@value":"Thoracic SMARCA4 deficient undifferentiated tumour"}},{"foundationReference":"http://id.who.int/icd/entity/1292318449","label":{"@language":"en","@value":"Hyalinizing clear cell carcinoma"}},{"foundationReference":"http://id.who.int/icd/entity/929292296","label":{"@language":"en","@value":"Non small cell lung carcinoma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/406219877","http://id.who.int/icd/release/11/2026-01/mms/978715456","http://id.who.int/icd/release/11/2026-01/mms/948797042","http://id.who.int/icd/release/11/2026-01/mms/1032412464","http://id.who.int/icd/release/11/2026-01/mms/2008137384","http://id.who.int/icd/release/11/2026-01/mms/436781428","http://id.who.int/icd/release/11/2026-01/mms/237449042","http://id.who.int/icd/release/11/2026-01/mms/2067562277","http://id.who.int/icd/release/11/2026-01/mms/33540540","http://id.who.int/icd/release/11/2026-01/mms/1070594248","http://id.who.int/icd/release/11/2026-01/mms/405907275","http://id.who.int/icd/release/11/2026-01/mms/544232350","http://id.who.int/icd/release/11/2026-01/mms/224576773","http://id.who.int/icd/release/11/2026-01/mms/1590381103","http://id.who.int/icd/release/11/2026-01/mms/1212072765","http://id.who.int/icd/release/11/2026-01/mms/993247490","http://id.who.int/icd/release/11/2026-01/mms/768160485","http://id.who.int/icd/release/11/2026-01/mms/41542502","http://id.who.int/icd/release/11/2026-01/mms/126336822","http://id.who.int/icd/release/11/2026-01/mms/7133488","http://id.who.int/icd/release/11/2026-01/mms/303158305","http://id.who.int/icd/release/11/2026-01/mms/1170831179","http://id.who.int/icd/release/11/2026-01/mms/197055658","http://id.who.int/icd/release/11/2026-01/mms/729262636","http://id.who.int/icd/release/11/2026-01/mms/1950026135","http://id.who.int/icd/release/11/2026-01/mms/1489884505","http://id.who.int/icd/release/11/2026-01/mms/1926367751","http://id.who.int/icd/release/11/2026-01/mms/646250719","http://id.who.int/icd/release/11/2026-01/mms/926511475","http://id.who.int/icd/release/11/2026-01/mms/142583829","http://id.who.int/icd/release/11/2026-01/mms/2090239636","http://id.who.int/icd/release/11/2026-01/mms/43213057","http://id.who.int/icd/release/11/2026-01/mms/1519436699","http://id.who.int/icd/release/11/2026-01/mms/727519198","http://id.who.int/icd/release/11/2026-01/mms/84990552","http://id.who.int/icd/release/11/2026-01/mms/1276932319","http://id.who.int/icd/release/11/2026-01/mms/1544461014","http://id.who.int/icd/release/11/2026-01/mms/1073612076","http://id.who.int/icd/release/11/2026-01/mms/1408349555","http://id.who.int/icd/release/11/2026-01/mms/851774246","http://id.who.int/icd/release/11/2026-01/mms/1557412545","http://id.who.int/icd/release/11/2026-01/mms/1029961628","http://id.who.int/icd/release/11/2026-01/mms/1535830689","http://id.who.int/icd/release/11/2026-01/mms/1682040224","http://id.who.int/icd/release/11/2026-01/mms/398128844","http://id.who.int/icd/release/11/2026-01/mms/1251027837"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/other/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"title":{"@language":"en","@value":"Other specified malignant neoplasms of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/316539081/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/316539081/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#316539081/unspecified","classKind":"category","code":"2C25.Z","indexTerm":[{"label":{"@language":"en","@value":"Malignant neoplasms of bronchus or lung, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/316539081","label":{"@language":"en","@value":"Malignant neoplasms of bronchus or lung"}},{"foundationReference":"http://id.who.int/icd/entity/316539081","label":{"@language":"en","@value":"bronchiole cancer"}},{"foundationReference":"http://id.who.int/icd/entity/316539081","label":{"@language":"en","@value":"bronchogenic cancer"}},{"foundationReference":"http://id.who.int/icd/entity/316539081","label":{"@language":"en","@value":"malignant pulmonary adenomatosis of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/316539081","label":{"@language":"en","@value":"primary malignant neoplasm of lung"}},{"foundationReference":"http://id.who.int/icd/entity/316539081","label":{"@language":"en","@value":"superior sulcus malignant tumour"}},{"foundationReference":"http://id.who.int/icd/entity/2108282805","label":{"@language":"en","@value":"Lower lobe lung cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1035937730","label":{"@language":"en","@value":"Cancer of the main bronchus"}},{"foundationReference":"http://id.who.int/icd/entity/1035937730","label":{"@language":"en","@value":"main bronchial cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1035937730","label":{"@language":"en","@value":"primary malignant neoplasm of main bronchus"}},{"foundationReference":"http://id.who.int/icd/entity/1501594633","label":{"@language":"en","@value":"Cancer of bronchus"}},{"foundationReference":"http://id.who.int/icd/entity/1501594633","label":{"@language":"en","@value":"bronchial cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1501594633","label":{"@language":"en","@value":"primary malignant neoplasm of bronchus"}},{"foundationReference":"http://id.who.int/icd/entity/2086381895","label":{"@language":"en","@value":"Cancer of middle lobe of lung"}},{"foundationReference":"http://id.who.int/icd/entity/2039119401","label":{"@language":"en","@value":"Cancer of upper lobe lung"}},{"foundationReference":"http://id.who.int/icd/entity/1185393985","label":{"@language":"en","@value":"Primary malignant neoplasm of carina"}},{"foundationReference":"http://id.who.int/icd/entity/1185393985","label":{"@language":"en","@value":"trachea carina cancer"}},{"foundationReference":"http://id.who.int/icd/entity/691871206","label":{"@language":"en","@value":"Primary malignant neoplasm of hilus of lung"}},{"foundationReference":"http://id.who.int/icd/entity/643719046","label":{"@language":"en","@value":"Cancer of alveolus of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1596748377","label":{"@language":"en","@value":"Metastatic lung cancer [primary lung cancer spreading elsewhere]"}},{"foundationReference":"http://id.who.int/icd/entity/1679532614","label":{"@language":"en","@value":"Cancer of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1679532614","label":{"@language":"en","@value":"lung ca [cancer]"}},{"foundationReference":"http://id.who.int/icd/entity/1679532614","label":{"@language":"en","@value":"lung cancer"}},{"foundationReference":"http://id.who.int/icd/entity/1679532614","label":{"@language":"en","@value":"malignant neoplasm of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1679532614","label":{"@language":"en","@value":"malignant tumour of lung"}},{"foundationReference":"http://id.who.int/icd/entity/1679532614","label":{"@language":"en","@value":"pulmonary cancer"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"title":{"@language":"en","@value":"Malignant neoplasms of bronchus or lung, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/322466810": {"method":"GET","path":"icd/release/11/2026-01/mms/322466810","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#322466810","classKind":"category","code":"MG30.10","definition":{"@language":"en","@value":"Chronic cancer pain is chronic pain caused by the primary cancer or metastases. It should be highly probable that the pain is due to cancer; if its genesis is vague, consider using codes in the section of chronic primary pain."},"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/925682659","label":{"@language":"en","@value":"Chronic visceral cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1223823468","label":{"@language":"en","@value":"Chronic bone cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1480100314","label":{"@language":"en","@value":"Chronic neuropathic cancer pain"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic cancer pain"}},{"label":{"@language":"en","@value":"chronic malignant pain"}},{"label":{"@language":"en","@value":"chronic metastases pain"}},{"label":{"@language":"en","@value":"chronic neoplasm pain"}},{"label":{"@language":"en","@value":"chronic neoplastic pain"}},{"foundationReference":"http://id.who.int/icd/entity/925682659","label":{"@language":"en","@value":"Chronic visceral cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1223823468","label":{"@language":"en","@value":"Chronic bone cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1480100314","label":{"@language":"en","@value":"Chronic neuropathic cancer pain"}}],"longDefinition":{"@language":"en","@value":"Chronic cancer pain is chronic pain caused by the primary cancer or metastases. It should be highly probable that the pain is due to cancer; if its genesis is vague, consider using codes in the section of chronic primary pain.\n\nChronic cancer pain is a presenting feature of cancer in over 30% of patients. About 64% of patients experience pain with advanced or persistent cancer. On average, each cancer patient will identify two distinct pains. In many patients, careful assessment is therefore required to distinguish pain caused by cancer from pain caused by cancer treatment or co-morbid conditions. In particular, it is common for these pains to overlap, for example, thoracic surgery for a lung cancer might cause post-surgical pain, which can be exacerbated by cancer recurrence in the same area. In these situations, the clinician must decide the predominant cause of pain and base treatment on this.\n\nDiagnostic Criteria.\n\nConditions A to C are fulfilled:\n\nA. Chronic pain (persistent or recurrent for longer than 3 months) is present.\n\nB. The pain is anatomically related to a known primary tumor or metastases confirmed on clinical and radiological examination.\n\nC. The pain is not better accounted for by another diagnosis of chronic pain"},"parent":["http://id.who.int/icd/release/11/2026-01/mms/785363034"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1007332872","http://id.who.int/icd/release/11/2026-01/mms/597444540"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/501504598","http://id.who.int/icd/release/11/2026-01/mms/932220680","http://id.who.int/icd/release/11/2026-01/mms/671508148","http://id.who.int/icd/release/11/2026-01/mms/579584480"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/137604848","http://id.who.int/icd/release/11/2026-01/mms/1926847105","http://id.who.int/icd/release/11/2026-01/mms/489218088","http://id.who.int/icd/release/11/2026-01/mms/2029211037"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/145592658","http://id.who.int/icd/release/11/2026-01/mms/1824378311","http://id.who.int/icd/release/11/2026-01/mms/1714449067","http://id.who.int/icd/release/11/2026-01/mms/1721227995"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/temporalPatternAndOnset","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/temporalPatternAndOnset","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1281193286","http://id.who.int/icd/release/11/2026-01/mms/1313511357","http://id.who.int/icd/release/11/2026-01/mms/47514516"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"]}],"source":"http://id.who.int/icd/entity/322466810","title":{"@language":"en","@value":"Chronic cancer pain"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/445249863": {"method":"GET","path":"icd/release/11/2026-01/mms/445249863","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#445249863","classKind":"category","code":"2C25.3","indexTerm":[{"label":{"@language":"en","@value":"Large cell carcinoma of bronchus or lung"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/316539081"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1338477196","http://id.who.int/icd/release/11/2026-01/mms/1492119116","http://id.who.int/icd/release/11/2026-01/mms/1322869997","http://id.who.int/icd/release/11/2026-01/mms/1637303052"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2023608436","http://id.who.int/icd/release/11/2026-01/mms/2001687278","http://id.who.int/icd/release/11/2026-01/mms/222322191","http://id.who.int/icd/release/11/2026-01/mms/841991559","http://id.who.int/icd/release/11/2026-01/mms/697502435"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/445249863/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"source":"http://id.who.int/icd/entity/445249863","title":{"@language":"en","@value":"Large cell carcinoma of bronchus or lung"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/451817260": {"method":"GET","path":"icd/release/11/2026-01/mms/451817260","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/451817260","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#451817260","classKind":"category","code":"XA4JA0","indexTerm":[{"label":{"@language":"en","@value":"Carina"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1338477196"],"source":"http://id.who.int/icd/entity/451817260","title":{"@language":"en","@value":"Carina"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/589213071": {"method":"GET","path":"icd/release/11/2026-01/mms/589213071","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/589213071","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#589213071","classKind":"category","code":"XS67","indexTerm":[{"label":{"@language":"en","@value":"Locally advanced"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/885826145"],"source":"http://id.who.int/icd/entity/589213071","title":{"@language":"en","@value":"Locally advanced"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/627678743": {"method":"GET","path":"icd/release/11/2026-01/mms/627678743","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/627678743","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#627678743","classKind":"category","code":"XK9J","indexTerm":[{"label":{"@language":"en","@value":"Bilateral"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/627678743","title":{"@language":"en","@value":"Bilateral"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/876572005": {"method":"GET","path":"icd/release/11/2026-01/mms/876572005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/876572005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#876572005","classKind":"category","code":"XK9K","indexTerm":[{"label":{"@language":"en","@value":"Right"}},{"label":{"@language":"en","@value":"unilateral, right"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/876572005","title":{"@language":"en","@value":"Right"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/885826145": {"method":"GET","path":"icd/release/11/2026-01/mms/885826145","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/885826145","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#885826145","child":["http://id.who.int/icd/release/11/2026-01/mms/266800054","http://id.who.int/icd/release/11/2026-01/mms/589213071"],"classKind":"category","code":"XS05","indexTerm":[{"label":{"@language":"en","@value":"B Local Disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1263546640"],"source":"http://id.who.int/icd/entity/885826145","title":{"@language":"en","@value":"B Local Disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/896293199": {"method":"GET","path":"icd/release/11/2026-01/mms/896293199","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/896293199","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#896293199","classKind":"category","code":"XS4P","indexTerm":[{"label":{"@language":"en","@value":"Stage II"}},{"label":{"@language":"en","@value":"Stage 2"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2122233748"],"source":"http://id.who.int/icd/entity/896293199","title":{"@language":"en","@value":"Stage II"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2C25.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2C25.Z","code":"2C25.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"},"request_body":null,"status":200}
+ }
+}

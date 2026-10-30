@@ -1,0 +1,167 @@
+{
+ "id": "va-12-04",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P4Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NF08.1",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1369717987",
+       "Text": "Drowned in a pond"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA90",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1117679527",
+       "Text": "Drowning in a pond"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "child",
+  "id": "va-12-04",
+  "source": "VA cause VAs-12.04 Accidental drowning and submersion",
+  "why": "Accidental drowning and submersion: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NF08.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA90",
+    "POST icd/release/11/2026-01/doris #3fa77db8b1",
+    "POST icd/release/11/2026-01/codedit #3fa77db8b1"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P4Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NF08.1",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1369717987",
+          "Text": "Drowned in a pond"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA90",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1117679527",
+          "Text": "Drowning in a pond"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA90/NF08.1",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA90 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NF08.1 - as postcoordination for the current TUC - PA90.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA90 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA90.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA90.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NF08.1 - as postcoordination for the current TUC - PA90.\n",
+       "stemCode": "PA90",
+       "stemURI": "http://id.who.int/icd/entity/1117679527",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA90;PA90;;;0;SP3: PA90 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA90;;;;;0;SP6: is not applicable with the current TSP PA90.;;;;BER\nSP7;False;PA90;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA90;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA90;;;;;0;M1: There is no special instruction applicable with TUC PA90.;;;;BER\nM2;False;PA90;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA90;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA90/NF08.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1117679527 / http://id.who.int/icd/release/11/mms/1369717987",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA90",
+       "role": "stem",
+       "title": "Drowning in a pond",
+       "uri": "http://id.who.int/icd/release/11/mms/1117679527"
+      },
+      {
+       "code": "NF08.1",
+       "role": "postcoordinated",
+       "title": "Drowned in a pond",
+       "uri": "http://id.who.int/icd/release/11/mms/1369717987"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P4Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NF08.1",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1369717987",
+         "Text": "Drowned in a pond"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA90",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1117679527",
+         "Text": "Drowning in a pond"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NF08.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NF08.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NF08.1","code":"NF08.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1369717987"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA90": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA90","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA90","code":"PA90","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1117679527"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #3fa77db8b1": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P4Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NF08.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1369717987\",\"Text\":\"Drowned in a pond\"}]},{\"Conditions\":[{\"Code\":\"PA90\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1117679527\",\"Text\":\"Drowning in a pond\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #3fa77db8b1": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA90/NF08.1","error":null,"reject":false,"report":"SP3: PA90 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NF08.1 - as postcoordination for the current TUC - PA90.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA90 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA90.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA90.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NF08.1 - as postcoordination for the current TUC - PA90.\n","stemCode":"PA90","stemURI":"http://id.who.int/icd/entity/1117679527","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA90;PA90;;;0;SP3: PA90 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA90;;;;;0;SP6: is not applicable with the current TSP PA90.;;;;BER\nSP7;False;PA90;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA90;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA90;;;;;0;M1: There is no special instruction applicable with TUC PA90.;;;;BER\nM2;False;PA90;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA90;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA90/NF08.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1117679527 / http://id.who.int/icd/release/11/mms/1369717987","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P4Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NF08.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1369717987\",\"Text\":\"Drowned in a pond\"}]},{\"Conditions\":[{\"Code\":\"PA90\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1117679527\",\"Text\":\"Drowning in a pond\"}]}]}","status":200}
+ }
+}

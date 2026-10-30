@@ -99,4 +99,4 @@ adb -s "$SERIAL" shell rm -f "$DEVICE_TRACE" </dev/null >/dev/null 2>&1
 
 echo "trace: $LOCAL_TRACE"
 echo "open it at https://ui.perfetto.dev (Open trace file, or drag the file onto the page)"
-echo "app sections are named icd11.init, icd11.copy, icd11.search, icd11.codeinfo, icd11.doris, icd11.codedit"
+echo "app sections are named icd11.init, icd11.copy and icd11.call (every engine call)"

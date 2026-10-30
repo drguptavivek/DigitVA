@@ -1,0 +1,138 @@
+{
+ "id": "va-09-05",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P19Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MaternalDeath": {
+    "PregnancyContribute": 1,
+    "TimeFromPregnancy": 0,
+    "WasPregnant": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "JB04.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified",
+       "Text": "Obstructed labour"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-09-05",
+  "source": "VA cause VAs-09.05 Obstructed labour",
+  "why": "Obstructed labour: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB04.Z",
+    "POST icd/release/11/2026-01/doris #22969242a0",
+    "POST icd/release/11/2026-01/codedit #22969242a0"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P19Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MaternalDeath": {
+       "PregnancyContribute": 1,
+       "TimeFromPregnancy": 0,
+       "WasPregnant": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "JB04.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified",
+          "Text": "Obstructed labour"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "JB04.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: JB04.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB04.Z - remains the TUC.\n\n\nFull report:\nSP1: JB04.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JB04.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JB04.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB04.Z - remains the TUC.\n",
+       "stemCode": "JB04.Z",
+       "stemURI": "http://id.who.int/icd/entity/1904468617/mms/unspecified",
+       "tabularReport": "MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JB04.Z;JB04.Z;;;0;SP1: JB04.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JB04.Z;;;;;0;SP6: is not applicable with the current TSP JB04.Z.;;;;BER\nSP7;False;JB04.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JB04.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JB04.Z;;;;;0;M1: There is no special instruction applicable with TUC JB04.Z.;;;;BER\nM2;False;JB04.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JB04.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JB04.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JB04.Z;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB04.Z - remains the TUC.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1904468617/unspecified",
+       "warning": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "JB04.Z",
+       "role": "stem",
+       "title": "Obstructed labour",
+       "uri": "http://id.who.int/icd/release/11/mms/1904468617/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P19Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MaternalDeath": {
+      "PregnancyContribute": 1,
+      "TimeFromPregnancy": 0,
+      "WasPregnant": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "JB04.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified",
+         "Text": "Obstructed labour"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/JB04.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB04.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB04.Z","code":"JB04.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #22969242a0": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P19Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JB04.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified\",\"Text\":\"Obstructed labour\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #22969242a0": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"JB04.Z","error":null,"reject":false,"report":"SP1: JB04.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB04.Z - remains the TUC.\n\n\nFull report:\nSP1: JB04.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JB04.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JB04.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB04.Z - remains the TUC.\n","stemCode":"JB04.Z","stemURI":"http://id.who.int/icd/entity/1904468617/mms/unspecified","tabularReport":"MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JB04.Z;JB04.Z;;;0;SP1: JB04.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JB04.Z;;;;;0;SP6: is not applicable with the current TSP JB04.Z.;;;;BER\nSP7;False;JB04.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JB04.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JB04.Z;;;;;0;M1: There is no special instruction applicable with TUC JB04.Z.;;;;BER\nM2;False;JB04.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JB04.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JB04.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JB04.Z;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB04.Z - remains the TUC.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1904468617/unspecified","warning":"Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P19Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JB04.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified\",\"Text\":\"Obstructed labour\"}]}]}","status":200}
+ }
+}

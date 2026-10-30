@@ -1,0 +1,75 @@
+{
+ "id": "s182-syn-bronchial-asthma",
+ "input": {
+  "concept": "asthma",
+  "id": "s182-syn-bronchial-asthma",
+  "kind": "synonym",
+  "query": "bronchial asthma",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for asthma (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #fea0204f1c"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "CA23.32",
+       "has_coding_note": false,
+       "matching_text": "Unspecified asthma, uncomplicated",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Unspecified asthma, uncomplicated",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/577724120"
+      },
+      {
+       "code": "CA23.0",
+       "has_coding_note": false,
+       "matching_text": "Allergic asthma",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Allergic asthma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1870104478"
+      },
+      {
+       "code": "CA23.31",
+       "has_coding_note": false,
+       "matching_text": "Unspecified asthma with status asthmaticus",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Unspecified asthma with status asthmaticus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1480952049"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "bronchial asthma",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #fea0204f1c": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/577724120","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/577724120","important":true,"label":"<em class='found'>bronchial</em> <em class='found'>asthma</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/577724120","theCode":"CA23.32","title":"Unspecified <em class='found'>asthma</em><em class='nonwbe'></em>, uncomplicated","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1870104478","important":false,"isLeaf":false,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/704667586","important":false,"label":"childhood <em class='found'>bronchial</em> <em class='found'>asthma</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.5029051936414658}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5029051936414658,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1870104478","theCode":"CA23.0","title":"Allergic <em class='found'>asthma</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1480952049","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1480952049","important":false,"label":"acute severe <em class='found'>bronchial</em> <em class='found'>asthma</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.6049936447525125}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.6049936447525125,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1480952049","theCode":"CA23.31","title":"Unspecified <em class='found'>asthma</em><em class='nonwbe'></em> with status <em class='found'>asthma</em><em class='nonwbe'>ticus</em>","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=bronchial+asthma%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

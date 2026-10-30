@@ -148,7 +148,7 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
                   testID={testID ? `${testID}-typed` : undefined}
                 />
               ) : null}
-              <ScrollView showsVerticalScrollIndicator testID={testID ? `${testID}-options` : undefined}>
+              <ScrollView keyboardDismissMode="on-drag" showsVerticalScrollIndicator testID={testID ? `${testID}-options` : undefined}>
                 {selectableOptions.map((option) => {
                   const selectedOption = option.value === value;
                   return (

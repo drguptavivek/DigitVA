@@ -1,0 +1,99 @@
+{
+ "id": "s218-syn-postpartum-hemorrhage",
+ "input": {
+  "concept": "postpartum haemorrhage",
+  "id": "s218-syn-postpartum-hemorrhage",
+  "kind": "synonym",
+  "query": "postpartum hemorrhage",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for postpartum haemorrhage (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #628d45b27f"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 14,
+     "items": [
+      {
+       "code": "JA43.Z",
+       "has_coding_note": false,
+       "matching_text": "Postpartum haemorrhage, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Postpartum haemorrhage, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified"
+      },
+      {
+       "code": "JA43.1",
+       "has_coding_note": false,
+       "matching_text": "Other immediate postpartum haemorrhage",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other immediate postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+      },
+      {
+       "code": "JA43.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified postpartum haemorrhage",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/other"
+      },
+      {
+       "code": "JA43.2",
+       "has_coding_note": false,
+       "matching_text": "Delayed or secondary postpartum haemorrhage",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Delayed or secondary postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/803406203"
+      },
+      {
+       "code": "JA43.0",
+       "has_coding_note": false,
+       "matching_text": "Third-stage haemorrhage",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Third-stage haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1040555026"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "postpartum hemorrhage",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #628d45b27f": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/820245648","important":false,"label":"<em class='found'>Postpartum</em> haemorrhage","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/820245648","important":false,"label":"<em class='found'>hemorrhage</em><em class='nonwbe'></em> <em class='found'>after</em> <em class='found'>childbirth</em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified","theCode":"JA43.Z","title":"<em class='found'>Postpartum</em> haemorrhage, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1531859332","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1531859332","important":false,"label":"<em class='found'>Postpartum</em> haemorrhage NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1531859332","important":false,"label":"primary <em class='found'>postpartum</em> haemorrhage","propertyId":"Synonym","propertyValueType":0,"score":0.5829773997203846},{"foundationUri":"http://id.who.int/icd/entity/1531859332","important":false,"label":"PPH - [<em class='found'>postpartum</em> haemorrhage]","propertyId":"Synonym","propertyValueType":0,"score":0.40918771914898716},{"foundationUri":"http://id.who.int/icd/entity/1618043000","important":false,"label":"<em class='found'>Postpartum</em> haemorrhage atonic NOS","propertyId":"Synonym","propertyValueType":1,"score":0.10365180111165762}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332","theCode":"JA43.1","title":"Other immediate <em class='found'>postpartum</em> haemorrhage","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.6144689078939803,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/820245648/other","theCode":"JA43.Y","title":"Other specified <em class='found'>postpartum</em> haemorrhage","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/803406203","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/803406203","important":false,"label":"delayed <em class='found'>postpartum</em> haemorrhage","propertyId":"Synonym","propertyValueType":0,"score":0.5422318279557147},{"foundationUri":"http://id.who.int/icd/entity/803406203","important":false,"label":"<em class='found'>postpartum</em> haemorrhage specified as delayed or secondary","propertyId":"Synonym","propertyValueType":0,"score":0.22664147327359332},{"foundationUri":"http://id.who.int/icd/entity/803406203","important":false,"label":"delayed and secondary <em class='found'>postpartum</em> haemorrhage, unspecified as to episode of care","propertyId":"Synonym","propertyValueType":0,"score":0.011168441342261252}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.5422318279557147,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/803406203","theCode":"JA43.2","title":"Delayed or secondary <em class='found'>postpartum</em> haemorrhage","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1040555026","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1040555026","important":false,"label":"third-stage <em class='found'>postpartum</em> haemorrhage","propertyId":"Synonym","propertyValueType":0,"score":0.4029389561862208}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.4029389561862208,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1040555026","theCode":"JA43.0","title":"Third-stage haemorrhage","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/1181865707/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.3801644852349509,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B1Z","title":"<em class='found'>Postpartum</em> coagulation defects [Hereditary haemorrhagic disorder]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/156218529/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1252576495 / http://id.who.int/icd/entity/997721293","important":false,"label":"<em class='found'>Postpartum</em> coagulation defects [haemorrhagic disorder due to overwarfarinisation]","propertyId":"Title","propertyValueType":3,"score":0.26431188126433236},{"foundationUri":"http://id.who.int/icd/entity/1252576495 / http://id.who.int/icd/entity/156218529","important":false,"label":"<em class='found'>Postpartum</em> coagulation defects [haemorrhagic disorder due to excess administered heparin]","propertyId":"Title","propertyValueType":3,"score":0.09654454240550853},{"foundationUri":"http://id.who.int/icd/entity/1252576495 / http://id.who.int/icd/entity/156218529","important":false,"label":"<em class='found'>Postpartum</em> coagulation defects [Haemorrhagic disorder due to circulating anticoagulants or coagulation factors inhibitors]","propertyId":"Title","propertyValueType":3,"score":0.04948915976279681},{"foundationUri":"http://id.who.int/icd/entity/1252576495 / http://id.who.int/icd/entity/156218529","important":false,"label":"<em class='found'>Postpartum</em> coagulation defects [haemorrhagic disorder due to antithrombinaemia]","propertyId":"Title","propertyValueType":3,"score":-0.07990210016465434},{"foundationUri":"http://id.who.int/icd/entity/1252576495 / http://id.who.int/icd/entity/156218529","important":false,"label":"<em class='found'>Postpartum</em> coagulation defects [haemorrhagic disorder due to hyperheparinemia]","propertyId":"Title","propertyValueType":3,"score":-0.08967516252555077}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.26431188126433236,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B21.Z","title":"<em class='found'>Postpartum</em> coagulation defects [Haemorrhagic disorders due to circulating anticoagulants, drug-induced]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/2057381685/other","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.2551895086422519,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B2Y","title":"<em class='found'>Postpartum</em> coagulation defects [Other specified haemorrhagic diseases due to acquired coagulation factor defects]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/171766827","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.13781051306078396,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B21.1","title":"<em class='found'>Postpartum</em> coagulation defects [Haemorrhage due to factor Xa inhibitor]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/156218529/other","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.10783108467375993,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B21.Y","title":"<em class='found'>Postpartum</em> coagulation defects [Haemorrhagic disorder due to other specified circulating anticoagulants or coagulation factors]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1388318842","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.046335312889598815,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1388318842","theCode":"JA43.4","title":"<em class='found'>Postpartum</em> haemorrhage following obstructed labour with uterine rupture","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/846055373","important":false,"label":"<em class='found'>Postpartum</em> fibrinolysis with haemorrhage","propertyId":"Title","propertyValueType":1,"score":0.039065065237072476}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.039065065237072476,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3","title":"<em class='found'>Postpartum</em> coagulation defects","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495 / http://id.who.int/icd/release/11/2026-01/mms/836204111","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.015117353693628469,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","theCode":"JA43.3/3B21.0","title":"<em class='found'>Postpartum</em> coagulation defects [Haemorrhage due to thrombin inhibitor other than heparin]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1811689101","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.1849177769410982,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1811689101","theCode":"JA43.5","title":"<em class='found'>Postpartum</em> haemorrhage following obstructed labour without mention of uterine rupture","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=postpartum+hemorrhage%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

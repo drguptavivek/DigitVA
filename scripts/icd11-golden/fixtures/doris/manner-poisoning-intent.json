@@ -1,0 +1,167 @@
+{
+ "id": "manner-poisoning-intent",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P19Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 2
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NE61",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+       "Text": "Pesticide poisoning"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PD03",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1463446644",
+       "Text": "Swallowed pesticide on purpose"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "manner-poisoning-intent",
+  "source": "VA cause VAs-12.07 Accidental poisoning and exposure to noxious substances; VA cause VAs-12.08 Intentional self-harm",
+  "why": "Self-poisoning with pesticide"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NE61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PD03",
+    "POST icd/release/11/2026-01/doris #5a1354da3c",
+    "POST icd/release/11/2026-01/codedit #5a1354da3c"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P19Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 2
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NE61",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+          "Text": "Pesticide poisoning"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PD03",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1463446644",
+          "Text": "Swallowed pesticide on purpose"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PD03/NE61",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PD03 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PD03.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PD03 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PD03.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PD03.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PD03.\n",
+       "stemCode": "PD03",
+       "stemURI": "http://id.who.int/icd/entity/1463446644",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PD03;PD03;;;0;SP3: PD03 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PD03;;;;;0;SP6: is not applicable with the current TSP PD03.;;;;BER\nSP7;False;PD03;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PD03;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PD03;;;;;0;M1: There is no special instruction applicable with TUC PD03.;;;;BER\nM2;False;PD03;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PD03;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PD03/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1463446644 / http://id.who.int/icd/release/11/mms/1119330136",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PD03",
+       "role": "stem",
+       "title": "Swallowed pesticide on purpose",
+       "uri": "http://id.who.int/icd/release/11/mms/1463446644"
+      },
+      {
+       "code": "NE61",
+       "role": "postcoordinated",
+       "title": "Pesticide poisoning",
+       "uri": "http://id.who.int/icd/release/11/mms/1119330136"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P19Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 2
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NE61",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+         "Text": "Pesticide poisoning"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PD03",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1463446644",
+         "Text": "Swallowed pesticide on purpose"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NE61": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NE61","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NE61","code":"NE61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PD03": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PD03","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PD03","code":"PD03","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1463446644"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #5a1354da3c": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P19Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":2},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Pesticide poisoning\"}]},{\"Conditions\":[{\"Code\":\"PD03\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1463446644\",\"Text\":\"Swallowed pesticide on purpose\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #5a1354da3c": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PD03/NE61","error":null,"reject":false,"report":"SP3: PD03 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PD03.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PD03 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PD03.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PD03.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PD03.\n","stemCode":"PD03","stemURI":"http://id.who.int/icd/entity/1463446644","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PD03;PD03;;;0;SP3: PD03 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PD03;;;;;0;SP6: is not applicable with the current TSP PD03.;;;;BER\nSP7;False;PD03;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PD03;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PD03;;;;;0;M1: There is no special instruction applicable with TUC PD03.;;;;BER\nM2;False;PD03;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PD03;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PD03/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1463446644 / http://id.who.int/icd/release/11/mms/1119330136","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P19Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":2},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Pesticide poisoning\"}]},{\"Conditions\":[{\"Code\":\"PD03\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1463446644\",\"Text\":\"Swallowed pesticide on purpose\"}]}]}","status":200}
+ }
+}

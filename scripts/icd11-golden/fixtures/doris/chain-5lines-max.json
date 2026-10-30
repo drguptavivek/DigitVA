@@ -1,0 +1,278 @@
+{
+ "id": "chain-5lines-max",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P65Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "CB41.0Z",
+       "Interval": "PT5H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified",
+       "Text": "Respiratory failure"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "CA40.Z",
+       "Interval": "P4D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+       "Text": "Pneumonia"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "5A22.0",
+       "Interval": "P6D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/540530695",
+       "Text": "Ketoacidosis"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "5A11",
+       "Interval": "P9Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetes"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "BA00.Z",
+       "Interval": "P12Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+       "Text": "Hypertension"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-5lines-max",
+  "source": "VA cause VAs-03.03 Diabetes mellitus; VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+  "why": "Five lines (the server maximum): respiratory failure down to diabetes"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/CB41.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A22.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z",
+    "POST icd/release/11/2026-01/doris #c0c06ad1fa",
+    "POST icd/release/11/2026-01/codedit #c0c06ad1fa"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P65Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "CB41.0Z",
+          "Interval": "PT5H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified",
+          "Text": "Respiratory failure"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "CA40.Z",
+          "Interval": "P4D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+          "Text": "Pneumonia"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "5A22.0",
+          "Interval": "P6D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/540530695",
+          "Text": "Ketoacidosis"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "5A11",
+          "Interval": "P9Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetes"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "BA00.Z",
+          "Interval": "P12Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+          "Text": "Hypertension"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP4: 5A11 is the starting point of the first-mentioned sequence (CB41.0Z due to CA40.Z due to 5A22.0 due to 5A11), which is selected as the tentative starting point (TSP).\nCB41.0Z, CA40.Z, 5A22.0, BA00.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: is not applicable.\nSP4: 5A11 is the starting point of the first-mentioned sequence (CB41.0Z due to CA40.Z due to 5A22.0 due to 5A11), which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nCB41.0Z, CA40.Z, 5A22.0, BA00.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z.\n",
+       "stemCode": "5A11",
+       "stemURI": "http://id.who.int/icd/entity/119724091",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;False;;;;;;0;SP3: is not applicable.;;;;BER\nSP4;True;;5A11;5A11;;;0;SP4: 5A11 is the starting point of the first-mentioned sequence (CB41.0Z due to CA40.Z due to 5A22.0 due to 5A11), which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z;CB41.0Z, CA40.Z, 5A22.0, BA00.Z;Substitution:3:5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z;;0;CB41.0Z, CA40.Z, 5A22.0, BA00.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z.;;;1,\"The postcoordinations - CB41.0Z, CA40.Z, 5A22.0, BA00.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/875272781/unspecified / http://id.who.int/icd/release/11/mms/142052508/unspecified / http://id.who.int/icd/release/11/mms/540530695 / http://id.who.int/icd/release/11/mms/761947693/unspecified",
+       "warning": "The postcoordinations - CB41.0Z, CA40.Z, 5A22.0, BA00.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "5A11",
+       "role": "stem",
+       "title": "Diabetes",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091"
+      },
+      {
+       "code": "CB41.0Z",
+       "role": "postcoordinated",
+       "title": "Respiratory failure",
+       "uri": "http://id.who.int/icd/release/11/mms/875272781/unspecified"
+      },
+      {
+       "code": "CA40.Z",
+       "role": "postcoordinated",
+       "title": "Pneumonia",
+       "uri": "http://id.who.int/icd/release/11/mms/142052508/unspecified"
+      },
+      {
+       "code": "5A22.0",
+       "role": "postcoordinated",
+       "title": "Ketoacidosis",
+       "uri": "http://id.who.int/icd/release/11/mms/540530695"
+      },
+      {
+       "code": "BA00.Z",
+       "role": "postcoordinated",
+       "title": "Hypertension",
+       "uri": "http://id.who.int/icd/release/11/mms/761947693/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P65Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "CB41.0Z",
+         "Interval": "PT5H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified",
+         "Text": "Respiratory failure"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "CA40.Z",
+         "Interval": "P4D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+         "Text": "Pneumonia"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "5A22.0",
+         "Interval": "P6D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/540530695",
+         "Text": "Ketoacidosis"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "5A11",
+         "Interval": "P9Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "BA00.Z",
+         "Interval": "P12Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+         "Text": "Hypertension"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/5A22.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A22.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A22.0","code":"5A22.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/540530695"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA00.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA00.Z","code":"BA00.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.Z","code":"CA40.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CB41.0Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CB41.0Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CB41.0Z","code":"CB41.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #c0c06ad1fa": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P65Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CB41.0Z\",\"Interval\":\"PT5H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified\",\"Text\":\"Respiratory failure\"}]},{\"Conditions\":[{\"Code\":\"CA40.Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified\",\"Text\":\"Pneumonia\"}]},{\"Conditions\":[{\"Code\":\"5A22.0\",\"Interval\":\"P6D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/540530695\",\"Text\":\"Ketoacidosis\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]},{\"Conditions\":[{\"Code\":\"BA00.Z\",\"Interval\":\"P12Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"Hypertension\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #c0c06ad1fa": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z","error":null,"reject":false,"report":"SP4: 5A11 is the starting point of the first-mentioned sequence (CB41.0Z due to CA40.Z due to 5A22.0 due to 5A11), which is selected as the tentative starting point (TSP).\nCB41.0Z, CA40.Z, 5A22.0, BA00.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: is not applicable.\nSP4: 5A11 is the starting point of the first-mentioned sequence (CB41.0Z due to CA40.Z due to 5A22.0 due to 5A11), which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nCB41.0Z, CA40.Z, 5A22.0, BA00.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z.\n","stemCode":"5A11","stemURI":"http://id.who.int/icd/entity/119724091","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;False;;;;;;0;SP3: is not applicable.;;;;BER\nSP4;True;;5A11;5A11;;;0;SP4: 5A11 is the starting point of the first-mentioned sequence (CB41.0Z due to CA40.Z due to 5A22.0 due to 5A11), which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z;CB41.0Z, CA40.Z, 5A22.0, BA00.Z;Substitution:3:5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z;;0;CB41.0Z, CA40.Z, 5A22.0, BA00.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/CB41.0Z/CA40.Z/5A22.0/BA00.Z.;;;1,\"The postcoordinations - CB41.0Z, CA40.Z, 5A22.0, BA00.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/875272781/unspecified / http://id.who.int/icd/release/11/mms/142052508/unspecified / http://id.who.int/icd/release/11/mms/540530695 / http://id.who.int/icd/release/11/mms/761947693/unspecified","warning":"The postcoordinations - CB41.0Z, CA40.Z, 5A22.0, BA00.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P65Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CB41.0Z\",\"Interval\":\"PT5H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified\",\"Text\":\"Respiratory failure\"}]},{\"Conditions\":[{\"Code\":\"CA40.Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified\",\"Text\":\"Pneumonia\"}]},{\"Conditions\":[{\"Code\":\"5A22.0\",\"Interval\":\"P6D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/540530695\",\"Text\":\"Ketoacidosis\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]},{\"Conditions\":[{\"Code\":\"BA00.Z\",\"Interval\":\"P12Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"Hypertension\"}]}]}","status":200}
+ }
+}

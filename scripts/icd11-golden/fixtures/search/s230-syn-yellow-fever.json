@@ -1,0 +1,99 @@
+{
+ "id": "s230-syn-yellow-fever",
+ "input": {
+  "concept": "jaundice",
+  "id": "s230-syn-yellow-fever",
+  "kind": "synonym",
+  "query": "yellow fever",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for jaundice (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #477c7c1886"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "1D47",
+       "has_coding_note": false,
+       "matching_text": "Yellow fever",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Yellow fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/383352795"
+      },
+      {
+       "code": "NE60",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of drugs, medicaments or biological substances, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of drugs, medicaments or biological substances, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1868408442"
+      },
+      {
+       "code": "QA08.5",
+       "has_coding_note": false,
+       "matching_text": "Special screening examination for other viral diseases",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Special screening examination for other viral diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/412651167"
+      },
+      {
+       "code": "QC01.3",
+       "has_coding_note": false,
+       "matching_text": "Need for immunization against yellow fever",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Need for immunization against yellow fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/404073523"
+      },
+      {
+       "code": "PB28&XM0N24",
+       "has_coding_note": false,
+       "matching_text": "Unintentional exposure to or harmful effects of yellow fever vaccines",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional exposure to or harmful effects of yellow fever vaccines",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/799356470 & http://id.who.int/icd/release/11/2026-01/mms/187973104"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "yellow fever",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #477c7c1886": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/383352795","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1805149915","important":false,"label":"Urban <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.48232805382222177},{"foundationUri":"http://id.who.int/icd/entity/383352795","important":false,"label":"YF- [<em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-0.6229114292297453},{"foundationUri":"http://id.who.int/icd/entity/248752975","important":false,"label":"Sylvatic <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.6229114292297453},{"foundationUri":"http://id.who.int/icd/entity/248752975","important":false,"label":"Jungle <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.6229114292297453},{"foundationUri":"http://id.who.int/icd/entity/248752975","important":false,"label":"sylvan <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.6697725543655866}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/383352795","theCode":"1D47","title":"<em class='found'>Yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1993495241","important":false,"label":"Harmful effects of <em class='found'>Yellow</em> <em class='found'>fever</em><em class='nonwbe'></em> vaccines","propertyId":"Title","propertyValueType":1,"score":-0.6734277009932857}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.6734277009932857,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","theCode":"NE60","title":"Harmful effects of drugs, medicaments or biological substances, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/412651167","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/813803043","important":false,"label":"<em class='found'>Yellow</em> <em class='found'>fever</em><em class='nonwbe'></em> screening","propertyId":"Title","propertyValueType":1,"score":-1.0838374694761956}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.0838374694761956,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/412651167","theCode":"QA08.5","title":"Special screening examination for other viral diseases","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/404073523","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/404073523","important":false,"label":"prophylactic vaccination against <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.1578438712918167}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.1578438712918167,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/404073523","theCode":"QC01.3","title":"Need for immunization against <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/799356470 & http://id.who.int/icd/release/11/2026-01/mms/187973104","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.7082987122130868,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/799356470","theCode":"PB28&XM0N24","title":"Unintentional exposure to or harmful effects of <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em> vaccines","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1593715151 & http://id.who.int/icd/release/11/2026-01/mms/187973104","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.9526022057241745,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1593715151","theCode":"PC98&XM0N24","title":"Intentional self-harm by exposure to or harmful effects of <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em> vaccines","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/638046280 & http://id.who.int/icd/release/11/2026-01/mms/187973104","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.9770481702333995,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/638046280","theCode":"PH48&XM0N24","title":"Exposure to or harmful effects of undetermined intent of <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em> vaccines","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1408645785 & http://id.who.int/icd/release/11/2026-01/mms/187973104","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.1335941792062023,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1408645785","theCode":"PE88&XM0N24","title":"Assault by or harmful exposure to <em class='found'>yellow</em> <em class='found'>fever</em><em class='nonwbe'></em> vaccines","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=yellow+fever%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

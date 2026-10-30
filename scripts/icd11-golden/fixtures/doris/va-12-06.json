@@ -1,0 +1,167 @@
+{
+ "id": "va-12-06",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P40Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NE61",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+       "Text": "Snake bite poisoning"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA78",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386",
+       "Text": "Snake bite"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-06",
+  "source": "VA cause VAs-12.06 Contact with venomous animals and plants",
+  "why": "Contact with venomous animals and plants: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NE61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA78",
+    "POST icd/release/11/2026-01/doris #21240e8e70",
+    "POST icd/release/11/2026-01/codedit #21240e8e70"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P40Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NE61",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+          "Text": "Snake bite poisoning"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA78",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386",
+          "Text": "Snake bite"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA78/NE61",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA78 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA78 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA78.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA78.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n",
+       "stemCode": "PA78",
+       "stemURI": "http://id.who.int/icd/entity/1472928386",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA78;PA78;;;0;SP3: PA78 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA78;;;;;0;SP6: is not applicable with the current TSP PA78.;;;;BER\nSP7;False;PA78;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA78;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA78;;;;;0;M1: There is no special instruction applicable with TUC PA78.;;;;BER\nM2;False;PA78;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA78;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA78/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1472928386 / http://id.who.int/icd/release/11/mms/1119330136",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA78",
+       "role": "stem",
+       "title": "Snake bite",
+       "uri": "http://id.who.int/icd/release/11/mms/1472928386"
+      },
+      {
+       "code": "NE61",
+       "role": "postcoordinated",
+       "title": "Snake bite poisoning",
+       "uri": "http://id.who.int/icd/release/11/mms/1119330136"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P40Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NE61",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+         "Text": "Snake bite poisoning"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA78",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386",
+         "Text": "Snake bite"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NE61": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NE61","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NE61","code":"NE61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA78": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA78","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA78","code":"PA78","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #21240e8e70": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P40Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Snake bite poisoning\"}]},{\"Conditions\":[{\"Code\":\"PA78\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1472928386\",\"Text\":\"Snake bite\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #21240e8e70": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA78/NE61","error":null,"reject":false,"report":"SP3: PA78 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA78 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA78.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA78.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n","stemCode":"PA78","stemURI":"http://id.who.int/icd/entity/1472928386","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA78;PA78;;;0;SP3: PA78 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA78;;;;;0;SP6: is not applicable with the current TSP PA78.;;;;BER\nSP7;False;PA78;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA78;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA78;;;;;0;M1: There is no special instruction applicable with TUC PA78.;;;;BER\nM2;False;PA78;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA78;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA78/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1472928386 / http://id.who.int/icd/release/11/mms/1119330136","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P40Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Snake bite poisoning\"}]},{\"Conditions\":[{\"Code\":\"PA78\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1472928386\",\"Text\":\"Snake bite\"}]}]}","status":200}
+ }
+}

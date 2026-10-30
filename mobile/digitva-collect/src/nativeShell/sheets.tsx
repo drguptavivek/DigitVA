@@ -11,6 +11,7 @@ import { confirmSignOut } from "../signOutConfirm";
 import { radius, spacing, typography, useTheme } from "../theme";
 import { useToast } from "../toast";
 import { APP_VERSION } from "../appVersion";
+import { canTryDorisDemo } from "../dorisDemoAccess";
 import { Button } from "../ui";
 import { RoleChip, RoleChips } from "../ui/RoleChip";
 import { BottomSheet, SheetRow } from "./BottomSheet";
@@ -123,6 +124,11 @@ export function HelpSheet() {
     if (target === "settings") router.push({ pathname: "/settings", params });
     else router.replace({ pathname: "/worklist", params: { ...params, view: "interviews", filter: target } });
   }
+  // Every "go" button opens something of an account (its menu with Sign out, Sync, Settings, its worklist), so none is
+  // offered unless that account's store is unlocked: before the PIN, Help is the guide, the FAQ text and Try DORIS only.
+  const unlocked = shell.userId !== undefined && isUnlocked(shell.userId);
+  // The offline DORIS demo needs no account, so Help offers it before sign-in too (not on the demo itself, nor over an open form).
+  const tryDoris = canTryDorisDemo() && !leavesForm && pathname !== "/doris-demo";
   function openGuide() {
     if (!shell.server) return;
     Linking.openURL(helpGuideUrl(shell.server, help.slug)).catch(() => toast.show({ kind: "error", text: t("helpGuideFailed") }));
@@ -138,6 +144,11 @@ export function HelpSheet() {
       {shell.server ? (
         <View style={{ marginTop: spacing.md }}>
           <Button label={t("helpOpenGuide")} onPress={openGuide} />
+        </View>
+      ) : null}
+      {tryDoris ? (
+        <View style={{ marginTop: spacing.md }}>
+          <Button kind="secondary" label={t("helpTryDoris")} onPress={() => { shell.closeSheet(); router.push("/doris-demo"); }} />
         </View>
       ) : null}
       <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, marginTop: spacing.lg }}>{t("faqTitle")}</Text>
@@ -156,7 +167,7 @@ export function HelpSheet() {
           {openId === entry.id || query.trim() ? (
             <View style={{ paddingBottom: spacing.sm, gap: spacing.xs }}>
               <Text style={{ ...typography.body, color: ui.popoverForeground }}>{entry.answer}</Text>
-              {entry.target && (entry.target === "account" || entry.target === "sync" || (shell.userId && !leavesForm && !onTargetScreen(entry.target))) ? (
+              {entry.target && unlocked && (entry.target === "account" || entry.target === "sync" || (!leavesForm && !onTargetScreen(entry.target))) ? (
                 <Button kind="secondary" label={entry.goLabel!} onPress={() => goTo(entry.target!)} />
               ) : null}
             </View>

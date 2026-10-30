@@ -1,0 +1,170 @@
+{
+ "id": "chain-neonatal-sepsis-preterm",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P4D",
+    "Sex": 2
+   },
+   "FetalOrInfantDeath": {
+    "BirthWeight": 1400,
+    "PregnancyWeeks": 30
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "KA60",
+       "Interval": "P2D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+       "Text": "Sepsis of newborn"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "KA21.4Z",
+       "Interval": "P4D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+       "Text": "Prematurity"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "neonatal",
+  "id": "chain-neonatal-sepsis-preterm",
+  "source": "VA cause VAs-10.04 Neonatal sepsis; VA cause VAs-10.01 Prematurity or low birth weight",
+  "why": "Two lines: neonatal sepsis due to prematurity"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/codeinfo/KA21.4Z",
+    "POST icd/release/11/2026-01/doris #78ecd166e3",
+    "POST icd/release/11/2026-01/codedit #78ecd166e3"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P4D",
+       "Sex": 2
+      },
+      "FetalOrInfantDeath": {
+       "BirthWeight": 1400,
+       "PregnancyWeeks": 30
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "KA60",
+          "Interval": "P2D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+          "Text": "Sepsis of newborn"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "KA21.4Z",
+          "Interval": "P4D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+          "Text": "Prematurity"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KA60",
+       "error": null,
+       "reject": false,
+       "report": "SP3: KA21.4Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM1: KA21.4Z is not to be used for the UCOD if the condition causing KA21.4Z is known or other specific instructions apply. Code to - KA60.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: KA21.4Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA21.4Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: KA21.4Z is not to be used for the UCOD if the condition causing KA21.4Z is known or other specific instructions apply. Code to - KA60.\nM1: There is no special instruction applicable with TUC KA60.\nM2: is not applicable.\nM3: The tentative underlying cause is correctly reported as due to another condition which is not ill-defined.\n",
+       "stemCode": "KA60",
+       "stemURI": "http://id.who.int/icd/entity/381388700",
+       "tabularReport": "MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;KA21.4Z;KA21.4Z;;;0;SP3: KA21.4Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA21.4Z;;;;;0;SP6: is not applicable with the current TSP KA21.4Z.;;;;BER\nSP7;False;KA21.4Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA21.4Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;KA21.4Z;KA60;KA60;;;0;M1: KA21.4Z is not to be used for the UCOD if the condition causing KA21.4Z is known or other specific instructions apply. Code to - KA60.;;;;BER\nM1;False;KA60;;;;;0;M1: There is no special instruction applicable with TUC KA60.;;;;BER\nM2;False;KA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA60;;;;;0;M3: The tentative underlying cause is correctly reported as due to another condition which is not ill-defined.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/381388700",
+       "warning": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KA60",
+       "role": "stem",
+       "title": "Sepsis of newborn",
+       "uri": "http://id.who.int/icd/release/11/mms/381388700"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P4D",
+      "Sex": 2
+     },
+     "FetalOrInfantDeath": {
+      "BirthWeight": 1400,
+      "PregnancyWeeks": 30
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "KA60",
+         "Interval": "P2D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+         "Text": "Sepsis of newborn"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "KA21.4Z",
+         "Interval": "P4D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+         "Text": "Prematurity"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/KA21.4Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA21.4Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA21.4Z","code":"KA21.4Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KA60": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA60","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA60","code":"KA60","stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #78ecd166e3": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P4D\",\"Sex\":2},\"FetalOrInfantDeath\":{\"BirthWeight\":1400,\"PregnancyWeeks\":30},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KA60\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/381388700\",\"Text\":\"Sepsis of newborn\"}]},{\"Conditions\":[{\"Code\":\"KA21.4Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified\",\"Text\":\"Prematurity\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #78ecd166e3": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KA60","error":null,"reject":false,"report":"SP3: KA21.4Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM1: KA21.4Z is not to be used for the UCOD if the condition causing KA21.4Z is known or other specific instructions apply. Code to - KA60.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: KA21.4Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA21.4Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: KA21.4Z is not to be used for the UCOD if the condition causing KA21.4Z is known or other specific instructions apply. Code to - KA60.\nM1: There is no special instruction applicable with TUC KA60.\nM2: is not applicable.\nM3: The tentative underlying cause is correctly reported as due to another condition which is not ill-defined.\n","stemCode":"KA60","stemURI":"http://id.who.int/icd/entity/381388700","tabularReport":"MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;KA21.4Z;KA21.4Z;;;0;SP3: KA21.4Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA21.4Z;;;;;0;SP6: is not applicable with the current TSP KA21.4Z.;;;;BER\nSP7;False;KA21.4Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA21.4Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;KA21.4Z;KA60;KA60;;;0;M1: KA21.4Z is not to be used for the UCOD if the condition causing KA21.4Z is known or other specific instructions apply. Code to - KA60.;;;;BER\nM1;False;KA60;;;;;0;M1: There is no special instruction applicable with TUC KA60.;;;;BER\nM2;False;KA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA60;;;;;0;M3: The tentative underlying cause is correctly reported as due to another condition which is not ill-defined.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/381388700","warning":"The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P4D\",\"Sex\":2},\"FetalOrInfantDeath\":{\"BirthWeight\":1400,\"PregnancyWeeks\":30},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KA60\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/381388700\",\"Text\":\"Sepsis of newborn\"}]},{\"Conditions\":[{\"Code\":\"KA21.4Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified\",\"Text\":\"Prematurity\"}]}]}","status":200}
+ }
+}

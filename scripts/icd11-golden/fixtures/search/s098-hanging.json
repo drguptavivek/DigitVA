@@ -1,0 +1,98 @@
+{
+ "id": "s098-hanging",
+ "input": {
+  "id": "s098-hanging",
+  "kind": "injury",
+  "query": "hanging",
+  "source": "VAs-12.08; scripts/icd11-parity/queries.json",
+  "why": "injury or external-cause wording"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #e3cc8f9a67"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 9,
+     "items": [
+      {
+       "code": "PH2Z",
+       "has_coding_note": false,
+       "matching_text": "Threat to breathing with undetermined intent, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Threat to breathing with undetermined intent, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1054800896/unspecified"
+      },
+      {
+       "code": "PC71",
+       "has_coding_note": false,
+       "matching_text": "Intentional self-harm by threat to breathing by hanging",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Intentional self-harm by threat to breathing by hanging",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/807340493"
+      },
+      {
+       "code": "PH21",
+       "has_coding_note": false,
+       "matching_text": "Threat to breathing by hanging with undetermined intent",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Threat to breathing by hanging with undetermined intent",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/570201788"
+      },
+      {
+       "code": "MG49",
+       "has_coding_note": false,
+       "matching_text": "Hangover",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Hangover",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1466202482"
+      },
+      {
+       "code": "PE61",
+       "has_coding_note": false,
+       "matching_text": "Assault by threat to breathing by hanging",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Assault by threat to breathing by hanging",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1186721138"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "hanging",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #e3cc8f9a67": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1054800896/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1054800896","important":true,"label":"<em class='found'>hanging</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1054800896","important":false,"label":"ligature <em class='found'>hanging</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":-2.977764313132011},{"foundationUri":"http://id.who.int/icd/entity/1054800896","important":false,"label":"<em class='found'>hanging</em><em class='nonwbe'></em>, strangulation or suffocation, undetermined intent","propertyId":"Synonym","propertyValueType":0,"score":-8.485682191082866}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1054800896/unspecified","theCode":"PH2Z","title":"Threat to breathing with undetermined intent, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/807340493","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"hanged self","propertyId":"Synonym","propertyValueType":0,"score":-2.3692584206918985},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"hung self","propertyId":"Synonym","propertyValueType":0,"score":-2.3692584206918985},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"found <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.577760220998671},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"self inflicted <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.3006975546519817},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"hanged self with belt","propertyId":"Synonym","propertyValueType":0,"score":-3.497866254387306},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"hanged self with ligature","propertyId":"Synonym","propertyValueType":0,"score":-3.527414851645336},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"hanged self with electrical cord","propertyId":"Synonym","propertyValueType":0,"score":-3.7015349274521396},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"suicide by <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.459168275528205},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"attempted suicide by <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-5.337235995322146},{"foundationUri":"http://id.who.int/icd/entity/807340493","important":false,"label":"decedent hung himself or herself","propertyId":"Synonym","propertyValueType":0,"score":-5.633140243970334}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.3692584206918985,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/807340493","theCode":"PC71","title":"Intentional self-harm by threat to breathing by <em class='found'>hanging</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/570201788","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/570201788","important":false,"label":"<em class='found'>hanging</em><em class='nonwbe'></em> by the neck","propertyId":"Synonym","propertyValueType":0,"score":-2.7210719147414855},{"foundationUri":"http://id.who.int/icd/entity/570201788","important":false,"label":"threat to breathing by <em class='found'>hanging</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":-3.41172123226886}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.7210719147414855,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/570201788","theCode":"PH21","title":"Threat to breathing by <em class='found'>hanging</em><em class='nonwbe'></em> with undetermined intent","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1466202482","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.4472639359290387,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1466202482","theCode":"MG49","title":"Hangover","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1186721138","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1186721138","important":false,"label":"assault by <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.6080400159387356},{"foundationUri":"http://id.who.int/icd/entity/1186721138","important":false,"label":"homicidal attempt, <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.7185054968424396}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.6080400159387356,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1186721138","theCode":"PE61","title":"Assault by threat to breathing by <em class='found'>hanging</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1949195114","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.004292296337871,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1949195114","theCode":"PB01","title":"Unintentional threat to breathing by <em class='found'>hanging</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/607132843","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/334102817","important":false,"label":"Asphyxiation by <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.332221165990808},{"foundationUri":"http://id.who.int/icd/entity/334102817","important":false,"label":"asphyxia by <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-4.332221165990808},{"foundationUri":"http://id.who.int/icd/entity/334102817","important":false,"label":"suffocation due to <em class='found'>hanging</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-4.68557099784484}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.332221165990808,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/607132843","theCode":"NF05","title":"Asphyxiation","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/69852207/unspecified & http://id.who.int/icd/release/11/2026-01/mms/415181882","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.732920479819542,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/69852207/unspecified","theCode":"PA50.Z&XE3VU","title":"Hang-glider accident injuring occupant","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/242787005/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/242787005","important":false,"label":"intentional self-harm by <em class='found'>hanging</em><em class='nonwbe'></em>, strangulation or suffocation","propertyId":"Synonym","propertyValueType":0,"score":-8.809839130076018}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.809839130076018,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/242787005/unspecified","theCode":"PC7Z","title":"Intentional self-harm by threat to breathing, unspecified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=hanging%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

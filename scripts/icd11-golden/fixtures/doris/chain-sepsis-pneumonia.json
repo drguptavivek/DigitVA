@@ -1,0 +1,164 @@
+{
+ "id": "chain-sepsis-pneumonia",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P59Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1G40",
+       "Interval": "P3D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+       "Text": "Sepsis"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "CA40.Z",
+       "Interval": "P7D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+       "Text": "Pneumonia"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-sepsis-pneumonia",
+  "source": "VA cause VAs-01.01 Sepsis; VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+  "why": "Two lines: sepsis due to pneumonia"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1G40",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.Z",
+    "POST icd/release/11/2026-01/doris #7a49e92a72",
+    "POST icd/release/11/2026-01/codedit #7a49e92a72"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P59Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1G40",
+          "Interval": "P3D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+          "Text": "Sepsis"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "CA40.Z",
+          "Interval": "P7D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+          "Text": "Pneumonia"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "CA40.Z/1G40",
+       "error": null,
+       "reject": false,
+       "report": "SP3: CA40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n1G40 are manifestations of the selected underlying cause of death CA40.Z and it is added as a postcoordination - CA40.Z>CA40.Z/1G40.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: CA40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP CA40.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC CA40.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n1G40 are manifestations of the selected underlying cause of death CA40.Z and it is added as a postcoordination - CA40.Z>CA40.Z/1G40.\n",
+       "stemCode": "CA40.Z",
+       "stemURI": "http://id.who.int/icd/entity/142052508/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;CA40.Z;CA40.Z;;;0;SP3: CA40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;CA40.Z;;;;;0;SP6: is not applicable with the current TSP CA40.Z.;;;;BER\nSP7;False;CA40.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA40.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;CA40.Z;;;;;0;M1: There is no special instruction applicable with TUC CA40.Z.;;;;BER\nM2;False;CA40.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;CA40.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;CA40.Z;CA40.Z/1G40;1G40;Substitution:1:CA40.Z>CA40.Z/1G40;;0;1G40 are manifestations of the selected underlying cause of death CA40.Z and it is added as a postcoordination - CA40.Z>CA40.Z/1G40.;;;1,\"The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - CA40.Z, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/142052508/unspecified / http://id.who.int/icd/release/11/mms/622600769",
+       "warning": "The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - CA40.Z, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "CA40.Z",
+       "role": "stem",
+       "title": "Pneumonia",
+       "uri": "http://id.who.int/icd/release/11/mms/142052508/unspecified"
+      },
+      {
+       "code": "1G40",
+       "role": "postcoordinated",
+       "title": "Sepsis",
+       "uri": "http://id.who.int/icd/release/11/mms/622600769"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P59Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1G40",
+         "Interval": "P3D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+         "Text": "Sepsis"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "CA40.Z",
+         "Interval": "P7D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+         "Text": "Pneumonia"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1G40": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1G40","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1G40","code":"1G40","stemId":"http://id.who.int/icd/release/11/2026-01/mms/622600769"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.Z","code":"CA40.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #7a49e92a72": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P59Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1G40\",\"Interval\":\"P3D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/622600769\",\"Text\":\"Sepsis\"}]},{\"Conditions\":[{\"Code\":\"CA40.Z\",\"Interval\":\"P7D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified\",\"Text\":\"Pneumonia\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #7a49e92a72": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"CA40.Z/1G40","error":null,"reject":false,"report":"SP3: CA40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n1G40 are manifestations of the selected underlying cause of death CA40.Z and it is added as a postcoordination - CA40.Z>CA40.Z/1G40.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: CA40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP CA40.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC CA40.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n1G40 are manifestations of the selected underlying cause of death CA40.Z and it is added as a postcoordination - CA40.Z>CA40.Z/1G40.\n","stemCode":"CA40.Z","stemURI":"http://id.who.int/icd/entity/142052508/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;CA40.Z;CA40.Z;;;0;SP3: CA40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;CA40.Z;;;;;0;SP6: is not applicable with the current TSP CA40.Z.;;;;BER\nSP7;False;CA40.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA40.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;CA40.Z;;;;;0;M1: There is no special instruction applicable with TUC CA40.Z.;;;;BER\nM2;False;CA40.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;CA40.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;CA40.Z;CA40.Z/1G40;1G40;Substitution:1:CA40.Z>CA40.Z/1G40;;0;1G40 are manifestations of the selected underlying cause of death CA40.Z and it is added as a postcoordination - CA40.Z>CA40.Z/1G40.;;;1,\"The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - CA40.Z, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/142052508/unspecified / http://id.who.int/icd/release/11/mms/622600769","warning":"The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - CA40.Z, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P59Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1G40\",\"Interval\":\"P3D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/622600769\",\"Text\":\"Sepsis\"}]},{\"Conditions\":[{\"Code\":\"CA40.Z\",\"Interval\":\"P7D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified\",\"Text\":\"Pneumonia\"}]}]}","status":200}
+ }
+}

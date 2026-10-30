@@ -1,0 +1,62 @@
+{
+ "id": "s136-mid-insipidus",
+ "input": {
+  "id": "s136-mid-insipidus",
+  "kind": "mid-title",
+  "query": "insipidus",
+  "source": "owner 2026-10-29",
+  "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #0739cc2454"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 2,
+     "items": [
+      {
+       "code": "5A61.5",
+       "has_coding_note": false,
+       "matching_text": "Central diabetes insipidus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Central diabetes insipidus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1009553897"
+      },
+      {
+       "code": "GB90.4A",
+       "has_coding_note": false,
+       "matching_text": "Nephrogenic diabetes insipidus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Nephrogenic diabetes insipidus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1417669099"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "insipidus",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #0739cc2454": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1009553897","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.81956840415212},{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"familial diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.369925703736162},{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"diabetes mellitus <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.5503724622290607},{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"DI - [diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-2.590213298995778},{"foundationUri":"http://id.who.int/icd/entity/1409762098","important":false,"label":"Cranial diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.685379756481267},{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"neurogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.745687586309854},{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"primary central diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.880805224941283},{"foundationUri":"http://id.who.int/icd/entity/1677009817","important":false,"label":"Acquired central diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.9244269919169774},{"foundationUri":"http://id.who.int/icd/entity/1994772612","important":false,"label":"Traumatic central diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.9730239186064047},{"foundationUri":"http://id.who.int/icd/entity/97299603","important":false,"label":"Neurohypophyseal diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-3.142944315103347},{"foundationUri":"http://id.who.int/icd/entity/1627007407","important":false,"label":"Non-acquired central diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-3.459233688960114},{"foundationUri":"http://id.who.int/icd/entity/1037418324","important":false,"label":"Idiopathic acquired central diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-3.568178932713729},{"foundationUri":"http://id.who.int/icd/entity/1009553897","important":false,"label":"diabetes <em class='found'>insipidus</em><em class='nonwbe'></em> secondary to vasopressin deficiency","propertyId":"Synonym","propertyValueType":0,"score":-4.81926769735939},{"foundationUri":"http://id.who.int/icd/entity/151381747","important":false,"label":"Diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>, diabetes mellitus, optic atrophy, and deafness","propertyId":"Synonym","propertyValueType":1,"score":-6.020978902874642},{"foundationUri":"http://id.who.int/icd/entity/151381747","important":false,"label":"DIDMOAD - [Diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>, diabetes mellitus, optic atrophy, and deafness] syndrome","propertyId":"Synonym","propertyValueType":1,"score":-7.653491575500418}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.81956840415212,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1009553897","theCode":"5A61.5","title":"Central diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1417669099","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"renal diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.5403421513679785},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"congenital nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.2633748743024267},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"primary nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.3371813724485992},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"familial nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.4152236707468475},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"hereditary nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.464401731515281},{"foundationUri":"http://id.who.int/icd/entity/2123910581","important":false,"label":"vasopressin-resistant diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-3.507804860064965},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"ADH - [antidiuretic-hormone] resistant diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.6292874329435865},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"adiuretin-resistant diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.872526201575501},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"NDI - [nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-4.188242282114032},{"foundationUri":"http://id.who.int/icd/entity/476617567","important":false,"label":"Acquired nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em> due to causes classified elsewhere","propertyId":"Title","propertyValueType":1,"score":-4.339301899223246},{"foundationUri":"http://id.who.int/icd/entity/1417669099","important":false,"label":"antidiuretic-hormone-resistant diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.743257039350117},{"foundationUri":"http://id.who.int/icd/entity/1924866731","important":false,"label":"Nephrogenic Diabetes <em class='found'>Insipidus</em><em class='nonwbe'></em> associated with familial or genetic disorders elsewhere classified","propertyId":"Title","propertyValueType":1,"score":-5.166254000066445},{"foundationUri":"http://id.who.int/icd/entity/584463835","important":false,"label":"Nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em> - intracranial calcification","propertyId":"Title","propertyValueType":1,"score":-5.179257420252471}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.5403421513679785,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1417669099","theCode":"GB90.4A","title":"Nephrogenic diabetes <em class='found'>insipidus</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=insipidus%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

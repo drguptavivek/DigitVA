@@ -354,11 +354,11 @@ function NavigationMenu() {
     <>
       {wide ? (
         <View {...navigationLandmarkProps} style={[navigationStyles.sidebar, { backgroundColor: theme.colors.surface, borderRightColor: theme.colors.border }]}>
-          <ScrollView style={navigationStyles.scroll} contentContainerStyle={navigationStyles.sidebarContent}>{menuBody}</ScrollView>
+          <ScrollView keyboardDismissMode="on-drag" style={navigationStyles.scroll} contentContainerStyle={navigationStyles.sidebarContent}>{menuBody}</ScrollView>
         </View>
       ) : (
         <View {...navigationLandmarkProps} style={[navigationStyles.rail, { backgroundColor: theme.colors.surface, borderRightColor: theme.colors.border }]}>
-          <ScrollView style={navigationStyles.scroll} contentContainerStyle={navigationStyles.railContent}>{railBody}</ScrollView>
+          <ScrollView keyboardDismissMode="on-drag" style={navigationStyles.scroll} contentContainerStyle={navigationStyles.railContent}>{railBody}</ScrollView>
         </View>
       )}
       {!wide && drawerOpen ? (
@@ -371,7 +371,7 @@ function NavigationMenu() {
                 <Text style={[navigationStyles.closeIcon, { color: theme.colors.text }]}>×</Text>
               </Pressable>
             </View>
-            <ScrollView style={navigationStyles.scroll} contentContainerStyle={navigationStyles.drawerContent}>{menuBody}</ScrollView>
+            <ScrollView keyboardDismissMode="on-drag" style={navigationStyles.scroll} contentContainerStyle={navigationStyles.drawerContent}>{menuBody}</ScrollView>
           </View>
         </View>
       ) : null}

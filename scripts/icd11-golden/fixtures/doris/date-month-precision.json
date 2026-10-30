@@ -1,0 +1,126 @@
+{
+ "id": "date-month-precision",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "DateBirth": "1950-06",
+    "DateDeath": "2026-03",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "5A11",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetes"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "date-month-precision",
+  "source": "app/services/doris_certificate.py who_safe_certificate",
+  "why": "Month-precision dates are accepted by WHO"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "POST icd/release/11/2026-01/doris #12336709a3",
+    "POST icd/release/11/2026-01/codedit #12336709a3"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "DateBirth": "1950-06",
+       "DateDeath": "2026-03",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "5A11",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetes"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "5A11",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 5A11 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 5A11 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "5A11",
+       "stemURI": "http://id.who.int/icd/entity/119724091",
+       "tabularReport": "SP1;True;;5A11;5A11;;;0;SP1: 5A11 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "5A11",
+       "role": "stem",
+       "title": "Diabetes",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "DateBirth": "1950-06",
+      "DateDeath": "2026-03",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "5A11",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #12336709a3": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"DateBirth\":\"1950-06\",\"DateDeath\":\"2026-03\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"5A11\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #12336709a3": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"5A11","error":null,"reject":false,"report":"SP1: 5A11 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 5A11 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"5A11","stemURI":"http://id.who.int/icd/entity/119724091","tabularReport":"SP1;True;;5A11;5A11;;;0;SP1: 5A11 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/119724091","warning":null},"request_body":"{\"AdministrativeData\":{\"DateBirth\":\"1950-06\",\"DateDeath\":\"2026-03\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"5A11\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200}
+ }
+}

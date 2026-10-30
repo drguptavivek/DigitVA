@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { Modal, View } from "react-native";
 
 import type { JsonRequester, WorkspaceApi } from "../api";
+import { isPlusVariant } from "../../appVariant";
 import type { WorkspaceIdentity } from "../contracts";
-import { IcdPickerFrame } from "./IcdPickerFrame";
+import { IcdPickerFrame, type PickerFrameProps } from "./IcdPickerFrame";
+import { IcdPicker } from "./picker/IcdPicker";
 import { createPickerBridge, type PickerChoice, type PickerInit } from "./pickerBridge";
 
 export interface IcdPickerModalProps {
@@ -21,7 +23,10 @@ export interface IcdPickerModalProps {
   onForbidden: () => void;
 }
 
-/** Full-screen host for the shared ICD-11 picker used by the web editor. */
+/**
+ * Full-screen host for the ICD-11 picker. The Collect Plus build shows the React picker (same bridge, same messages,
+ * so online and offline coding use one path); plain Collect and the browser build keep the shared web page.
+ */
 export function IcdPickerModal(props: IcdPickerModalProps) {
   const latest = useRef(props);
   latest.current = props;
@@ -45,11 +50,15 @@ export function IcdPickerModal(props: IcdPickerModalProps) {
   }, [props.api, props.request, props.identity.vaSid, props.identity.mode, props.revision, props.requestGeneration]);
   currentBridge.current = bridge;
   const close = () => { bridge.dispose(); props.onClose(); };
+  const onMessage: PickerFrameProps["onMessage"] = (message, reply) => void bridge.handle(message, reply);
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={close}>
+    <Modal visible transparent animationType="slide" supportedOrientations={["portrait", "landscape"]} onRequestClose={close}>
       <View style={{ flex: 1, backgroundColor: "rgba(17,24,39,0.62)" }}>
-        <IcdPickerFrame init={props.init} revision={props.revision} onClose={close} onMessage={(message, reply) => void bridge.handle(message, reply)} />
+        {isPlusVariant()
+          // A rebuilt bridge never answers what the old one owed, so the React picker is told to start over.
+          ? <IcdPicker init={props.init} revision={props.revision} generation={props.requestGeneration ?? 0} onClose={close} onMessage={onMessage} />
+          : <IcdPickerFrame init={props.init} revision={props.revision} onClose={close} onMessage={onMessage} />}
       </View>
     </Modal>
   );

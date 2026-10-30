@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, Platform, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
@@ -78,6 +79,14 @@ export default function RootLayout() {
   useDemoDocumentTitle();
   useEffect(() => applyScreenCaptureBlock(), []);
   useEffect(() => installPerformanceTelemetryLifecycle(), []);
+  // Phones (shortest side under 600 dp) stay portrait; tablets rotate, landscape working like a desktop monitor.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const { width, height } = Dimensions.get("screen");
+    if (Math.min(width, height) < 600) {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    }
+  }, []);
   return (
     <SafeAreaProvider>
       <AppStateProvider>

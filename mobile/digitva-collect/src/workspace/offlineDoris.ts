@@ -1,17 +1,23 @@
 /**
- * The offline DORIS editor (Collect Plus phase 1): the DorisEditorProps data
- * callbacks DorisPanel-style editors use, backed by the on-device ICD-11
- * engine instead of the workspace server. Search and codeinfo mirror the
- * server's mapping of the same WHO engine payloads
- * (desktop/crates/digitva-server/src/icd11.rs, vendor/who-icd11-api); the
- * process reply mirrors the server's process envelope with a `local-` token.
+ * The offline DORIS editor (Collect Plus): the DorisEditorProps data callbacks DorisPanel-style editors use, backed by
+ * the on-device ICD-11 engine instead of the workspace server. The replies are the server's, field for field:
+ * terms, codeinfo and selection-check come from the ports in dorisTerminology.ts (icd11_postcoordination.py and the
+ * `_codeinfo_item` of doris_clinical.py), the picker's five guidance routes from dorisGuidance.ts (also
+ * icd11_postcoordination.py; `createGuidanceRequester` below routes them), process from dorisProcessing.ts
+ * (doris_processing.py) over the certificate
+ * rules of dorisCertificate.ts, all through the WHO client of whoEngineApi.ts. A refusal is an ApiError with the
+ * server's status, code, message and `{schema_version, error: {code, message, fields?}}` body, so the picker and
+ * DorisPanel show what they show for the server's. Only the token differs: `local-<uuid>`, because nothing signs
+ * offline (the server does not re-run DORIS on offline results). `certificate_digest` is the server's (SHA-256 of
+ * the canonical normalised certificate); `result_digest` binds the engine release instead of the WHO image digest.
  *
- * Engine failures never carry text here: every failure maps to a short code
- * or an "unavailable" engine entry, because engine payloads can hold stack
- * traces or certificate text. Nothing in this module logs.
+ * Personal data never reaches the engine: every text and certificate passes piiBoundary.ts first.
+ * Engine failures never carry text here: every failure maps to the server's WHO_API_UNAVAILABLE, because engine
+ * payloads can hold stack traces or certificate text. Nothing in this module logs.
  */
 import { CryptoDigestAlgorithm, digestStringAsync, randomUUID } from "expo-crypto";
 
+import { ApiError } from "../api";
 import { localDateTimeWithOffset } from "../client/localDateTime";
 import { appendWorkflowEvent, workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
 import {
@@ -28,17 +34,25 @@ import {
   type CodingContext,
 } from "../coding/icd11Allowability";
 import type { OfflineCodingRow } from "../drafts";
-import type { OfflineEngine, EngineResult } from "../offlineEngine";
-import type { DorisCodeInfoReply, DorisProcessEngine, DorisProcessReply, DorisTerm, DorisTermsReply, JsonObject, JsonValue } from "./contracts";
+import type { OfflineEngine } from "../offlineEngine";
+import type { JsonRequester } from "./api";
+import type { DorisCodeInfoReply, DorisProcessReply, DorisTermsReply, JsonObject, JsonValue } from "./contracts";
+import { DorisCertificateError, type DorisFieldError } from "./dorisCertificate";
+import { createGuidance, GUIDANCE_ENDPOINTS, PostcoordinationError, type GuidanceEndpoint, type GuidanceReply } from "./dorisGuidance";
+import { DorisRequestError, processCertificate } from "./dorisProcessing";
+import { codeinfoItem, searchTerms, validSubtreeUris } from "./dorisTerminology";
+import { assertNoPii, assertNoPiiInText, PiiBoundaryError } from "./piiBoundary";
+import { createWhoEngineApi, ENGINE_PROVENANCE, WHO_RELEASE, WhoUnavailableError, type WhoEngineApi } from "./whoEngineApi";
+import { codePointLength, isRecord } from "./whoText";
 
-/** The WHO data bundle the engine ships pins this release (vendor/who-icd11-api DEFAULT_ICD11_RELEASE). */
-export const OFFLINE_ICD11_RELEASE = "2026-01";
-/** Search results are labelled by classification, not release: the picker shows them beside WHO release URIs. */
-const TERMS_RELEASE = "ICD-11";
-const MAX_TEXT_CHARS = 2000;
-const MAX_CODE_CHARS = 128;
+/** The WHO data bundle the engine ships pins this release (app/services/who_icd_api.py DEFAULT_ICD11_RELEASE). */
+export const OFFLINE_ICD11_RELEASE = WHO_RELEASE;
 const DEFAULT_TERM_LIMIT = 20;
 const MAX_TERM_LIMIT = 20;
+const MIN_QUERY_CHARS = 2;
+const MAX_QUERY_CHARS = 80;
+const MAX_CODE_CHARS = 128;
+const MAX_URI_CHARS = 2048;
 
 /** What a created editor persists through; the screen wires it to the drafts.ts accessors. */
 export interface OfflineCodingStore {
@@ -52,6 +66,10 @@ export interface OfflineDorisEditor {
   onTerms: (query: string, limit?: number, subtreeUris?: string[]) => Promise<DorisTermsReply>;
   onCodeInfo: (code: string) => Promise<DorisCodeInfoReply>;
   onSelectionCheck: (code: string, uri: string) => Promise<DorisCodeInfoReply>;
+  /** The picker's guidance routes (postcoordination, options, hierarchy, related, details): `body` is the JSON the route takes. */
+  onGuidance: (endpoint: GuidanceEndpoint, body: unknown) => Promise<GuidanceReply>;
+  /** The stem that drives the VA cause of an expression: WHO's causing condition for a `/` cluster, else its first stem. */
+  primaryStem: (expression: string) => Promise<string>;
   /** Build the offline_coding row for one confirmed save and persist it; status comes from the engine result. */
   save(input: OfflineCodingSaveInput): Promise<OfflineCodingRow>;
 }
@@ -95,160 +113,39 @@ async function sha256Hex(text: string): Promise<string> {
   return digestStringAsync(CryptoDigestAlgorithm.SHA256, text);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** First non-empty string field, the server's first_text. */
-function firstText(source: Record<string, unknown>, keys: readonly string[]): string {
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === "string" && value !== "") return value;
-  }
-  return "";
-}
-
-function stripMarkup(text: string): string {
-  return text.replace(/<[^>]+>/g, "").trim();
-}
-
-/** WHO search text: markup stripped, entities decoded, capped; the server's plain(). */
-function plain(value: unknown): string {
-  if (typeof value !== "string") return "";
-  const decoded = stripMarkup(value)
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, "\"")
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
-  return decoded.trim().slice(0, MAX_TEXT_CHARS);
-}
-
-/** WHO postcoordinationAvailability, the server's postcoordination_availability(). */
-function postcoordinationAvailability(raw: unknown): { available: boolean; rawAvailability: JsonValue } {
-  if (typeof raw === "boolean") return { available: false, rawAvailability: null };
-  if (raw === 0) return { available: false, rawAvailability: 0 };
-  if (raw === 1 || raw === 2) return { available: true, rawAvailability: raw };
-  return { available: false, rawAvailability: null };
-}
-
-/** One WHO search entity as a picker term, or null when it does not resolve to a usable code. */
-function termFromEntity(entity: unknown): DorisTerm | null {
-  if (!isRecord(entity)) return null;
-  const code = firstText(entity, ["theCode", "code"]);
-  const uri = firstText(entity, ["id", "uri", "@id"]);
-  const title = plain(entity.title ?? entity.titleWithoutCodes);
-  if (!code || !uri || !title) return null;
-  const rawMatching = entity.matchingPVs ?? entity.matchingText;
-  const matching = Array.isArray(rawMatching)
-    ? rawMatching.filter((part): part is string => typeof part === "string").join(" ")
-    : typeof rawMatching === "string" ? rawMatching : "";
-  const { available, rawAvailability } = postcoordinationAvailability(entity.postcoordinationAvailability);
-  return {
-    code,
-    title,
-    uri,
-    release: TERMS_RELEASE,
-    matching_text: plain(matching) || title,
-    postcoordination: available,
-    postcoordination_availability: rawAvailability,
-    related_maternal: entity.hasMaternalChapterLink === true,
-    related_perinatal: entity.hasPerinatalChapterLink === true,
-    has_coding_note: entity.hasCodingNote === true,
-  };
-}
-
 const PROCESS_STATUSES = ["completed", "rejected", "timeout", "malformed_response", "unavailable"] as const;
 
-/**
- * The engine's doris/codedit envelope ({status, result}), validated. Anything
- * unexpected — including a failed call — reads as "unavailable" with no
- * result, never with the engine's own error text.
- */
-function engineEnvelope(result: EngineResult): DorisProcessEngine {
-  const unavailable: DorisProcessEngine = { status: "unavailable", result: null };
-  if (!result.ok) return unavailable;
-  if (!isRecord(result.data)) return unavailable;
-  const status = result.data.status;
-  if (typeof status !== "string" || !(PROCESS_STATUSES as readonly string[]).includes(status)) return unavailable;
-  const engineResult = result.data.result;
-  if (engineResult === null) return { status: status as DorisProcessEngine["status"], result: null };
-  if (!isRecord(engineResult)) return unavailable;
-  return { status: status as DorisProcessEngine["status"], result: engineResult as JsonObject };
+/** The server's error reply (`_error` of doris_clinical.py) as the ApiError the online client raises for it. */
+function dorisError(status: number, code: string, message: string, fields?: DorisFieldError[], reason?: string): ApiError {
+  const error = new ApiError(status, code, undefined, undefined, {
+    schema_version: 1,
+    error: { code, message, ...(fields ? { fields } : {}), ...(reason ? { reason } : {}) },
+  });
+  error.message = message;
+  return error;
 }
 
-/** `1B12.2&XA0G74` / `1B12.2/5A13` → tokens and separators, the engine's split_icd11_expression. */
-function splitExpression(code: string): { tokens: string[]; separators: string[] } {
-  const tokens: string[] = [];
-  const separators: string[] = [];
-  let rest = code;
-  const pattern = /\s*([&/])\s*/;
-  for (let match = pattern.exec(rest); match; match = pattern.exec(rest)) {
-    tokens.push(rest.slice(0, match.index));
-    separators.push(match[1]);
-    rest = rest.slice(match.index + match[0].length);
+const whoUnavailable = () => dorisError(503, "WHO_API_UNAVAILABLE", "WHO ICD-11 service unavailable.");
+/** A refusal for personal data: the server's INVALID_INPUT, naming the path and rule, never the value; `reason` tells it apart. */
+const personalData = (error: PiiBoundaryError, message: string, path = error.path) =>
+  dorisError(422, "INVALID_INPUT", message, [{ path, message: error.message }], "pii_boundary");
+
+/** Maps what the ports throw onto the server's replies; `pii` builds the refusal for personal data. */
+async function guarded<T>(work: () => Promise<T>, pii: (error: PiiBoundaryError) => ApiError): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof WhoUnavailableError) throw whoUnavailable();
+    if (error instanceof PiiBoundaryError) throw pii(error);
+    throw error;
   }
-  tokens.push(rest);
-  return { tokens, separators };
-}
-
-function cleanCode(code: string): string | null {
-  const trimmed = code.trim();
-  return trimmed && trimmed.length <= MAX_CODE_CHARS ? trimmed : null;
 }
 
 export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCodingStore, allowability?: OfflineAllowability): OfflineDorisEditor {
+  const who: WhoEngineApi = createWhoEngineApi(engine);
+  const guidance = createGuidance(who);
   /** The engine-reported URI per code a selection check confirmed; the save stores it beside the confirmed code. */
   const confirmedUris = new Map<string, string>();
-
-  /**
-   * The engine-reported URI for a code or expression: the stemId each part
-   * resolves to, post-coordinated parts joined the way the engine's
-   * expected_expression_uri_with joins them. Null when a part does not resolve.
-   */
-  const reportedUri = async (code: string): Promise<string | null> => {
-    const { tokens, separators } = splitExpression(code);
-    const uris: string[] = [];
-    for (const token of tokens) {
-      const info = await codeinfoItem(token);
-      if (!info) return null;
-      const stemId = info.stemId;
-      uris.push(stemId);
-    }
-    if (uris.some((uri) => !uri)) return null;
-    return uris.length === 1
-      ? uris[0]
-      : uris.slice(1).reduce((joined, uri, index) => `${joined} ${separators[index]} ${uri}`, uris[0]);
-  };
-
-  /** The engine's codeinfo record for one exact token, or null when WHO does not know it. */
-  async function codeinfoItem(code: string): Promise<{ stemId: string; title: string; primaryStem: string } | null> {
-    const result = await engine.codeinfo(code);
-    if (!result.ok) throw new Error("icd11_unavailable");
-    if (!isRecord(result.data)) return null;
-    if (result.data.code !== code) return null;
-    const stemId = typeof result.data.stemId === "string" ? result.data.stemId : "";
-    if (!stemId) return null;
-    const title = plain(result.data.title ?? result.data.label);
-    if (!title) return null;
-    const expression = extractIcd11CodeExpression(code);
-    const first = expression ? firstStem(expression) : null;
-    const primaryStem = expression && first ? (isCluster(expression) ? icd11PrimaryStem(result.data, first) : first) : "";
-    return { stemId, title, primaryStem };
-  }
-
-  const codeInfoReply = async (requested: string): Promise<DorisCodeInfoReply> => {
-    const code = cleanCode(requested);
-    if (!code) throw new Error("icd11_invalid_code");
-    const info = await codeinfoItem(code);
-    if (!info) throw new Error("icd11_unknown_code");
-    const uri = await reportedUri(code);
-    if (!uri) throw new Error("icd11_unknown_code");
-    return {
-      schema_version: 1,
-      item: { code, title: info.title, uri, release: OFFLINE_ICD11_RELEASE, postcoordination: false, primary_stem: info.primaryStem },
-    };
-  };
 
   /**
    * The server's final-cause check (validate_icd11_mms_coding_value_for_submission + record_final_cod_flags) before a
@@ -262,10 +159,10 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
     let primary = first;
     if (isCluster(expression)) {
       // A cluster is judged by WHO's causing condition, which only codeinfo of the whole expression names.
-      const result = await engine.codeinfo(expression);
-      if (!result.ok) throw new Error("icd11_unavailable");
-      const info = result.data;
-      const valid = isRecord(info) && info.code === expression
+      const info = await who.codeinfo(expression).catch((error: unknown) => {
+        throw error instanceof WhoUnavailableError ? new Error("icd11_unavailable") : error;
+      });
+      const valid = info !== null && info.code === expression
         && (info.stemCode == null ? typeof info.stemId === "string" : info.stemCode === first);
       if (!valid) throw new OfflineAllowabilityError("blocked", INVALID_EXPRESSION_MESSAGE);
       primary = icd11PrimaryStem(info, first);
@@ -297,60 +194,96 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
 
   return {
     async onProcess(clientRevision, certificate) {
-      const [dorisRun, codeditRun] = await Promise.all([engine.doris(certificate), engine.codedit(certificate)]);
-      const doris = engineEnvelope(dorisRun);
-      const codedit = engineEnvelope(codeditRun);
-      return {
-        schema_version: 1,
-        client_revision: clientRevision,
-        icd_release: OFFLINE_ICD11_RELEASE,
-        certificate,
-        // Local integrity markers over the JSON strings; unlike the server's digests they never cross-check WHO.
-        certificate_digest: await sha256Hex(JSON.stringify(certificate)),
-        result_digest: await sha256Hex(JSON.stringify({ doris, codedit })),
-        doris,
-        codedit,
-        process_token: `local-${randomUUID()}`,
-      };
+      const engineBinding = `icd11-engine-${ENGINE_PROVENANCE.icd11_engine}+doris-${ENGINE_PROVENANCE.doris_engine}+rules-${ENGINE_PROVENANCE.doris_rules}`;
+      try {
+        // Rule 6 first, as vendor/who-icd11-api's normalize_certificate does: nothing personal reaches the engine.
+        assertNoPii(certificate, "certificate");
+        const result = await processCertificate(
+          who,
+          { schema_version: 1, client_revision: clientRevision, certificate },
+          { digest: sha256Hex, engineBinding },
+        );
+        return { ...result, process_token: `local-${randomUUID()}` };
+      } catch (error) {
+        if (error instanceof DorisCertificateError) throw dorisError(422, "INVALID_INPUT", "The DORIS certificate is invalid.", error.fields);
+        if (error instanceof DorisRequestError) throw dorisError(422, "INVALID_INPUT", "The DORIS process request is invalid.");
+        if (error instanceof PiiBoundaryError) throw personalData(error, "The DORIS certificate is invalid.", "certificate");
+        if (error instanceof WhoUnavailableError) throw whoUnavailable();
+        throw error;
+      }
     },
 
     async onTerms(query, limit, subtreeUris) {
-      // The engine's search op takes the query only; subtree filters need WHO
-      // search options the offline op does not expose, so a scoped search
-      // answers the same flat MMS list until the engine grows the option.
-      void subtreeUris;
-      const clamped = Math.min(Math.max(limit ?? DEFAULT_TERM_LIMIT, 1), MAX_TERM_LIMIT);
-      const result = await engine.search(query);
-      if (!result.ok) throw new Error("icd11_unavailable");
-      const entities = isRecord(result.data) && Array.isArray(result.data.destinationEntities)
-        ? result.data.destinationEntities
-        : [];
-      const terms: DorisTerm[] = [];
-      for (const entity of entities) {
-        const term = termFromEntity(entity);
-        if (term) terms.push(term);
-        if (terms.length === clamped) break;
+      const wanted = limit ?? DEFAULT_TERM_LIMIT;
+      const length = codePointLength(typeof query === "string" ? query.trim() : "");
+      if (
+        length < MIN_QUERY_CHARS || length > MAX_QUERY_CHARS
+        || !Number.isInteger(wanted) || wanted < 1 || wanted > MAX_TERM_LIMIT
+        || !validSubtreeUris(subtreeUris)
+      ) {
+        throw dorisError(422, "INVALID_INPUT", "The terminology request is invalid.");
       }
-      const chopped = isRecord(result.data) && result.data.resultChopped !== null && result.data.resultChopped !== undefined
-        ? result.data.resultChopped !== false
-        : false;
-      return {
-        schema_version: 1,
-        items: terms,
-        truncated: chopped || entities.length > terms.length,
-        next_cursor: null,
-      };
+      return guarded(async () => {
+        assertNoPiiInText(query, "query");
+        subtreeUris?.forEach((uri, index) => assertNoPiiInText(uri, `subtree_uris[${index}]`));
+        const { items, truncated } = await searchTerms(who, query, { limit: wanted, subtreeUris });
+        return { schema_version: 1 as const, items, truncated, next_cursor: null };
+      }, (error) => personalData(error, "The terminology request is invalid."));
     },
 
-    onCodeInfo: codeInfoReply,
+    async onCodeInfo(requested) {
+      const code = typeof requested === "string" ? requested.trim() : "";
+      if (!code || codePointLength(code) > MAX_CODE_CHARS) throw dorisError(422, "INVALID_INPUT", "The code request is invalid.");
+      return guarded(async () => {
+        assertNoPiiInText(code, "code");
+        const item = await codeinfoItem(who, code);
+        if (!item) throw dorisError(422, "CODE_NOT_FOUND", "Select a valid ICD-11 code.");
+        return { schema_version: 1 as const, item };
+      }, (error) => personalData(error, "The code request is invalid."));
+    },
 
-    async onSelectionCheck(code, uri) {
-      const reply = await codeInfoReply(code);
-      // The URI must be the engine-reported one for that code: a picker hint
-      // that no longer matches WHO (stale draft, re-shipped data) is refused.
-      if (reply.item.uri !== uri) throw new Error("icd11_uri_mismatch");
-      confirmedUris.set(reply.item.code, reply.item.uri);
-      return reply;
+    async onSelectionCheck(requested, requestedUri) {
+      const code = typeof requested === "string" ? requested.trim() : "";
+      const uri = typeof requestedUri === "string" ? requestedUri.trim() : "";
+      if (!code || codePointLength(code) > MAX_CODE_CHARS || !uri || codePointLength(uri) > MAX_URI_CHARS) {
+        throw dorisError(422, "INVALID_INPUT", "The selected ICD-11 code is invalid.");
+      }
+      return guarded(async () => {
+        assertNoPiiInText(code, "code");
+        assertNoPiiInText(uri, "uri");
+        const item = await codeinfoItem(who, code);
+        // The URI must be the one WHO reports for that code: a picker hint that no longer matches (stale draft, re-shipped data) is refused.
+        if (!item || item.uri !== uri) throw dorisError(422, "INVALID_SELECTION", "The selected code does not match its WHO URI.");
+        confirmedUris.set(item.code, item.uri);
+        return { schema_version: 1 as const, item };
+      }, (error) => personalData(error, "The selected ICD-11 code is invalid."));
+    },
+
+    async onGuidance(endpoint, body) {
+      try {
+        return await guidance.answer(endpoint, body);
+      } catch (error) {
+        if (error instanceof PostcoordinationError) throw dorisError(error.status, error.code, error.message);
+        // The guidance routes word this differently from the terms routes (_guidance_request in doris_clinical.py).
+        if (error instanceof WhoUnavailableError) throw dorisError(503, "WHO_API_UNAVAILABLE", "WHO ICD-11 guidance is unavailable.");
+        if (error instanceof PiiBoundaryError) throw personalData(error, "The ICD-11 guidance request is invalid.");
+        throw error;
+      }
+    },
+
+    async primaryStem(requested) {
+      const expression = extractIcd11CodeExpression(requested);
+      const first = expression ? firstStem(expression) : null;
+      if (!expression || !first) throw dorisError(422, "INVALID_INPUT", "The code request is invalid.");
+      if (!isCluster(expression)) return first;
+      // The expression passed the code grammar above, which cannot carry personal data: no PII check needed.
+      try {
+        const info = await who.codeinfo(expression);
+        if (!info || info.code !== expression) throw dorisError(422, "CODE_NOT_FOUND", "Select a valid ICD-11 code.");
+        return icd11PrimaryStem(info, first);
+      } catch (error) {
+        throw error instanceof WhoUnavailableError ? whoUnavailable() : error;
+      }
     },
 
     async save({ clientDraftId, body, reply, deviceUuid, coderProfileUpdatedAt, answersSha256, workflowTimelineV1, codingTimelineV1 }) {
@@ -376,9 +309,11 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
       const updatedAt = localDateTimeWithOffset();
       const savedTimeline = appendWorkflowEvent(timeline, "initial_saved", updatedAt);
       const codingProvenance = allowability && ucodCode ? await judgeUnderlyingCause(ucodCode, body) : null;
-      const provenance = codingProvenance
+      const judged = codingProvenance
         ? { ...codingProvenance, workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline }
-        : timeline.length ? { workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline } : null;
+        : timeline.length ? { workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline } : {};
+      // Which engine produced and judged this coding. The server takes it as `pack_versions` (src/sync.ts moves it there).
+      const provenance = { ...judged, packVersions: { ...ENGINE_PROVENANCE } };
       const row: OfflineCodingRow = {
         client_draft_id: draftId,
         certificate,
@@ -393,7 +328,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         status: result.status === "rejected" ? "rejected" : result.status === "completed" ? "coded" : "draft",
         coder_profile_updated_at: coderProfileUpdatedAt,
         device_uuid: deviceUuid,
-        provenance: provenance ? JSON.stringify(provenance) : null,
+        provenance: JSON.stringify(provenance),
         answers_sha256: answersSha256 ?? null,
         created_at: existing?.created_at ?? localDateTimeWithOffset(),
         updated_at: updatedAt,
@@ -494,5 +429,22 @@ export function certificateSeedFromInterview(data: Record<string, unknown>): { c
   return {
     certificate: Object.keys(admin).length ? { ICDVersion: "ICD11", AdministrativeData: admin } : { ICDVersion: "ICD11" },
     provenance,
+  };
+}
+
+const GUIDANCE_PATH = new RegExp(`^/api/v1/doris-clinical/(${GUIDANCE_ENDPOINTS.join("|")})/([^/?#]+)$`);
+
+/**
+ * The requester DorisPanel and the picker's guidance calls (workspace/doris/guidance.ts) use offline: a POST to one of
+ * the five `/api/v1/doris-clinical/<route>/<va_sid>` guidance routes for the open case is answered by the editor, with
+ * the server's reply or ApiError; every other request throws `offline_server_unavailable`, so an offline screen can
+ * never half-talk to a server. `allowed` runs first, as for the editor's other data calls.
+ */
+export function createGuidanceRequester(editor: Pick<OfflineDorisEditor, "onGuidance">, vaSid: string, allowed: () => Promise<void>): JsonRequester {
+  return async (path, init) => {
+    const match = GUIDANCE_PATH.exec(path);
+    if (!match || init?.method !== "POST" || match[2] !== encodeURIComponent(vaSid)) throw new Error("offline_server_unavailable");
+    await allowed();
+    return editor.onGuidance(match[1] as GuidanceEndpoint, init.json);
   };
 }

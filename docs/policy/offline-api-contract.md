@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-29
+last_updated: 2026-10-30
 ---
 
 # Offline API Contract v1
@@ -1092,7 +1092,7 @@ all. The body is the 3.6 upload plus:
   | `certificate`, `result`, `codedit_result` | the on-device DORIS certificate and envelopes, stored as imported (objects; `result` and `codedit_result` may be null) |
   | `certificate_digest`, `result_digest` | local integrity markers (64 hex) or null; never verified |
   | `provenance` | `{allowability: {rules, release}, antecedent: {code, primary_stem, release, causing_condition_unknown?, age_restriction_confirmation?}}`; the confirmation is the six-key record of `record_final_cod_flags` |
-  | `pack_versions` | at most 20 `{name: version}` texts (allowability pack, WHO files, engine) |
+  | `pack_versions` | at most 20 `{name: version}` texts (allowability pack, WHO files, engine). Collect Plus sends `allowability`, `icd11_engine` (the engine release), `doris_engine` (rule engine), `doris_rules` and `icd_release` |
 
   A malformed object refuses the whole upload with 422
   `offline_coding_invalid` (the phone keeps both); `standalone` with 422

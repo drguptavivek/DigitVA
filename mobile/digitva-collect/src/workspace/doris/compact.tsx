@@ -78,8 +78,10 @@ export function ClearButton({ label, onPress, size = 44, style }: { label: strin
 export function FieldLabel({ text, badge, onClear }: { text: string; badge?: string; onClear?: () => void }) {
   const layout = useLayout();
   return (
-    // flexGrow: in a stretched grid cell the label block takes the spare height, so the control under it lines up across the row.
-    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: gap.sm, flexGrow: 1 }}>
+    // Browser only: flexGrow lets the label block take a stretched cell's spare height, so the controls line up across a row. Never on
+    // native: React Native's Yoga (legacy stretch errata, YGErrataAll) lets a growing child of a column fill the height its parent was
+    // offered, so the label grew by hundreds of px and pushed the control out of its card (digitva-4x2y).
+    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: gap.sm, ...(Platform.OS === "web" ? { flexGrow: 1 } : null) }}>
       <View style={[layout.row, { flex: 1, minWidth: 0 }]}>
         <Label>{text}</Label>
         {badge ? <Badge variant="secondary">{badge}</Badge> : null}

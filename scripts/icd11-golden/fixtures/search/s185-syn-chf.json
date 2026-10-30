@@ -1,0 +1,75 @@
+{
+ "id": "s185-syn-chf",
+ "input": {
+  "concept": "heart failure",
+  "id": "s185-syn-chf",
+  "kind": "synonym",
+  "query": "CHF",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for heart failure (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #dd7515727e"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "BD10",
+       "has_coding_note": false,
+       "matching_text": "Congestive heart failure",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Congestive heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+      },
+      {
+       "code": "BD1Z&XT8W",
+       "has_coding_note": false,
+       "matching_text": "Chronic heart failure",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified & http://id.who.int/icd/release/11/2026-01/mms/490003542"
+      },
+      {
+       "code": "1D49",
+       "has_coding_note": false,
+       "matching_text": "Crimean-Congo haemorrhagic fever",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Crimean-Congo haemorrhagic fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1562906700"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "CHF",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #dd7515727e": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2136808878","important":false,"label":"<em class='found'>CHF</em><em class='nonwbe'></em> - [congestive heart failure]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10","title":"Congestive heart failure","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified & http://id.who.int/icd/release/11/2026-01/mms/490003542","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1619115863","important":false,"label":"<em class='found'>CHF</em><em class='nonwbe'></em> - [chronic heart failure]","propertyId":"Synonym","propertyValueType":2,"score":1}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified","theCode":"BD1Z&XT8W","title":"Chronic heart failure","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1562906700","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1562906700","important":false,"label":"CCHF - [Crimean-Congo haemorrhagic fever]","propertyId":"Synonym","propertyValueType":0,"score":-2.0347478523409093}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.0347478523409093,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1562906700","theCode":"1D49","title":"Crimean-Congo haemorrhagic fever","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=CHF%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

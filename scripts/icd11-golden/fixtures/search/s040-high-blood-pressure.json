@@ -1,0 +1,62 @@
+{
+ "id": "s040-high-blood-pressure",
+ "input": {
+  "id": "s040-high-blood-pressure",
+  "kind": "lay",
+  "query": "high blood pressure",
+  "source": "VAs-04.99; scripts/icd11-parity/queries.json",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #8ad36a0df0"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 2,
+     "items": [
+      {
+       "code": "BA00.Z",
+       "has_coding_note": false,
+       "matching_text": "Essential hypertension, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Essential hypertension, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"
+      },
+      {
+       "code": "MC80.0Z",
+       "has_coding_note": true,
+       "matching_text": "Elevated blood-pressure reading, without diagnosis of hypertension, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Elevated blood-pressure reading, without diagnosis of hypertension, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/523963970/unspecified"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "high blood pressure",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #8ad36a0df0": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/761947693","important":true,"label":"<em class='found'>high</em> <em class='found'>blood</em> <em class='found'>pressure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/761947693","important":false,"label":"<em class='found'>high</em> <em class='found'>blood</em> <em class='found'>pressure</em><em class='nonwbe'></em> disorder","propertyId":"Synonym","propertyValueType":0,"score":0.6228768323421124},{"foundationUri":"http://id.who.int/icd/entity/761947693","important":false,"label":"HBP - [<em class='found'>high</em> <em class='found'>blood</em> <em class='found'>pressure</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.20698779086476532}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified","theCode":"BA00.Z","title":"Essential hypertension, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/523963970/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/523963970","important":false,"label":"nonspecific <em class='found'>high</em> <em class='found'>blood</em> <em class='found'>pressure</em><em class='nonwbe'></em> reading, without diagnosis of hypertension","propertyId":"Synonym","propertyValueType":0,"score":-1.3105538527605982},{"foundationUri":"http://id.who.int/icd/entity/523963970","important":false,"label":"incidental reading of <em class='found'>high</em> <em class='found'>blood</em> <em class='found'>pressure</em><em class='nonwbe'></em>, without diagnosis of hypertension","propertyId":"Synonym","propertyValueType":0,"score":-1.3830877742440841},{"foundationUri":"http://id.who.int/icd/entity/523963970","important":false,"label":"isolated <em class='found'>high</em> <em class='found'>blood</em> <em class='found'>pressure</em><em class='nonwbe'></em> reading, without diagnosis of hypertension","propertyId":"Synonym","propertyValueType":0,"score":-1.8006179937498086}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.3105538527605982,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/523963970/unspecified","theCode":"MC80.0Z","title":"Elevated <em class='found'>blood</em>-<em class='found'>pressure</em><em class='nonwbe'></em> reading, without diagnosis of hypertension, unspecified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=high+blood+pressure%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

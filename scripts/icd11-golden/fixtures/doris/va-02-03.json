@@ -1,0 +1,123 @@
+{
+ "id": "va-02-03",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P66Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "2C25.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified",
+       "Text": "Lung cancer"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-02-03",
+  "source": "VA cause VAs-02.03 Respiratory neoplasms",
+  "why": "Respiratory neoplasms: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z",
+    "POST icd/release/11/2026-01/doris #4310975783",
+    "POST icd/release/11/2026-01/codedit #4310975783"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P66Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "2C25.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified",
+          "Text": "Lung cancer"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "2C25.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 2C25.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 2C25.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 2C25.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 2C25.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "2C25.Z",
+       "stemURI": "http://id.who.int/icd/entity/316539081/mms/unspecified",
+       "tabularReport": "SP1;True;;2C25.Z;2C25.Z;;;0;SP1: 2C25.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;2C25.Z;;;;;0;SP6: is not applicable with the current TSP 2C25.Z.;;;;BER\nSP7;False;2C25.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;2C25.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;2C25.Z;;;;;0;M1: There is no special instruction applicable with TUC 2C25.Z.;;;;BER\nM2;False;2C25.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;2C25.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/316539081/unspecified",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "2C25.Z",
+       "role": "stem",
+       "title": "Lung cancer",
+       "uri": "http://id.who.int/icd/release/11/mms/316539081/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P66Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "2C25.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified",
+         "Text": "Lung cancer"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/2C25.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2C25.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2C25.Z","code":"2C25.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #4310975783": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P66Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"2C25.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified\",\"Text\":\"Lung cancer\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #4310975783": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"2C25.Z","error":null,"reject":false,"report":"SP1: 2C25.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 2C25.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 2C25.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 2C25.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"2C25.Z","stemURI":"http://id.who.int/icd/entity/316539081/mms/unspecified","tabularReport":"SP1;True;;2C25.Z;2C25.Z;;;0;SP1: 2C25.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;2C25.Z;;;;;0;SP6: is not applicable with the current TSP 2C25.Z.;;;;BER\nSP7;False;2C25.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;2C25.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;2C25.Z;;;;;0;M1: There is no special instruction applicable with TUC 2C25.Z.;;;;BER\nM2;False;2C25.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;2C25.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/316539081/unspecified","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P66Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"2C25.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified\",\"Text\":\"Lung cancer\"}]}]}","status":200}
+ }
+}

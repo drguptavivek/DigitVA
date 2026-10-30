@@ -1,0 +1,108 @@
+{
+ "id": "rej-uncoded-only",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P40Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Text": "Heart problem"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "rej-uncoded-only",
+  "source": "DORIS contract: uncoded text",
+  "why": "Only an uncoded text condition: DORIS cannot assign a cause"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/doris #5b88d83360",
+    "POST icd/release/11/2026-01/codedit #5b88d83360"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P40Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Text": "Heart problem"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": null,
+       "error": "No valid ICD-11 codes could be assigned. Manual check is needed\n",
+       "reject": true,
+       "report": null,
+       "stemCode": null,
+       "stemURI": null,
+       "tabularReport": "",
+       "uri": null,
+       "warning": null
+      },
+      "status": "rejected"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P40Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Text": "Heart problem"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/codedit #5b88d83360": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P40Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Text\":\"Heart problem\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #5b88d83360": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":null,"error":"No valid ICD-11 codes could be assigned. Manual check is needed\n","reject":true,"report":null,"stemCode":null,"stemURI":null,"tabularReport":"","uri":null,"warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P40Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Text\":\"Heart problem\"}]}]}","status":200}
+ }
+}

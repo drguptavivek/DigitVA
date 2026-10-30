@@ -1,0 +1,98 @@
+{
+ "id": "s059-premature-baby",
+ "input": {
+  "id": "s059-premature-baby",
+  "kind": "lay",
+  "query": "premature baby",
+  "source": "VAs-10.01; scripts/icd11-parity/queries.json",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #13773f6c2a"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "KA21.4Z",
+       "has_coding_note": true,
+       "matching_text": "Preterm newborn, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Preterm newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"
+      },
+      {
+       "code": "KA21.3Z",
+       "has_coding_note": true,
+       "matching_text": "Extreme prematurity of newborn, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Extreme prematurity of newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified"
+      },
+      {
+       "code": "KC30/KA21.4Z",
+       "has_coding_note": false,
+       "matching_text": "Skin fragility of prematurity [Preterm newborn, unspecified]",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Skin fragility of prematurity [Preterm newborn, unspecified]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/270549764 / http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"
+      },
+      {
+       "code": "KC3Y/KA21.4Z",
+       "has_coding_note": false,
+       "matching_text": "Other specified skin disorders associated with prematurity [Preterm newborn, unspecified]",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified skin disorders associated with prematurity [Preterm newborn, unspecified]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/666067582/other / http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"
+      },
+      {
+       "code": "KC30/KA21.3Z",
+       "has_coding_note": false,
+       "matching_text": "Skin fragility of prematurity [Extreme prematurity of newborn, unspecified]",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Skin fragility of prematurity [Extreme prematurity of newborn, unspecified]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/270549764 / http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "premature baby",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #13773f6c2a": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1726201225","important":true,"label":"<em class='found'>Premature</em> <em class='found'>baby</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified","theCode":"KA21.4Z","title":"<em class='found'>Preterm</em> newborn, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/61370397","important":false,"label":"very <em class='found'>premature</em> <em class='found'>baby</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.5061903909622942}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.5061903909622942,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified","theCode":"KA21.3Z","title":"Extreme <em class='found'>prematurity</em> of newborn, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/270549764 / http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/270549764 / http://id.who.int/icd/entity/1726201225","important":false,"label":"Skin fragility of <em class='found'>prematurity</em> [<em class='found'>Premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":0.32973888072729596}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.32973888072729596,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/270549764","theCode":"KC30/KA21.4Z","title":"Skin fragility of <em class='found'>prematurity</em> [<em class='found'>Preterm</em> newborn, unspecified]","titleIsASearchResult":false,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/666067582/other / http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/666067582 / http://id.who.int/icd/entity/1726201225","important":false,"label":"Other specified skin disorders associated with <em class='found'>prematurity</em> [<em class='found'>Premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":0.3057055147184423}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.3057055147184423,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/666067582/other","theCode":"KC3Y/KA21.4Z","title":"Other specified skin disorders associated with <em class='found'>prematurity</em> [<em class='found'>Preterm</em> newborn, unspecified]","titleIsASearchResult":false,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/270549764 / http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/270549764 / http://id.who.int/icd/entity/61370397","important":false,"label":"Skin fragility of <em class='found'>prematurity</em> [very <em class='found'>premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":0.17320313048212624}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.17320313048212624,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/270549764","theCode":"KC30/KA21.3Z","title":"Skin fragility of <em class='found'>prematurity</em> [Extreme <em class='found'>prematurity</em> of newborn, unspecified]","titleIsASearchResult":false,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/666067582/other / http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/666067582 / http://id.who.int/icd/entity/61370397","important":false,"label":"Other specified skin disorders associated with <em class='found'>prematurity</em> [very <em class='found'>premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":0.1491697644732725}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.1491697644732725,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/666067582/other","theCode":"KC3Y/KA21.3Z","title":"Other specified skin disorders associated with <em class='found'>prematurity</em> [Extreme <em class='found'>prematurity</em> of newborn, unspecified]","titleIsASearchResult":false,"titleIsTopScore":true},{"chapter":"09","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/947283385 / http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/947283385 / http://id.who.int/icd/entity/1726201225","important":false,"label":"Retinopathy of <em class='found'>prematurity</em> [<em class='found'>Premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":0.09851419121519536},{"foundationUri":"http://id.who.int/icd/entity/947283385 / http://id.who.int/icd/entity/1726201225","important":false,"label":"ROP - [retinopathy of <em class='found'>prematurity</em>] [<em class='found'>Premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":3,"score":-0.2682848620052416}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.09851419121519536,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/947283385","theCode":"9B71.3/KA21.4Z","title":"Retinopathy of <em class='found'>prematurity</em> [<em class='found'>Preterm</em> newborn, unspecified]","titleIsASearchResult":false,"titleIsTopScore":true},{"chapter":"09","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/947283385 / http://id.who.int/icd/release/11/2026-01/mms/61370397/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/947283385 / http://id.who.int/icd/entity/61370397","important":false,"label":"Retinopathy of <em class='found'>prematurity</em> [very <em class='found'>premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":-0.05802155902997418},{"foundationUri":"http://id.who.int/icd/entity/947283385 / http://id.who.int/icd/entity/61370397","important":false,"label":"ROP - [retinopathy of <em class='found'>prematurity</em>] [very <em class='found'>premature</em> <em class='found'>baby</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":3,"score":-0.42482061225041146}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.05802155902997418,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/947283385","theCode":"9B71.3/KA21.3Z","title":"Retinopathy of <em class='found'>prematurity</em> [Extreme <em class='found'>prematurity</em> of newborn, unspecified]","titleIsASearchResult":false,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=premature+baby%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

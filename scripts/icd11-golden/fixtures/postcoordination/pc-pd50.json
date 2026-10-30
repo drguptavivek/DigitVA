@@ -1,0 +1,999 @@
+{
+ "built": [],
+ "id": "pc-pd50",
+ "input": {
+  "category": "injury",
+  "id": "pc-pd50",
+  "source": "VAs-12.09",
+  "stem": "PD50",
+  "why": "Assault by road traffic (VA cause 12.09): six axes with a long transport-event root list"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "PD50",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "PD50",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PD50",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735",
+    "GET icd/release/11/2026-01/mms/2071638841",
+    "GET icd/release/11/2026-01/mms/1107435129",
+    "GET icd/release/11/2026-01/mms/1428847289",
+    "GET icd/release/11/2026-01/mms/821249273",
+    "GET icd/release/11/2026-01/mms/160164281",
+    "GET icd/release/11/2026-01/mms/713258542",
+    "GET icd/release/11/2026-01/mms/2123695182",
+    "GET icd/release/11/2026-01/mms/1590845204",
+    "GET icd/release/11/2026-01/mms/1206757646",
+    "GET icd/release/11/2026-01/mms/891089806",
+    "GET icd/release/11/2026-01/mms/899576709",
+    "GET icd/release/11/2026-01/mms/992212838",
+    "GET icd/release/11/2026-01/mms/457980430",
+    "GET icd/release/11/2026-01/mms/207904462",
+    "GET icd/release/11/2026-01/mms/549237391",
+    "GET icd/release/11/2026-01/mms/573871950",
+    "GET icd/release/11/2026-01/mms/419014753",
+    "GET icd/release/11/2026-01/mms/1475436790",
+    "GET icd/release/11/2026-01/mms/1993515327",
+    "GET icd/release/11/2026-01/mms/1336544383",
+    "GET icd/release/11/2026-01/mms/1484941503",
+    "GET icd/release/11/2026-01/mms/1029396223",
+    "GET icd/release/11/2026-01/mms/712192575",
+    "GET icd/release/11/2026-01/mms/1848703062",
+    "GET icd/release/11/2026-01/mms/1464358166",
+    "GET icd/release/11/2026-01/mms/1080046038",
+    "GET icd/release/11/2026-01/mms/632885142",
+    "GET icd/release/11/2026-01/mms/848390998",
+    "GET icd/release/11/2026-01/mms/1115077034",
+    "GET icd/release/11/2026-01/mms/665815018",
+    "GET icd/release/11/2026-01/mms/814211882"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "activityWhenInjured",
+       "instruction": "use additional code, if desired",
+       "label": "Activity when injured",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+         "code": "XE545",
+         "has_children": true,
+         "title": "Paid work",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1107435129",
+         "code": "XE8VF",
+         "has_children": true,
+         "title": "Unpaid work",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1107435129"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1428847289",
+         "code": "XE729",
+         "has_children": true,
+         "title": "Educational activity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1428847289"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/821249273",
+         "code": "",
+         "has_children": true,
+         "title": "Sports, recreation or leisure activity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/821249273"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/160164281",
+         "code": "",
+         "has_children": true,
+         "title": "Being taken care of",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/160164281"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+        "http://id.who.int/icd/release/11/2026-01/mms/1107435129",
+        "http://id.who.int/icd/release/11/2026-01/mms/1428847289",
+        "http://id.who.int/icd/release/11/2026-01/mms/821249273",
+        "http://id.who.int/icd/release/11/2026-01/mms/160164281"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "placeOfOccurrence",
+       "instruction": "use additional code, if desired",
+       "label": "Place of occurrence",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+         "code": "XE5NE",
+         "has_children": true,
+         "title": "Public highway, street or road",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/713258542"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "transportEventDescriptor",
+       "instruction": "use additional code, if desired",
+       "label": "Transport event descriptor",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2123695182",
+         "code": "XE6K0",
+         "has_children": true,
+         "title": "Pedestrian as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2123695182"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1590845204",
+         "code": "XE3NU",
+         "has_children": true,
+         "title": "Pedestrian conveyance as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1590845204"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1206757646",
+         "code": "XE7ZZ",
+         "has_children": true,
+         "title": "Pedal cycle as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1206757646"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/891089806",
+         "code": "XE8XQ",
+         "has_children": true,
+         "title": "Motorcycle as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/891089806"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/899576709",
+         "code": "XE0JH",
+         "has_children": true,
+         "title": "Car as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/899576709"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/992212838",
+         "code": "XE5LJ",
+         "has_children": false,
+         "title": "Bus or coach as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/992212838"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/457980430",
+         "code": "XE6UN",
+         "has_children": true,
+         "title": "Light goods vehicle as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/457980430"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/207904462",
+         "code": "XE854",
+         "has_children": true,
+         "title": "Heavy goods vehicle as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/207904462"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/549237391",
+         "code": "XE8UX",
+         "has_children": false,
+         "title": "Streetcar or tram as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/549237391"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/573871950",
+         "code": "XE90S",
+         "has_children": true,
+         "title": "Low powered passenger vehicle as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/573871950"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/419014753",
+         "code": "XE9HB",
+         "has_children": true,
+         "title": "Special vehicle mainly used in agriculture as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/419014753"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1475436790",
+         "code": "XE9DQ",
+         "has_children": true,
+         "title": "Special vehicle mainly used on industrial premises as counterpart in land transport crash",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1475436790"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/2123695182",
+        "http://id.who.int/icd/release/11/2026-01/mms/1590845204",
+        "http://id.who.int/icd/release/11/2026-01/mms/1206757646",
+        "http://id.who.int/icd/release/11/2026-01/mms/891089806",
+        "http://id.who.int/icd/release/11/2026-01/mms/899576709",
+        "http://id.who.int/icd/release/11/2026-01/mms/992212838",
+        "http://id.who.int/icd/release/11/2026-01/mms/457980430",
+        "http://id.who.int/icd/release/11/2026-01/mms/207904462",
+        "http://id.who.int/icd/release/11/2026-01/mms/549237391",
+        "http://id.who.int/icd/release/11/2026-01/mms/573871950",
+        "http://id.who.int/icd/release/11/2026-01/mms/419014753",
+        "http://id.who.int/icd/release/11/2026-01/mms/1475436790"
+       ],
+       "truncated": true
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "alcoholUseInInjury",
+       "instruction": "use additional code, if desired",
+       "label": "Alcohol use in injury",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1993515327",
+         "code": "XE47R",
+         "has_children": false,
+         "title": "Alcohol use, no information available",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1993515327"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1336544383",
+         "code": "XE08X",
+         "has_children": false,
+         "title": "Alcohol use, no suspicion or evidence of alcohol use by any person involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1336544383"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1484941503",
+         "code": "XE1G3",
+         "has_children": false,
+         "title": "Alcohol use, suspicion or evidence of alcohol use by the injured person",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1484941503"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1029396223",
+         "code": "XE15H",
+         "has_children": false,
+         "title": "Alcohol use, suspicion or evidence of alcohol use by other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1029396223"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/712192575",
+         "code": "XE3JF",
+         "has_children": false,
+         "title": "Alcohol use, suspicion or evidence of alcohol use by both the injured person and other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/712192575"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1993515327",
+        "http://id.who.int/icd/release/11/2026-01/mms/1336544383",
+        "http://id.who.int/icd/release/11/2026-01/mms/1484941503",
+        "http://id.who.int/icd/release/11/2026-01/mms/1029396223",
+        "http://id.who.int/icd/release/11/2026-01/mms/712192575"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "psychoactiveDrugUseInInjury",
+       "instruction": "use additional code, if desired",
+       "label": "Psychoactive drug use in injury",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1848703062",
+         "code": "XE43G",
+         "has_children": false,
+         "title": "Psychoactive drug use, no information available",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1848703062"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1464358166",
+         "code": "XE5TU",
+         "has_children": false,
+         "title": "Psychoactive drug use, no suspicion or evidence of psychoactive drug use by any person involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1464358166"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1080046038",
+         "code": "XE5VY",
+         "has_children": false,
+         "title": "Psychoactive drug use, suspicion or evidence of psychoactive drug use by the injured person",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1080046038"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/632885142",
+         "code": "XE8GW",
+         "has_children": false,
+         "title": "Psychoactive drug use, suspicion or evidence of psychoactive drug use by other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/632885142"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/848390998",
+         "code": "XE28E",
+         "has_children": false,
+         "title": "Psychoactive drug use, suspicion or evidence of psychoactive drug use by both the injured person and other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/848390998"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1848703062",
+        "http://id.who.int/icd/release/11/2026-01/mms/1464358166",
+        "http://id.who.int/icd/release/11/2026-01/mms/1080046038",
+        "http://id.who.int/icd/release/11/2026-01/mms/632885142",
+        "http://id.who.int/icd/release/11/2026-01/mms/848390998"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "aspectsOfAssaultAndMaltreatment",
+       "instruction": "use additional code, if desired",
+       "label": "Aspects of assault and maltreatment",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+         "code": "",
+         "has_children": true,
+         "title": "Perpetrator-victim relationship",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/665815018",
+         "code": "",
+         "has_children": true,
+         "title": "Gender of perpetrator",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/665815018"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/814211882",
+         "code": "",
+         "has_children": true,
+         "title": "Context of assault and maltreatment",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/814211882"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+        "http://id.who.int/icd/release/11/2026-01/mms/665815018",
+        "http://id.who.int/icd/release/11/2026-01/mms/814211882"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735",
+    "GET icd/release/11/2026-01/mms/2071638841",
+    "GET icd/release/11/2026-01/mms/1468452550",
+    "GET icd/release/11/2026-01/mms/1862165382",
+    "GET icd/release/11/2026-01/mms/1667452226",
+    "GET icd/release/11/2026-01/mms/2096473334",
+    "GET icd/release/11/2026-01/mms/1987576730"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "activityWhenInjured",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE7NW",
+       "has_children": false,
+       "title": "Travelling to or from paid work",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1468452550"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE9Q2",
+       "has_children": false,
+       "title": "Travelling in the course of paid work",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1862165382"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE2QJ",
+       "has_children": false,
+       "title": "Repetitive forceful work",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1667452226"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE88E",
+       "has_children": false,
+       "title": "Extended periods of work in a kneeling position",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2096473334"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE714",
+       "has_children": false,
+       "title": "Extended periods of work in a squatting position",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1987576730"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "activityWhenInjured",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+    "stem_code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735",
+    "GET icd/release/11/2026-01/mms/713258542",
+    "GET icd/release/11/2026-01/mms/1289398548",
+    "GET icd/release/11/2026-01/mms/1973552212",
+    "GET icd/release/11/2026-01/mms/1653235860"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "placeOfOccurrence",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+       "code": "XE6NQ",
+       "has_children": false,
+       "title": "Roadway",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1289398548"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+       "code": "XE53A",
+       "has_children": false,
+       "title": "Sidewalk",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1973552212"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+       "code": "XE4U4",
+       "has_children": false,
+       "title": "Cycleway",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1653235860"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "placeOfOccurrence",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+    "stem_code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735",
+    "GET icd/release/11/2026-01/mms/2123695182",
+    "GET icd/release/11/2026-01/mms/83700437",
+    "GET icd/release/11/2026-01/mms/1032161173"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "transportEventDescriptor",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2123695182",
+       "code": "XE57K",
+       "has_children": false,
+       "title": "Person on foot as counterpart in land transport crash",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/83700437"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2123695182",
+       "code": "XE2ZK",
+       "has_children": false,
+       "title": "Person using a pedestrian conveyance as counterpart in land transport crash",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1032161173"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/2123695182",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "transportEventDescriptor",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/2123695182",
+    "stem_code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735",
+    "GET icd/release/11/2026-01/mms/1115077034",
+    "GET icd/release/11/2026-01/mms/106218078",
+    "GET icd/release/11/2026-01/mms/1059876638",
+    "GET icd/release/11/2026-01/mms/671353822",
+    "GET icd/release/11/2026-01/mms/1306342814",
+    "GET icd/release/11/2026-01/mms/1526026590",
+    "GET icd/release/11/2026-01/mms/1670249502",
+    "GET icd/release/11/2026-01/mms/1957009630",
+    "GET icd/release/11/2026-01/mms/3341420",
+    "GET icd/release/11/2026-01/mms/961171756",
+    "GET icd/release/11/2026-01/mms/778188268"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "aspectsOfAssaultAndMaltreatment",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE454",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, spouse or partner",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/106218078"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE8AA",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, parent",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1059876638"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE5WN",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, other relative",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/671353822"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE4BG",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, unrelated care giver",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1306342814"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE270",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, acquaintance or friend",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1526026590"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE2HC",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, official or legal authority",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1670249502"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE4WS",
+       "has_children": true,
+       "title": "Perpetrator-victim relationship, stranger",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1957009630"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE0H2",
+       "has_children": false,
+       "title": "Perpetrator-victim relationship, prisoner or detainee",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/3341420"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE3FJ",
+       "has_children": false,
+       "title": "Perpetrator-victim relationship, person executing a felony or crime",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/961171756"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+       "code": "XE388",
+       "has_children": false,
+       "title": "Perpetrator-victim relationship, person interceding in a crime",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/778188268"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "aspectsOfAssaultAndMaltreatment",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1115077034",
+    "stem_code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735",
+    "GET icd/release/11/2026-01/mms/376636382",
+    "GET icd/release/11/2026-01/mms/73322695",
+    "GET icd/release/11/2026-01/mms/850137482",
+    "GET icd/release/11/2026-01/mms/376636382",
+    "GET icd/release/11/2026-01/mms/1074712557",
+    "GET icd/release/11/2026-01/mms/596083051",
+    "GET icd/release/11/2026-01/mms/1504896322",
+    "GET icd/release/11/2026-01/mms/962422537",
+    "GET icd/release/11/2026-01/mms/1766700216",
+    "GET icd/release/11/2026-01/mms/376636382/other",
+    "GET icd/release/11/2026-01/mms/376636382/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "23",
+       "title": "External causes of morbidity or mortality",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482"
+      },
+      {
+       "code": "",
+       "title": "Assault",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/73322695"
+      },
+      {
+       "code": "",
+       "title": "Assault by transport events",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/376636382"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Assault by land transport road traffic injury event",
+      "assault by land transport injury in road crash",
+      "assault by land transport injury on road",
+      "assault by traffic transport event",
+      "Assault by land transport traffic event injuring a pedestrian",
+      "Assault by land transport traffic event injuring the user of a pedestrian conveyance",
+      "Assault by land transport traffic event injuring a pedal cyclist",
+      "Assault by land transport traffic event injuring a motorcyclist",
+      "Assault by land transport traffic event injuring a motor vehicle occupant",
+      "Assault by land transport traffic event injuring occupant of bus or coach",
+      "Assault by land transport traffic event injuring occupant of light goods vehicle",
+      "Assault by land transport traffic event injuring occupant of pick-up truck or van"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "PD51",
+       "has_children": false,
+       "title": "Assault by land transport off-road nontraffic injury event",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1074712557"
+      },
+      {
+       "code": "PD52",
+       "has_children": false,
+       "title": "Assault by land transport injury event unknown whether road traffic or off-road nontraffic",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/596083051"
+      },
+      {
+       "code": "PD53",
+       "has_children": false,
+       "title": "Assault by railway transport injury event",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1504896322"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Assault by water transport injury event",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/962422537"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Assault by air or space transport injury event",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1766700216"
+      },
+      {
+       "code": "PD9Y",
+       "has_children": false,
+       "title": "Other specified assault by transport injury event",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/376636382/other"
+      },
+      {
+       "code": "PD9Z",
+       "has_children": false,
+       "title": "Assault by transport injury event, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "PD50"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "GET icd/release/11/2026-01/mms/1901159735"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PD50",
+      "title": "Assault by land transport road traffic injury event",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PD50"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1029396223": {"method":"GET","path":"icd/release/11/2026-01/mms/1029396223","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1029396223","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1029396223","classKind":"category","code":"XE15H","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1029396223","title":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1032161173": {"method":"GET","path":"icd/release/11/2026-01/mms/1032161173","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1032161173","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1032161173","classKind":"category","code":"XE2ZK","indexTerm":[{"label":{"@language":"en","@value":"Person using a pedestrian conveyance as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2123695182"],"source":"http://id.who.int/icd/entity/1032161173","title":{"@language":"en","@value":"Person using a pedestrian conveyance as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1059876638": {"method":"GET","path":"icd/release/11/2026-01/mms/1059876638","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1059876638","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1059876638","child":["http://id.who.int/icd/release/11/2026-01/mms/1079089855","http://id.who.int/icd/release/11/2026-01/mms/2032744447"],"classKind":"category","code":"XE8AA","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/2140096270","label":{"@language":"en","@value":"Perpetrator-victim relationship, foster parent"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2140096270"}],"indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, parent"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/1059876638","title":{"@language":"en","@value":"Perpetrator-victim relationship, parent"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/106218078": {"method":"GET","path":"icd/release/11/2026-01/mms/106218078","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/106218078","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#106218078","child":["http://id.who.int/icd/release/11/2026-01/mms/1308199097","http://id.who.int/icd/release/11/2026-01/mms/1954620921","http://id.who.int/icd/release/11/2026-01/mms/1672036665","http://id.who.int/icd/release/11/2026-01/mms/108035961","http://id.who.int/icd/release/11/2026-01/mms/290986937"],"classKind":"category","code":"XE454","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, spouse or partner"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/106218078","title":{"@language":"en","@value":"Perpetrator-victim relationship, spouse or partner"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1074712557": {"method":"GET","path":"icd/release/11/2026-01/mms/1074712557","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1074712557","classKind":"category","code":"PD51","indexTerm":[{"label":{"@language":"en","@value":"Assault by land transport off-road nontraffic injury event"}},{"label":{"@language":"en","@value":"assault by land transport injury event off road"}},{"label":{"@language":"en","@value":"assault by land transport injury event off road crash"}},{"label":{"@language":"en","@value":"assault by nontraffic transport event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1081404635","http://id.who.int/icd/release/11/2026-01/mms/1786773723"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2123695182","http://id.who.int/icd/release/11/2026-01/mms/1590845204","http://id.who.int/icd/release/11/2026-01/mms/1206757646","http://id.who.int/icd/release/11/2026-01/mms/891089806","http://id.who.int/icd/release/11/2026-01/mms/899576709","http://id.who.int/icd/release/11/2026-01/mms/992212838","http://id.who.int/icd/release/11/2026-01/mms/457980430","http://id.who.int/icd/release/11/2026-01/mms/207904462","http://id.who.int/icd/release/11/2026-01/mms/549237391","http://id.who.int/icd/release/11/2026-01/mms/573871950","http://id.who.int/icd/release/11/2026-01/mms/419014753","http://id.who.int/icd/release/11/2026-01/mms/1475436790","http://id.who.int/icd/release/11/2026-01/mms/1570324234","http://id.who.int/icd/release/11/2026-01/mms/311555997","http://id.who.int/icd/release/11/2026-01/mms/1274104731","http://id.who.int/icd/release/11/2026-01/mms/1355140558","http://id.who.int/icd/release/11/2026-01/mms/788642162","http://id.who.int/icd/release/11/2026-01/mms/774403547"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074712557/postcoordinationScale/aspectsOfAssaultAndMaltreatment","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/aspectsOfAssaultAndMaltreatment","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1115077034","http://id.who.int/icd/release/11/2026-01/mms/665815018","http://id.who.int/icd/release/11/2026-01/mms/814211882"]}],"source":"http://id.who.int/icd/entity/1074712557","title":{"@language":"en","@value":"Assault by land transport off-road nontraffic injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1080046038": {"method":"GET","path":"icd/release/11/2026-01/mms/1080046038","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1080046038","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1080046038","classKind":"category","code":"XE5VY","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by the injured person"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/1080046038","title":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by the injured person"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1107435129": {"method":"GET","path":"icd/release/11/2026-01/mms/1107435129","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1107435129","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1107435129","child":["http://id.who.int/icd/release/11/2026-01/mms/1513020610","http://id.who.int/icd/release/11/2026-01/mms/1666609538","http://id.who.int/icd/release/11/2026-01/mms/1348253932"],"classKind":"category","code":"XE8VF","indexTerm":[{"label":{"@language":"en","@value":"Unpaid work"}},{"label":{"@language":"en","@value":"unpaid internship"}},{"label":{"@language":"en","@value":"voluntary work"}},{"label":{"@language":"en","@value":"volunteer work"}},{"label":{"@language":"en","@value":"working solely for non-monetary benefits (e.g. for food, or possible employment in future)"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/1107435129","title":{"@language":"en","@value":"Unpaid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1115077034": {"method":"GET","path":"icd/release/11/2026-01/mms/1115077034","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1115077034","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1115077034","child":["http://id.who.int/icd/release/11/2026-01/mms/106218078","http://id.who.int/icd/release/11/2026-01/mms/1059876638","http://id.who.int/icd/release/11/2026-01/mms/671353822","http://id.who.int/icd/release/11/2026-01/mms/1306342814","http://id.who.int/icd/release/11/2026-01/mms/1526026590","http://id.who.int/icd/release/11/2026-01/mms/1670249502","http://id.who.int/icd/release/11/2026-01/mms/1957009630","http://id.who.int/icd/release/11/2026-01/mms/3341420","http://id.who.int/icd/release/11/2026-01/mms/961171756","http://id.who.int/icd/release/11/2026-01/mms/778188268"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1923949781"],"source":"http://id.who.int/icd/entity/1115077034","title":{"@language":"en","@value":"Perpetrator-victim relationship"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1206757646": {"method":"GET","path":"icd/release/11/2026-01/mms/1206757646","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1206757646","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1206757646","child":["http://id.who.int/icd/release/11/2026-01/mms/264915300","http://id.who.int/icd/release/11/2026-01/mms/816173806"],"classKind":"category","code":"XE7ZZ","definition":{"@language":"en","@value":"A pedal-cycle is any land transport vehicle propelled by the muscular energy of the person(s) on that vehicle usually by means of a pedal system but sometimes by lever(s) or handle(s). Includes vehicles with two wheels (the usual number) or more."},"indexTerm":[{"label":{"@language":"en","@value":"Pedal cycle as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/1206757646","title":{"@language":"en","@value":"Pedal cycle as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1289398548": {"method":"GET","path":"icd/release/11/2026-01/mms/1289398548","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1289398548","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1289398548","classKind":"category","code":"XE6NQ","indexTerm":[{"label":{"@language":"en","@value":"Roadway"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/713258542"],"source":"http://id.who.int/icd/entity/1289398548","title":{"@language":"en","@value":"Roadway"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1306342814": {"method":"GET","path":"icd/release/11/2026-01/mms/1306342814","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1306342814","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1306342814","child":["http://id.who.int/icd/release/11/2026-01/mms/2140096270","http://id.who.int/icd/release/11/2026-01/mms/1190652494","http://id.who.int/icd/release/11/2026-01/mms/1373605518"],"classKind":"category","code":"XE4BG","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, unrelated care giver"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/1306342814","title":{"@language":"en","@value":"Perpetrator-victim relationship, unrelated care giver"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1336544383": {"method":"GET","path":"icd/release/11/2026-01/mms/1336544383","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1336544383","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1336544383","classKind":"category","code":"XE08X","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, no suspicion or evidence of alcohol use by any person involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1336544383","title":{"@language":"en","@value":"Alcohol use, no suspicion or evidence of alcohol use by any person involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1428847289": {"method":"GET","path":"icd/release/11/2026-01/mms/1428847289","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1428847289","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1428847289","child":["http://id.who.int/icd/release/11/2026-01/mms/1120699819","http://id.who.int/icd/release/11/2026-01/mms/436950409"],"classKind":"category","code":"XE729","indexTerm":[{"label":{"@language":"en","@value":"Educational activity"}},{"label":{"@language":"en","@value":"activities as student or pupil of school, college, university or other educational institution"}},{"label":{"@language":"en","@value":"paid engagement in educational activity"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/1428847289","title":{"@language":"en","@value":"Educational activity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1464358166": {"method":"GET","path":"icd/release/11/2026-01/mms/1464358166","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1464358166","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1464358166","classKind":"category","code":"XE5TU","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, no suspicion or evidence of psychoactive drug use by any person involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/1464358166","title":{"@language":"en","@value":"Psychoactive drug use, no suspicion or evidence of psychoactive drug use by any person involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1468452550": {"method":"GET","path":"icd/release/11/2026-01/mms/1468452550","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1468452550","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1468452550","classKind":"category","code":"XE7NW","indexTerm":[{"label":{"@language":"en","@value":"Travelling to or from paid work"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1468452550","title":{"@language":"en","@value":"Travelling to or from paid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1475436790": {"method":"GET","path":"icd/release/11/2026-01/mms/1475436790","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1475436790","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1475436790","child":["http://id.who.int/icd/release/11/2026-01/mms/912976231"],"classKind":"category","code":"XE9DQ","definition":{"@language":"en","@value":"A motor vehicle designed primarily for use within the buildings and premises of industrial or commercial establishments."},"indexTerm":[{"label":{"@language":"en","@value":"Special vehicle mainly used on industrial premises as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/1475436790","title":{"@language":"en","@value":"Special vehicle mainly used on industrial premises as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1484941503": {"method":"GET","path":"icd/release/11/2026-01/mms/1484941503","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1484941503","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1484941503","classKind":"category","code":"XE1G3","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by the injured person"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1484941503","title":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by the injured person"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1504896322": {"method":"GET","path":"icd/release/11/2026-01/mms/1504896322","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1504896322","classKind":"category","code":"PD53","indexTerm":[{"label":{"@language":"en","@value":"Assault by railway transport injury event"}},{"foundationReference":"http://id.who.int/icd/entity/1476167509","label":{"@language":"en","@value":"Occupant of railway vehicle injured in transport event, assault"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/objectOrSubstanceProducingInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/objectOrSubstanceProducingInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622911741"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1670965842","http://id.who.int/icd/release/11/2026-01/mms/1524647698","http://id.who.int/icd/release/11/2026-01/mms/1304962002","http://id.who.int/icd/release/11/2026-01/mms/672210322","http://id.who.int/icd/release/11/2026-01/mms/1060731218","http://id.who.int/icd/release/11/2026-01/mms/713258542","http://id.who.int/icd/release/11/2026-01/mms/292139218","http://id.who.int/icd/release/11/2026-01/mms/839669614","http://id.who.int/icd/release/11/2026-01/mms/623129518","http://id.who.int/icd/release/11/2026-01/mms/278563516","http://id.who.int/icd/release/11/2026-01/mms/1231726668","http://id.who.int/icd/release/11/2026-01/mms/1581436044","http://id.who.int/icd/release/11/2026-01/mms/1731879372","http://id.who.int/icd/release/11/2026-01/mms/391771100","http://id.who.int/icd/release/11/2026-01/mms/53410898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1594880101","http://id.who.int/icd/release/11/2026-01/mms/1210553509","http://id.who.int/icd/release/11/2026-01/mms/771664613","http://id.who.int/icd/release/11/2026-01/mms/987156005","http://id.who.int/icd/release/11/2026-01/mms/428328911"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1504896322/postcoordinationScale/aspectsOfAssaultAndMaltreatment","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/aspectsOfAssaultAndMaltreatment","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1115077034","http://id.who.int/icd/release/11/2026-01/mms/665815018","http://id.who.int/icd/release/11/2026-01/mms/814211882"]}],"source":"http://id.who.int/icd/entity/1504896322","title":{"@language":"en","@value":"Assault by railway transport injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1526026590": {"method":"GET","path":"icd/release/11/2026-01/mms/1526026590","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1526026590","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1526026590","child":["http://id.who.int/icd/release/11/2026-01/mms/1735204455","http://id.who.int/icd/release/11/2026-01/mms/1578480423","http://id.who.int/icd/release/11/2026-01/mms/1228789735","http://id.who.int/icd/release/11/2026-01/mms/753199527","http://id.who.int/icd/release/11/2026-01/mms/1003261287","http://id.who.int/icd/release/11/2026-01/mms/45359143","http://id.who.int/icd/release/11/2026-01/mms/362562791","http://id.who.int/icd/release/11/2026-01/mms/922329945"],"classKind":"category","code":"XE270","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, acquaintance or friend"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/1526026590","title":{"@language":"en","@value":"Perpetrator-victim relationship, acquaintance or friend"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1590845204": {"method":"GET","path":"icd/release/11/2026-01/mms/1590845204","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1590845204","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1590845204","child":["http://id.who.int/icd/release/11/2026-01/mms/152036091","http://id.who.int/icd/release/11/2026-01/mms/478773497","http://id.who.int/icd/release/11/2026-01/mms/1400981612","http://id.who.int/icd/release/11/2026-01/mms/1508448144","http://id.who.int/icd/release/11/2026-01/mms/383901445","http://id.who.int/icd/release/11/2026-01/mms/849689351","http://id.who.int/icd/release/11/2026-01/mms/1769819242","http://id.who.int/icd/release/11/2026-01/mms/1722797816","http://id.who.int/icd/release/11/2026-01/mms/480297495","http://id.who.int/icd/release/11/2026-01/mms/600791455","http://id.who.int/icd/release/11/2026-01/mms/1982275488","http://id.who.int/icd/release/11/2026-01/mms/1832251384"],"classKind":"category","code":"XE3NU","definition":{"@language":"en","@value":"A device which is designed primarily for, or being used at the time primarily for, conveying the person and is not a transport vehicle."},"indexTerm":[{"label":{"@language":"en","@value":"Pedestrian conveyance as counterpart in land transport crash"}},{"label":{"@language":"en","@value":"powered pedestrian conveyances"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/1590845204","title":{"@language":"en","@value":"Pedestrian conveyance as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/160164281": {"method":"GET","path":"icd/release/11/2026-01/mms/160164281","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/160164281","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#160164281","child":["http://id.who.int/icd/release/11/2026-01/mms/1750602613","http://id.who.int/icd/release/11/2026-01/mms/1361100341","http://id.who.int/icd/release/11/2026-01/mms/786745995"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/160164281","title":{"@language":"en","@value":"Being taken care of"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1653235860": {"method":"GET","path":"icd/release/11/2026-01/mms/1653235860","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1653235860","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1653235860","classKind":"category","code":"XE4U4","indexTerm":[{"label":{"@language":"en","@value":"Cycleway"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/713258542"],"source":"http://id.who.int/icd/entity/1653235860","title":{"@language":"en","@value":"Cycleway"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1667452226": {"method":"GET","path":"icd/release/11/2026-01/mms/1667452226","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1667452226","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1667452226","classKind":"category","code":"XE2QJ","indexTerm":[{"label":{"@language":"en","@value":"Repetitive forceful work"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1667452226","title":{"@language":"en","@value":"Repetitive forceful work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1670249502": {"method":"GET","path":"icd/release/11/2026-01/mms/1670249502","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1670249502","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1670249502","child":["http://id.who.int/icd/release/11/2026-01/mms/1791298657","http://id.who.int/icd/release/11/2026-01/mms/1404936481","http://id.who.int/icd/release/11/2026-01/mms/1150666209","http://id.who.int/icd/release/11/2026-01/mms/558693281","http://id.who.int/icd/release/11/2026-01/mms/912564065"],"classKind":"category","code":"XE2HC","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, official or legal authority"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/1670249502","title":{"@language":"en","@value":"Perpetrator-victim relationship, official or legal authority"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1766700216": {"method":"GET","path":"icd/release/11/2026-01/mms/1766700216","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1766700216","blockId":"BlockL3-PD7","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1766700216","child":["http://id.who.int/icd/release/11/2026-01/mms/206145883","http://id.who.int/icd/release/11/2026-01/mms/1126845376","http://id.who.int/icd/release/11/2026-01/mms/1766700216/unspecified"],"classKind":"block","code":"","codeRange":"PD70-PD7Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"source":"http://id.who.int/icd/entity/1766700216","title":{"@language":"en","@value":"Assault by air or space transport injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1848703062": {"method":"GET","path":"icd/release/11/2026-01/mms/1848703062","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1848703062","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1848703062","classKind":"category","code":"XE43G","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, no information available"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/1848703062","title":{"@language":"en","@value":"Psychoactive drug use, no information available"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1862165382": {"method":"GET","path":"icd/release/11/2026-01/mms/1862165382","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1862165382","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1862165382","classKind":"category","code":"XE9Q2","indexTerm":[{"label":{"@language":"en","@value":"Travelling in the course of paid work"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1862165382","title":{"@language":"en","@value":"Travelling in the course of paid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1901159735": {"method":"GET","path":"icd/release/11/2026-01/mms/1901159735","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1901159735","classKind":"category","code":"PD50","indexTerm":[{"label":{"@language":"en","@value":"Assault by land transport road traffic injury event"}},{"label":{"@language":"en","@value":"assault by land transport injury in road crash"}},{"label":{"@language":"en","@value":"assault by land transport injury on road"}},{"label":{"@language":"en","@value":"assault by traffic transport event"}},{"foundationReference":"http://id.who.int/icd/entity/1766334657","label":{"@language":"en","@value":"Assault by land transport traffic event injuring a pedestrian"}},{"foundationReference":"http://id.who.int/icd/entity/966019328","label":{"@language":"en","@value":"Assault by land transport traffic event injuring the user of a pedestrian conveyance"}},{"foundationReference":"http://id.who.int/icd/entity/327915102","label":{"@language":"en","@value":"Assault by land transport traffic event injuring a pedal cyclist"}},{"foundationReference":"http://id.who.int/icd/entity/1823520065","label":{"@language":"en","@value":"Assault by land transport traffic event injuring a motorcyclist"}},{"foundationReference":"http://id.who.int/icd/entity/1980920587","label":{"@language":"en","@value":"Assault by land transport traffic event injuring a motor vehicle occupant"}},{"foundationReference":"http://id.who.int/icd/entity/651041482","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of bus or coach"}},{"foundationReference":"http://id.who.int/icd/entity/1509243349","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of light goods vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/1509243349","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of pick-up truck or van"}},{"foundationReference":"http://id.who.int/icd/entity/845505024","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of heavy goods vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/845505024","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of heavy transport vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/593331526","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of three-wheeler"}},{"foundationReference":"http://id.who.int/icd/entity/759116234","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of special vehicle mainly used in agriculture, except tractor"}},{"foundationReference":"http://id.who.int/icd/entity/1375998677","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of special vehicle mainly used on industrial premises"}},{"foundationReference":"http://id.who.int/icd/entity/1838051789","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of special construction vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/1218892959","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of wheeled all-terrain vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/1999419271","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of other all-terrain vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/1730843727","label":{"@language":"en","@value":"Assault by land transport traffic event injuring rider of an animal"}},{"foundationReference":"http://id.who.int/icd/entity/684172362","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of animal drawn vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/1752622157","label":{"@language":"en","@value":"Assault by land transport traffic event injuring occupant of streetcar or tram"}},{"foundationReference":"http://id.who.int/icd/entity/135763098","label":{"@language":"en","@value":"Occupant injured in unknown mode of transport, in traffic, assault"}},{"foundationReference":"http://id.who.int/icd/entity/135763098","label":{"@language":"en","@value":"Person injured in land transport crash: unknown mode of transport, known whether in traffic, assault"}},{"foundationReference":"http://id.who.int/icd/entity/1383012571","label":{"@language":"en","@value":"Occupant of agricultural tractor injured in transport crash, assault"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/713258542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2123695182","http://id.who.int/icd/release/11/2026-01/mms/1590845204","http://id.who.int/icd/release/11/2026-01/mms/1206757646","http://id.who.int/icd/release/11/2026-01/mms/891089806","http://id.who.int/icd/release/11/2026-01/mms/899576709","http://id.who.int/icd/release/11/2026-01/mms/992212838","http://id.who.int/icd/release/11/2026-01/mms/457980430","http://id.who.int/icd/release/11/2026-01/mms/207904462","http://id.who.int/icd/release/11/2026-01/mms/549237391","http://id.who.int/icd/release/11/2026-01/mms/573871950","http://id.who.int/icd/release/11/2026-01/mms/419014753","http://id.who.int/icd/release/11/2026-01/mms/1475436790","http://id.who.int/icd/release/11/2026-01/mms/1570324234","http://id.who.int/icd/release/11/2026-01/mms/311555997","http://id.who.int/icd/release/11/2026-01/mms/1274104731","http://id.who.int/icd/release/11/2026-01/mms/1355140558","http://id.who.int/icd/release/11/2026-01/mms/788642162","http://id.who.int/icd/release/11/2026-01/mms/774403547"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1901159735/postcoordinationScale/aspectsOfAssaultAndMaltreatment","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/aspectsOfAssaultAndMaltreatment","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1115077034","http://id.who.int/icd/release/11/2026-01/mms/665815018","http://id.who.int/icd/release/11/2026-01/mms/814211882"]}],"source":"http://id.who.int/icd/entity/1901159735","title":{"@language":"en","@value":"Assault by land transport road traffic injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1957009630": {"method":"GET","path":"icd/release/11/2026-01/mms/1957009630","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1957009630","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1957009630","child":["http://id.who.int/icd/release/11/2026-01/mms/1915180298","http://id.who.int/icd/release/11/2026-01/mms/1264580682","http://id.who.int/icd/release/11/2026-01/mms/882609398"],"classKind":"category","code":"XE4WS","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, stranger"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/1957009630","title":{"@language":"en","@value":"Perpetrator-victim relationship, stranger"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1973552212": {"method":"GET","path":"icd/release/11/2026-01/mms/1973552212","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1973552212","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1973552212","classKind":"category","code":"XE53A","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1670965842","label":{"@language":"en","@value":"Home"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1670965842"}],"indexTerm":[{"label":{"@language":"en","@value":"Sidewalk"}},{"label":{"@language":"en","@value":"footpath"}},{"label":{"@language":"en","@value":"pathway"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/713258542"],"source":"http://id.who.int/icd/entity/1973552212","title":{"@language":"en","@value":"Sidewalk"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1987576730": {"method":"GET","path":"icd/release/11/2026-01/mms/1987576730","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1987576730","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1987576730","classKind":"category","code":"XE714","indexTerm":[{"label":{"@language":"en","@value":"Extended periods of work in a squatting position"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1987576730","title":{"@language":"en","@value":"Extended periods of work in a squatting position"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1993515327": {"method":"GET","path":"icd/release/11/2026-01/mms/1993515327","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1993515327","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1993515327","classKind":"category","code":"XE47R","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, no information available"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1993515327","title":{"@language":"en","@value":"Alcohol use, no information available"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2071638841": {"method":"GET","path":"icd/release/11/2026-01/mms/2071638841","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2071638841","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2071638841","child":["http://id.who.int/icd/release/11/2026-01/mms/1468452550","http://id.who.int/icd/release/11/2026-01/mms/1862165382","http://id.who.int/icd/release/11/2026-01/mms/1667452226","http://id.who.int/icd/release/11/2026-01/mms/2096473334","http://id.who.int/icd/release/11/2026-01/mms/1987576730"],"classKind":"category","code":"XE545","indexTerm":[{"label":{"@language":"en","@value":"Paid work"}},{"label":{"@language":"en","@value":"paid engagement in sports, recreation or leisure activity"}},{"label":{"@language":"en","@value":"working as owner or proprietor of business"}},{"label":{"@language":"en","@value":"working for income"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/2071638841","title":{"@language":"en","@value":"Paid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/207904462": {"method":"GET","path":"icd/release/11/2026-01/mms/207904462","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/207904462","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#207904462","child":["http://id.who.int/icd/release/11/2026-01/mms/39541286","http://id.who.int/icd/release/11/2026-01/mms/93017206","http://id.who.int/icd/release/11/2026-01/mms/282219088","http://id.who.int/icd/release/11/2026-01/mms/483558985"],"classKind":"category","code":"XE854","definition":{"@language":"en","@value":"A heavy goods vehicle is a motor vehicle designed primarily for carrying property on roads, meeting local criteria for classification as a heavy goods vehicle in terms of curbside weight (usually above 3500 kg), and usually requiring a special driver's licence."},"indexTerm":[{"label":{"@language":"en","@value":"Heavy goods vehicle as counterpart in land transport crash"}},{"label":{"@language":"en","@value":"fire brigade pump vehicle"}},{"label":{"@language":"en","@value":"lorry"}},{"label":{"@language":"en","@value":"prime mover"}},{"label":{"@language":"en","@value":"road tractor"}},{"label":{"@language":"en","@value":"truck with trailer"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/207904462","title":{"@language":"en","@value":"Heavy goods vehicle as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2096473334": {"method":"GET","path":"icd/release/11/2026-01/mms/2096473334","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2096473334","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2096473334","classKind":"category","code":"XE88E","indexTerm":[{"label":{"@language":"en","@value":"Extended periods of work in a kneeling position"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/2096473334","title":{"@language":"en","@value":"Extended periods of work in a kneeling position"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2123695182": {"method":"GET","path":"icd/release/11/2026-01/mms/2123695182","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2123695182","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2123695182","child":["http://id.who.int/icd/release/11/2026-01/mms/83700437","http://id.who.int/icd/release/11/2026-01/mms/1032161173"],"classKind":"category","code":"XE6K0","definition":{"@language":"en","@value":"A pedestrian is any person involved in a transport crash who was not in or on a vehicle or pedestrian conveyance at the time."},"indexTerm":[{"label":{"@language":"en","@value":"Pedestrian as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/2123695182","title":{"@language":"en","@value":"Pedestrian as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/3341420": {"method":"GET","path":"icd/release/11/2026-01/mms/3341420","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/3341420","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#3341420","classKind":"category","code":"XE0H2","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, prisoner or detainee"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/3341420","title":{"@language":"en","@value":"Perpetrator-victim relationship, prisoner or detainee"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/376636382": {"method":"GET","path":"icd/release/11/2026-01/mms/376636382","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382","blockId":"BlockL2-PD5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#376636382","child":["http://id.who.int/icd/release/11/2026-01/mms/1901159735","http://id.who.int/icd/release/11/2026-01/mms/1074712557","http://id.who.int/icd/release/11/2026-01/mms/596083051","http://id.who.int/icd/release/11/2026-01/mms/1504896322","http://id.who.int/icd/release/11/2026-01/mms/962422537","http://id.who.int/icd/release/11/2026-01/mms/1766700216","http://id.who.int/icd/release/11/2026-01/mms/376636382/other","http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified"],"classKind":"block","code":"","codeRange":"PD50-PD9Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/73322695"],"source":"http://id.who.int/icd/entity/376636382","title":{"@language":"en","@value":"Assault by transport events"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/376636382/other": {"method":"GET","path":"icd/release/11/2026-01/mms/376636382/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#376636382/other","classKind":"category","code":"PD9Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified assault by transport injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/713258542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2123695182","http://id.who.int/icd/release/11/2026-01/mms/1590845204","http://id.who.int/icd/release/11/2026-01/mms/1206757646","http://id.who.int/icd/release/11/2026-01/mms/891089806","http://id.who.int/icd/release/11/2026-01/mms/899576709","http://id.who.int/icd/release/11/2026-01/mms/992212838","http://id.who.int/icd/release/11/2026-01/mms/457980430","http://id.who.int/icd/release/11/2026-01/mms/207904462","http://id.who.int/icd/release/11/2026-01/mms/549237391","http://id.who.int/icd/release/11/2026-01/mms/573871950","http://id.who.int/icd/release/11/2026-01/mms/419014753","http://id.who.int/icd/release/11/2026-01/mms/1475436790","http://id.who.int/icd/release/11/2026-01/mms/1570324234","http://id.who.int/icd/release/11/2026-01/mms/311555997","http://id.who.int/icd/release/11/2026-01/mms/1274104731","http://id.who.int/icd/release/11/2026-01/mms/1355140558","http://id.who.int/icd/release/11/2026-01/mms/788642162","http://id.who.int/icd/release/11/2026-01/mms/774403547"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/other/postcoordinationScale/aspectsOfAssaultAndMaltreatment","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/aspectsOfAssaultAndMaltreatment","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1115077034","http://id.who.int/icd/release/11/2026-01/mms/665815018","http://id.who.int/icd/release/11/2026-01/mms/814211882"]}],"title":{"@language":"en","@value":"Other specified assault by transport injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/376636382/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/376636382/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#376636382/unspecified","classKind":"category","code":"PD9Z","indexTerm":[{"label":{"@language":"en","@value":"Assault by transport injury event, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/713258542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2123695182","http://id.who.int/icd/release/11/2026-01/mms/1590845204","http://id.who.int/icd/release/11/2026-01/mms/1206757646","http://id.who.int/icd/release/11/2026-01/mms/891089806","http://id.who.int/icd/release/11/2026-01/mms/899576709","http://id.who.int/icd/release/11/2026-01/mms/992212838","http://id.who.int/icd/release/11/2026-01/mms/457980430","http://id.who.int/icd/release/11/2026-01/mms/207904462","http://id.who.int/icd/release/11/2026-01/mms/549237391","http://id.who.int/icd/release/11/2026-01/mms/573871950","http://id.who.int/icd/release/11/2026-01/mms/419014753","http://id.who.int/icd/release/11/2026-01/mms/1475436790","http://id.who.int/icd/release/11/2026-01/mms/1570324234","http://id.who.int/icd/release/11/2026-01/mms/311555997","http://id.who.int/icd/release/11/2026-01/mms/1274104731","http://id.who.int/icd/release/11/2026-01/mms/1355140558","http://id.who.int/icd/release/11/2026-01/mms/788642162","http://id.who.int/icd/release/11/2026-01/mms/774403547"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/376636382/unspecified/postcoordinationScale/aspectsOfAssaultAndMaltreatment","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/aspectsOfAssaultAndMaltreatment","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1115077034","http://id.who.int/icd/release/11/2026-01/mms/665815018","http://id.who.int/icd/release/11/2026-01/mms/814211882"]}],"title":{"@language":"en","@value":"Assault by transport injury event, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/419014753": {"method":"GET","path":"icd/release/11/2026-01/mms/419014753","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/419014753","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#419014753","child":["http://id.who.int/icd/release/11/2026-01/mms/207247135","http://id.who.int/icd/release/11/2026-01/mms/59299203","http://id.who.int/icd/release/11/2026-01/mms/667693441"],"classKind":"category","code":"XE9HB","definition":{"@language":"en","@value":"A motor vehicle designed specifically for use in farming and agriculture (horticulture), for example to work the land, tend and harvest crops and transport materials on the farm."},"indexTerm":[{"label":{"@language":"en","@value":"Special vehicle mainly used in agriculture as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/419014753","title":{"@language":"en","@value":"Special vehicle mainly used in agriculture as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/457980430": {"method":"GET","path":"icd/release/11/2026-01/mms/457980430","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/457980430","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#457980430","child":["http://id.who.int/icd/release/11/2026-01/mms/448332621","http://id.who.int/icd/release/11/2026-01/mms/227633037","http://id.who.int/icd/release/11/2026-01/mms/1749572045"],"classKind":"category","code":"XE6UN","definition":{"@language":"en","@value":"A light goods vehicle is a four- or six-wheeled motor vehicle designed primarily for carrying property on roads, weighing less than the local limit for classification as a heavy goods vehicle (usually less 3500 kg), and not requiring a special driver's licence."},"indexTerm":[{"label":{"@language":"en","@value":"Light goods vehicle as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/457980430","title":{"@language":"en","@value":"Light goods vehicle as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/549237391": {"method":"GET","path":"icd/release/11/2026-01/mms/549237391","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/549237391","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#549237391","classKind":"category","code":"XE8UX","definition":{"@language":"en","@value":"A streetcar or tram is a device running on rails and operated entirely or partly on roads. Streetcars and trams are used primarily for transporting persons, usually in urban and suburban places. A trailer being towed by a streetcar or tram is considered a part of the streetcar."},"indexTerm":[{"label":{"@language":"en","@value":"Streetcar or tram as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/549237391","title":{"@language":"en","@value":"Streetcar or tram as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/573871950": {"method":"GET","path":"icd/release/11/2026-01/mms/573871950","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/573871950","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#573871950","child":["http://id.who.int/icd/release/11/2026-01/mms/316847899","http://id.who.int/icd/release/11/2026-01/mms/1443600818","http://id.who.int/icd/release/11/2026-01/mms/419647783"],"classKind":"category","code":"XE90S","definition":{"@language":"en","@value":"(1) A land transport motor vehicle with three wheels (usually one in front and two behind), designed primarily for on-road use. Globally, most commonly used as taxis. Design, construction, type of motor and registration/licensing requirements vary widely. (2) A low-powered quadricycle or other low-powered four-wheeled passenger vehicle that is not a car."},"indexTerm":[{"label":{"@language":"en","@value":"Low powered passenger vehicle as counterpart in land transport crash"}},{"label":{"@language":"en","@value":"Three wheeler as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/573871950","title":{"@language":"en","@value":"Low powered passenger vehicle as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/596083051": {"method":"GET","path":"icd/release/11/2026-01/mms/596083051","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#596083051","classKind":"category","code":"PD52","indexTerm":[{"label":{"@language":"en","@value":"Assault by land transport injury event unknown whether road traffic or off-road nontraffic"}},{"label":{"@language":"en","@value":"assault by land transport injury event unknown whether road or off-road"}},{"label":{"@language":"en","@value":"assault by land transport injury event unknown whether traffic or nontraffic"}},{"foundationReference":"http://id.who.int/icd/entity/436651213","label":{"@language":"en","@value":"Assault by crashing of motor vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/436651213","label":{"@language":"en","@value":"deliberately hitting or running over with motor vehicle"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1670965842","http://id.who.int/icd/release/11/2026-01/mms/1524647698","http://id.who.int/icd/release/11/2026-01/mms/1304962002","http://id.who.int/icd/release/11/2026-01/mms/672210322","http://id.who.int/icd/release/11/2026-01/mms/1060731218","http://id.who.int/icd/release/11/2026-01/mms/713258542","http://id.who.int/icd/release/11/2026-01/mms/292139218","http://id.who.int/icd/release/11/2026-01/mms/839669614","http://id.who.int/icd/release/11/2026-01/mms/623129518","http://id.who.int/icd/release/11/2026-01/mms/278563516","http://id.who.int/icd/release/11/2026-01/mms/1231726668","http://id.who.int/icd/release/11/2026-01/mms/1581436044","http://id.who.int/icd/release/11/2026-01/mms/1731879372","http://id.who.int/icd/release/11/2026-01/mms/391771100","http://id.who.int/icd/release/11/2026-01/mms/53410898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2037136197","http://id.who.int/icd/release/11/2026-01/mms/1463612101"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/596083051/postcoordinationScale/aspectsOfAssaultAndMaltreatment","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/aspectsOfAssaultAndMaltreatment","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1115077034","http://id.who.int/icd/release/11/2026-01/mms/665815018","http://id.who.int/icd/release/11/2026-01/mms/814211882"]}],"source":"http://id.who.int/icd/entity/596083051","title":{"@language":"en","@value":"Assault by land transport injury event unknown whether road traffic or off-road nontraffic"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/632885142": {"method":"GET","path":"icd/release/11/2026-01/mms/632885142","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/632885142","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#632885142","classKind":"category","code":"XE8GW","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/632885142","title":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/665815018": {"method":"GET","path":"icd/release/11/2026-01/mms/665815018","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/665815018","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#665815018","child":["http://id.who.int/icd/release/11/2026-01/mms/560481924","http://id.who.int/icd/release/11/2026-01/mms/403762116","http://id.who.int/icd/release/11/2026-01/mms/1741987708","http://id.who.int/icd/release/11/2026-01/mms/1235771963"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1923949781"],"source":"http://id.who.int/icd/entity/665815018","title":{"@language":"en","@value":"Gender of perpetrator"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/671353822": {"method":"GET","path":"icd/release/11/2026-01/mms/671353822","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/671353822","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#671353822","child":["http://id.who.int/icd/release/11/2026-01/mms/1488176088","http://id.who.int/icd/release/11/2026-01/mms/1640722072","http://id.who.int/icd/release/11/2026-01/mms/1994590808","http://id.who.int/icd/release/11/2026-01/mms/322581528","http://id.who.int/icd/release/11/2026-01/mms/68309208","http://id.who.int/icd/release/11/2026-01/mms/1030421912","http://id.who.int/icd/release/11/2026-01/mms/709007704"],"classKind":"category","code":"XE5WN","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, other relative"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/671353822","title":{"@language":"en","@value":"Perpetrator-victim relationship, other relative"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/712192575": {"method":"GET","path":"icd/release/11/2026-01/mms/712192575","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/712192575","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#712192575","classKind":"category","code":"XE3JF","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by both the injured person and other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/712192575","title":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by both the injured person and other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/713258542": {"method":"GET","path":"icd/release/11/2026-01/mms/713258542","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/713258542","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#713258542","child":["http://id.who.int/icd/release/11/2026-01/mms/1289398548","http://id.who.int/icd/release/11/2026-01/mms/1973552212","http://id.who.int/icd/release/11/2026-01/mms/1653235860"],"classKind":"category","code":"XE5NE","indexTerm":[{"label":{"@language":"en","@value":"Public highway, street or road"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/713258542","title":{"@language":"en","@value":"Public highway, street or road"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/73322695": {"method":"GET","path":"icd/release/11/2026-01/mms/73322695","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/73322695","blockId":"BlockL1-PD5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#73322695","child":["http://id.who.int/icd/release/11/2026-01/mms/376636382","http://id.who.int/icd/release/11/2026-01/mms/447363203","http://id.who.int/icd/release/11/2026-01/mms/970723824","http://id.who.int/icd/release/11/2026-01/mms/743156834","http://id.who.int/icd/release/11/2026-01/mms/406207542","http://id.who.int/icd/release/11/2026-01/mms/1822125259","http://id.who.int/icd/release/11/2026-01/mms/1489018295","http://id.who.int/icd/release/11/2026-01/mms/1530721759","http://id.who.int/icd/release/11/2026-01/mms/1749521479","http://id.who.int/icd/release/11/2026-01/mms/73322695/other","http://id.who.int/icd/release/11/2026-01/mms/73322695/unspecified"],"classKind":"block","code":"","codeRange":"PD50-PF2Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/73322695","title":{"@language":"en","@value":"Assault"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/778188268": {"method":"GET","path":"icd/release/11/2026-01/mms/778188268","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/778188268","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#778188268","classKind":"category","code":"XE388","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, person interceding in a crime"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/778188268","title":{"@language":"en","@value":"Perpetrator-victim relationship, person interceding in a crime"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/814211882": {"method":"GET","path":"icd/release/11/2026-01/mms/814211882","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/814211882","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#814211882","child":["http://id.who.int/icd/release/11/2026-01/mms/965353453","http://id.who.int/icd/release/11/2026-01/mms/15905453","http://id.who.int/icd/release/11/2026-01/mms/400217709","http://id.who.int/icd/release/11/2026-01/mms/1912858669","http://id.who.int/icd/release/11/2026-01/mms/1697352941","http://id.who.int/icd/release/11/2026-01/mms/1548951981","http://id.who.int/icd/release/11/2026-01/mms/1746838227"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1923949781"],"source":"http://id.who.int/icd/entity/814211882","title":{"@language":"en","@value":"Context of assault and maltreatment"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/821249273": {"method":"GET","path":"icd/release/11/2026-01/mms/821249273","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/821249273","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#821249273","child":["http://id.who.int/icd/release/11/2026-01/mms/1710227827","http://id.who.int/icd/release/11/2026-01/mms/668672057","http://id.who.int/icd/release/11/2026-01/mms/879017037"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/821249273","title":{"@language":"en","@value":"Sports, recreation or leisure activity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/83700437": {"method":"GET","path":"icd/release/11/2026-01/mms/83700437","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/83700437","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#83700437","classKind":"category","code":"XE57K","indexTerm":[{"label":{"@language":"en","@value":"Person on foot as counterpart in land transport crash"}},{"label":{"@language":"en","@value":"Person standing, walking or running at time of the crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2123695182"],"source":"http://id.who.int/icd/entity/83700437","title":{"@language":"en","@value":"Person on foot as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/848390998": {"method":"GET","path":"icd/release/11/2026-01/mms/848390998","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/848390998","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#848390998","classKind":"category","code":"XE28E","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by both the injured person and other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/848390998","title":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by both the injured person and other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482","child":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"],"classKind":"chapter","code":"23","definition":{"@language":"en","@value":"!markdown\nThe WHO definition of an ‘injury’ is: ‘Injuries are caused by acute exposure to physical agents such as mechanical energy, heat, electricity, chemicals, and ionizing radiation interacting with the body in amounts or at rates that exceed the threshold of human tolerance. In some cases, (for example, drowning and frostbite), injuries result from the sudden lack of essential agents such as oxygen or heat.\nInjuries may be categorized in a number of ways. However, for most analytical purposes and for identifying intervention opportunities, it is especially useful to categorize injuries according to whether or not they were deliberately inflicted and by whom. Commonly used categories are:\n\n- unintentional (i.e. accidental)\n- intentional (i.e. deliberate):\n- interpersonal (e.g. assault and homicide)\n- self-harm (e.g. abuse of drugs and alcohol, self-mutilation, suicide)\n- legal intervention (e.g. action by police or other law enforcement personnel)\n- war, civil insurrection and disturbances (e.g. demonstrations and riots)\n- undetermined intent\n\nRegarding the collection of events that cause injuries, a set of definitions apply. See ICD-11 Reference guide sections 2.21.8.9 'Coding of transport injury events', and 2.23.19 'Standards and coding instructions for injury events'."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/850137482","title":{"@language":"en","@value":"External causes of morbidity or mortality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/891089806": {"method":"GET","path":"icd/release/11/2026-01/mms/891089806","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/891089806","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#891089806","child":["http://id.who.int/icd/release/11/2026-01/mms/915137890","http://id.who.int/icd/release/11/2026-01/mms/1252711949","http://id.who.int/icd/release/11/2026-01/mms/1794382913","http://id.who.int/icd/release/11/2026-01/mms/1320220739","http://id.who.int/icd/release/11/2026-01/mms/988073984"],"classKind":"category","code":"XE8XQ","definition":{"@language":"en","@value":"A motorcycle is a land transport motor vehicle with one or two riding saddles, usually with two-wheels in-line. A sidecar or trailer is considered part of the motorcycle."},"indexTerm":[{"label":{"@language":"en","@value":"Motorcycle as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/891089806","title":{"@language":"en","@value":"Motorcycle as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/899576709": {"method":"GET","path":"icd/release/11/2026-01/mms/899576709","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/899576709","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#899576709","child":["http://id.who.int/icd/release/11/2026-01/mms/1060804103","http://id.who.int/icd/release/11/2026-01/mms/548175795","http://id.who.int/icd/release/11/2026-01/mms/599895565","http://id.who.int/icd/release/11/2026-01/mms/1093730051","http://id.who.int/icd/release/11/2026-01/mms/1634614607","http://id.who.int/icd/release/11/2026-01/mms/994325712","http://id.who.int/icd/release/11/2026-01/mms/1978402667"],"classKind":"category","code":"XE0JH","definition":{"@language":"en","@value":"A land transport motor vehicle designed primarily to seat no more than 9 persons, including the driver, designed primarily for on-road use or so as to be registrable for on-road use. A trailer or caravan being towed by a car is considered a part of the car. Usually four wheels."},"indexTerm":[{"label":{"@language":"en","@value":"Car as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/899576709","title":{"@language":"en","@value":"Car as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/961171756": {"method":"GET","path":"icd/release/11/2026-01/mms/961171756","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/961171756","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#961171756","classKind":"category","code":"XE3FJ","indexTerm":[{"label":{"@language":"en","@value":"Perpetrator-victim relationship, person executing a felony or crime"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1115077034"],"source":"http://id.who.int/icd/entity/961171756","title":{"@language":"en","@value":"Perpetrator-victim relationship, person executing a felony or crime"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/962422537": {"method":"GET","path":"icd/release/11/2026-01/mms/962422537","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/962422537","blockId":"BlockL3-PD6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#962422537","child":["http://id.who.int/icd/release/11/2026-01/mms/62015785","http://id.who.int/icd/release/11/2026-01/mms/765391575","http://id.who.int/icd/release/11/2026-01/mms/962422537/unspecified"],"classKind":"block","code":"","codeRange":"PD60-PD6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/376636382"],"source":"http://id.who.int/icd/entity/962422537","title":{"@language":"en","@value":"Assault by water transport injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/992212838": {"method":"GET","path":"icd/release/11/2026-01/mms/992212838","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/992212838","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#992212838","classKind":"category","code":"XE5LJ","definition":{"@language":"en","@value":"A passenger motor vehicle designed to carry 10 or more persons (including the driver). Buses may be designed to accommodate standing passengers and/or seated passengers."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/448332621","label":{"@language":"en","@value":"Minibus or passenger van as counterpart in land transport crash"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/448332621"}],"indexTerm":[{"label":{"@language":"en","@value":"Bus or coach as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/992212838","title":{"@language":"en","@value":"Bus or coach as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PD50": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PD50","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PD50","code":"PD50","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1901159735"},"request_body":null,"status":200}
+ }
+}

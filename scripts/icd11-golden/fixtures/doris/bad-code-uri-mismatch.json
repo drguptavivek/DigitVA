@@ -1,0 +1,77 @@
+{
+ "id": "bad-code-uri-mismatch",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P50Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BA41.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734",
+       "Text": "MI"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "invalid",
+  "id": "bad-code-uri-mismatch",
+  "source": "docs/kb/doris-certificate-ui-contract.md",
+  "why": "Code and URI that do not agree (rejected before WHO)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "Does not match the selected ICD-11 code.",
+        "path": "certificate.Part1[0].Conditions[0].LinearizationURI"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P50Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BA41.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734",
+         "Text": "MI"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z","code":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200}
+ }
+}

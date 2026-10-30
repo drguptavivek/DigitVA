@@ -1,0 +1,98 @@
+{
+ "id": "s113-neonatal-sepsis",
+ "input": {
+  "id": "s113-neonatal-sepsis",
+  "kind": "neonatal",
+  "query": "neonatal sepsis",
+  "source": "VAs-10.04; scripts/icd11-parity/queries.json",
+  "why": "neonatal or stillbirth cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #64441dfb2d"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "KA60",
+       "has_coding_note": false,
+       "matching_text": "Sepsis of fetus or newborn",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Sepsis of fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+      },
+      {
+       "code": "KA60&XN6LP",
+       "has_coding_note": false,
+       "matching_text": "Sepsis of fetus or newborn due to streptococcus, group A",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Sepsis of fetus or newborn due to streptococcus, group A",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/1566769119"
+      },
+      {
+       "code": "KA60&XN2M1",
+       "has_coding_note": false,
+       "matching_text": "Sepsis of fetus or newborn due to streptococcus, group B",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Sepsis of fetus or newborn due to streptococcus, group B",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/942223947"
+      },
+      {
+       "code": "KA60&XN6BM",
+       "has_coding_note": false,
+       "matching_text": "Sepsis of fetus or newborn due to Staphylococcus aureus infection",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Sepsis of fetus or newborn due to Staphylococcus aureus infection",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/1367266331"
+      },
+      {
+       "code": "KA60&XN6P4",
+       "has_coding_note": false,
+       "matching_text": "Sepsis of fetus or newborn due to Escherichia coli infection",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Sepsis of fetus or newborn due to Escherichia coli infection",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/1292092042"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "neonatal sepsis",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #64441dfb2d": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/381388700","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/381388700","important":true,"label":"<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700","theCode":"KA60","title":"<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/1566769119","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1559390111","important":false,"label":"<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em> due to streptococcus, group A","propertyId":"Synonym","propertyValueType":2,"score":-0.8779144622880791}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8779144622880791,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700","theCode":"KA60&XN6LP","title":"<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn due to streptococcus, group A","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/942223947","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1050165412","important":false,"label":"<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em> due to streptococcus, group B","propertyId":"Synonym","propertyValueType":2,"score":-1.0189180303763705}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0189180303763705,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700","theCode":"KA60&XN2M1","title":"<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn due to streptococcus, group B","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/1367266331","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/796843471","important":false,"label":"<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em> due to Staphylococcus aureus infection","propertyId":"Synonym","propertyValueType":2,"score":-1.4473989070425184}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.4473989070425184,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700","theCode":"KA60&XN6BM","title":"<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn due to Staphylococcus aureus infection","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/1292092042","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/970687439","important":false,"label":"<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em> due to Escherichia coli","propertyId":"Synonym","propertyValueType":2,"score":-1.689347717494133}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.689347717494133,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700","theCode":"KA60&XN6P4","title":"<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn due to Escherichia coli infection","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/932942062 / http://id.who.int/icd/release/11/2026-01/mms/381388700","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/932942062 / http://id.who.int/icd/entity/381388700","important":false,"label":"Transient <em class='found'>neonatal</em> neutropaenia [<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":-2.124580931081409},{"foundationUri":"http://id.who.int/icd/entity/932942062 / http://id.who.int/icd/entity/381388700","important":false,"label":"Transient <em class='found'>neonatal</em> neutropaenia [congenital <em class='found'>sepsis</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":-2.2599340810010617},{"foundationUri":"http://id.who.int/icd/entity/932942062 / http://id.who.int/icd/entity/381388700","important":false,"label":"Transient <em class='found'>neonatal</em> neutropaenia [<em class='found'>sepsis</em><em class='nonwbe'></em> neonatorum]","propertyId":"Title","propertyValueType":3,"score":-2.458389481674195},{"foundationUri":"http://id.who.int/icd/entity/932942062 / http://id.who.int/icd/entity/381388700","important":false,"label":"Transient <em class='found'>neonatal</em> neutropaenia [<em class='found'>perinatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":-2.6662022915526467}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-2.124580931081409,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/932942062","theCode":"KA8D/KA60","title":"Transient <em class='found'>neonatal</em> neutropaenia [<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"08","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1026250133/unspecified / http://id.who.int/icd/release/11/2026-01/mms/381388700","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1026250133 / http://id.who.int/icd/entity/381388700","important":false,"label":"Epilepsy due to <em class='found'>prenatal</em> or <em class='found'>perinatal</em> brain insults [<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em>]","propertyId":"TitleOfOtherEntity","propertyValueType":3,"score":-3.267638708530255}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-3.267638708530255,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1026250133/unspecified","theCode":"8A60.0Z/KA60","title":"Epilepsy due to unspecified <em class='found'>prenatal</em> or <em class='found'>perinatal</em> brain insults [<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn]","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1026250133/other / http://id.who.int/icd/release/11/2026-01/mms/381388700","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1026250133 / http://id.who.int/icd/entity/381388700","important":false,"label":"Epilepsy due to other <em class='found'>prenatal</em> or <em class='found'>perinatal</em> brain insults [<em class='found'>neonatal</em> <em class='found'>sepsis</em><em class='nonwbe'></em>]","propertyId":"Title","propertyValueType":3,"score":-3.421984470266078}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-3.421984470266078,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1026250133/other","theCode":"8A60.0Y/KA60","title":"Epilepsy due to other <em class='found'>prenatal</em> or <em class='found'>perinatal</em> brain insults [<em class='found'>Sepsis</em><em class='nonwbe'></em> of fetus or newborn]","titleIsASearchResult":false,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=neonatal+sepsis%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

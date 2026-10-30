@@ -1,0 +1,167 @@
+{
+ "id": "va-12-08",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P21Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 2
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NF05",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/607132843",
+       "Text": "Asphyxia by hanging"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PC71",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/807340493",
+       "Text": "Hanged herself"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-08",
+  "source": "VA cause VAs-12.08 Intentional self-harm",
+  "why": "Intentional self-harm: injury above its external cause, manner 2"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NF05",
+    "GET icd/release/11/2026-01/mms/codeinfo/PC71",
+    "POST icd/release/11/2026-01/doris #07e563a40d",
+    "POST icd/release/11/2026-01/codedit #07e563a40d"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P21Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 2
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NF05",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/607132843",
+          "Text": "Asphyxia by hanging"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PC71",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/807340493",
+          "Text": "Hanged herself"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PC71/NF05",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PC71 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NF05 - as postcoordination for the current TUC - PC71.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PC71 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PC71.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PC71.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NF05 - as postcoordination for the current TUC - PC71.\n",
+       "stemCode": "PC71",
+       "stemURI": "http://id.who.int/icd/entity/807340493",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PC71;PC71;;;0;SP3: PC71 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PC71;;;;;0;SP6: is not applicable with the current TSP PC71.;;;;BER\nSP7;False;PC71;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PC71;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PC71;;;;;0;M1: There is no special instruction applicable with TUC PC71.;;;;BER\nM2;False;PC71;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PC71;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PC71/NF05;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/807340493 / http://id.who.int/icd/release/11/mms/607132843",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PC71",
+       "role": "stem",
+       "title": "Hanged herself",
+       "uri": "http://id.who.int/icd/release/11/mms/807340493"
+      },
+      {
+       "code": "NF05",
+       "role": "postcoordinated",
+       "title": "Asphyxia by hanging",
+       "uri": "http://id.who.int/icd/release/11/mms/607132843"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P21Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 2
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NF05",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/607132843",
+         "Text": "Asphyxia by hanging"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PC71",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/807340493",
+         "Text": "Hanged herself"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NF05": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NF05","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NF05","code":"NF05","stemId":"http://id.who.int/icd/release/11/2026-01/mms/607132843"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PC71": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PC71","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PC71","code":"PC71","stemId":"http://id.who.int/icd/release/11/2026-01/mms/807340493"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #07e563a40d": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P21Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":2},\"Part1\":[{\"Conditions\":[{\"Code\":\"NF05\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/607132843\",\"Text\":\"Asphyxia by hanging\"}]},{\"Conditions\":[{\"Code\":\"PC71\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/807340493\",\"Text\":\"Hanged herself\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #07e563a40d": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PC71/NF05","error":null,"reject":false,"report":"SP3: PC71 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NF05 - as postcoordination for the current TUC - PC71.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PC71 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PC71.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PC71.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NF05 - as postcoordination for the current TUC - PC71.\n","stemCode":"PC71","stemURI":"http://id.who.int/icd/entity/807340493","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PC71;PC71;;;0;SP3: PC71 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PC71;;;;;0;SP6: is not applicable with the current TSP PC71.;;;;BER\nSP7;False;PC71;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PC71;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PC71;;;;;0;M1: There is no special instruction applicable with TUC PC71.;;;;BER\nM2;False;PC71;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PC71;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PC71/NF05;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/807340493 / http://id.who.int/icd/release/11/mms/607132843","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P21Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":2},\"Part1\":[{\"Conditions\":[{\"Code\":\"NF05\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/607132843\",\"Text\":\"Asphyxia by hanging\"}]},{\"Conditions\":[{\"Code\":\"PC71\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/807340493\",\"Text\":\"Hanged herself\"}]}]}","status":200}
+ }
+}

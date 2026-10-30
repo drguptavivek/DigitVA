@@ -1,0 +1,317 @@
+{
+ "built": [],
+ "id": "pc-ja25",
+ "input": {
+  "category": "plain",
+  "id": "pc-ja25",
+  "source": "VAs-09.03",
+  "stem": "JA25",
+  "why": "Eclampsia (VA cause 09.03): no axes, four children"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JA25",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA25"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JA25",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA25",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JA25",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA25"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659",
+    "GET icd/release/11/2026-01/mms/1042184245",
+    "GET icd/release/11/2026-01/mms/714000734",
+    "GET icd/release/11/2026-01/mms/1042184245",
+    "GET icd/release/11/2026-01/mms/183230446",
+    "GET icd/release/11/2026-01/mms/1872761464",
+    "GET icd/release/11/2026-01/mms/453853831",
+    "GET icd/release/11/2026-01/mms/2118553363",
+    "GET icd/release/11/2026-01/mms/229121159",
+    "GET icd/release/11/2026-01/mms/1042184245/unspecified",
+    "GET icd/release/11/2026-01/mms/1696606198",
+    "GET icd/release/11/2026-01/mms/7072356",
+    "GET icd/release/11/2026-01/mms/1959180957",
+    "GET icd/release/11/2026-01/mms/250375350"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "18",
+       "title": "Pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+      },
+      {
+       "code": "",
+       "title": "Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1042184245"
+      }
+     ],
+     "children": [
+      {
+       "code": "JA25.0",
+       "has_children": false,
+       "title": "Eclampsia in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1696606198"
+      },
+      {
+       "code": "JA25.1",
+       "has_children": false,
+       "title": "Eclampsia in labour",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/7072356"
+      },
+      {
+       "code": "JA25.2",
+       "has_children": false,
+       "title": "Eclampsia in the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1959180957"
+      },
+      {
+       "code": "JA25.3",
+       "has_children": false,
+       "title": "Eclampsia, time period unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/250375350"
+      }
+     ],
+     "matching_terms": [
+      "Eclampsia"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA25",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "JA20",
+       "has_children": true,
+       "title": "Pre-existing hypertension complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/183230446"
+      },
+      {
+       "code": "JA21",
+       "has_children": false,
+       "title": "Pre-eclampsia superimposed on chronic hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1872761464"
+      },
+      {
+       "code": "JA22",
+       "has_children": true,
+       "title": "Gestational oedema or proteinuria without hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/453853831"
+      },
+      {
+       "code": "JA23",
+       "has_children": false,
+       "title": "Gestational hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2118553363"
+      },
+      {
+       "code": "JA24",
+       "has_children": true,
+       "title": "Pre-eclampsia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/229121159"
+      },
+      {
+       "code": "JA2Z",
+       "has_children": false,
+       "title": "Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1042184245/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA25"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA25",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "JA25"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA25",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "JA25"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "GET icd/release/11/2026-01/mms/1759760659"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "Any condition affecting pregnant females, characterised by seizure or convulsions newly arising in pregnancy. The condition is often associated with pregnancy-induced hypertension, convulsions, seizure, anxiety, epigastric pain, severe headache, blurred vision, proteinuria, and oedema that may occur during pregnancy, labour, or the puerperium.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA25",
+      "title": "Eclampsia",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA25"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1042184245": {"method":"GET","path":"icd/release/11/2026-01/mms/1042184245","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1042184245","blockId":"BlockL1-JA2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1042184245","child":["http://id.who.int/icd/release/11/2026-01/mms/183230446","http://id.who.int/icd/release/11/2026-01/mms/1872761464","http://id.who.int/icd/release/11/2026-01/mms/453853831","http://id.who.int/icd/release/11/2026-01/mms/2118553363","http://id.who.int/icd/release/11/2026-01/mms/229121159","http://id.who.int/icd/release/11/2026-01/mms/1759760659","http://id.who.int/icd/release/11/2026-01/mms/1042184245/unspecified"],"classKind":"block","code":"","codeRange":"JA20-JA2Z","definition":{"@language":"en","@value":"Any disorder affecting pregnant females, characterised by excessive systemic fluid build-up, excess serum proteins in the urine, and abnormally elevated blood pressure during pregnancy, childbirth, or the puerperium."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/714000734"],"source":"http://id.who.int/icd/entity/1042184245","title":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1042184245/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1042184245/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1042184245/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1042184245/unspecified","classKind":"category","code":"JA2Z","indexTerm":[{"label":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"title":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1696606198": {"method":"GET","path":"icd/release/11/2026-01/mms/1696606198","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1696606198","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1696606198","classKind":"category","code":"JA25.0","definition":{"@language":"en","@value":"This condition is characterised by seizure or convulsions newly arising in pregnancy. The condition is often associated with pregnancy-induced hypertension, convulsions, seizure, anxiety, epigastric pain, severe headache, blurred vision, proteinuria, and oedema that occurs during pregnancy."},"indexTerm":[{"label":{"@language":"en","@value":"Eclampsia in pregnancy"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1759760659"],"source":"http://id.who.int/icd/entity/1696606198","title":{"@language":"en","@value":"Eclampsia in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1759760659": {"method":"GET","path":"icd/release/11/2026-01/mms/1759760659","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1759760659","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1759760659","child":["http://id.who.int/icd/release/11/2026-01/mms/1696606198","http://id.who.int/icd/release/11/2026-01/mms/7072356","http://id.who.int/icd/release/11/2026-01/mms/1959180957","http://id.who.int/icd/release/11/2026-01/mms/250375350"],"classKind":"category","code":"JA25","definition":{"@language":"en","@value":"Any condition affecting pregnant females, characterised by seizure or convulsions newly arising in pregnancy. The condition is often associated with pregnancy-induced hypertension, convulsions, seizure, anxiety, epigastric pain, severe headache, blurred vision, proteinuria, and oedema that may occur during pregnancy, labour, or the puerperium."},"indexTerm":[{"label":{"@language":"en","@value":"Eclampsia"}}],"longDefinition":{"@language":"en","@value":"onset of convulsions in a woman with preeclampsia not attributable to other causes"},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"source":"http://id.who.int/icd/entity/1759760659","title":{"@language":"en","@value":"Eclampsia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/183230446": {"method":"GET","path":"icd/release/11/2026-01/mms/183230446","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/183230446","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#183230446","child":["http://id.who.int/icd/release/11/2026-01/mms/1126579721","http://id.who.int/icd/release/11/2026-01/mms/644739997","http://id.who.int/icd/release/11/2026-01/mms/1388356450","http://id.who.int/icd/release/11/2026-01/mms/931884792","http://id.who.int/icd/release/11/2026-01/mms/1147534692","http://id.who.int/icd/release/11/2026-01/mms/183230446/other","http://id.who.int/icd/release/11/2026-01/mms/183230446/unspecified"],"classKind":"category","code":"JA20","definition":{"@language":"en","@value":"A condition affecting pregnant females, caused by previously diagnosed maternal hypertension. This condition is characterised by any complication during pregnancy, childbirth, and the puerperium as a result of a blood pressure reading above 140/90 mmHg prior to the 20th week of pregnancy, or persisting longer than 12 weeks postpartum. Confirmation is by sphygmomanometer."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1872761464","label":{"@language":"en","@value":"Pre-eclampsia superimposed on chronic hypertension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1872761464"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"source":"http://id.who.int/icd/entity/183230446","title":{"@language":"en","@value":"Pre-existing hypertension complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1872761464": {"method":"GET","path":"icd/release/11/2026-01/mms/1872761464","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1872761464","classKind":"category","code":"JA21","definition":{"@language":"en","@value":"A condition affecting pregnant females over 20 weeks gestation. This condition is characterised by systolic blood pressure greater than 140mmHg and diastolic greater or equal to 90mmHg on two occasions 4 hours apart in the presence of either proteinuria or other new onset maternal organ dysfunction characterised by one thrombocytopenia, elevated serum creatinine or liver transaminases, or neurological conditions or fetal growth restriction in a female diagnosed with pre-existing hypertension."},"inclusion":[{"label":{"@language":"en","@value":"Superimposed pre-eclampsia"}}],"indexTerm":[{"label":{"@language":"en","@value":"Pre-eclampsia superimposed on chronic hypertension"}},{"label":{"@language":"en","@value":"Pre-eclampsia superimposed on hypertension NOS"}},{"label":{"@language":"en","@value":"Pre-eclampsia superimposed on pre-existing hypertension"}},{"label":{"@language":"en","@value":"Pre-existing hypertension complicating pregnancy, childbirth and the puerperium complicated by pre-eclampsia"}},{"label":{"@language":"en","@value":"Superimposed pre-eclampsia"}},{"label":{"@language":"en","@value":"pre-eclampsia added to pre-existing hypertension"}},{"label":{"@language":"en","@value":"pre-eclampsia or eclampsia with pre-existing hypertension"}},{"label":{"@language":"en","@value":"pre-existing hypertensive disorder with superimposed proteinuria"}},{"label":{"@language":"en","@value":"proteinuria complicating pregnancy, childbirth or puerperium, superimposed on pre-existing hypertensive disorder"}},{"label":{"@language":"en","@value":"puerperal pre-eclampsia with pre-existing hypertension"}},{"label":{"@language":"en","@value":"superimposed PET - [pre-eclamptic toxaemia]"}},{"label":{"@language":"en","@value":"superimposed PIH - [pregnancy-induced hypertension]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1872761464/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/761947693","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1002963291","http://id.who.int/icd/release/11/2026-01/mms/1331849426"]}],"source":"http://id.who.int/icd/entity/1872761464","title":{"@language":"en","@value":"Pre-eclampsia superimposed on chronic hypertension"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1959180957": {"method":"GET","path":"icd/release/11/2026-01/mms/1959180957","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1959180957","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1959180957","classKind":"category","code":"JA25.2","definition":{"@language":"en","@value":"This condition is characterised by seizure or convulsions newly arising in pregnancy. The condition is often associated with pregnancy-induced hypertension, convulsions, seizure, anxiety, epigastric pain, severe headache, blurred vision, proteinuria, and oedema that occurs during the puerperium."},"indexTerm":[{"label":{"@language":"en","@value":"Eclampsia in the puerperium"}},{"label":{"@language":"en","@value":"postpartum eclampsia"}},{"label":{"@language":"en","@value":"puerperal eclampsia"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1759760659"],"source":"http://id.who.int/icd/entity/1959180957","title":{"@language":"en","@value":"Eclampsia in the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2118553363": {"method":"GET","path":"icd/release/11/2026-01/mms/2118553363","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2118553363","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2118553363","classKind":"category","code":"JA23","definition":{"@language":"en","@value":"A condition affecting pregnant females, characterised by systolic blood pressure greater than 140mmHg and/or a diastolic blood pressure greater or equal to 90mmHg on two occasions, 4 hours or more apart. Can be newly diagnosed after 20 weeks gestation or before 1 week postpartum. Confirmation is by measurement of blood pressure, liver and kidney functions test, and urine test."},"indexTerm":[{"label":{"@language":"en","@value":"Gestational hypertension"}},{"label":{"@language":"en","@value":"Gestational hypertension NOS"}},{"label":{"@language":"en","@value":"PIH - [pregnancy-induced hypertension]"}},{"label":{"@language":"en","@value":"Pregnancy-induced hypertension NOS"}},{"label":{"@language":"en","@value":"gestational [pregnancy-induced] hypertension without significant proteinuria"}},{"label":{"@language":"en","@value":"hypertension induced by pregnancy"}},{"label":{"@language":"en","@value":"mild proteinuric hypertension of pregnancy"}}],"longDefinition":{"@language":"en","@value":"Blood pressure of 140 mm Hg or greater systolic and/or 90 mm Hg or greater diastolic occuring for the first time during pregnancy and in the absence of proteinuria"},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2118553363/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/761947693"]}],"source":"http://id.who.int/icd/entity/2118553363","title":{"@language":"en","@value":"Gestational hypertension"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/229121159": {"method":"GET","path":"icd/release/11/2026-01/mms/229121159","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/229121159","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#229121159","child":["http://id.who.int/icd/release/11/2026-01/mms/2044260215","http://id.who.int/icd/release/11/2026-01/mms/479404771","http://id.who.int/icd/release/11/2026-01/mms/1748922908","http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified"],"classKind":"category","code":"JA24","definition":{"@language":"en","@value":"This condition is characterised by systolic blood pressure greater than 140 mmHg and/or diastolic greater or equal to 90 mmHg on two occasions 4 hours or more apart in the presence of either proteinuria or other new onset maternal organ dysfunction characterised by one thrombocytopenia, elevated serum creatinine or liver transaminases, or neurological conditions or fetal growth restriction."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1872761464","label":{"@language":"en","@value":"Pre-eclampsia superimposed on chronic hypertension"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1872761464"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/229121159/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1902649856","http://id.who.int/icd/release/11/2026-01/mms/337899414","http://id.who.int/icd/release/11/2026-01/mms/1619967851","http://id.who.int/icd/release/11/2026-01/mms/96826111","http://id.who.int/icd/release/11/2026-01/mms/1982587243","http://id.who.int/icd/release/11/2026-01/mms/973282267/unspecified"]}],"source":"http://id.who.int/icd/entity/229121159","title":{"@language":"en","@value":"Pre-eclampsia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/250375350": {"method":"GET","path":"icd/release/11/2026-01/mms/250375350","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/250375350","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#250375350","classKind":"category","code":"JA25.3","definition":{"@language":"en","@value":"Onset of convulsions in a woman with pre-eclampsia not attributable to other causes without a specific onset time."},"indexTerm":[{"label":{"@language":"en","@value":"Eclampsia, time period unspecified"}},{"label":{"@language":"en","@value":"Eclampsia NOS"}},{"label":{"@language":"en","@value":"eclamptic coma"}},{"label":{"@language":"en","@value":"eclamptic toxaemia"}},{"label":{"@language":"en","@value":"toxaemia with convulsions"}},{"foundationReference":"http://id.who.int/icd/entity/1979552354","label":{"@language":"en","@value":"Convulsions following gestational [pregnancy-induced] hypertension with significant proteinuria"}},{"foundationReference":"http://id.who.int/icd/entity/718945235","label":{"@language":"en","@value":"Convulsions following gestational [pregnancy-induced] hypertension without significant proteinuria"}},{"foundationReference":"http://id.who.int/icd/entity/890149511","label":{"@language":"en","@value":"Convulsions following gestational [pregnancy-induced] oedema and proteinuria without hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/1893793650","label":{"@language":"en","@value":"Convulsions following pre-existing hypertension complicating pregnancy, childbirth and the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/826685717","label":{"@language":"en","@value":"Convulsions following pre-existing hypertensive disorder with superimposed proteinuria"}},{"foundationReference":"http://id.who.int/icd/entity/2143063924","label":{"@language":"en","@value":"Convulsions following unspecified maternal hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/17700269","label":{"@language":"en","@value":"Eclampsia with pregnancy-induced or pre-existing hypertension"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1759760659"],"source":"http://id.who.int/icd/entity/250375350","title":{"@language":"en","@value":"Eclampsia, time period unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/453853831": {"method":"GET","path":"icd/release/11/2026-01/mms/453853831","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/453853831","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#453853831","child":["http://id.who.int/icd/release/11/2026-01/mms/991075106","http://id.who.int/icd/release/11/2026-01/mms/1582913208","http://id.who.int/icd/release/11/2026-01/mms/1337969629"],"classKind":"category","code":"JA22","definition":{"@language":"en","@value":"A condition affecting pregnant females, characterised by excessive systemic fluid build-up and serum proteins in the urine, without an abnormally elevated blood pressure induced by pregnancy."},"inclusion":[{"label":{"@language":"en","@value":"Pregnancy-induced oedema and proteinuria without hypertension"}}],"indexTerm":[{"label":{"@language":"en","@value":"Gestational oedema or proteinuria without hypertension"}},{"label":{"@language":"en","@value":"Pregnancy-induced oedema and proteinuria without hypertension"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1042184245"],"source":"http://id.who.int/icd/entity/453853831","title":{"@language":"en","@value":"Gestational oedema or proteinuria without hypertension"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/7072356": {"method":"GET","path":"icd/release/11/2026-01/mms/7072356","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/7072356","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#7072356","classKind":"category","code":"JA25.1","definition":{"@language":"en","@value":"This condition is characterised by seizure or convulsions newly arising in pregnancy. The condition is often associated with pregnancy-induced hypertension, convulsions, seizure, anxiety, epigastric pain, severe headache, blurred vision, proteinuria, and oedema that occurs during labour."},"indexTerm":[{"label":{"@language":"en","@value":"Eclampsia in labour"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1759760659"],"source":"http://id.who.int/icd/entity/7072356","title":{"@language":"en","@value":"Eclampsia in labour"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/714000734": {"method":"GET","path":"icd/release/11/2026-01/mms/714000734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/714000734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#714000734","child":["http://id.who.int/icd/release/11/2026-01/mms/877352786","http://id.who.int/icd/release/11/2026-01/mms/1042184245","http://id.who.int/icd/release/11/2026-01/mms/903303141","http://id.who.int/icd/release/11/2026-01/mms/21112155","http://id.who.int/icd/release/11/2026-01/mms/1864248550","http://id.who.int/icd/release/11/2026-01/mms/299840850","http://id.who.int/icd/release/11/2026-01/mms/973282267","http://id.who.int/icd/release/11/2026-01/mms/1421997617","http://id.who.int/icd/release/11/2026-01/mms/1781019902","http://id.who.int/icd/release/11/2026-01/mms/207290928"],"classKind":"chapter","code":"18","codingNote":{"@language":"en","@value":"The codes included in this chapter are to be used for conditions related to or aggravated by the pregnancy, childbirth or by the puerperium (maternal causes or obstetric causes)"},"definition":{"@language":"en","@value":"A group of conditions characterised as occurring during the period of time from conception to delivery (pregnancy), during labour and delivery (childbirth) or during the approximately six weeks after delivery during which the uterus returns to the original size (puerperium)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/262236278","label":{"@language":"en","@value":"Obstetrical tetanus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/262236278"},{"foundationReference":"http://id.who.int/icd/entity/768216194","label":{"@language":"en","@value":"Postpartum necrosis of pituitary gland"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/768216194"},{"foundationReference":"http://id.who.int/icd/entity/850137482","label":{"@language":"en","@value":"External causes (for mortality)"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/850137482"},{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1144140024","label":{"@language":"en","@value":"Contact with health services for reasons associated with reproduction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1144140024"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/714000734","title":{"@language":"en","@value":"Pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JA25": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA25","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA25","code":"JA25","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1759760659"},"request_body":null,"status":200}
+ }
+}

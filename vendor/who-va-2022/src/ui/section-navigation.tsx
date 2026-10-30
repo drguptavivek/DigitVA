@@ -493,7 +493,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
               </Text>
             </Pressable>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" style={navStyles.panelList}>
+          <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={navStyles.panelList}>
             <VerticalStepper
               items={items}
               onSelect={(name) => {

@@ -1,0 +1,598 @@
+{
+ "built": [],
+ "id": "pc-5a24",
+ "input": {
+  "category": "optional",
+  "id": "pc-5a24",
+  "source": "WHO search 'diabetes'",
+  "stem": "5A24",
+  "why": "Uncontrolled diabetes: stem of the WHO search cluster 5A24/5A11"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "5A24",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "5A24"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "5A24",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "5A24",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616",
+    "GET icd/release/11/2026-01/mms/1651053999",
+    "GET icd/release/11/2026-01/mms/119724091",
+    "GET icd/release/11/2026-01/mms/1150913605",
+    "GET icd/release/11/2026-01/mms/381961554",
+    "GET icd/release/11/2026-01/mms/1697306310",
+    "GET icd/release/11/2026-01/mms/169360210",
+    "GET icd/release/11/2026-01/mms/1217915084"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasCausingCondition",
+       "instruction": "code also",
+       "label": "Has causing condition",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1651053999",
+         "code": "5A10",
+         "has_children": false,
+         "title": "Type 1 diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1651053999"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "code": "5A11",
+         "has_children": false,
+         "title": "Type 2 diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/119724091"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1150913605",
+         "code": "5A12",
+         "has_children": false,
+         "title": "Malnutrition-related diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1150913605"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+         "code": "5A13",
+         "has_children": true,
+         "title": "Diabetes mellitus, other specified type",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1697306310",
+         "code": "5A14",
+         "has_children": false,
+         "title": "Diabetes mellitus, type unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1697306310"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/169360210",
+         "code": "JA63",
+         "has_children": true,
+         "title": "Diabetes mellitus in pregnancy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/169360210"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1217915084",
+         "code": "KB60.2",
+         "has_children": true,
+         "title": "Neonatal diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1217915084"
+        }
+       ],
+       "required": true,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1651053999",
+        "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "http://id.who.int/icd/release/11/2026-01/mms/1150913605",
+        "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+        "http://id.who.int/icd/release/11/2026-01/mms/1697306310",
+        "http://id.who.int/icd/release/11/2026-01/mms/169360210",
+        "http://id.who.int/icd/release/11/2026-01/mms/1217915084"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "5A24",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "5A24"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616",
+    "GET icd/release/11/2026-01/mms/381961554",
+    "GET icd/release/11/2026-01/mms/1484144649",
+    "GET icd/release/11/2026-01/mms/133436462",
+    "GET icd/release/11/2026-01/mms/1050647875",
+    "GET icd/release/11/2026-01/mms/1736581746",
+    "GET icd/release/11/2026-01/mms/388963453",
+    "GET icd/release/11/2026-01/mms/1418416880",
+    "GET icd/release/11/2026-01/mms/1730828870",
+    "GET icd/release/11/2026-01/mms/891371477",
+    "GET icd/release/11/2026-01/mms/381961554/other"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasCausingCondition",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.0",
+       "has_children": false,
+       "title": "Diabetes mellitus due to genetic defects of beta cell function",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1484144649"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.1",
+       "has_children": false,
+       "title": "Diabetes mellitus due to genetic defects in insulin action",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/133436462"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.2",
+       "has_children": false,
+       "title": "Diabetes mellitus due to diseases of the exocrine pancreas",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1050647875"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.3",
+       "has_children": false,
+       "title": "Diabetes mellitus due to endocrinopathies",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1736581746"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.4",
+       "has_children": false,
+       "title": "Diabetes mellitus due to drug or chemical",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/388963453"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.5",
+       "has_children": false,
+       "title": "Diabetes mellitus due to uncommon forms of immune-mediated diabetes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1418416880"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.6",
+       "has_children": false,
+       "title": "Diabetes mellitus due to other genetic syndromes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730828870"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.7",
+       "has_children": false,
+       "title": "Diabetes mellitus due to clinically defined subtypes or syndromes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/891371477"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.Y",
+       "has_children": false,
+       "title": "Diabetes mellitus due to other specified cause",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554/other"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "5A24",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasCausingCondition",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+    "stem_code": "5A24"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616",
+    "GET icd/release/11/2026-01/mms/1304552818",
+    "GET icd/release/11/2026-01/mms/465177735",
+    "GET icd/release/11/2026-01/mms/461716838",
+    "GET icd/release/11/2026-01/mms/21500692",
+    "GET icd/release/11/2026-01/mms/1304552818",
+    "GET icd/entity/169360210",
+    "GET icd/entity/1217915084",
+    "GET icd/release/11/2026-01/mms/463969617",
+    "GET icd/release/11/2026-01/mms/193526903",
+    "GET icd/release/11/2026-01/mms/2144077558",
+    "GET icd/release/11/2026-01/mms/367815473",
+    "GET icd/release/11/2026-01/mms/1304552818/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "05",
+       "title": "Endocrine, nutritional or metabolic diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/21500692"
+      },
+      {
+       "code": "",
+       "title": "Endocrine diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/461716838"
+      },
+      {
+       "code": "",
+       "title": "Diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/465177735"
+      },
+      {
+       "code": "",
+       "title": "Acute complications of diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1304552818"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Uncontrolled or unstable diabetes mellitus",
+      "brittle diabetes",
+      "inadequate control of diabetes",
+      "poorly controlled diabetes",
+      "uncontrolled diabetes",
+      "Brittle diabetes mellitus",
+      "brittle DM - [diabetes mellitus]",
+      "brittle IDDM - [insulin dependent diabetes mellitus]",
+      "brittle type 1 diabetes mellites",
+      "labile diabetes"
+     ],
+     "related_maternal": [
+      {
+       "code": "",
+       "title": "Diabetes mellitus in pregnancy",
+       "uri": "http://id.who.int/icd/entity/169360210"
+      }
+     ],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Neonatal diabetes mellitus",
+       "uri": "http://id.who.int/icd/entity/1217915084"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "5A24",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "5A20",
+       "has_children": true,
+       "title": "Diabetic hyperosmolar hyperglycaemic state",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/463969617"
+      },
+      {
+       "code": "5A21",
+       "has_children": true,
+       "title": "Hypoglycaemia in the context of diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/193526903"
+      },
+      {
+       "code": "5A22",
+       "has_children": true,
+       "title": "Diabetic acidosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2144077558"
+      },
+      {
+       "code": "5A23",
+       "has_children": false,
+       "title": "Diabetic coma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/367815473"
+      },
+      {
+       "code": "5A2Y",
+       "has_children": false,
+       "title": "Other specified acute complications of diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1304552818/other"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "5A24"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616",
+    "GET icd/release/11/2026-01/mms/169360210",
+    "GET icd/release/11/2026-01/mms/1240893990",
+    "GET icd/release/11/2026-01/mms/750602160",
+    "GET icd/release/11/2026-01/mms/1320503631",
+    "GET icd/release/11/2026-01/mms/169360210/other",
+    "GET icd/release/11/2026-01/mms/169360210/unspecified"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": {
+      "code": "JA63/5A24",
+      "title": "Diabetes mellitus in pregnancy / Uncontrolled or unstable diabetes mellitus",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "5A24",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "terms": [
+      {
+       "code": "JA63",
+       "requires_postcoordination": false,
+       "title": "Diabetes mellitus in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/169360210"
+      },
+      {
+       "code": "JA63.0",
+       "requires_postcoordination": false,
+       "title": "Pre-existing type 1 diabetes mellitus in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240893990"
+      },
+      {
+       "code": "JA63.1",
+       "requires_postcoordination": false,
+       "title": "Pre-existing type 2 diabetes mellitus in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/750602160"
+      },
+      {
+       "code": "JA63.2",
+       "requires_postcoordination": false,
+       "title": "Diabetes mellitus arising in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1320503631"
+      },
+      {
+       "code": "JA63.Y",
+       "requires_postcoordination": false,
+       "title": "Other specified diabetes mellitus in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/169360210/other"
+      },
+      {
+       "code": "JA63.Z",
+       "requires_postcoordination": false,
+       "title": "Diabetes mellitus in pregnancy, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/169360210/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "5A24"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616",
+    "GET icd/release/11/2026-01/mms/1217915084",
+    "GET icd/release/11/2026-01/mms/1596856936",
+    "GET icd/release/11/2026-01/mms/1217915084/other",
+    "GET icd/release/11/2026-01/mms/1217915084/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": {
+      "code": "KB60.2/5A24",
+      "title": "Neonatal diabetes mellitus / Uncontrolled or unstable diabetes mellitus",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "5A24",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "terms": [
+      {
+       "code": "KB60.2",
+       "requires_postcoordination": false,
+       "title": "Neonatal diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1217915084"
+      },
+      {
+       "code": "KB60.20",
+       "requires_postcoordination": false,
+       "title": "Transient neonatal diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1596856936"
+      },
+      {
+       "code": "KB60.2Y",
+       "requires_postcoordination": false,
+       "title": "Other specified neonatal diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1217915084/other"
+      },
+      {
+       "code": "KB60.2Z",
+       "requires_postcoordination": false,
+       "title": "Neonatal diabetes mellitus, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1217915084/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "5A24"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5A24",
+    "GET icd/release/11/2026-01/mms/1156295616"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "Brittle diabetes mellitus is a term used to describe particularly hard-to-control Type 1 or Type 2 diabetes mellitus. It results in frequent, extreme swings in blood glucose levels, causing hyperglycaemia that could lead to ketoacidosis or hypoglycaemia.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "5A24",
+      "title": "Uncontrolled or unstable diabetes mellitus",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "5A24"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/1217915084": {"method":"GET","path":"icd/entity/1217915084","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1217915084","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1217915084","child":["http://id.who.int/icd/entity/1596856936","http://id.who.int/icd/entity/33655955","http://id.who.int/icd/entity/1271599739"],"definition":{"@language":"en","@value":"Neonatal diabetes mellitus (NDM) is a monogenic form of diabetes that occurs in the first 6 months of life. It is a rare condition occurring in only one in 100,000 to 500,000 live births. Infants with NDM do not produce enough insulin, leading to an increase in blood glucose. NDM can be mistaken for the much more common type 1 diabetes, but type 1 diabetes usually occurs later than the first 6 months of life. In about half of those with NDM, the condition is lifelong and is called permanent neonatal diabetes mellitus (PNDM). In the rest of those with NDM, the condition is transient and disappears during infancy but can reappear later in life; this type of NDM is called transient neonatal diabetes mellitus (TNDM)."},"parent":["http://id.who.int/icd/entity/465177735","http://id.who.int/icd/entity/2072313921"],"synonym":[{"label":{"@language":"en","@value":"diabetes mellitus syndrome in newborn infant"}},{"label":{"@language":"en","@value":"neonatal diabetes"}}],"title":{"@language":"en","@value":"Neonatal diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/entity/169360210": {"method":"GET","path":"icd/entity/169360210","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/169360210","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#169360210","child":["http://id.who.int/icd/entity/1240893990","http://id.who.int/icd/entity/750602160","http://id.who.int/icd/entity/1477449551","http://id.who.int/icd/entity/1320503631"],"definition":{"@language":"en","@value":"A condition caused by dysfunctional maternal insulin receptors. This condition is characterised by glucose intolerance with onset or first recognition during pregnancy, with at least one of the following criteria met: fasting plasma glucose greater than or equal to 7.0 millimoles per litre (126 mg/dL); 2-hour plasma glucose greater than or equal to 11.1 millimoles per litre (200 mg/dL) following a 75 gram oral glucose load; random plasma glucose greater than or equal to 11.1 millimoles per litre (200 mg/dL). Confirmation is by an oral glucose tolerance test."},"parent":["http://id.who.int/icd/entity/465177735","http://id.who.int/icd/entity/21112155"],"synonym":[{"label":{"@language":"en","@value":"diabetes mellitus complicating pregnancy, childbirth, or the puerperium"}}],"title":{"@language":"en","@value":"Diabetes mellitus in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1050647875": {"method":"GET","path":"icd/release/11/2026-01/mms/1050647875","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1050647875","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1050647875","classKind":"category","code":"5A13.2","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to diseases of the exocrine pancreas is a form of diabetes which is caused by any process that diffusely injures the pancreas. Acquired processes include pancreatitis, trauma, infection, pancreatectomy, and pancreatic carcinoma. With the exception of that caused by cancer, damage to the pancreas must be extensive for diabetes to occur."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to diseases of the exocrine pancreas"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1050647875/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1050647875","title":{"@language":"en","@value":"Diabetes mellitus due to diseases of the exocrine pancreas"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1150913605": {"method":"GET","path":"icd/release/11/2026-01/mms/1150913605","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1150913605","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1150913605","classKind":"category","code":"5A12","indexTerm":[{"label":{"@language":"en","@value":"Malnutrition-related diabetes mellitus"}},{"label":{"@language":"en","@value":"MRDM - [malnutrition-related diabetes mellitus]"}},{"label":{"@language":"en","@value":"malnutrition-related diabetes"}},{"label":{"@language":"en","@value":"malnutrition-related diabetes mellitus without complications"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1150913605/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1150913605","title":{"@language":"en","@value":"Malnutrition-related diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1156295616": {"method":"GET","path":"icd/release/11/2026-01/mms/1156295616","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1156295616","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1156295616","classKind":"category","code":"5A24","definition":{"@language":"en","@value":"Brittle diabetes mellitus is a term used to describe particularly hard-to-control Type 1 or Type 2 diabetes mellitus. It results in frequent, extreme swings in blood glucose levels, causing hyperglycaemia that could lead to ketoacidosis or hypoglycaemia."},"indexTerm":[{"label":{"@language":"en","@value":"Uncontrolled or unstable diabetes mellitus"}},{"label":{"@language":"en","@value":"brittle diabetes"}},{"label":{"@language":"en","@value":"inadequate control of diabetes"}},{"label":{"@language":"en","@value":"poorly controlled diabetes"}},{"label":{"@language":"en","@value":"uncontrolled diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/23809728","label":{"@language":"en","@value":"Brittle diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/23809728","label":{"@language":"en","@value":"brittle DM - [diabetes mellitus]"}},{"foundationReference":"http://id.who.int/icd/entity/23809728","label":{"@language":"en","@value":"brittle IDDM - [insulin dependent diabetes mellitus]"}},{"foundationReference":"http://id.who.int/icd/entity/23809728","label":{"@language":"en","@value":"brittle type 1 diabetes mellites"}},{"foundationReference":"http://id.who.int/icd/entity/23809728","label":{"@language":"en","@value":"labile diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1156295616/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/169360210","http://id.who.int/icd/release/11/2026-01/mms/1217915084"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1156295616","title":{"@language":"en","@value":"Uncontrolled or unstable diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/119724091": {"method":"GET","path":"icd/release/11/2026-01/mms/119724091","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/119724091","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#119724091","classKind":"category","code":"5A11","definition":{"@language":"en","@value":"Diabetes mellitus type 2 (formerly noninsulin-dependent diabetes mellitus (NIDDM) or adult-onset diabetes) is a metabolic disorder that is characterised by high blood glucose in the context of insulin resistance and relative insulin deficiency."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/750602160","label":{"@language":"en","@value":"Pre-existing type 2 diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/750602160"}],"inclusion":[{"label":{"@language":"en","@value":"non-insulin-dependent diabetes of the young"}}],"indexTerm":[{"label":{"@language":"en","@value":"Type 2 diabetes mellitus"}},{"label":{"@language":"en","@value":"DM type II"}},{"label":{"@language":"en","@value":"DM2"}},{"label":{"@language":"en","@value":"Diabetic type 2"}},{"label":{"@language":"en","@value":"NIDDM - [non insulin dependent diabetes mellitus]"}},{"label":{"@language":"en","@value":"T2DM - [Type 2 diabetes mellitus]"}},{"label":{"@language":"en","@value":"Type II diabetes mellitus"}},{"label":{"@language":"en","@value":"adult onset diabetes"}},{"label":{"@language":"en","@value":"diabetes due to insulin secretory defect"}},{"label":{"@language":"en","@value":"diabetes mellitus Type 2"}},{"label":{"@language":"en","@value":"diabetes mellitus due to insulin secretory defect"}},{"label":{"@language":"en","@value":"insulin requiring type 2 diabetes"}},{"label":{"@language":"en","@value":"maturity onset diabetes"}},{"label":{"@language":"en","@value":"maturity-onset diabetes mellitus"}},{"label":{"@language":"en","@value":"non-insulin dependent diabetes mellitus"}},{"label":{"@language":"en","@value":"non-insulin-dependent diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"non-insulin-dependent diabetes of the young"}},{"label":{"@language":"en","@value":"noninsulin dependent diabetes"}},{"label":{"@language":"en","@value":"nonketotic diabetes"}},{"label":{"@language":"en","@value":"nonketotic hyperglycaemia"}},{"label":{"@language":"en","@value":"senile diabetes"}},{"label":{"@language":"en","@value":"stable diabetes"}},{"label":{"@language":"en","@value":"type 2 diabetes"}},{"label":{"@language":"en","@value":"type II diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/618467158","label":{"@language":"en","@value":"Ketosis-resistant diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1255683285","label":{"@language":"en","@value":"Insulin resistant diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1255683285","label":{"@language":"en","@value":"insulin resistant diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/119724091/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/750602160"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/119724091","title":{"@language":"en","@value":"Type 2 diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1217915084": {"method":"GET","path":"icd/release/11/2026-01/mms/1217915084","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1217915084","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1217915084","child":["http://id.who.int/icd/release/11/2026-01/mms/1596856936","http://id.who.int/icd/release/11/2026-01/mms/1217915084/other","http://id.who.int/icd/release/11/2026-01/mms/1217915084/unspecified"],"classKind":"category","code":"KB60.2","definition":{"@language":"en","@value":"Neonatal diabetes mellitus (NDM) is a monogenic form of diabetes that occurs in the first 6 months of life. It is a rare condition occurring in only one in 100,000 to 500,000 live births. Infants with NDM do not produce enough insulin, leading to an increase in blood glucose. NDM can be mistaken for the much more common type 1 diabetes, but type 1 diabetes usually occurs later than the first 6 months of life. In about half of those with NDM, the condition is lifelong and is called permanent neonatal diabetes mellitus (PNDM). In the rest of those with NDM, the condition is transient and disappears during infancy but can reappear later in life; this type of NDM is called transient neonatal diabetes mellitus (TNDM)."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/2072313921"],"source":"http://id.who.int/icd/entity/1217915084","title":{"@language":"en","@value":"Neonatal diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1217915084/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1217915084/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1217915084/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1217915084/other","classKind":"category","code":"KB60.2Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified neonatal diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/33655955","label":{"@language":"en","@value":"Permanent neonatal diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/33655955","label":{"@language":"en","@value":"Isolated permanent neonatal diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/33655955","label":{"@language":"en","@value":"Non syndromic permanent neonatal diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/33655955","label":{"@language":"en","@value":"PNDM - [permanent neonatal diabetes mellitus]"}},{"foundationReference":"http://id.who.int/icd/entity/1271599739","label":{"@language":"en","@value":"Syndromic permanent neonatal diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/31390672","label":{"@language":"en","@value":"DEND - [Developmental delay - epilepsy - neonatal diabetes] syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/31390672","label":{"@language":"en","@value":"Developmental delay - epilepsy - neonatal diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/1871318195","label":{"@language":"en","@value":"Permanent neonatal diabetes mellitus - pancreatic and cerebellar agenesis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1217915084"],"title":{"@language":"en","@value":"Other specified neonatal diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1217915084/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1217915084/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1217915084/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1217915084/unspecified","classKind":"category","code":"KB60.2Z","indexTerm":[{"label":{"@language":"en","@value":"Neonatal diabetes mellitus, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1217915084","label":{"@language":"en","@value":"Neonatal diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1217915084","label":{"@language":"en","@value":"diabetes mellitus syndrome in newborn infant"}},{"foundationReference":"http://id.who.int/icd/entity/1217915084","label":{"@language":"en","@value":"neonatal diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1217915084"],"title":{"@language":"en","@value":"Neonatal diabetes mellitus, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1240893990": {"method":"GET","path":"icd/release/11/2026-01/mms/1240893990","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1240893990","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1240893990","classKind":"category","code":"JA63.0","indexTerm":[{"label":{"@language":"en","@value":"Pre-existing type 1 diabetes mellitus in pregnancy"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/169360210"],"source":"http://id.who.int/icd/entity/1240893990","title":{"@language":"en","@value":"Pre-existing type 1 diabetes mellitus in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1304552818": {"method":"GET","path":"icd/release/11/2026-01/mms/1304552818","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1304552818","blockId":"BlockL3-5A2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1304552818","child":["http://id.who.int/icd/release/11/2026-01/mms/463969617","http://id.who.int/icd/release/11/2026-01/mms/193526903","http://id.who.int/icd/release/11/2026-01/mms/2144077558","http://id.who.int/icd/release/11/2026-01/mms/367815473","http://id.who.int/icd/release/11/2026-01/mms/1156295616","http://id.who.int/icd/release/11/2026-01/mms/1304552818/other"],"classKind":"block","code":"","codeRange":"5A20-5A2Y","parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"source":"http://id.who.int/icd/entity/1304552818","title":{"@language":"en","@value":"Acute complications of diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1304552818/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1304552818/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1304552818/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1304552818/other","classKind":"category","code":"5A2Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified acute complications of diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1304552818/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"title":{"@language":"en","@value":"Other specified acute complications of diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1320503631": {"method":"GET","path":"icd/release/11/2026-01/mms/1320503631","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1320503631","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1320503631","classKind":"category","code":"JA63.2","definition":{"@language":"en","@value":"Diabetes mellitus arising or diagnosed in pregnancy (Gestational diabetes mellitus) per WHO criteria or other national criteria. Gestational diabetes mellitus is defined as any degree of glucose intolerance with onset or first recognition during pregnancy. The definition applies regardless of whether insulin or only diet modification is used for treatment or whether the condition persists after pregnancy."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus arising in pregnancy"}},{"label":{"@language":"en","@value":"GDM - [gestational diabetes mellitus]"}},{"label":{"@language":"en","@value":"Gestational diabetes mellitus NOS"}},{"label":{"@language":"en","@value":"diabetes of pregnancy"}},{"label":{"@language":"en","@value":"gestational diabetes"}},{"label":{"@language":"en","@value":"gestational diabetes complicating pregnancy, childbirth, or the puerperium"}},{"label":{"@language":"en","@value":"maternal gestational diabetes mellitus"}},{"label":{"@language":"en","@value":"overt diabetes complicating pregnancy, childbirth, or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/169360210"],"source":"http://id.who.int/icd/entity/1320503631","title":{"@language":"en","@value":"Diabetes mellitus arising in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/133436462": {"method":"GET","path":"icd/release/11/2026-01/mms/133436462","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/133436462","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#133436462","classKind":"category","code":"5A13.1","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to genetic defects in insulin action is a form of diabetes, which results from genetically determined abnormalities of insulin action. The metabolic abnormalities associated with mutations of the insulin receptor may range from hyperinsulinemia and modest hyperglycaemia to severe diabetes."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to genetic defects in insulin action"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/133436462/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/133436462","title":{"@language":"en","@value":"Diabetes mellitus due to genetic defects in insulin action"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1418416880": {"method":"GET","path":"icd/release/11/2026-01/mms/1418416880","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1418416880","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1418416880","classKind":"category","code":"5A13.5","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to uncommon forms of immune-mediated diabetes is a form of diabetes, which is caused by two known conditions. The stiff-man syndrome is an autoimmune disorder of the central nervous system characterised by stiffness of the axial muscles with painful spasms. Patients usually have high titres of the GAD autoantibodies, and approximately one-third will develop diabetes."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to uncommon forms of immune-mediated diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418416880/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1418416880","title":{"@language":"en","@value":"Diabetes mellitus due to uncommon forms of immune-mediated diabetes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1484144649": {"method":"GET","path":"icd/release/11/2026-01/mms/1484144649","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1484144649","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1484144649","classKind":"category","code":"5A13.0","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to genetic defects of beta cell function is a form of diabetes, which is associated with monogenetic defects in beta-cell function."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to genetic defects of beta cell function"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1484144649/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1484144649","title":{"@language":"en","@value":"Diabetes mellitus due to genetic defects of beta cell function"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1596856936": {"method":"GET","path":"icd/release/11/2026-01/mms/1596856936","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1596856936","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1596856936","classKind":"category","code":"KB60.20","definition":{"@language":"en","@value":"Transient neonatal diabetes mellitus (TNDM) is a developmental disorder of insulin production that resolves postnatally within the first year of life. Intrauterine growth restriction is usually present. TNDM infants develop diabetes in the first few weeks of life but may go into remission in a few months, with possible relapse to a permanent diabetes state usually around adolescence or as adults. The pancreatic dysfunction in this condition may be maintained throughout life, with relapse initiated at times of metabolic stress such as puberty or pregnancy."},"indexTerm":[{"label":{"@language":"en","@value":"Transient neonatal diabetes mellitus"}},{"label":{"@language":"en","@value":"TNDM -[transient neonatal diabetes mellitus]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1217915084"],"source":"http://id.who.int/icd/entity/1596856936","title":{"@language":"en","@value":"Transient neonatal diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1651053999": {"method":"GET","path":"icd/release/11/2026-01/mms/1651053999","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1651053999","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1651053999","classKind":"category","code":"5A10","definition":{"@language":"en","@value":"Diabetes mellitus type 1 (type 1 diabetes, T1DM, formerly insulin dependent or juvenile diabetes) is a form of diabetes mellitus that results from destruction of insulin-producing beta cells, mostly by autoimmune mechanisms. The subsequent lack of insulin leads to increased blood and urine glucose."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/119724091","label":{"@language":"en","@value":"Type 2 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1240893990","label":{"@language":"en","@value":"Pre-existing type 1 diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1240893990"}],"indexTerm":[{"label":{"@language":"en","@value":"Type 1 diabetes mellitus"}},{"label":{"@language":"en","@value":"IDDM - [insulin dependent diabetes mellitus]"}},{"label":{"@language":"en","@value":"T1DM - [type 1 diabetes mellitus]"}},{"label":{"@language":"en","@value":"idiopathic insulin-dependent diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"juvenile diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"juvenile-onset diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"juvenile-onset-type diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"ketosis-prone diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"type 1 IDDM"}},{"label":{"@language":"en","@value":"type 1 diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1237768242","label":{"@language":"en","@value":"Fulminant type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1727622794","label":{"@language":"en","@value":"Immune-related Type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1727622794","label":{"@language":"en","@value":"Immune-mediated Type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1727622794","label":{"@language":"en","@value":"Juvenile onset diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"Latent autoimmune diabetes in adults"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"LADA - [Latent autoimmune diabetes in adults]"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"SPIDDM - [Slowly progressive insulin-dependent diabetes mellitus]"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"slowly progressive insulin-dependent diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1651053999/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240893990"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1651053999","title":{"@language":"en","@value":"Type 1 diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/169360210": {"method":"GET","path":"icd/release/11/2026-01/mms/169360210","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/169360210","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#169360210","child":["http://id.who.int/icd/release/11/2026-01/mms/1240893990","http://id.who.int/icd/release/11/2026-01/mms/750602160","http://id.who.int/icd/release/11/2026-01/mms/1320503631","http://id.who.int/icd/release/11/2026-01/mms/169360210/other","http://id.who.int/icd/release/11/2026-01/mms/169360210/unspecified"],"classKind":"category","code":"JA63","definition":{"@language":"en","@value":"A condition caused by dysfunctional maternal insulin receptors. This condition is characterised by glucose intolerance with onset or first recognition during pregnancy, with at least one of the following criteria met: fasting plasma glucose greater than or equal to 7.0 millimoles per litre (126 mg/dL); 2-hour plasma glucose greater than or equal to 11.1 millimoles per litre (200 mg/dL) following a 75 gram oral glucose load; random plasma glucose greater than or equal to 11.1 millimoles per litre (200 mg/dL). Confirmation is by an oral glucose tolerance test."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/21112155"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/169360210/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070"]}],"source":"http://id.who.int/icd/entity/169360210","title":{"@language":"en","@value":"Diabetes mellitus in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/169360210/other": {"method":"GET","path":"icd/release/11/2026-01/mms/169360210/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/169360210/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#169360210/other","classKind":"category","code":"JA63.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified diabetes mellitus in pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1477449551","label":{"@language":"en","@value":"Pre-existing malnutrition-related diabetes mellitus in pregnancy"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/169360210"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/169360210/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070"]}],"title":{"@language":"en","@value":"Other specified diabetes mellitus in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/169360210/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/169360210/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/169360210/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#169360210/unspecified","classKind":"category","code":"JA63.Z","indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus in pregnancy, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"diabetes mellitus complicating pregnancy, childbirth, or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/169360210"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/169360210/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070"]}],"title":{"@language":"en","@value":"Diabetes mellitus in pregnancy, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1697306310": {"method":"GET","path":"icd/release/11/2026-01/mms/1697306310","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1697306310","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1697306310","classKind":"category","code":"5A14","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"},{"foundationReference":"http://id.who.int/icd/entity/119724091","label":{"@language":"en","@value":"Type 2 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"}],"fullySpecifiedName":{"@language":"en","@value":"Diabetes without mention of type of diabetes mellitus"},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus, type unspecified"}},{"label":{"@language":"en","@value":"DM - [diabetes mellitus] NOS"}},{"label":{"@language":"en","@value":"Diabetes mellitus, type unspecified without complications"}},{"label":{"@language":"en","@value":"controlled diabetes"}},{"label":{"@language":"en","@value":"controlled diabetes mellitus"}},{"label":{"@language":"en","@value":"controlled diabetic"}},{"label":{"@language":"en","@value":"diabetes NOS"}},{"label":{"@language":"en","@value":"diabetes mellitus NOS"}},{"label":{"@language":"en","@value":"severe diabetes mellitus"}},{"label":{"@language":"en","@value":"sudden-onset diabetes mellitus"}},{"label":{"@language":"en","@value":"Diabetes without mention of type of diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1697306310/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1697306310","title":{"@language":"en","@value":"Diabetes mellitus, type unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1730828870": {"method":"GET","path":"icd/release/11/2026-01/mms/1730828870","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1730828870","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1730828870","classKind":"category","code":"5A13.6","codingNote":{"@language":"en","@value":"Use additional code, if desired, to identify any associated genetic syndrome"},"definition":{"@language":"en","@value":"Other specified diabetes mellitus due to other genetic syndromes is a form of diabetes, which is associated with genetic syndromes."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/151381747","label":{"@language":"en","@value":"Wolfram syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1009553897"},{"foundationReference":"http://id.who.int/icd/entity/2133824111","label":{"@language":"en","@value":"Maternally inherited diabetes and deafness"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/186534168/other"},{"foundationReference":"http://id.who.int/icd/entity/1165037235","label":{"@language":"en","@value":"Thiamine-responsive megaloblastic anaemia syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1112006621/other"},{"foundationReference":"http://id.who.int/icd/entity/1893572805","label":{"@language":"en","@value":"Woodhouse-Sakati syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/768216194"},{"foundationReference":"http://id.who.int/icd/entity/1930317843","label":{"@language":"en","@value":"Mitochondrial myopathy with diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/601991549/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to other genetic syndromes"}},{"foundationReference":"http://id.who.int/icd/entity/419255568","label":{"@language":"en","@value":"MODY syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/289825291","label":{"@language":"en","@value":"MODY 1 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/289825291","label":{"@language":"en","@value":"maturity onset diabetes of the young type 1"}},{"foundationReference":"http://id.who.int/icd/entity/990655222","label":{"@language":"en","@value":"MODY 2 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/990655222","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 2"}},{"foundationReference":"http://id.who.int/icd/entity/964882179","label":{"@language":"en","@value":"MODY 3 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/964882179","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 3"}},{"foundationReference":"http://id.who.int/icd/entity/679107840","label":{"@language":"en","@value":"MODY 4 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/679107840","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 4"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"MODY 5 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"ADTKD - [Autosomal Dominant Tubulointerstitial Kidney Disease] -HNF1B"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 5"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Microdeletion 17q11.2"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"RCAD - [renal cyst and diabetes syndrome]"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Renal cysts - Maturity-Onset Diabetes of the Young type 5 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Renal diabetes MODY 5 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Renal dysfunction - early-onset diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/2096037122","label":{"@language":"en","@value":"MODY 6 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/2096037122","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 6"}},{"foundationReference":"http://id.who.int/icd/entity/1745614099","label":{"@language":"en","@value":"MODY 7 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1745614099","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 7"}},{"foundationReference":"http://id.who.int/icd/entity/205210166","label":{"@language":"en","@value":"MODY 8 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/205210166","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 8"}},{"foundationReference":"http://id.who.int/icd/entity/2096915129","label":{"@language":"en","@value":"Wolcott-Rallison syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/2096915129","label":{"@language":"en","@value":"Multiple epiphyseal dysplasia with early-onset diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1730828870/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1730828870","title":{"@language":"en","@value":"Diabetes mellitus due to other genetic syndromes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1736581746": {"method":"GET","path":"icd/release/11/2026-01/mms/1736581746","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1736581746","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1736581746","classKind":"category","code":"5A13.3","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to endocrinopathies is a form of diabetes caused by several hormones (e.g., growth hormone, cortisol, glucagon, epinephrine), which antagonize insulin action. Excess amounts of these hormones (e.g., acromegaly, Cushing’s syndrome, glucagonoma, pheochromocytoma, respectively) can cause diabetes. This generally occurs in individuals with preexisting defects in insulin secretion, and hyperglycaemia typically resolves when the hormone excess is resolved."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to endocrinopathies"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1736581746/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1736581746","title":{"@language":"en","@value":"Diabetes mellitus due to endocrinopathies"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/193526903": {"method":"GET","path":"icd/release/11/2026-01/mms/193526903","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/193526903","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#193526903","child":["http://id.who.int/icd/release/11/2026-01/mms/1153329797","http://id.who.int/icd/release/11/2026-01/mms/1973651647","http://id.who.int/icd/release/11/2026-01/mms/193526903/unspecified"],"classKind":"category","code":"5A21","parent":["http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/193526903/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1158914813","http://id.who.int/icd/release/11/2026-01/mms/11598009"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/193526903/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"source":"http://id.who.int/icd/entity/193526903","title":{"@language":"en","@value":"Hypoglycaemia in the context of diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2144077558": {"method":"GET","path":"icd/release/11/2026-01/mms/2144077558","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2144077558","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2144077558","child":["http://id.who.int/icd/release/11/2026-01/mms/540530695","http://id.who.int/icd/release/11/2026-01/mms/58193584","http://id.who.int/icd/release/11/2026-01/mms/493397722","http://id.who.int/icd/release/11/2026-01/mms/939674472","http://id.who.int/icd/release/11/2026-01/mms/2144077558/other","http://id.who.int/icd/release/11/2026-01/mms/2144077558/unspecified"],"classKind":"category","code":"5A22","parent":["http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2144077558/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"source":"http://id.who.int/icd/entity/2144077558","title":{"@language":"en","@value":"Diabetic acidosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/21500692": {"method":"GET","path":"icd/release/11/2026-01/mms/21500692","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/21500692","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#21500692","child":["http://id.who.int/icd/release/11/2026-01/mms/461716838","http://id.who.int/icd/release/11/2026-01/mms/1671987290","http://id.who.int/icd/release/11/2026-01/mms/155258022","http://id.who.int/icd/release/11/2026-01/mms/1915134721"],"classKind":"chapter","code":"05","definition":{"@language":"en","@value":"This chapter includes endocrine diseases, nutritional diseases as well as metabolic diseases."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/714000734","label":{"@language":"en","@value":"Pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/714000734"},{"foundationReference":"http://id.who.int/icd/entity/1004987305","label":{"@language":"en","@value":"Transitory endocrine or metabolic disorders specific to fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1004987305"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/922175770","label":{"@language":"en","@value":"Symptoms, signs or clinical findings of endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/922175770"},{"foundationReference":"http://id.who.int/icd/entity/1156263785","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1156263785"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/21500692","title":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/367815473": {"method":"GET","path":"icd/release/11/2026-01/mms/367815473","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/367815473","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#367815473","classKind":"category","code":"5A23","indexTerm":[{"label":{"@language":"en","@value":"Diabetic coma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/367815473/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/367815473","title":{"@language":"en","@value":"Diabetic coma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381961554": {"method":"GET","path":"icd/release/11/2026-01/mms/381961554","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381961554","child":["http://id.who.int/icd/release/11/2026-01/mms/1484144649","http://id.who.int/icd/release/11/2026-01/mms/133436462","http://id.who.int/icd/release/11/2026-01/mms/1050647875","http://id.who.int/icd/release/11/2026-01/mms/1736581746","http://id.who.int/icd/release/11/2026-01/mms/388963453","http://id.who.int/icd/release/11/2026-01/mms/1418416880","http://id.who.int/icd/release/11/2026-01/mms/1730828870","http://id.who.int/icd/release/11/2026-01/mms/891371477","http://id.who.int/icd/release/11/2026-01/mms/381961554/other"],"classKind":"category","code":"5A13","definition":{"@language":"en","@value":"Diabetes mellitus which cannot be classified as either Type 1 or Type 2 diabetes mellitus."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/119724091","label":{"@language":"en","@value":"Type 2 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"}],"fullySpecifiedName":{"@language":"en","@value":"Other specified Diabetes mellitus, not Type 1 and not Type 2"},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus, other specified type"}},{"label":{"@language":"en","@value":"Other specified Diabetes mellitus, not Type 1 and not Type 2"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"source":"http://id.who.int/icd/entity/381961554","title":{"@language":"en","@value":"Diabetes mellitus, other specified type"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381961554/other": {"method":"GET","path":"icd/release/11/2026-01/mms/381961554/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381961554/other","classKind":"category","code":"5A13.Y","indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to other specified cause"}},{"foundationReference":"http://id.who.int/icd/entity/1823568169","label":{"@language":"en","@value":"Diabetes mellitus due to infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"title":{"@language":"en","@value":"Diabetes mellitus due to other specified cause"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/388963453": {"method":"GET","path":"icd/release/11/2026-01/mms/388963453","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/388963453","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#388963453","classKind":"category","code":"5A13.4","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to drug or chemical is a form of diabetes, which is caused by drug or chemical substance that impairs insulin secretion and insulin action."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to drug or chemical"}},{"label":{"@language":"en","@value":"chemical DM"}},{"label":{"@language":"en","@value":"chemical diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/235906657","label":{"@language":"en","@value":"Steroid-induced diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/388963453/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/388963453/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1868408442","http://id.who.int/icd/release/11/2026-01/mms/1583926619","http://id.who.int/icd/release/11/2026-01/mms/1323892810"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/388963453","title":{"@language":"en","@value":"Diabetes mellitus due to drug or chemical"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/461716838": {"method":"GET","path":"icd/release/11/2026-01/mms/461716838","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/461716838","blockId":"BlockL1-5A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#461716838","child":["http://id.who.int/icd/release/11/2026-01/mms/1907280211","http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1283179793","http://id.who.int/icd/release/11/2026-01/mms/962023213","http://id.who.int/icd/release/11/2026-01/mms/896961873","http://id.who.int/icd/release/11/2026-01/mms/237003158","http://id.who.int/icd/release/11/2026-01/mms/1465641389","http://id.who.int/icd/release/11/2026-01/mms/840727139","http://id.who.int/icd/release/11/2026-01/mms/1465366519","http://id.who.int/icd/release/11/2026-01/mms/895465736","http://id.who.int/icd/release/11/2026-01/mms/893358872","http://id.who.int/icd/release/11/2026-01/mms/1909613405","http://id.who.int/icd/release/11/2026-01/mms/461716838/other","http://id.who.int/icd/release/11/2026-01/mms/461716838/unspecified"],"classKind":"block","code":"","codeRange":"5A00-5B3Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/21500692"],"source":"http://id.who.int/icd/entity/461716838","title":{"@language":"en","@value":"Endocrine diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/463969617": {"method":"GET","path":"icd/release/11/2026-01/mms/463969617","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/463969617","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#463969617","child":["http://id.who.int/icd/release/11/2026-01/mms/1322661241","http://id.who.int/icd/release/11/2026-01/mms/1796958395","http://id.who.int/icd/release/11/2026-01/mms/463969617/unspecified"],"classKind":"category","code":"5A20","parent":["http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/463969617/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"source":"http://id.who.int/icd/entity/463969617","title":{"@language":"en","@value":"Diabetic hyperosmolar hyperglycaemic state"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/465177735": {"method":"GET","path":"icd/release/11/2026-01/mms/465177735","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/465177735","blockId":"BlockL2-5A1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#465177735","child":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1304552818"],"classKind":"block","code":"","codeRange":"5A10-5A2Y","definition":{"@language":"en","@value":"An endocrine and metabolic disorder with heterogenous aetiologies which is characterised by chronic hyperglycaemia and disturbances of carbohydrate, fat and protein metabolism resulting from defects in insulin secretion, insulin action, or both."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/1217915084","label":{"@language":"en","@value":"Neonatal diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1217915084"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/461716838"],"source":"http://id.who.int/icd/entity/465177735","title":{"@language":"en","@value":"Diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/750602160": {"method":"GET","path":"icd/release/11/2026-01/mms/750602160","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/750602160","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#750602160","classKind":"category","code":"JA63.1","indexTerm":[{"label":{"@language":"en","@value":"Pre-existing type 2 diabetes mellitus in pregnancy"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/169360210"],"source":"http://id.who.int/icd/entity/750602160","title":{"@language":"en","@value":"Pre-existing type 2 diabetes mellitus in pregnancy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/891371477": {"method":"GET","path":"icd/release/11/2026-01/mms/891371477","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/891371477","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#891371477","classKind":"category","code":"5A13.7","definition":{"@language":"en","@value":"Diabetes mellitus that has clinically defined subtypes or associated syndromes"},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to clinically defined subtypes or syndromes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/891371477","title":{"@language":"en","@value":"Diabetes mellitus due to clinically defined subtypes or syndromes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/5A24": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A24","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A24","code":"5A24","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1156295616"},"request_body":null,"status":200}
+ }
+}

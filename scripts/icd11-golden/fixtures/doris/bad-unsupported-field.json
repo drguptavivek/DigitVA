@@ -1,0 +1,65 @@
+{
+ "id": "bad-unsupported-field",
+ "input": {
+  "certificate": {
+   "ICDVersion": "ICD11",
+   "Notes": "x",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Text": "MI"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "invalid",
+  "id": "bad-unsupported-field",
+  "source": "app/services/doris_certificate.py",
+  "why": "Unsupported certificate field"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "Contains unsupported fields.",
+        "path": "certificate"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "ICDVersion": "ICD11",
+     "Notes": "x",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Text": "MI"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+
+ }
+}

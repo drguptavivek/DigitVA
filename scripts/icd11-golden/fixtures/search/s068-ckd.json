@@ -1,0 +1,98 @@
+{
+ "id": "s068-ckd",
+ "input": {
+  "id": "s068-ckd",
+  "kind": "abbreviation",
+  "query": "CKD",
+  "source": "VAs-07.01",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #1fda6c199d"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 7,
+     "items": [
+      {
+       "code": "GB61.Z",
+       "has_coding_note": false,
+       "matching_text": "Chronic kidney disease, stage unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic kidney disease, stage unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"
+      },
+      {
+       "code": "GB61.1",
+       "has_coding_note": false,
+       "matching_text": "Chronic kidney disease, stage 2",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic kidney disease, stage 2",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1124558660"
+      },
+      {
+       "code": "GB61.0",
+       "has_coding_note": false,
+       "matching_text": "Chronic kidney disease, stage 1",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic kidney disease, stage 1",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/933902267"
+      },
+      {
+       "code": "GB61.4",
+       "has_coding_note": false,
+       "matching_text": "Chronic kidney disease, stage 4",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic kidney disease, stage 4",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1436694854"
+      },
+      {
+       "code": "GB61.5",
+       "has_coding_note": false,
+       "matching_text": "Chronic kidney disease, stage 5",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic kidney disease, stage 5",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820638928"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "CKD",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #1fda6c199d": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/412389819","important":true,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified","theCode":"GB61.Z","title":"Chronic kidney disease, stage unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1124558660","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1124558660","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 2","propertyId":"Synonym","propertyValueType":0,"score":-1.0646002086462572}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.0646002086462572,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1124558660","theCode":"GB61.1","title":"Chronic kidney disease, stage 2","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/933902267","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/933902267","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 1","propertyId":"Synonym","propertyValueType":0,"score":-1.094589234854233}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.094589234854233,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/933902267","theCode":"GB61.0","title":"Chronic kidney disease, stage 1","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1436694854","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1436694854","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 4","propertyId":"Synonym","propertyValueType":0,"score":-1.2760470477773125}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.2760470477773125,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1436694854","theCode":"GB61.4","title":"Chronic kidney disease, stage 4","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/820638928","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/820638928","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 5","propertyId":"Synonym","propertyValueType":0,"score":-1.2913848901300429},{"foundationUri":"http://id.who.int/icd/entity/1726595166","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 5 on dialysis","propertyId":"Synonym","propertyValueType":1,"score":-3.9380692215726922},{"foundationUri":"http://id.who.int/icd/entity/522394067","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em>- [chronic kidney disease] stage 5 not on dialysis","propertyId":"Synonym","propertyValueType":1,"score":-4.346731345978524}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.2913848901300429,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/820638928","theCode":"GB61.5","title":"Chronic kidney disease, stage 5","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1416760208","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1416760208","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 3a","propertyId":"Synonym","propertyValueType":0,"score":-1.4432909422955205}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.4432909422955205,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1416760208","theCode":"GB61.2","title":"Chronic kidney disease, stage 3a","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"16","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/671059308","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/671059308","important":false,"label":"<em class='found'>CKD</em><em class='nonwbe'></em> - [chronic kidney disease] stage 3b","propertyId":"Synonym","propertyValueType":0,"score":-1.7338921187195382}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.7338921187195382,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/671059308","theCode":"GB61.3","title":"Chronic kidney disease, stage 3b","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=CKD%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

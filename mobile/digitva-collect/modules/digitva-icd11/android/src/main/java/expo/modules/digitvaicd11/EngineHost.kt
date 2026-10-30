@@ -50,6 +50,7 @@ internal class EngineHost(private val context: Context, private val progress: (p
       val recordSetup = record == null || interrupted
       if (recordSetup) EngineData.markAttempt(context)
       val lib = File(context.applicationInfo.nativeLibraryDir, "libdigitva_icd11.so")
+      // load refuses a library without digitva_icd11_call (a stale engine pin): "load_failed", so the app reports the engine unavailable.
       if (!lib.exists() || EngineJni.load(lib.path) != 0) {
         fail("load_failed", copyMs, 0.0, millis(start))
       } else {
@@ -103,36 +104,41 @@ internal class EngineHost(private val context: Context, private val progress: (p
     return if (PHASES_FORMAT.matches(text)) text else ""
   }
 
-  fun call(op: String, input: String): Map<String, Any?> {
-    val code = OPS[op] ?: return mapOf("ok" to false, "error" to "bad_op", "status" to 0, "nativeMs" to 0.0)
-    if (initResult?.get("ok") != true) {
-      return mapOf("ok" to false, "error" to "not_initialized", "status" to 503, "nativeMs" to 0.0)
+  /**
+   * One engine call: [op] is the bridge's op name (the allow-list is Bridge.cs's, not ours; only its shape is checked here) and
+   * [input] the JSON object of its arguments.
+   */
+  fun call(op: String, input: String): Map<String, Any?> =
+    callResult(initResult?.get("ok") == true, op, input) { name, json, status ->
+      // A fixed section name: `op` is caller text.
+      Trace.beginSection("icd11.call")
+      try {
+        EngineJni.callOp(name, json, status)
+      } finally {
+        Trace.endSection()
+      }
     }
-    val status = IntArray(1)
-    val start = System.nanoTime()
-    // `op` is already one of OPS' fixed keys here, so the section name is never caller text.
-    Trace.beginSection("icd11.$op")
-    val bytes = try {
-      EngineJni.call(code, input, status)
-    } finally {
-      Trace.endSection()
-    }
-    val nativeMs = millis(start)
-    if (bytes == null || status[0] !in 200..299) {
-      // The body of a failed call may echo the input or a stack trace: drop it.
-      return mapOf("ok" to false, "error" to "engine_status", "status" to status[0], "nativeMs" to nativeMs)
-    }
-    return mapOf("ok" to true, "status" to status[0], "text" to String(bytes, Charsets.UTF_8), "nativeMs" to nativeMs)
-  }
 
   private companion object {
     const val TAG = "DigitvaIcd11"
     val PHASES_FORMAT = Regex("[a-z]+=[0-9]+( [a-z]+=[0-9]+)*")
-    val OPS = mapOf(
-      "search" to EngineJni.SEARCH,
-      "codeinfo" to EngineJni.CODEINFO,
-      "doris" to EngineJni.DORIS,
-      "codedit" to EngineJni.CODEDIT,
-    )
   }
+}
+
+/**
+ * The result map of one call (see [EngineHost.call]): [invoke] runs the engine and fills status[0]; [initialised] is whether the
+ * init succeeded. Android-free so the JVM unit tests can run it.
+ */
+internal fun callResult(initialised: Boolean, op: String, input: String, invoke: (String, String, IntArray) -> ByteArray?): Map<String, Any?> {
+  if (!Icd11Service.OP_NAME.matches(op)) return mapOf("ok" to false, "error" to "bad_op", "status" to 0, "nativeMs" to 0.0)
+  if (!initialised) return mapOf("ok" to false, "error" to "not_initialized", "status" to 503, "nativeMs" to 0.0)
+  val status = IntArray(1)
+  val start = System.nanoTime()
+  val bytes = invoke(op, input, status)
+  val nativeMs = (System.nanoTime() - start) / 1_000_000.0
+  if (bytes == null || status[0] !in 200..299) {
+    // The body of a failed call may echo the input or a stack trace: drop it.
+    return mapOf("ok" to false, "error" to "engine_status", "status" to status[0], "nativeMs" to nativeMs)
+  }
+  return mapOf("ok" to true, "status" to status[0], "text" to String(bytes, Charsets.UTF_8), "nativeMs" to nativeMs)
 }

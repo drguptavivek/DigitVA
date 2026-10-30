@@ -1,0 +1,87 @@
+{
+ "id": "s224-syn-hypoxic-ischaemic-encephalopathy",
+ "input": {
+  "concept": "birth asphyxia",
+  "id": "s224-syn-hypoxic-ischaemic-encephalopathy",
+  "kind": "synonym",
+  "query": "hypoxic ischaemic encephalopathy",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for birth asphyxia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #ef61909cd2"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "8B24.Z",
+       "has_coding_note": false,
+       "matching_text": "Hypoxic-ischaemic encephalopathy, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Hypoxic-ischaemic encephalopathy, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/805990521/unspecified"
+      },
+      {
+       "code": "8B24.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified hypoxic-ischaemic encephalopathy",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified hypoxic-ischaemic encephalopathy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/805990521/other"
+      },
+      {
+       "code": "KB04",
+       "has_coding_note": false,
+       "matching_text": "Hypoxic ischaemic encephalopathy of newborn",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Hypoxic ischaemic encephalopathy of newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1281282034"
+      },
+      {
+       "code": "8A60.01",
+       "has_coding_note": false,
+       "matching_text": "Epilepsy due to neonatal hypoxic ischemic encephalopathy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Epilepsy due to neonatal hypoxic ischemic encephalopathy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/480321034"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "hypoxic ischaemic encephalopathy",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #ef61909cd2": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/805990521/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/805990521","important":false,"label":"<em class='found'>Hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/805990521/unspecified","theCode":"8B24.Z","title":"<em class='found'>Hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/805990521/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/875836206","important":false,"label":"<em class='found'>Hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> in diseases classified elsewhere","propertyId":"Synonym","propertyValueType":1,"score":0.3004387991268226},{"foundationUri":"http://id.who.int/icd/entity/875836206","important":false,"label":"Secondary <em class='found'>hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.11896982176074448},{"foundationUri":"http://id.who.int/icd/entity/381149513","important":false,"label":"<em class='found'>Hypoxic</em>-<em class='found'>ischemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> in strangulation","propertyId":"Title","propertyValueType":1,"score":-0.16116405036553152},{"foundationUri":"http://id.who.int/icd/entity/556056631","important":false,"label":"<em class='found'>Hypoxic</em>-<em class='found'>ischemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> in cardiac arrest","propertyId":"Title","propertyValueType":1,"score":-0.44562181694451786}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.4140583258369048,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/805990521/other","theCode":"8B24.Y","title":"Other specified <em class='found'>hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1281282034","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/870467508","important":false,"label":"<em class='found'>hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> stage II","propertyId":"Synonym","propertyValueType":1,"score":0.1809290638288646},{"foundationUri":"http://id.who.int/icd/entity/10036778","important":false,"label":"HIE - [<em class='found'>Hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>], severe","propertyId":"Synonym","propertyValueType":1,"score":0.11431024457626202},{"foundationUri":"http://id.who.int/icd/entity/870467508","important":false,"label":"HIE - [<em class='found'>Hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>], moderate","propertyId":"Synonym","propertyValueType":1,"score":0.078521792204448},{"foundationUri":"http://id.who.int/icd/entity/1051799633","important":false,"label":"HIE - [<em class='found'>Hypoxic</em>-<em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>], mild","propertyId":"Synonym","propertyValueType":1,"score":0.07700723742464716},{"foundationUri":"http://id.who.int/icd/entity/10036778","important":false,"label":"<em class='found'>Hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> of newborn, severe","propertyId":"Title","propertyValueType":1,"score":-0.11931046519729302},{"foundationUri":"http://id.who.int/icd/entity/870467508","important":false,"label":"<em class='found'>Hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> of newborn, moderate","propertyId":"Title","propertyValueType":1,"score":-0.15509891756910726},{"foundationUri":"http://id.who.int/icd/entity/1051799633","important":false,"label":"<em class='found'>Hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> of newborn, mild","propertyId":"Title","propertyValueType":1,"score":-0.1566134723489081},{"foundationUri":"http://id.who.int/icd/entity/1281282034","important":false,"label":"HIE - [<em class='found'>hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>] of newborn","propertyId":"Synonym","propertyValueType":0,"score":-0.2624643487811422},{"foundationUri":"http://id.who.int/icd/entity/870467508","important":false,"label":"Stage 2 <em class='found'>hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> [HIE] of newborn","propertyId":"Synonym","propertyValueType":1,"score":-0.509871354293064},{"foundationUri":"http://id.who.int/icd/entity/1051799633","important":false,"label":"Stage 1 <em class='found'>hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> [HIE] of newborn","propertyId":"Synonym","propertyValueType":1,"score":-0.5170814156807995},{"foundationUri":"http://id.who.int/icd/entity/10036778","important":false,"label":"Stage 3 <em class='found'>hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> [HIE] of newborn","propertyId":"Synonym","propertyValueType":1,"score":-0.5372004358630073}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.1809290638288646,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1281282034","theCode":"KB04","title":"<em class='found'>Hypoxic</em> <em class='found'>ischaemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em> of newborn","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/480321034","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.25829700285619395,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/480321034","theCode":"8A60.01","title":"Epilepsy due to neonatal <em class='found'>hypoxic</em> <em class='found'>ischemic</em> <em class='found'>encephalopathy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=hypoxic+ischaemic+encephalopathy%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

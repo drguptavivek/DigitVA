@@ -1,0 +1,1071 @@
+{
+ "built": [
+  {
+   "expression": "2A01.0Y&XA6HA2",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "2A01.0Y&XA6HA2",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "2A01.0Y&XA6HA2",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other",
+      "GET icd/release/11/2026-01/mms/672106711",
+      "GET icd/release/11/2026-01/mms/220111447",
+      "GET icd/release/11/2026-01/mms/879154182",
+      "GET icd/release/11/2026-01/mms/1630407678",
+      "GET icd/release/11/2026-01/mms/672106711",
+      "GET icd/release/11/2026-01/mms/1478862889",
+      "GET icd/release/11/2026-01/mms/672106711/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "02",
+         "title": "Neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1630407678"
+        },
+        {
+         "code": "",
+         "title": "Neoplasms of central nervous system or related structures",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/879154182"
+        },
+        {
+         "code": "2A01",
+         "title": "Primary neoplasms of meninges",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+        },
+        {
+         "code": "2A01.0",
+         "title": "Meningiomas",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Other specified meningiomas",
+        "Basal meningioma",
+        "Haemangiopericytic meningioma",
+        "Angioblastic meningioma of unspecified site",
+        "Angiomatous meningioma of unspecified site",
+        "Endotheliomatous meningioma of unspecified site",
+        "Fibroblastic meningioma of unspecified site",
+        "fibrous meningioma",
+        "Hemangioblastic meningioma of unspecified site",
+        "Hemangiopericytic meningioma of unspecified site",
+        "Meningotheliomatous meningioma of unspecified site",
+        "Mixed meningioma of unspecified site"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "selected_expression": {
+        "code": "2A01.0Y&XA6HA2",
+        "stem_code": "2A01.0Y"
+       },
+       "siblings": [
+        {
+         "code": "2A01.00",
+         "has_children": false,
+         "title": "Primary malignant meningioma",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1478862889"
+        },
+        {
+         "code": "2A01.0Z",
+         "has_children": false,
+         "title": "Meningiomas, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "2A01.0Y&XA6HA2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "2A01.0Y&XA6HA2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+   "why": "cerebral meninges"
+  },
+  {
+   "expression": "2A01.0Y&XA6HA2/MG30.10",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "2A01.0Y&XA6HA2/MG30.10",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242 / http://id.who.int/icd/release/11/2026-01/mms/322466810"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2/MG30.10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "2A01.0Y&XA6HA2/MG30.10",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242 / http://id.who.int/icd/release/11/2026-01/mms/322466810"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2/MG30.10",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242 / http://id.who.int/icd/release/11/2026-01/mms/322466810"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other",
+      "GET icd/release/11/2026-01/mms/672106711",
+      "GET icd/release/11/2026-01/mms/220111447",
+      "GET icd/release/11/2026-01/mms/879154182",
+      "GET icd/release/11/2026-01/mms/1630407678",
+      "GET icd/release/11/2026-01/mms/672106711",
+      "GET icd/release/11/2026-01/mms/1478862889",
+      "GET icd/release/11/2026-01/mms/672106711/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "02",
+         "title": "Neoplasms",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1630407678"
+        },
+        {
+         "code": "",
+         "title": "Neoplasms of central nervous system or related structures",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/879154182"
+        },
+        {
+         "code": "2A01",
+         "title": "Primary neoplasms of meninges",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+        },
+        {
+         "code": "2A01.0",
+         "title": "Meningiomas",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Other specified meningiomas",
+        "Basal meningioma",
+        "Haemangiopericytic meningioma",
+        "Angioblastic meningioma of unspecified site",
+        "Angiomatous meningioma of unspecified site",
+        "Endotheliomatous meningioma of unspecified site",
+        "Fibroblastic meningioma of unspecified site",
+        "fibrous meningioma",
+        "Hemangioblastic meningioma of unspecified site",
+        "Hemangiopericytic meningioma of unspecified site",
+        "Meningotheliomatous meningioma of unspecified site",
+        "Mixed meningioma of unspecified site"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "selected_expression": {
+        "code": "2A01.0Y&XA6HA2/MG30.10",
+        "stem_code": "2A01.0Y"
+       },
+       "siblings": [
+        {
+         "code": "2A01.00",
+         "has_children": false,
+         "title": "Primary malignant meningioma",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1478862889"
+        },
+        {
+         "code": "2A01.0Z",
+         "has_children": false,
+         "title": "Meningiomas, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2/MG30.10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "2A01.0Y&XA6HA2/MG30.10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "2A01.0Y&XA6HA2/MG30.10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "2A01.0Y",
+        "title": "Other specified meningiomas",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "2A01.0Y&XA6HA2/MG30.10"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242 / http://id.who.int/icd/release/11/2026-01/mms/322466810",
+   "why": "cerebral meninges with cancer pain"
+  }
+ ],
+ "id": "pc-2a01-0y",
+ "input": {
+  "built": [
+   {
+    "expression": "2A01.0Y&XA6HA2",
+    "why": "cerebral meninges"
+   },
+   {
+    "expression": "2A01.0Y&XA6HA2/MG30.10",
+    "why": "cerebral meninges with cancer pain"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-2a01-0y",
+  "source": "owner list 2026-10-29",
+  "stem": "2A01.0Y",
+  "why": "Other specified meningiomas: all axes optional, uncoded histopathology roots"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "2A01.0Y",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "2A01.0Y",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01.0Y",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other",
+    "GET icd/release/11/2026-01/mms/1979147242",
+    "GET icd/release/11/2026-01/mms/1284492970",
+    "GET icd/release/11/2026-01/mms/941774610",
+    "GET icd/release/11/2026-01/mms/41542502",
+    "GET icd/release/11/2026-01/mms/1647432031",
+    "GET icd/release/11/2026-01/mms/322466810"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+         "code": "XA6HA2",
+         "has_children": true,
+         "title": "Cerebral meninges",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1284492970",
+         "code": "XA5AH0",
+         "has_children": true,
+         "title": "Spinal meninges",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1284492970"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+        "http://id.who.int/icd/release/11/2026-01/mms/1284492970"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "histopathology",
+       "instruction": "use additional code, if desired",
+       "label": "Histopathology",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+         "code": "",
+         "has_children": true,
+         "title": "Meningiomas, benign",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/41542502",
+         "code": "",
+         "has_children": true,
+         "title": "Meningiomas, malignant",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/41542502"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1647432031",
+         "code": "",
+         "has_children": true,
+         "title": "Meningiomas, uncertain whether benign or malignant",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1647432031"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+        "http://id.who.int/icd/release/11/2026-01/mms/41542502",
+        "http://id.who.int/icd/release/11/2026-01/mms/1647432031"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/322466810",
+         "code": "MG30.10",
+         "has_children": false,
+         "title": "Chronic cancer pain",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/322466810"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/322466810"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other",
+    "GET icd/release/11/2026-01/mms/1979147242",
+    "GET icd/release/11/2026-01/mms/1243042431",
+    "GET icd/release/11/2026-01/mms/536810562",
+    "GET icd/release/11/2026-01/mms/1143431981",
+    "GET icd/release/11/2026-01/mms/613924498",
+    "GET icd/release/11/2026-01/mms/1753770831"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA9M51",
+       "has_children": false,
+       "title": "Cranial dura mater",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1243042431"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA6WL2",
+       "has_children": false,
+       "title": "Cranial arachnoid",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/536810562"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA2T81",
+       "has_children": false,
+       "title": "Cranial pia mater",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1143431981"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA7N98",
+       "has_children": false,
+       "title": "Tentorium cerebelli",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/613924498"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+       "code": "XA09H1",
+       "has_children": true,
+       "title": "Falx without further specification",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1753770831"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1979147242",
+    "stem_code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other",
+    "GET icd/release/11/2026-01/mms/941774610",
+    "GET icd/release/11/2026-01/mms/1473506747",
+    "GET icd/release/11/2026-01/mms/1667076111",
+    "GET icd/release/11/2026-01/mms/412704135",
+    "GET icd/release/11/2026-01/mms/1110268915",
+    "GET icd/release/11/2026-01/mms/43785206",
+    "GET icd/release/11/2026-01/mms/769450330",
+    "GET icd/release/11/2026-01/mms/1566460631",
+    "GET icd/release/11/2026-01/mms/207659153",
+    "GET icd/release/11/2026-01/mms/1835901277",
+    "GET icd/release/11/2026-01/mms/51749428",
+    "GET icd/release/11/2026-01/mms/1116400515"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "histopathology",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH5ZC7",
+       "has_children": false,
+       "title": "Fibrous meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1473506747"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH0R11",
+       "has_children": false,
+       "title": "Lymphoplasmacyte-rich meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1667076111"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH11P5",
+       "has_children": false,
+       "title": "Meningioma, NOS",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/412704135"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH40T5",
+       "has_children": false,
+       "title": "Meningothelial meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1110268915"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH7N06",
+       "has_children": false,
+       "title": "Metaplastic meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/43785206"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH1F70",
+       "has_children": false,
+       "title": "Microcystic meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/769450330"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH6Z51",
+       "has_children": false,
+       "title": "Secretory meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1566460631"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH3L73",
+       "has_children": false,
+       "title": "Haemangioblastic meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/207659153"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH4ZM7",
+       "has_children": false,
+       "title": "Psammomatous meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1835901277"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH6L68",
+       "has_children": false,
+       "title": "Angiomatous meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/51749428"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+       "code": "XH4EX5",
+       "has_children": false,
+       "title": "Transitional meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1116400515"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "histopathology",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/941774610",
+    "stem_code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other",
+    "GET icd/release/11/2026-01/mms/672106711",
+    "GET icd/release/11/2026-01/mms/220111447",
+    "GET icd/release/11/2026-01/mms/879154182",
+    "GET icd/release/11/2026-01/mms/1630407678",
+    "GET icd/release/11/2026-01/mms/672106711",
+    "GET icd/release/11/2026-01/mms/1478862889",
+    "GET icd/release/11/2026-01/mms/672106711/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "02",
+       "title": "Neoplasms",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1630407678"
+      },
+      {
+       "code": "",
+       "title": "Neoplasms of central nervous system or related structures",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/879154182"
+      },
+      {
+       "code": "2A01",
+       "title": "Primary neoplasms of meninges",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+      },
+      {
+       "code": "2A01.0",
+       "title": "Meningiomas",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Other specified meningiomas",
+      "Basal meningioma",
+      "Haemangiopericytic meningioma",
+      "Angioblastic meningioma of unspecified site",
+      "Angiomatous meningioma of unspecified site",
+      "Endotheliomatous meningioma of unspecified site",
+      "Fibroblastic meningioma of unspecified site",
+      "fibrous meningioma",
+      "Hemangioblastic meningioma of unspecified site",
+      "Hemangiopericytic meningioma of unspecified site",
+      "Meningotheliomatous meningioma of unspecified site",
+      "Mixed meningioma of unspecified site"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "2A01.00",
+       "has_children": false,
+       "title": "Primary malignant meningioma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1478862889"
+      },
+      {
+       "code": "2A01.0Z",
+       "has_children": false,
+       "title": "Meningiomas, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "2A01.0Y"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+    "GET icd/release/11/2026-01/mms/672106711/other"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "2A01.0Y",
+      "title": "Other specified meningiomas",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "2A01.0Y"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1110268915": {"method":"GET","path":"icd/release/11/2026-01/mms/1110268915","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1110268915","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1110268915","classKind":"category","code":"XH40T5","inclusion":[{"label":{"@language":"en","@value":"Endotheliomatous meningioma"}},{"label":{"@language":"en","@value":"Syncytial meningioma"}}],"indexTerm":[{"label":{"@language":"en","@value":"Meningothelial meningioma"}},{"label":{"@language":"en","@value":"Endotheliomatous meningioma"}},{"label":{"@language":"en","@value":"Syncytial meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/1110268915","title":{"@language":"en","@value":"Meningothelial meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1116400515": {"method":"GET","path":"icd/release/11/2026-01/mms/1116400515","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1116400515","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1116400515","classKind":"category","code":"XH4EX5","inclusion":[{"label":{"@language":"en","@value":"Mixed meningioma"}}],"indexTerm":[{"label":{"@language":"en","@value":"Transitional meningioma"}},{"label":{"@language":"en","@value":"Mixed meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/1116400515","title":{"@language":"en","@value":"Transitional meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1143431981": {"method":"GET","path":"icd/release/11/2026-01/mms/1143431981","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1143431981","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1143431981","classKind":"category","code":"XA2T81","indexTerm":[{"label":{"@language":"en","@value":"Cranial pia mater"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/1143431981","title":{"@language":"en","@value":"Cranial pia mater"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1243042431": {"method":"GET","path":"icd/release/11/2026-01/mms/1243042431","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1243042431","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1243042431","classKind":"category","code":"XA9M51","indexTerm":[{"label":{"@language":"en","@value":"Cranial dura mater"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/1243042431","title":{"@language":"en","@value":"Cranial dura mater"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1284492970": {"method":"GET","path":"icd/release/11/2026-01/mms/1284492970","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1284492970","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1284492970","child":["http://id.who.int/icd/release/11/2026-01/mms/259507478","http://id.who.int/icd/release/11/2026-01/mms/342177102","http://id.who.int/icd/release/11/2026-01/mms/1970850295"],"classKind":"category","code":"XA5AH0","indexTerm":[{"label":{"@language":"en","@value":"Spinal meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1537714794"],"source":"http://id.who.int/icd/entity/1284492970","title":{"@language":"en","@value":"Spinal meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1473506747": {"method":"GET","path":"icd/release/11/2026-01/mms/1473506747","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1473506747","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1473506747","classKind":"category","code":"XH5ZC7","inclusion":[{"label":{"@language":"en","@value":"Fibroblastic meningioma"}}],"indexTerm":[{"label":{"@language":"en","@value":"Fibrous meningioma"}},{"label":{"@language":"en","@value":"Fibroblastic meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/1473506747","title":{"@language":"en","@value":"Fibrous meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1478862889": {"method":"GET","path":"icd/release/11/2026-01/mms/1478862889","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1478862889","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1478862889","classKind":"category","code":"2A01.00","indexTerm":[{"label":{"@language":"en","@value":"Primary malignant meningioma"}},{"label":{"@language":"en","@value":"meningeal sarcoma of unspecified site"}},{"label":{"@language":"en","@value":"meningothelial sarcoma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/160795085","label":{"@language":"en","@value":"Familial multiple meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672106711"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1478862889/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1478862889/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1130915844","http://id.who.int/icd/release/11/2026-01/mms/1295213329","http://id.who.int/icd/release/11/2026-01/mms/1178041789","http://id.who.int/icd/release/11/2026-01/mms/689614936"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1478862889/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/1478862889","title":{"@language":"en","@value":"Primary malignant meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1566460631": {"method":"GET","path":"icd/release/11/2026-01/mms/1566460631","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1566460631","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1566460631","classKind":"category","code":"XH6Z51","indexTerm":[{"label":{"@language":"en","@value":"Secretory meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/1566460631","title":{"@language":"en","@value":"Secretory meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1630407678": {"method":"GET","path":"icd/release/11/2026-01/mms/1630407678","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1630407678","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1630407678","child":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"],"classKind":"chapter","code":"02","definition":{"@language":"en","@value":"An abnormal or uncontrolled cellular proliferation which is not coordinated with an organism's requirements for normal tissue growth, replacement or repair."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1630407678","title":{"@language":"en","@value":"Neoplasms"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1647432031": {"method":"GET","path":"icd/release/11/2026-01/mms/1647432031","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1647432031","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1647432031","child":["http://id.who.int/icd/release/11/2026-01/mms/2005741559","http://id.who.int/icd/release/11/2026-01/mms/146148584","http://id.who.int/icd/release/11/2026-01/mms/1021576736"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/578851160"],"source":"http://id.who.int/icd/entity/1647432031","title":{"@language":"en","@value":"Meningiomas, uncertain whether benign or malignant"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1667076111": {"method":"GET","path":"icd/release/11/2026-01/mms/1667076111","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1667076111","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1667076111","classKind":"category","code":"XH0R11","indexTerm":[{"label":{"@language":"en","@value":"Lymphoplasmacyte-rich meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/1667076111","title":{"@language":"en","@value":"Lymphoplasmacyte-rich meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1753770831": {"method":"GET","path":"icd/release/11/2026-01/mms/1753770831","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1753770831","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1753770831","child":["http://id.who.int/icd/release/11/2026-01/mms/907939357","http://id.who.int/icd/release/11/2026-01/mms/1085519869"],"classKind":"category","code":"XA09H1","indexTerm":[{"label":{"@language":"en","@value":"Falx without further specification"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/1753770831","title":{"@language":"en","@value":"Falx without further specification"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1835901277": {"method":"GET","path":"icd/release/11/2026-01/mms/1835901277","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1835901277","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1835901277","classKind":"category","code":"XH4ZM7","indexTerm":[{"label":{"@language":"en","@value":"Psammomatous meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/1835901277","title":{"@language":"en","@value":"Psammomatous meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1979147242": {"method":"GET","path":"icd/release/11/2026-01/mms/1979147242","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1979147242","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1979147242","child":["http://id.who.int/icd/release/11/2026-01/mms/1243042431","http://id.who.int/icd/release/11/2026-01/mms/536810562","http://id.who.int/icd/release/11/2026-01/mms/1143431981","http://id.who.int/icd/release/11/2026-01/mms/613924498","http://id.who.int/icd/release/11/2026-01/mms/1753770831"],"classKind":"category","code":"XA6HA2","indexTerm":[{"label":{"@language":"en","@value":"Cerebral meninges"}},{"label":{"@language":"en","@value":"Brain meninges"}},{"label":{"@language":"en","@value":"Cranial meninges"}},{"label":{"@language":"en","@value":"Intracranial meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1537714794"],"source":"http://id.who.int/icd/entity/1979147242","title":{"@language":"en","@value":"Cerebral meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/207659153": {"method":"GET","path":"icd/release/11/2026-01/mms/207659153","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/207659153","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#207659153","classKind":"category","code":"XH3L73","inclusion":[{"label":{"@language":"en","@value":"Angioblastic meningioma"}}],"indexTerm":[{"label":{"@language":"en","@value":"Haemangioblastic meningioma"}},{"label":{"@language":"en","@value":"Angioblastic meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/207659153","title":{"@language":"en","@value":"Haemangioblastic meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/220111447": {"method":"GET","path":"icd/release/11/2026-01/mms/220111447","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#220111447","child":["http://id.who.int/icd/release/11/2026-01/mms/672106711","http://id.who.int/icd/release/11/2026-01/mms/1063986779","http://id.who.int/icd/release/11/2026-01/mms/1297170956"],"classKind":"category","code":"2A01","indexTerm":[{"label":{"@language":"en","@value":"Primary neoplasms of meninges"}},{"label":{"@language":"en","@value":"primary neoplasm of spinal meninges"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/879154182"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1255450803","http://id.who.int/icd/release/11/2026-01/mms/1401592171","http://id.who.int/icd/release/11/2026-01/mms/1286751171","http://id.who.int/icd/release/11/2026-01/mms/493891342","http://id.who.int/icd/release/11/2026-01/mms/59671317","http://id.who.int/icd/release/11/2026-01/mms/1603120779","http://id.who.int/icd/release/11/2026-01/mms/1041548506","http://id.who.int/icd/release/11/2026-01/mms/1052315868","http://id.who.int/icd/release/11/2026-01/mms/1414907749","http://id.who.int/icd/release/11/2026-01/mms/162852828","http://id.who.int/icd/release/11/2026-01/mms/1978867629","http://id.who.int/icd/release/11/2026-01/mms/1025049113","http://id.who.int/icd/release/11/2026-01/mms/8987040","http://id.who.int/icd/release/11/2026-01/mms/218746635","http://id.who.int/icd/release/11/2026-01/mms/1079699653","http://id.who.int/icd/release/11/2026-01/mms/1983715813","http://id.who.int/icd/release/11/2026-01/mms/1878363789","http://id.who.int/icd/release/11/2026-01/mms/332064829","http://id.who.int/icd/release/11/2026-01/mms/578851160","http://id.who.int/icd/release/11/2026-01/mms/1716858530","http://id.who.int/icd/release/11/2026-01/mms/546679566","http://id.who.int/icd/release/11/2026-01/mms/854107677","http://id.who.int/icd/release/11/2026-01/mms/1260174985","http://id.who.int/icd/release/11/2026-01/mms/726115988","http://id.who.int/icd/release/11/2026-01/mms/2049079851","http://id.who.int/icd/release/11/2026-01/mms/79274524","http://id.who.int/icd/release/11/2026-01/mms/2022905621","http://id.who.int/icd/release/11/2026-01/mms/928474622","http://id.who.int/icd/release/11/2026-01/mms/108819171","http://id.who.int/icd/release/11/2026-01/mms/410618845","http://id.who.int/icd/release/11/2026-01/mms/1308280814","http://id.who.int/icd/release/11/2026-01/mms/1550841006","http://id.who.int/icd/release/11/2026-01/mms/1219462764","http://id.who.int/icd/release/11/2026-01/mms/521514084","http://id.who.int/icd/release/11/2026-01/mms/226408345","http://id.who.int/icd/release/11/2026-01/mms/358536454","http://id.who.int/icd/release/11/2026-01/mms/1083553185","http://id.who.int/icd/release/11/2026-01/mms/2108039829","http://id.who.int/icd/release/11/2026-01/mms/428602671","http://id.who.int/icd/release/11/2026-01/mms/2128446983","http://id.who.int/icd/release/11/2026-01/mms/1965497047","http://id.who.int/icd/release/11/2026-01/mms/1826383387","http://id.who.int/icd/release/11/2026-01/mms/1024952760","http://id.who.int/icd/release/11/2026-01/mms/2065413738","http://id.who.int/icd/release/11/2026-01/mms/1891884932","http://id.who.int/icd/release/11/2026-01/mms/1488076383","http://id.who.int/icd/release/11/2026-01/mms/732271914","http://id.who.int/icd/release/11/2026-01/mms/1792010545","http://id.who.int/icd/release/11/2026-01/mms/496794681","http://id.who.int/icd/release/11/2026-01/mms/1295816090"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/220111447/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/220111447","title":{"@language":"en","@value":"Primary neoplasms of meninges"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/322466810": {"method":"GET","path":"icd/release/11/2026-01/mms/322466810","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#322466810","classKind":"category","code":"MG30.10","definition":{"@language":"en","@value":"Chronic cancer pain is chronic pain caused by the primary cancer or metastases. It should be highly probable that the pain is due to cancer; if its genesis is vague, consider using codes in the section of chronic primary pain."},"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/925682659","label":{"@language":"en","@value":"Chronic visceral cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1223823468","label":{"@language":"en","@value":"Chronic bone cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1480100314","label":{"@language":"en","@value":"Chronic neuropathic cancer pain"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic cancer pain"}},{"label":{"@language":"en","@value":"chronic malignant pain"}},{"label":{"@language":"en","@value":"chronic metastases pain"}},{"label":{"@language":"en","@value":"chronic neoplasm pain"}},{"label":{"@language":"en","@value":"chronic neoplastic pain"}},{"foundationReference":"http://id.who.int/icd/entity/925682659","label":{"@language":"en","@value":"Chronic visceral cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1223823468","label":{"@language":"en","@value":"Chronic bone cancer pain"}},{"foundationReference":"http://id.who.int/icd/entity/1480100314","label":{"@language":"en","@value":"Chronic neuropathic cancer pain"}}],"longDefinition":{"@language":"en","@value":"Chronic cancer pain is chronic pain caused by the primary cancer or metastases. It should be highly probable that the pain is due to cancer; if its genesis is vague, consider using codes in the section of chronic primary pain.\n\nChronic cancer pain is a presenting feature of cancer in over 30% of patients. About 64% of patients experience pain with advanced or persistent cancer. On average, each cancer patient will identify two distinct pains. In many patients, careful assessment is therefore required to distinguish pain caused by cancer from pain caused by cancer treatment or co-morbid conditions. In particular, it is common for these pains to overlap, for example, thoracic surgery for a lung cancer might cause post-surgical pain, which can be exacerbated by cancer recurrence in the same area. In these situations, the clinician must decide the predominant cause of pain and base treatment on this.\n\nDiagnostic Criteria.\n\nConditions A to C are fulfilled:\n\nA. Chronic pain (persistent or recurrent for longer than 3 months) is present.\n\nB. The pain is anatomically related to a known primary tumor or metastases confirmed on clinical and radiological examination.\n\nC. The pain is not better accounted for by another diagnosis of chronic pain"},"parent":["http://id.who.int/icd/release/11/2026-01/mms/785363034"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1007332872","http://id.who.int/icd/release/11/2026-01/mms/597444540"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/501504598","http://id.who.int/icd/release/11/2026-01/mms/932220680","http://id.who.int/icd/release/11/2026-01/mms/671508148","http://id.who.int/icd/release/11/2026-01/mms/579584480"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasAlternativeSeverity1","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity1","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/137604848","http://id.who.int/icd/release/11/2026-01/mms/1926847105","http://id.who.int/icd/release/11/2026-01/mms/489218088","http://id.who.int/icd/release/11/2026-01/mms/2029211037"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/145592658","http://id.who.int/icd/release/11/2026-01/mms/1824378311","http://id.who.int/icd/release/11/2026-01/mms/1714449067","http://id.who.int/icd/release/11/2026-01/mms/1721227995"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/temporalPatternAndOnset","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/temporalPatternAndOnset","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1281193286","http://id.who.int/icd/release/11/2026-01/mms/1313511357","http://id.who.int/icd/release/11/2026-01/mms/47514516"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/322466810/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"]}],"source":"http://id.who.int/icd/entity/322466810","title":{"@language":"en","@value":"Chronic cancer pain"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/412704135": {"method":"GET","path":"icd/release/11/2026-01/mms/412704135","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/412704135","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#412704135","classKind":"category","code":"XH11P5","indexTerm":[{"label":{"@language":"en","@value":"Meningioma, NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/412704135","title":{"@language":"en","@value":"Meningioma, NOS"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/41542502": {"method":"GET","path":"icd/release/11/2026-01/mms/41542502","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/41542502","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#41542502","child":["http://id.who.int/icd/release/11/2026-01/mms/1130915844","http://id.who.int/icd/release/11/2026-01/mms/1295213329","http://id.who.int/icd/release/11/2026-01/mms/1178041789","http://id.who.int/icd/release/11/2026-01/mms/689614936"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/578851160"],"source":"http://id.who.int/icd/entity/41542502","title":{"@language":"en","@value":"Meningiomas, malignant"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/43785206": {"method":"GET","path":"icd/release/11/2026-01/mms/43785206","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/43785206","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#43785206","classKind":"category","code":"XH7N06","indexTerm":[{"label":{"@language":"en","@value":"Metaplastic meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/43785206","title":{"@language":"en","@value":"Metaplastic meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/51749428": {"method":"GET","path":"icd/release/11/2026-01/mms/51749428","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/51749428","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#51749428","classKind":"category","code":"XH6L68","indexTerm":[{"label":{"@language":"en","@value":"Angiomatous meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/51749428","title":{"@language":"en","@value":"Angiomatous meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/536810562": {"method":"GET","path":"icd/release/11/2026-01/mms/536810562","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/536810562","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#536810562","classKind":"category","code":"XA6WL2","indexTerm":[{"label":{"@language":"en","@value":"Cranial arachnoid"}},{"label":{"@language":"en","@value":"Intracranial arachnoid"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/536810562","title":{"@language":"en","@value":"Cranial arachnoid"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/613924498": {"method":"GET","path":"icd/release/11/2026-01/mms/613924498","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/613924498","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#613924498","classKind":"category","code":"XA7N98","indexTerm":[{"label":{"@language":"en","@value":"Tentorium cerebelli"}},{"label":{"@language":"en","@value":"Tentorium, NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1979147242"],"source":"http://id.who.int/icd/entity/613924498","title":{"@language":"en","@value":"Tentorium cerebelli"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672106711": {"method":"GET","path":"icd/release/11/2026-01/mms/672106711","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672106711","child":["http://id.who.int/icd/release/11/2026-01/mms/1478862889","http://id.who.int/icd/release/11/2026-01/mms/672106711/other","http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified"],"classKind":"category","code":"2A01.0","parent":["http://id.who.int/icd/release/11/2026-01/mms/220111447"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/941774610","http://id.who.int/icd/release/11/2026-01/mms/41542502","http://id.who.int/icd/release/11/2026-01/mms/1647432031"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"source":"http://id.who.int/icd/entity/672106711","title":{"@language":"en","@value":"Meningiomas"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672106711/other": {"method":"GET","path":"icd/release/11/2026-01/mms/672106711/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672106711/other","classKind":"category","code":"2A01.0Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified meningiomas"}},{"foundationReference":"http://id.who.int/icd/entity/585936104","label":{"@language":"en","@value":"Basal meningioma"}},{"foundationReference":"http://id.who.int/icd/entity/1778840661","label":{"@language":"en","@value":"Haemangiopericytic meningioma"}},{"foundationReference":"http://id.who.int/icd/entity/869578742","label":{"@language":"en","@value":"Angioblastic meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1183304469","label":{"@language":"en","@value":"Angiomatous meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1458234067","label":{"@language":"en","@value":"Endotheliomatous meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1753362949","label":{"@language":"en","@value":"Fibroblastic meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1753362949","label":{"@language":"en","@value":"fibrous meningioma"}},{"foundationReference":"http://id.who.int/icd/entity/857214344","label":{"@language":"en","@value":"Hemangioblastic meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/594879568","label":{"@language":"en","@value":"Hemangiopericytic meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/133019406","label":{"@language":"en","@value":"Meningotheliomatous meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/583340638","label":{"@language":"en","@value":"Mixed meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/583340638","label":{"@language":"en","@value":"Transitional meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1658053163","label":{"@language":"en","@value":"Psammomatous meningioma of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/668499790","label":{"@language":"en","@value":"Syncytial meningioma of unspecified site"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672106711"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/941774610","http://id.who.int/icd/release/11/2026-01/mms/41542502","http://id.who.int/icd/release/11/2026-01/mms/1647432031"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"title":{"@language":"en","@value":"Other specified meningiomas"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672106711/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/672106711/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672106711/unspecified","classKind":"category","code":"2A01.0Z","indexTerm":[{"label":{"@language":"en","@value":"Meningiomas, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/672106711","label":{"@language":"en","@value":"Meningiomas"}},{"foundationReference":"http://id.who.int/icd/entity/672106711","label":{"@language":"en","@value":"meningeal tumours"}},{"deprecated":true,"foundationReference":"http://id.who.int/icd/entity/672106711","label":{"@language":"en","@value":"benign intracranial meningioma (deprecated)"}},{"deprecated":true,"foundationReference":"http://id.who.int/icd/entity/672106711","label":{"@language":"en","@value":"benign meningioma (deprecated)"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672106711"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1979147242","http://id.who.int/icd/release/11/2026-01/mms/1284492970"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified/postcoordinationScale/histopathology","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/histopathology","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/941774610","http://id.who.int/icd/release/11/2026-01/mms/41542502","http://id.who.int/icd/release/11/2026-01/mms/1647432031"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/672106711/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]}],"title":{"@language":"en","@value":"Meningiomas, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/769450330": {"method":"GET","path":"icd/release/11/2026-01/mms/769450330","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/769450330","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#769450330","classKind":"category","code":"XH1F70","indexTerm":[{"label":{"@language":"en","@value":"Microcystic meningioma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/941774610"],"source":"http://id.who.int/icd/entity/769450330","title":{"@language":"en","@value":"Microcystic meningioma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/879154182": {"method":"GET","path":"icd/release/11/2026-01/mms/879154182","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/879154182","blockId":"BlockL1-2A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#879154182","child":["http://id.who.int/icd/release/11/2026-01/mms/1719389232","http://id.who.int/icd/release/11/2026-01/mms/220111447","http://id.who.int/icd/release/11/2026-01/mms/1501519274","http://id.who.int/icd/release/11/2026-01/mms/879154182/unspecified"],"classKind":"block","code":"","codeRange":"2A00-2A0Z","definition":{"@language":"en","@value":"A benign or malignant neoplasm that affects the brain, meninges, or spinal cord. Representative examples of primary neoplasms include astrocytoma, oligodendroglioma, ependymoma, and meningioma."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/577085257","label":{"@language":"en","@value":"Malignant neoplasm metastasis in brain"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/577085257"},{"foundationReference":"http://id.who.int/icd/entity/15093038","label":{"@language":"en","@value":"Malignant neoplasm metastasis in meninges"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/15093038"},{"foundationReference":"http://id.who.int/icd/entity/800171581","label":{"@language":"en","@value":"Malignant neoplasm metastasis in spinal cord, cranial nerves or paraspinal nerves"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/800171581"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1630407678"],"source":"http://id.who.int/icd/entity/879154182","title":{"@language":"en","@value":"Neoplasms of central nervous system or related structures"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/941774610": {"method":"GET","path":"icd/release/11/2026-01/mms/941774610","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/941774610","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#941774610","child":["http://id.who.int/icd/release/11/2026-01/mms/1473506747","http://id.who.int/icd/release/11/2026-01/mms/1667076111","http://id.who.int/icd/release/11/2026-01/mms/412704135","http://id.who.int/icd/release/11/2026-01/mms/1110268915","http://id.who.int/icd/release/11/2026-01/mms/43785206","http://id.who.int/icd/release/11/2026-01/mms/769450330","http://id.who.int/icd/release/11/2026-01/mms/1566460631","http://id.who.int/icd/release/11/2026-01/mms/207659153","http://id.who.int/icd/release/11/2026-01/mms/1835901277","http://id.who.int/icd/release/11/2026-01/mms/51749428","http://id.who.int/icd/release/11/2026-01/mms/1116400515"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/578851160"],"source":"http://id.who.int/icd/entity/941774610","title":{"@language":"en","@value":"Meningiomas, benign"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2A01.0Y","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2A01.0Y","code":"2A01.0Y","stemId":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2","code":"2A01.0Y&XA6HA2","specificAnatomy":["XA6HA2"],"stemCode":"2A01.0Y","stemId":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2FMG30.10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2%2fMG30.10","code":"2A01.0Y&XA6HA2/MG30.10","hasManifestation":["MG30.10"],"specificAnatomy":["XA6HA2"],"stemCode":"2A01.0Y","stemId":"http://id.who.int/icd/release/11/2026-01/mms/672106711/other"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/MG30.10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/MG30.10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/MG30.10","code":"MG30.10","stemId":"http://id.who.int/icd/release/11/2026-01/mms/322466810"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XA6HA2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XA6HA2","code":"XA6HA2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1979147242"},"request_body":null,"status":200}
+ }
+}

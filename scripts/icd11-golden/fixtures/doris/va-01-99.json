@@ -1,0 +1,127 @@
+{
+ "id": "va-01-99",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P24Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1A07",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1528414070",
+       "Text": "Typhoid fever"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-01-99",
+  "source": "VA cause VAs-01.99 Unspecified infectious disease",
+  "why": "Unspecified infectious disease: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1A07",
+    "POST icd/release/11/2026-01/doris #77207a833c",
+    "POST icd/release/11/2026-01/codedit #77207a833c",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A07.Z",
+    "GET icd/release/11/2026-01/mms/1528414070/unspecified"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P24Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1A07",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1528414070",
+          "Text": "Typhoid fever"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "BER-CE-10",
+       "report": "1A07 is not a terminal code in the MMS linearization.",
+       "tabularReport": "0,1A07 is not a terminal code in the MMS linearization.,BER-CE-10;1A07;1A07.Z;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1A07.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 1A07.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1A07.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1A07.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1A07.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1A07.Z",
+       "stemURI": "http://id.who.int/icd/entity/1528414070/mms/unspecified",
+       "tabularReport": "MCC;True;;;;Substitution:0:1A07>1A07.Z;;1;1A07 is not a terminal code in the MMS linearization. 1A07 was recoded to 1A07.Z.;;;;BER\nSP1;True;;1A07.Z;1A07.Z;;;0;SP1: 1A07.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1A07.Z;;;;;0;SP6: is not applicable with the current TSP 1A07.Z.;;;;BER\nSP7;False;1A07.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1A07.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1A07.Z;;;;;0;M1: There is no special instruction applicable with TUC 1A07.Z.;;;;BER\nM2;False;1A07.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1A07.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1528414070/unspecified",
+       "warning": "1A07 is not a terminal code in the MMS linearization.\n1A07 was recoded to 1A07.Z.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1A07.Z",
+       "role": "stem",
+       "title": "Typhoid fever, unspecified",
+       "uri": "http://id.who.int/icd/release/11/mms/1528414070/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P24Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1A07",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1528414070",
+         "Text": "Typhoid fever"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1528414070/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1528414070/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1528414070/unspecified","classKind":"category","code":"1A07.Z","indexTerm":[{"label":{"@language":"en","@value":"Typhoid fever, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"Typhoid fever"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"enteric fever NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"ileotyphus"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"infection by salmonella typhi"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"typhoid"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"typhoid any site"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"typhoid fever any site"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"typhoid fever confirmed"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"typhoid infection"}},{"foundationReference":"http://id.who.int/icd/entity/1528414070","label":{"@language":"en","@value":"typhoid infection any site"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1528414070"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/512128824","http://id.who.int/icd/release/11/2026-01/mms/654702340","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/1370972705","http://id.who.int/icd/release/11/2026-01/mms/554373034","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/2044414353","http://id.who.int/icd/release/11/2026-01/mms/1112214727","http://id.who.int/icd/release/11/2026-01/mms/1472717853"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1837021781"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"title":{"@language":"en","@value":"Typhoid fever, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A07": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A07","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A07","code":"1A07","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1528414070"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1A07.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A07.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A07.Z","code":"1A07.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #77207a833c": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"BER-CE-10","report":"1A07 is not a terminal code in the MMS linearization.","tabularReport":"0,1A07 is not a terminal code in the MMS linearization.,BER-CE-10;1A07;1A07.Z;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P24Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1A07\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1528414070\",\"Text\":\"Typhoid fever\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #77207a833c": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1A07.Z","error":null,"reject":false,"report":"SP1: 1A07.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1A07.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1A07.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1A07.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1A07.Z","stemURI":"http://id.who.int/icd/entity/1528414070/mms/unspecified","tabularReport":"MCC;True;;;;Substitution:0:1A07>1A07.Z;;1;1A07 is not a terminal code in the MMS linearization. 1A07 was recoded to 1A07.Z.;;;;BER\nSP1;True;;1A07.Z;1A07.Z;;;0;SP1: 1A07.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1A07.Z;;;;;0;SP6: is not applicable with the current TSP 1A07.Z.;;;;BER\nSP7;False;1A07.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1A07.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1A07.Z;;;;;0;M1: There is no special instruction applicable with TUC 1A07.Z.;;;;BER\nM2;False;1A07.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1A07.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1528414070/unspecified","warning":"1A07 is not a terminal code in the MMS linearization.\n1A07 was recoded to 1A07.Z.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P24Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1A07\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1528414070\",\"Text\":\"Typhoid fever\"}]}]}","status":200}
+ }
+}

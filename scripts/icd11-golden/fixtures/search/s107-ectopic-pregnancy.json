@@ -1,0 +1,98 @@
+{
+ "id": "s107-ectopic-pregnancy",
+ "input": {
+  "id": "s107-ectopic-pregnancy",
+  "kind": "maternal",
+  "query": "ectopic pregnancy",
+  "source": "VAs-09.01",
+  "why": "maternal death cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #5af0e721f5"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 14,
+     "items": [
+      {
+       "code": "JA01.Z",
+       "has_coding_note": false,
+       "matching_text": "Ectopic pregnancy, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Ectopic pregnancy, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified"
+      },
+      {
+       "code": "JA01.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified ectopic pregnancy",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified ectopic pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1563334645/other"
+      },
+      {
+       "code": "KA01.4",
+       "has_coding_note": false,
+       "matching_text": "Fetus or newborn affected by ectopic pregnancy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Fetus or newborn affected by ectopic pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/848074718"
+      },
+      {
+       "code": "JA05.4",
+       "has_coding_note": false,
+       "matching_text": "Renal failure following abortion, ectopic or molar pregnancy",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Renal failure following abortion, ectopic or molar pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/562199727"
+      },
+      {
+       "code": "JA05.2",
+       "has_coding_note": false,
+       "matching_text": "Embolism following abortion, ectopic or molar pregnancy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Embolism following abortion, ectopic or molar pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/925311663"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "ectopic pregnancy",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #5af0e721f5": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1563334645","important":false,"label":"<em class='found'>Ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1563334645","important":false,"label":"ruptured <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.36854905799732385},{"foundationUri":"http://id.who.int/icd/entity/1563334645","important":false,"label":"EP - [<em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.022026021183256857},{"foundationUri":"http://id.who.int/icd/entity/1563334645","important":false,"label":"aborted <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.5518165407243413}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified","theCode":"JA01.Z","title":"<em class='found'>Ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1563334645/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5149278119098037,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1563334645/other","theCode":"JA01.Y","title":"Other specified <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/848074718","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/848074718","important":false,"label":"fetus or neonate affected by <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.6255449277594146}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.6255449277594146,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/848074718","theCode":"KA01.4","title":"Fetus or newborn affected by <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/562199727","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/102786194","important":false,"label":"Renal failure following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.8017282805809897},{"foundationUri":"http://id.who.int/icd/entity/1663549029","important":false,"label":"Acute renal failure following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.036578279507038},{"foundationUri":"http://id.who.int/icd/entity/102786194","important":false,"label":"renal shutdown following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-1.5179521869715888},{"foundationUri":"http://id.who.int/icd/entity/1382603139","important":false,"label":"Uraemia following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.6213775801607795},{"foundationUri":"http://id.who.int/icd/entity/995038961","important":false,"label":"Tubular kidney necrosis following <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.8847608388397026},{"foundationUri":"http://id.who.int/icd/entity/601142914","important":false,"label":"Oliguria following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.9505966091070734}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8017282805809897,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/562199727","theCode":"JA05.4","title":"Renal failure following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/925311663","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1533473970","important":false,"label":"Septic embolism following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.9241734362918461},{"foundationUri":"http://id.who.int/icd/entity/1702942458","important":false,"label":"Pyemic embolism following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.0925885566478366}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.9241734362918461,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/925311663","theCode":"JA05.2","title":"Embolism following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1133146704","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1429964919","important":false,"label":"Defibrination syndrome following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.9307736331761878}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.9307736331761878,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1133146704","theCode":"JA05.1","title":"Delayed or excessive haemorrhage following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1382870843","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/375226472","important":false,"label":"Shock following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.3373524577225797},{"foundationUri":"http://id.who.int/icd/entity/6110424","important":false,"label":"Circulatory collapse following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.966308764892886}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.3373524577225797,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1382870843","theCode":"JA05.3","title":"Shock following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1403588899/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1403588899","important":false,"label":"Complications following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-1.6367423339490927}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.6367423339490927,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1403588899/unspecified","theCode":"JA05.Z","title":"Complications following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/650231750","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1915946318","important":false,"label":"Peritoneal abscess following <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.678199578095821},{"foundationUri":"http://id.who.int/icd/entity/969151239","important":false,"label":"Endometritis following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.8484670529048586},{"foundationUri":"http://id.who.int/icd/entity/755261891","important":false,"label":"Salpingo-oophoritis following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-3.4038352261983222},{"foundationUri":"http://id.who.int/icd/entity/9962950","important":false,"label":"Acute salpingo-oophoritis following <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-3.6386852251243713}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.678199578095821,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/650231750","theCode":"JA05.0","title":"Genital tract or pelvic infection following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/650231750 / http://id.who.int/icd/release/11/2026-01/mms/1683090852","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.7798470479102242,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/650231750","theCode":"JA05.0/1G41","title":"Septic shock following molar or <em class='found'>ectopic</em> <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1403588899/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.817387919835131,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1403588899/other","theCode":"JA05.Y","title":"Other specified complications following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1154068795","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.8387387321636446,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1154068795","theCode":"JA05.5","title":"Metabolic disorders following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1429154898","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.172636096679703,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1429154898","theCode":"JA05.7","title":"Other venous complications following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/811917764","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.6152357950204888,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/811917764","theCode":"JA05.6","title":"Damage to pelvic organs and tissues following abortion, <em class='found'>ectopic</em> or molar <em class='found'>pregnancy</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=ectopic+pregnancy%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

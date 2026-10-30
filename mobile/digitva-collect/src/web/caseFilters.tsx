@@ -316,7 +316,7 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLab
             <Text style={s.sheetTitle} accessibilityRole="header">{t("advancedFilters")}</Text>
             <Button kind="secondary" size="sm" label={t("supervisionClose")} onPress={onClose} />
           </View>
-          <ScrollView contentContainerStyle={s.sheetBody}>
+          <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={s.sheetBody}>
             {projects.length > 1 ? (
               <View style={s.section}>
                 <Text style={s.sectionTitle}>{t("filterProject")}</Text>

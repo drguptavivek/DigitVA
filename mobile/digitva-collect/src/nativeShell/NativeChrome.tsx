@@ -10,6 +10,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { useAppState } from "../AppState";
 import DemoBadge from "../DemoBadge";
+import { canTryDorisDemo } from "../dorisDemoAccess";
 import { t, UI_LOCALES } from "../i18n";
 import { controlText, spacing, typography, ui, useTheme } from "../theme";
 import { activeNativeTab, isPreLoginRoute, nativeTabs, type NativeTab } from "./navAdapter";
@@ -101,7 +102,7 @@ function HeaderBar() {
             {chip.busy ? null : <Text style={{ ...typography.caption, color: ON_BAR }}>{chip.label}</Text>}
           </Pressable>
         ) : null}
-        {preLogin ? null : (
+        {preLogin && !canTryDorisDemo() ? null : (
           <Pressable accessibilityRole="button" accessibilityLabel={t("formHelp")} onPress={() => shell.openSheet("help")} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
             <Icon name="help" color={ON_BAR} />
           </Pressable>

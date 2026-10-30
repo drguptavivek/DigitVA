@@ -1,0 +1,167 @@
+{
+ "id": "va-12-07",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P36Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NE61",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+       "Text": "Poisoning"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PB28",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/799356470",
+       "Text": "Accidental pesticide poisoning"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-07",
+  "source": "VA cause VAs-12.07 Accidental poisoning and exposure to noxious substances",
+  "why": "Accidental poisoning and exposure to noxious substances: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NE61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PB28",
+    "POST icd/release/11/2026-01/doris #66d37ee3b9",
+    "POST icd/release/11/2026-01/codedit #66d37ee3b9"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P36Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NE61",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+          "Text": "Poisoning"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PB28",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/799356470",
+          "Text": "Accidental pesticide poisoning"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PB28/NE61",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PB28 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PB28.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PB28 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PB28.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PB28.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PB28.\n",
+       "stemCode": "PB28",
+       "stemURI": "http://id.who.int/icd/entity/799356470",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PB28;PB28;;;0;SP3: PB28 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PB28;;;;;0;SP6: is not applicable with the current TSP PB28.;;;;BER\nSP7;False;PB28;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PB28;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PB28;;;;;0;M1: There is no special instruction applicable with TUC PB28.;;;;BER\nM2;False;PB28;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PB28;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PB28/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/799356470 / http://id.who.int/icd/release/11/mms/1119330136",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PB28",
+       "role": "stem",
+       "title": "Accidental pesticide poisoning",
+       "uri": "http://id.who.int/icd/release/11/mms/799356470"
+      },
+      {
+       "code": "NE61",
+       "role": "postcoordinated",
+       "title": "Poisoning",
+       "uri": "http://id.who.int/icd/release/11/mms/1119330136"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P36Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NE61",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+         "Text": "Poisoning"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PB28",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/799356470",
+         "Text": "Accidental pesticide poisoning"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NE61": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NE61","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NE61","code":"NE61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PB28": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PB28","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PB28","code":"PB28","stemId":"http://id.who.int/icd/release/11/2026-01/mms/799356470"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #66d37ee3b9": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P36Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Poisoning\"}]},{\"Conditions\":[{\"Code\":\"PB28\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/799356470\",\"Text\":\"Accidental pesticide poisoning\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #66d37ee3b9": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PB28/NE61","error":null,"reject":false,"report":"SP3: PB28 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PB28.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PB28 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PB28.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PB28.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PB28.\n","stemCode":"PB28","stemURI":"http://id.who.int/icd/entity/799356470","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PB28;PB28;;;0;SP3: PB28 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PB28;;;;;0;SP6: is not applicable with the current TSP PB28.;;;;BER\nSP7;False;PB28;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PB28;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PB28;;;;;0;M1: There is no special instruction applicable with TUC PB28.;;;;BER\nM2;False;PB28;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PB28;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PB28/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/799356470 / http://id.who.int/icd/release/11/mms/1119330136","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P36Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Poisoning\"}]},{\"Conditions\":[{\"Code\":\"PB28\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/799356470\",\"Text\":\"Accidental pesticide poisoning\"}]}]}","status":200}
+ }
+}

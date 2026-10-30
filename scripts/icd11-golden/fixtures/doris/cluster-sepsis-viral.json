@@ -1,0 +1,79 @@
+{
+ "id": "cluster-sepsis-viral",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P38Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1E1Y/1G40&XN3BH",
+       "Interval": "P5D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1136802325/other / http://id.who.int/icd/release/11/2026-01/mms/622600769 & http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+       "Text": "Viral sepsis"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "cluster-sepsis-viral",
+  "source": "scripts/icd11-parity/queries.json",
+  "why": "WHO search returns 1E1Y/1G40&XN3BH but codeinfo does not resolve it, so the server refuses it (expected INVALID_INPUT, code and URI mismatch)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1E1Y%2F1G40%26XN3BH"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "Does not match the selected ICD-11 code.",
+        "path": "certificate.Part1[0].Conditions[0].LinearizationURI"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P38Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1E1Y/1G40&XN3BH",
+         "Interval": "P5D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1136802325/other / http://id.who.int/icd/release/11/2026-01/mms/622600769 & http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+         "Text": "Viral sepsis"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1E1Y%2F1G40%26XN3BH": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1E1Y%2F1G40%26XN3BH","reply":"the entity XN3BH does not exist in any valueset for the entity 1G40","request_body":null,"status":404}
+ }
+}

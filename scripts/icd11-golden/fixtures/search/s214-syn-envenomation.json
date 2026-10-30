@@ -1,0 +1,99 @@
+{
+ "id": "s214-syn-envenomation",
+ "input": {
+  "concept": "snake bite",
+  "id": "s214-syn-envenomation",
+  "kind": "synonym",
+  "query": "envenomation",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for snake bite (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #8ffa662560"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 17,
+     "items": [
+      {
+       "code": "NE61",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+      },
+      {
+       "code": "PA78",
+       "has_coding_note": false,
+       "matching_text": "Unintentionally stung or envenomated by animal",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentionally stung or envenomated by animal",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1472928386"
+      },
+      {
+       "code": "PG68",
+       "has_coding_note": false,
+       "matching_text": "Stung or envenomated with undetermined intent by animal",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Stung or envenomated with undetermined intent by animal",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/52737868"
+      },
+      {
+       "code": "PA78&XE2AH",
+       "has_coding_note": false,
+       "matching_text": "Unintentionally stung or envenomated by marine animal",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentionally stung or envenomated by marine animal",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/1067984829"
+      },
+      {
+       "code": "PC47",
+       "has_coding_note": false,
+       "matching_text": "Intentional self-harm by being stung or envenomated by animal",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Intentional self-harm by being stung or envenomated by animal",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2125838599"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "envenomation",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #8ffa662560": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"snake <em class='found'>envenomation</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.7634567832576067},{"foundationUri":"http://id.who.int/icd/entity/1075994630","important":false,"label":"Scyphozoa <em class='found'>envenomation</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-1.2524596589361248},{"foundationUri":"http://id.who.int/icd/entity/1307990384","important":false,"label":"Hydrozoa <em class='found'>envenomation</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.3669960004203943},{"foundationUri":"http://id.who.int/icd/entity/1310513714","important":false,"label":"Funnel-web spider <em class='found'>envenomation</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.8538046072118224},{"foundationUri":"http://id.who.int/icd/entity/1520144826","important":false,"label":"Cone shell <em class='found'>envenomation</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.090115733854771}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.7634567832576067,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","theCode":"NE61","title":"Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/242503080","important":false,"label":"Unintentionally stung or envenomated by insect or bird","propertyId":"Title","propertyValueType":1,"score":-3.452842892926789}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.3895083352086512,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","theCode":"PA78","title":"Unintentionally stung or envenomated by animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/52737868","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1281580301","important":false,"label":"Stung or envenomated with undetermined intent by insect or bird","propertyId":"Title","propertyValueType":1,"score":-3.6409245517859006}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.5775899940677642,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/52737868","theCode":"PG68","title":"Stung or envenomated with undetermined intent by animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/1067984829","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.3209474691687344,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","theCode":"PA78&XE2AH","title":"Unintentionally stung or envenomated by marine animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2125838599","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1913361513","important":false,"label":"Intentional self-harm by being stung or envenomated by insect or bird","propertyId":"Title","propertyValueType":1,"score":-4.386254047504508}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.322919489786371,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2125838599","theCode":"PC47","title":"Intentional self-harm by being stung or envenomated by animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/679494525","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.3303695124976285,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","theCode":"PA78&XE813","title":"Unintentionally stung or envenomated by land mammal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/52737868 & http://id.who.int/icd/release/11/2026-01/mms/1067984829","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.509029128027847,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/52737868","theCode":"PG68&XE2AH","title":"Stung or envenomated with undetermined intent by marine animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/52737868 & http://id.who.int/icd/release/11/2026-01/mms/679494525","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.51845117135674,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/52737868","theCode":"PG68&XE813","title":"Stung or envenomated with undetermined intent by land mammal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/114330365","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.66688443487638,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","theCode":"PA78&XE1PT","title":"Unintentionally stung or envenomated by reptile or amphibian","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1183783866","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1183783866","important":false,"label":"Assault: Contact with person, animal or plant: <em class='found'>Envenomation</em><em class='nonwbe'></em>","propertyId":"FullySpecifiedName","propertyValueType":0,"score":-4.185307099045142},{"foundationUri":"http://id.who.int/icd/entity/1555542821","important":false,"label":"Assault by being stung or envenomated by insect or bird","propertyId":"Title","propertyValueType":1,"score":-4.761056619170912},{"foundationUri":"http://id.who.int/icd/entity/1555542821","important":false,"label":"Assault: Contact with person, animal or plant: <em class='found'>Envenomation</em><em class='nonwbe'></em>: Insect or bird","propertyId":"FullySpecifiedName","propertyValueType":1,"score":-5.953866631617782}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.697722061452775,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1183783866","theCode":"PE18","title":"Assault by being stung or envenomated by animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/52737868 & http://id.who.int/icd/release/11/2026-01/mms/114330365","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.8549660937354924,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/52737868","theCode":"PG68&XE1PT","title":"Stung or envenomated with undetermined intent by reptile or amphibian","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2125838599 & http://id.who.int/icd/release/11/2026-01/mms/1067984829","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.254358623746454,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2125838599","theCode":"PC47&XE2AH","title":"Intentional self-harm by being stung or envenomated by marine animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2125838599 & http://id.who.int/icd/release/11/2026-01/mms/679494525","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.2637806670753475,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2125838599","theCode":"PC47&XE813","title":"Intentional self-harm by being stung or envenomated by land mammal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2125838599 & http://id.who.int/icd/release/11/2026-01/mms/114330365","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.6002955894541,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2125838599","theCode":"PC47&XE1PT","title":"Intentional self-harm by being stung or envenomated by reptile or amphibian","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1183783866 & http://id.who.int/icd/release/11/2026-01/mms/1067984829","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/766830640","important":false,"label":"Assault: Contact with person, animal or plant: <em class='found'>Envenomation</em><em class='nonwbe'></em>: Marine animal","propertyId":"FullySpecifiedName","propertyValueType":2,"score":-5.116746233005225}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.629161195412859,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1183783866","theCode":"PE18&XE2AH","title":"Assault by being stung or envenomated by marine animal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1183783866 & http://id.who.int/icd/release/11/2026-01/mms/679494525","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1815132885","important":false,"label":"Assault: Contact with person, animal or plant: <em class='found'>Envenomation</em><em class='nonwbe'></em>: Land mammal","propertyId":"FullySpecifiedName","propertyValueType":2,"score":-5.83139325118862}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.638583238741752,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1183783866","theCode":"PE18&XE813","title":"Assault by being stung or envenomated by land mammal","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1183783866 & http://id.who.int/icd/release/11/2026-01/mms/114330365","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1598806861","important":false,"label":"Assault: Contact with person, animal or plant: <em class='found'>Envenomation</em><em class='nonwbe'></em>: Reptile or amphibian","propertyId":"FullySpecifiedName","propertyValueType":2,"score":-6.167908173567373}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.975098161120503,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1183783866","theCode":"PE18&XE1PT","title":"Assault by being stung or envenomated by reptile or amphibian","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=envenomation%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

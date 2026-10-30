@@ -34,7 +34,7 @@ export function Sheet({ visible, title, items, onClose }: { visible: boolean; ti
       <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
         <View testID="sheet-panel" style={{ maxHeight: "85%", backgroundColor: ui.popover, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: insets.bottom + spacing.lg }}>
           {title ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, padding: spacing.md }}>{title}</Text> : null}
-          <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+          <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" bounces={false}>
           {items.map((item) => (
             <Pressable
               key={item.key}

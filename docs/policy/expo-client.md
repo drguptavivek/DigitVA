@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-30
 ---
 
 # Expo Web Client Boundary
@@ -369,6 +369,12 @@ tabs follow the account's `collection_access`, `registration_access` and
 show coding or review (web-only). Header and tabs are hidden on the interview
 and revision forms; the unlock, sign-in, enrol and PIN screens show a minimal header (emblem, title, 文A) and no tabs; tabs are
 also hidden while the keyboard is open, while locked and on the accounts list.
+Phones (shortest side under 600 dp) are locked to portrait; tablets rotate.
+Dragging any scrolling screen, the interview form included, closes the keyboard.
+Collect Plus on Android offers "Try DORIS" in Help, also before sign-in: the
+on-phone ICD-11 engine with WHO's six synthetic certificates or a blank one,
+offline, with no account, server call, store write or save. Before sign-in,
+Help offers nothing that needs an unlocked account.
 On a phone that has not downloaded anything for the account yet (first
 sign-in, or after a reinstall), Home shows a modal that cannot be dismissed,
 "Downloading questionnaires and data", until the projects, current

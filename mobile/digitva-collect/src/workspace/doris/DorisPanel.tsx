@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AppState as NativeAppState, Text, View } from "react-native";
+import { AppState as NativeAppState, Pressable, Text, View } from "react-native";
 
 import { ApiError } from "../../api";
 import { ConfirmDialog } from "../../ConfirmDialog";
@@ -14,7 +14,7 @@ import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
-import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, Chip, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
+import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, font, gap, uiRadius, useLayout, useUi, type ChartToken } from "./ui";
 import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
@@ -233,6 +233,7 @@ export function DorisPanel({
   request,
   onSaved,
   onDone,
+  demo = false,
 }: {
   workspace: WorkspacePayload;
   identity: WorkspaceIdentity;
@@ -240,6 +241,8 @@ export function DorisPanel({
   request: JsonRequester;
   onSaved: () => Promise<void>;
   onDone: () => void;
+  /** The Collect Plus "Try DORIS" demo: nothing is saved or reported, administrative data is always editable, and Reset restores the loaded example. */
+  demo?: boolean;
 }) {
   const owner = { api, request, vaSid: identity.vaSid, mode: identity.mode, step: workspace.step, projectMode: workspace.case.project_mode, fingerprint: workspace.case.doris_draft_context, recoveryGeneration: browserDraftGeneration() };
   const [stored, setStored] = useState<CertificateState>(() => initialState(owner, workspace));
@@ -525,11 +528,14 @@ export function DorisPanel({
     const currentWorkspace = workspaceRef.current;
     const resetDoris = currentWorkspace.doris;
     const resetSeed = copy(resetDoris?.reset_certificate ?? resetDoris?.initial_certificate ?? {});
-    resetSeed.Part1 = [];
-    delete resetSeed.Part2;
+    // The interview reset empties the causes; the demo's reset restores the whole loaded example.
+    if (!demo) {
+      resetSeed.Part1 = [];
+      delete resetSeed.Part2;
+    }
     const seed = initialCertificate({ ...currentWorkspace, doris: resetDoris ? { ...resetDoris, initial_certificate: resetSeed, prefill_provenance: resetDoris.reset_prefill_provenance ?? resetDoris.prefill_provenance, saved_processing: null } : null });
     update((current) => {
-      const next = { ...current, certificate: seed.certificate, derivedAge: seed.derivedAge, revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, busy: false, error: "", notice: "DORIS reset to the interview data. Remarks, notes and SmartVA results are retained." };
+      const next = { ...current, certificate: seed.certificate, derivedAge: seed.derivedAge, revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, busy: false, error: "", notice: demo ? tr("dorisDemoResetNotice") : "DORIS reset to the interview data. Remarks, notes and SmartVA results are retained." };
       saveCodDraft(draftContext(workspaceRef.current, identity), { step: workspaceRef.current.step, certificate: next.certificate, selectedCause: null, remark: next.remark });
       return next;
     });
@@ -689,10 +695,10 @@ export function DorisPanel({
       <EditorHeading title="DORIS certificate" subtitle={isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
       {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} api={api} vaSid={identity.vaSid} /> : null}
-      {state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} onAgeTyped={setAgeTyped} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
+      {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} onAgeTyped={setAgeTyped} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
       <SectionTitle style={{ marginTop: gap.xl }}>Frame A: Medical data</SectionTitle>
       <View style={[layout.nowrap, { marginTop: gap.md, paddingRight: gap.xs }]}>
-        <SectionTitle numberOfLines={1} style={{ flex: 1, minWidth: 0 }}>Part 1: Cause of death</SectionTitle>
+        <SectionTitle style={{ flex: 1, minWidth: 0 }}>Part 1: Cause of death</SectionTitle>
         {part1.length < MAX_PART1_LINES ? <Button label="Add line" variant="secondary" style={{ flexShrink: 0 }} onPress={() => updatePart1([...part1, { Conditions: [] }])} /> : null}
       </View>
       {part1.map((line, index) => (
@@ -714,12 +720,12 @@ export function DorisPanel({
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
       {isInitial ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      <Button label="Reset DORIS from interview" variant="secondary" disabled={state.busy} onPress={resetCertificate} />
+      <Button label={demo ? tr("dorisDemoReset") : "Reset DORIS from interview"} variant="secondary" disabled={state.busy} onPress={resetCertificate} />
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
-      <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />
+      {demo ? null : <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />}
       {ageDialog}
       <Separator testID="doris-actions-separator" />
-      {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
+      {identity.mode === "coding" && !demo ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
       {picker(isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? "")}
       {detailSheet}
       <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>
@@ -835,7 +841,7 @@ function useCodeTitle(api: WorkspaceApi, vaSid: string, code: string, known: str
 
 /** A small ⓘ button that opens the ICD-11 details of a code. */
 function InfoButton({ code, onPress }: { code: string; onPress: (code: string) => void }) {
-  return <Button size="icon" variant="outline" accessibilityLabel={`Details for ${code}`} onPress={() => onPress(code)}><ButtonGlyph>ⓘ</ButtonGlyph></Button>;
+  return <Button size="icon" variant="outline" style={{ flexShrink: 0 }} accessibilityLabel={`Details for ${code}`} onPress={() => onPress(code)}><ButtonGlyph>ⓘ</ButtonGlyph></Button>;
 }
 
 /** Step 1 assigned causes as the web Step 2 shows them (immediate, Step 1 underlying, other conditions). */
@@ -863,8 +869,8 @@ function Step1DorisCard({ saved, certificate, api, vaSid, chosenCode, onDetails 
         <>
           {codes.length ? (
             <View style={{ gap: gap.xs }}>
-              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: gap.sm }}>
-                <Body style={{ flexShrink: 1 }}>DORIS suggests: {codes[0]}{title ? ` — ${title}` : ""}</Body>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: gap.sm }}>
+                <Body style={{ flex: 1, minWidth: 0 }}>DORIS suggests: {codes[0]}{title ? ` — ${title}` : ""}</Body>
                 <InfoButton code={codes[0]} onPress={onDetails} />
               </View>
               {chosenCode === codes[0] ? null : <AssociatedVaCodes api={api} code={codes[0]} />}
@@ -950,7 +956,7 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
       {quick.map((choice) => (
         <View key={choice.key} style={{ gap: gap.xs }}>
           {"search" in choice ? (
-            <View style={layout.row}><Button variant="outline" size="sm" label={choice.label} onPress={() => onOpen(choice.search)} style={{ flexShrink: 1 }} /></View>
+            <Button variant="outline" size="sm" label={choice.label} onPress={() => onOpen(choice.search)} />
           ) : value && choice.codes[0] === value.code ? (
             <Muted>{`Your choice matches ${QUICK_SOURCE[choice.key] ?? "this suggestion"}.`}</Muted>
           ) : (
@@ -964,13 +970,31 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
   );
 }
 
-/** A suggestion to pick: the button and its details. The VA-code banner belongs to the chosen cause only. */
+/**
+ * A suggestion to pick: the button and its details, on one row that never wraps: the button takes the width the ⓘ
+ * leaves and its label wraps inside it (a wrapping row sends the ⓘ below a long label).
+ * The VA-code banner belongs to the chosen cause only.
+ */
 function QuickChoiceButton({ choice, onQuick, onDetails }: { choice: Extract<QuickChoice, { codes: string[] }>; onQuick: (codes: string[]) => void; onDetails: (code: string) => void }) {
-  const layout = useLayout();
   return (
-    <View style={layout.row}>
-      <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flexShrink: 1 }} />
+    <View testID="quick-choice-row" style={{ flexDirection: "row", alignItems: "center", gap: gap.sm }}>
+      <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flex: 1, minWidth: 0 }} />
       <InfoButton code={choice.codes[0]} onPress={onDetails} />
+    </View>
+  );
+}
+
+/**
+ * A chosen condition: "CODE — title" with its remove ×. One row that never wraps: the title wraps inside its own
+ * column and the × stays at the right end of the first line (a 24px box, 44px to touch through hit-slop).
+ */
+function ConditionChip({ code, title, shade, onRemove }: { code: string; title: string; shade: ChartToken; onRemove: () => void }) {
+  return (
+    <View testID="condition-chip" style={{ flexDirection: "row", alignItems: "flex-start", gap: gap.sm, borderWidth: 1, borderColor: shade.bar, backgroundColor: shade.soft, borderRadius: uiRadius.md, paddingLeft: gap.md, paddingRight: gap.sm, paddingVertical: gap.sm }}>
+      <Text style={{ flex: 1, minWidth: 0, fontSize: font.body, lineHeight: 24, color: shade.foreground }}>{`${code ? `${code} — ` : ""}${title}`}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${code || title}`} hitSlop={10} onPress={onRemove} style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Text style={{ fontSize: 20, lineHeight: 24, color: shade.foreground }}>×</Text>
+      </Pressable>
     </View>
   );
 }
@@ -1002,7 +1026,8 @@ function CertificateLine({ index, line, part2 = false, age, warning, searching, 
     return next;
   }) });
   const iconButton = (glyph: string, label: string, onPress: () => void, disabled: boolean, danger = false) => (
-    <Button size="icon" variant={danger ? "outline" : "outline"} accessibilityLabel={label} disabled={disabled} onPress={onPress} style={danger ? { borderColor: t.destructiveText } : undefined}>
+    // 36px drawn, 44px to touch (the Button's 4px hit-slop): three of them leave room for the line title.
+    <Button size="icon" variant="outline" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[{ minWidth: 36, minHeight: 36 }, danger ? { borderColor: t.destructiveText } : null]}>
       <ButtonGlyph destructive={danger}>{glyph}</ButtonGlyph>
     </Button>
   );
@@ -1010,9 +1035,9 @@ function CertificateLine({ index, line, part2 = false, age, warning, searching, 
   return (
     <Card style={{ borderLeftWidth: 4, borderLeftColor: shade.bar }}>
       <View style={[layout.nowrap, { backgroundColor: shade.tint, borderRadius: uiRadius.sm + 2, paddingHorizontal: gap.sm, paddingVertical: gap.xs }]}>
-        <View style={[layout.row, { flexShrink: 1, flexWrap: "nowrap" }]}>
+        <View style={[layout.row, { flex: 1, minWidth: 0, flexWrap: "nowrap" }]}>
           {part2 ? null : <View style={{ minWidth: 22, height: 22, borderRadius: radius.full, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, backgroundColor: shade.bar }}><Text accessibilityLabel={`Line ${lineLetter(index)}`} style={{ fontSize: 12, fontWeight: "700", color: t.background }}>{lineLetter(index)}</Text></View>}
-          <CardTitle numberOfLines={1} style={{ color: shade.foreground }}>{lineTitle(index, part2)}</CardTitle>
+          <CardTitle style={{ color: shade.foreground }}>{lineTitle(index, part2)}</CardTitle>
         </View>
         {part2 ? (conditions.length ? iconButton("✕", "Remove Part II", onRemove, false, true) : null) : (
           <View style={layout.iconRow}>
@@ -1023,9 +1048,9 @@ function CertificateLine({ index, line, part2 = false, age, warning, searching, 
         )}
       </View>
       {conditions.length ? (
-        <View style={layout.row}>
+        <View style={{ gap: gap.sm }}>
           {conditions.map((condition, conditionIndex) => (
-            <Chip key={`${conditionIndex}:${text(condition.Code) || "uncoded"}`} accessibilityLabel={`Remove condition ${conditionIndex + 1}`} onPress={() => onChange({ ...line, Conditions: conditions.filter((_item, current) => current !== conditionIndex) })} style={{ backgroundColor: shade.soft, borderColor: shade.bar }} textStyle={{ color: shade.foreground }}>{`${text(condition.Code) ? `${text(condition.Code)} — ` : ""}${text(condition.Text)} ×`}</Chip>
+            <ConditionChip key={`${conditionIndex}:${text(condition.Code) || "uncoded"}`} code={text(condition.Code)} title={text(condition.Text)} shade={shade} onRemove={() => onChange({ ...line, Conditions: conditions.filter((_item, current) => current !== conditionIndex) })} />
           ))}
         </View>
       ) : null}
@@ -1081,11 +1106,6 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeT
       <View style={[layout.grid, { alignItems: "flex-start" }]}>
         <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Unknown"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
         <Cell>
-          <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
-          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} onTyped={onAgeTyped} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
-          <Warn id="AdministrativeData.EstimatedAge" text={warns["AdministrativeData.EstimatedAge"]} />
-        </Cell>
-        <Cell>
           <FieldLabel text="Date of birth" badge={badge("DateBirth")} onClear={clear("DateBirth")} />
           <DateField precision label="Date of birth" value={text(data.DateBirth)} onChange={(value) => onChange("AdministrativeData", "DateBirth", value)} />
           <Warn id="AdministrativeData.DateBirth" text={warns["AdministrativeData.DateBirth"]} />
@@ -1094,6 +1114,12 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeT
           <FieldLabel text="Date of death" badge={badge("DateDeath")} onClear={clear("DateDeath")} />
           <DateField label="Date of death" value={text(data.DateDeath)} onChange={(value) => onChange("AdministrativeData", "DateDeath", value)} />
           <Warn id="AdministrativeData.DateDeath" text={warns["AdministrativeData.DateDeath"]} />
+        </Cell>
+        {/* After the two dates: it is filled from them, so it reads as their result. */}
+        <Cell>
+          <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
+          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} onTyped={onAgeTyped} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
+          <Warn id="AdministrativeData.EstimatedAge" text={warns["AdministrativeData.EstimatedAge"]} />
         </Cell>
       </View>
     </Tile>

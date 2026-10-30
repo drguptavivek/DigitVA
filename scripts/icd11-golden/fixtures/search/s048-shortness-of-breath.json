@@ -1,0 +1,98 @@
+{
+ "id": "s048-shortness-of-breath",
+ "input": {
+  "id": "s048-shortness-of-breath",
+  "kind": "lay",
+  "query": "shortness of breath",
+  "source": "VAs-05.01",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #5cd2202d79"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 5,
+     "items": [
+      {
+       "code": "MD11.5",
+       "has_coding_note": false,
+       "matching_text": "Dyspnoea",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Dyspnoea",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/960305085"
+      },
+      {
+       "code": "BD11.2&XS3A",
+       "has_coding_note": false,
+       "matching_text": "Left ventricular failure with reduced ejection fraction NYHA Class I",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Left ventricular failure with reduced ejection fraction NYHA Class I",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1653508908 & http://id.who.int/icd/release/11/2026-01/mms/206731332"
+      },
+      {
+       "code": "BD11.2&XS6B",
+       "has_coding_note": false,
+       "matching_text": "Left ventricular failure with reduced ejection fraction NYHA Class II",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Left ventricular failure with reduced ejection fraction NYHA Class II",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1653508908 & http://id.who.int/icd/release/11/2026-01/mms/1232119755"
+      },
+      {
+       "code": "BD11.1&XS3A",
+       "has_coding_note": false,
+       "matching_text": "Left ventricular failure with mid range ejection fraction NYHA Class I",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Left ventricular failure with mid range ejection fraction NYHA Class I",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/572130061 & http://id.who.int/icd/release/11/2026-01/mms/206731332"
+      },
+      {
+       "code": "BD11.2&XS9T",
+       "has_coding_note": false,
+       "matching_text": "Left ventricular failure with reduced ejection fraction NYHA Class III",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Left ventricular failure with reduced ejection fraction NYHA Class III",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1653508908 & http://id.who.int/icd/release/11/2026-01/mms/537685513"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "shortness of breath",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #5cd2202d79": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/960305085","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/960305085","important":true,"label":"<em class='found'>short</em> of <em class='found'>breath</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/960305085","important":true,"label":"<em class='found'>shortness</em> of <em class='found'>breath</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/960305085","important":false,"label":"SOB - [<em class='found'>shortness</em> of <em class='found'>breath</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-0.25860079752309967}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/960305085","theCode":"MD11.5","title":"Dyspnoea","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1653508908 & http://id.who.int/icd/release/11/2026-01/mms/206731332","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/413390388","important":false,"label":"Left ventricular failure with reduced ejection fraction NYHA Class I - No limitation of physical activity. Ordinary physical activity does not cause undue fatigue, palpitation, dyspnoea (<em class='found'>shortness</em> of <em class='found'>breath</em><em class='nonwbe'></em>)","propertyId":"Synonym","propertyValueType":2,"score":-12.162059301097571}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-12.162059301097571,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1653508908","theCode":"BD11.2&XS3A","title":"Left ventricular failure with reduced ejection fraction NYHA Class I","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1653508908 & http://id.who.int/icd/release/11/2026-01/mms/1232119755","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/125269858","important":false,"label":"Left ventricular failure with reduced ejection fraction NYHA Class II - slight limitation of physical activity. Comfortable at rest. Ordinary physical activity results in fatigue, palpitation, dyspnoea (<em class='found'>shortness</em> of <em class='found'>breath</em><em class='nonwbe'></em>)","propertyId":"Synonym","propertyValueType":2,"score":-12.546328113832486}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-12.546328113832486,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1653508908","theCode":"BD11.2&XS6B","title":"Left ventricular failure with reduced ejection fraction NYHA Class II","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/572130061 & http://id.who.int/icd/release/11/2026-01/mms/206731332","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/187475415","important":false,"label":"Left ventricular failure with mid range ejection fraction NYHA Class I - no limitation of physical activity. Ordinary physical activity does not cause undue fatigue, palpitation , dyspnoea (<em class='found'>shortness</em> of <em class='found'>breath</em><em class='nonwbe'></em>)","propertyId":"Synonym","propertyValueType":2,"score":-12.886379431085537}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-12.886379431085537,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/572130061","theCode":"BD11.1&XS3A","title":"Left ventricular failure with mid range ejection fraction NYHA Class I","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1653508908 & http://id.who.int/icd/release/11/2026-01/mms/537685513","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1117328023","important":false,"label":"Left ventricular failure with reduced ejection fraction NYHA Class III - Marked limitation of physical activity. Comfortable at rest. Less than ordinary activity causes fatigue, palpitation or dyspnoea (<em class='found'>shortness</em> of <em class='found'>breath</em><em class='nonwbe'></em>)","propertyId":"Synonym","propertyValueType":2,"score":-13.225390607470011}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-13.225390607470011,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1653508908","theCode":"BD11.2&XS9T","title":"Left ventricular failure with reduced ejection fraction NYHA Class III","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=shortness+of+breath%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

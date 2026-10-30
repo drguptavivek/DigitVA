@@ -1,0 +1,98 @@
+{
+ "id": "s095-fall-from-height",
+ "input": {
+  "id": "s095-fall-from-height",
+  "kind": "injury",
+  "query": "fall from height",
+  "source": "VAs-12.03",
+  "why": "injury or external-cause wording"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #8a21db3ddf"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "PG5Z",
+       "has_coding_note": false,
+       "matching_text": "Fall or jump of undetermined intent, height unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Fall or jump of undetermined intent, height unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/173760338/unspecified"
+      },
+      {
+       "code": "PA6Z",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall from unspecified height",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall from unspecified height",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified"
+      },
+      {
+       "code": "PA60",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall on the same level or from less than 1 metre",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall on the same level or from less than 1 metre",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/415990995"
+      },
+      {
+       "code": "PA61",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall from a height of 1 metre or more",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall from a height of 1 metre or more",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+      },
+      {
+       "code": "PE0Z",
+       "has_coding_note": false,
+       "matching_text": "Assault by causing a fall or jump from unspecified height",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Assault by causing a fall or jump from unspecified height",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/447363203/unspecified"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "fall from height",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #8a21db3ddf": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/173760338/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/173760338","important":true,"label":"<em class='found'>fall</em> <em class='found'>from</em> <em class='found'>height</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/173760338/unspecified","theCode":"PG5Z","title":"<em class='found'>Fall</em> or jump of undetermined intent, <em class='found'>height</em><em class='nonwbe'></em> unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/134290789","important":false,"label":"<em class='found'>fall</em> <em class='found'>from</em> unknown <em class='found'>height</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.5662080249282528}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.5662080249282528,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified","theCode":"PA6Z","title":"Unintentional <em class='found'>fall</em> <em class='found'>from</em> unspecified <em class='found'>height</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/415990995","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/415990995","important":false,"label":"<em class='found'>fall</em> <em class='found'>from</em> standing <em class='found'>height</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.48461384095998794}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.48461384095998794,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995","theCode":"PA60","title":"Unintentional <em class='found'>fall</em> on the same level or <em class='found'>from</em> less than 1 metre","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.0719284370426341,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1729453916","theCode":"PA61","title":"Unintentional <em class='found'>fall</em> <em class='found'>from</em> a <em class='found'>height</em><em class='nonwbe'></em> of 1 metre or more","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/447363203/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.24517257850118587,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/447363203/unspecified","theCode":"PE0Z","title":"Assault by causing a <em class='found'>fall</em> or jump <em class='found'>from</em> unspecified <em class='found'>height</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1566871361","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.4709180576282076,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1566871361","theCode":"PG51","title":"<em class='found'>Fall</em> or jump of undetermined intent <em class='found'>from</em> a <em class='found'>height</em><em class='nonwbe'></em> of 1 metre or more","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1039175191","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5637605068731668,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1039175191","theCode":"PC31","title":"Intentional self-harm by <em class='found'>fall</em> or jump <em class='found'>from</em> a <em class='found'>height</em><em class='nonwbe'></em> of 1 metre or more","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/414260003","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8073265851140689,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/414260003","theCode":"PE01","title":"Assault by causing a <em class='found'>fall</em> or jump <em class='found'>from</em> a <em class='found'>height</em><em class='nonwbe'></em> of 1 metre or more","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=fall+from+height%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

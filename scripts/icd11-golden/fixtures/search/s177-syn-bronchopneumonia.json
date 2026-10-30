@@ -1,0 +1,99 @@
+{
+ "id": "s177-syn-bronchopneumonia",
+ "input": {
+  "concept": "pneumonia",
+  "id": "s177-syn-bronchopneumonia",
+  "kind": "synonym",
+  "query": "bronchopneumonia",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #bcb9935e88"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 9,
+     "items": [
+      {
+       "code": "CA40.Z",
+       "has_coding_note": false,
+       "matching_text": "Pneumonia, organism unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Pneumonia, organism unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified"
+      },
+      {
+       "code": "CA40.07",
+       "has_coding_note": false,
+       "matching_text": "Pneumonia due to Streptococcus pneumoniae",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Pneumonia due to Streptococcus pneumoniae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1480627948"
+      },
+      {
+       "code": "CA40.1Z",
+       "has_coding_note": false,
+       "matching_text": "Viral pneumonia, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Viral pneumonia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1024154490/unspecified"
+      },
+      {
+       "code": "CA40.0Y",
+       "has_coding_note": false,
+       "matching_text": "Pneumonia due to other specified bacteria",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Pneumonia due to other specified bacteria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"
+      },
+      {
+       "code": "CA40.06",
+       "has_coding_note": false,
+       "matching_text": "Pneumonia due to Staphylococcus",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Pneumonia due to Staphylococcus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1533297008"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "bronchopneumonia",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #bcb9935e88": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/57624587","important":false,"label":"<em class='found'>Bronchopneumonia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":1},{"foundationUri":"http://id.who.int/icd/entity/57624587","important":false,"label":"orthostatic <em class='found'>bronchopneumonia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-4.6077857844560475},{"foundationUri":"http://id.who.int/icd/entity/1130340526","important":false,"label":"Hypostatic <em class='found'>bronchopneumonia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.852797632461956}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified","theCode":"CA40.Z","title":"Pneumonia, organism unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1480627948","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1480627948","important":false,"label":"<em class='found'>Bronchopneumonia</em><em class='nonwbe'></em> due to S. pneumoniae","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1480627948","important":false,"label":"<em class='found'>Bronchopneumonia</em><em class='nonwbe'></em> due to streptococcus pneumoniae","propertyId":"Synonym","propertyValueType":0,"score":-4.381490202323661}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1480627948","theCode":"CA40.07","title":"Pneumonia due to Streptococcus pneumoniae","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1024154490/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1024154490","important":false,"label":"viral <em class='found'>bronchopneumonia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.090454105920999},{"foundationUri":"http://id.who.int/icd/entity/1024154490","important":false,"label":"<em class='found'>bronchopneumonia</em><em class='nonwbe'></em> due to viruses other than influenza viruses","propertyId":"Synonym","propertyValueType":0,"score":-7.56548366908612}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-4.090454105920999,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1024154490/unspecified","theCode":"CA40.1Z","title":"Viral pneumonia, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1304502126","important":false,"label":"streptococcal <em class='found'>bronchopneumonia</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":1,"score":-4.381490202323661}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-4.381490202323661,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other","theCode":"CA40.0Y","title":"Pneumonia due to other specified bacteria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1533297008","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1533297008","important":false,"label":"staphylococcal <em class='found'>bronchopneumonia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.392628734000314}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.392628734000314,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1533297008","theCode":"CA40.06","title":"Pneumonia due to Staphylococcus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/732824952","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/732824952","important":false,"label":"<em class='found'>bronchopneumonia</em><em class='nonwbe'></em> due to H. influenzae","propertyId":"Synonym","propertyValueType":0,"score":-6.5148438357583975},{"foundationUri":"http://id.who.int/icd/entity/732824952","important":false,"label":"<em class='found'>bronchopneumonia</em><em class='nonwbe'></em> due to hemophilus influenzae","propertyId":"Synonym","propertyValueType":0,"score":-6.631661857281336}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-6.5148438357583975,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/732824952","theCode":"CA40.02","title":"Pneumonia due to Haemophilus influenzae","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1235618695","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1887178107","important":false,"label":"Influenzal <em class='found'>bronchopneumonia</em><em class='nonwbe'></em>, unspecified or specific virus not identified","propertyId":"Synonym","propertyValueType":1,"score":-6.580897059281975}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-6.580897059281975,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1235618695","theCode":"1E32","title":"Influenza, virus not identified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1323682030","important":false,"label":"<em class='found'>bronchopneumonia</em><em class='nonwbe'></em> due to bacteria other than S. pneumoniae and H. influenzae","propertyId":"Synonym","propertyValueType":0,"score":-7.947432456844421},{"foundationUri":"http://id.who.int/icd/entity/1323682030","important":false,"label":"<em class='found'>bronchopneumonia</em><em class='nonwbe'></em> due to bacteria other than Streptococcus pneumoniae and Haemophilus influenzae","propertyId":"Synonym","propertyValueType":0,"score":-8.80178261769602}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-7.947432456844421,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified","theCode":"CA40.0Z","title":"Bacterial pneumonia, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/753780243","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1820640764","important":false,"label":"Influenzal <em class='found'>bronchopneumonia</em><em class='nonwbe'></em>, other influenza virus identified","propertyId":"Synonym","propertyValueType":1,"score":-8.043666050475059}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.043666050475059,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/753780243","theCode":"1E30","title":"Influenza due to identified seasonal influenza virus","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=bronchopneumonia%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

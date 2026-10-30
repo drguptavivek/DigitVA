@@ -1,0 +1,98 @@
+{
+ "id": "s039-sugar",
+ "input": {
+  "id": "s039-sugar",
+  "kind": "lay",
+  "query": "sugar",
+  "source": "VAs-03.03",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #c8d9c34a67"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 5,
+     "items": [
+      {
+       "code": "MF93",
+       "has_coding_note": false,
+       "matching_text": "Glycosuria",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Glycosuria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1406987921"
+      },
+      {
+       "code": "5A41",
+       "has_coding_note": false,
+       "matching_text": "Hypoglycaemia without associated diabetes",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Hypoglycaemia without associated diabetes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1004695600"
+      },
+      {
+       "code": "MA18.0Z",
+       "has_coding_note": false,
+       "matching_text": "Elevated blood glucose level, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Elevated blood glucose level, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/307705857/unspecified"
+      },
+      {
+       "code": "5A40.0",
+       "has_coding_note": false,
+       "matching_text": "Impaired fasting glucose",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Impaired fasting glucose",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1877346353"
+      },
+      {
+       "code": "CA70.1",
+       "has_coding_note": false,
+       "matching_text": "Bagassosis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Bagassosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1123061945"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "sugar",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #c8d9c34a67": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1406987921","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1406987921","important":false,"label":"urinary <em class='found'>sugar</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.599726134638046},{"foundationUri":"http://id.who.int/icd/entity/1406987921","important":false,"label":"<em class='found'>sugar</em><em class='nonwbe'></em> in urine","propertyId":"Synonym","propertyValueType":0,"score":-0.6881086906976623}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.599726134638046,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1406987921","theCode":"MF93","title":"Glycosuria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1004695600","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1004695600","important":false,"label":"low blood <em class='found'>sugar</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.3525519676341697}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.3525519676341697,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1004695600","theCode":"5A41","title":"Hypoglycaemia without associated diabetes","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/307705857/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/307705857","important":false,"label":"high blood <em class='found'>sugar</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.3739145350257305}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.3739145350257305,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/307705857/unspecified","theCode":"MA18.0Z","title":"Elevated blood glucose level, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1877346353","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1877346353","important":false,"label":"high fasting blood <em class='found'>sugar</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.3081010323256606}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.3081010323256606,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1877346353","theCode":"5A40.0","title":"Impaired fasting glucose","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1123061945","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1123061945","important":false,"label":"<em class='found'>Sugar</em><em class='nonwbe'></em> cane workers' hypersensitivity pneumonitis","propertyId":"Synonym","propertyValueType":0,"score":-6.512090360464058}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-6.512090360464058,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1123061945","theCode":"CA70.1","title":"Bagassosis","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=sugar%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

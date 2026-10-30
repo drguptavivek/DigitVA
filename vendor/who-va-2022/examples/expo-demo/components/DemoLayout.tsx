@@ -29,7 +29,7 @@ export function DemoChrome({ children }: { children: ReactNode }) {
 }
 
 export function ScreenScroll({ children }: { children: ReactNode }) {
-  return <ScrollView contentContainerStyle={styles.screen}>{children}</ScrollView>;
+  return <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={styles.screen}>{children}</ScrollView>;
 }
 
 export function ScreenHeader({

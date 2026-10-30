@@ -1,0 +1,87 @@
+{
+ "id": "s146-syn-cardiac-infarction",
+ "input": {
+  "concept": "myocardial infarction",
+  "id": "s146-syn-cardiac-infarction",
+  "kind": "synonym",
+  "query": "cardiac infarction",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for myocardial infarction (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #dce6a1ca08"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "BA41.Z",
+       "has_coding_note": false,
+       "matching_text": "Acute myocardial infarction, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Acute myocardial infarction, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+      },
+      {
+       "code": "BA43",
+       "has_coding_note": false,
+       "matching_text": "Coronary thrombosis not resulting in myocardial infarction",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Coronary thrombosis not resulting in myocardial infarction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/904209735"
+      },
+      {
+       "code": "8B11.20",
+       "has_coding_note": true,
+       "matching_text": "Cerebral ischaemic stroke due to cardiac embolism",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Cerebral ischaemic stroke due to cardiac embolism",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/369985440"
+      },
+      {
+       "code": "BA60.4",
+       "has_coding_note": false,
+       "matching_text": "Cardiac rupture as current complication following acute myocardial infarction",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Cardiac rupture as current complication following acute myocardial infarction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/318811736"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "cardiac infarction",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #dce6a1ca08": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1334938734","important":true,"label":"<em class='found'>cardiac</em> infarct","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1334938734","important":true,"label":"<em class='found'>cardiac</em> <em class='found'>infarction</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1334938734","important":true,"label":"<em class='found'>infarction</em><em class='nonwbe'></em> of <em class='found'>heart</em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1334938734","important":false,"label":"acute <em class='found'>cardiac</em> <em class='found'>infarction</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.5768059021777258}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified","theCode":"BA41.Z","title":"Acute myocardial <em class='found'>infarction</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/904209735","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/904209735","important":false,"label":"embolism of <em class='found'>heart</em> not resulting in <em class='found'>infarction</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.10668722147476441},{"foundationUri":"http://id.who.int/icd/entity/904209735","important":false,"label":"<em class='found'>cardiac</em> thrombosis not resulting in <em class='found'>infarction</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.10181660883125401}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.10668722147476441,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/904209735","theCode":"BA43","title":"Coronary thrombosis not resulting in myocardial <em class='found'>infarction</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/369985440","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/369985440","important":false,"label":"cerebral <em class='found'>infarction</em><em class='nonwbe'></em> due to <em class='found'>cardiac</em> embolism","propertyId":"Synonym","propertyValueType":0,"score":-0.2392347007738984}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.2392347007738984,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/369985440","theCode":"8B11.20","title":"Cerebral ischaemic stroke due to <em class='found'>cardiac</em> embolism","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/318811736","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.7147225397612536,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/318811736","theCode":"BA60.4","title":"<em class='found'>Cardiac</em> rupture as current complication following acute myocardial <em class='found'>infarction</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=cardiac+infarction%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

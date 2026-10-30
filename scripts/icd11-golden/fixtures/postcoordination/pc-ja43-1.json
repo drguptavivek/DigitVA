@@ -1,0 +1,1128 @@
+{
+ "built": [
+  {
+   "expression": "JA43.1/JB02.2",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB02.2",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JA43.1/JB02.2",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/1073291850"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB02.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB02.2",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JA43.1/JB02.2",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/1073291850"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB02.2",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/1073291850"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332",
+      "GET icd/release/11/2026-01/mms/820245648",
+      "GET icd/release/11/2026-01/mms/903303141",
+      "GET icd/release/11/2026-01/mms/714000734",
+      "GET icd/release/11/2026-01/mms/820245648",
+      "GET icd/release/11/2026-01/mms/1040555026",
+      "GET icd/release/11/2026-01/mms/803406203",
+      "GET icd/release/11/2026-01/mms/1252576495",
+      "GET icd/release/11/2026-01/mms/1388318842",
+      "GET icd/release/11/2026-01/mms/1811689101",
+      "GET icd/release/11/2026-01/mms/820245648/other",
+      "GET icd/release/11/2026-01/mms/820245648/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "18",
+         "title": "Pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+        },
+        {
+         "code": "",
+         "title": "Obstetric haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/903303141"
+        },
+        {
+         "code": "JA43",
+         "title": "Postpartum haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Other immediate postpartum haemorrhage",
+        "PPH - [postpartum haemorrhage]",
+        "Postpartum haemorrhage NOS",
+        "primary postpartum haemorrhage",
+        "puerperal haemorrhage",
+        "puerperal metrorrhagia",
+        "Haemorrhage following delivery of placenta",
+        "Postpartum atony of uterus",
+        "Postpartum haemorrhage atonic NOS"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "selected_expression": {
+        "code": "JA43.1/JB02.2",
+        "stem_code": "JA43.1"
+       },
+       "siblings": [
+        {
+         "code": "JA43.0",
+         "has_children": false,
+         "title": "Third-stage haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1040555026"
+        },
+        {
+         "code": "JA43.2",
+         "has_children": false,
+         "title": "Delayed or secondary postpartum haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/803406203"
+        },
+        {
+         "code": "JA43.3",
+         "has_children": false,
+         "title": "Postpartum coagulation defects",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1252576495"
+        },
+        {
+         "code": "JA43.4",
+         "has_children": false,
+         "title": "Postpartum haemorrhage following obstructed labour with uterine rupture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1388318842"
+        },
+        {
+         "code": "JA43.5",
+         "has_children": false,
+         "title": "Postpartum haemorrhage following obstructed labour without mention of uterine rupture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1811689101"
+        },
+        {
+         "code": "JA43.Y",
+         "has_children": false,
+         "title": "Other specified postpartum haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/other"
+        },
+        {
+         "code": "JA43.Z",
+         "has_children": false,
+         "title": "Postpartum haemorrhage, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB02.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "JA43.1/JB02.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "JA43.1/JB02.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "A condition characterised by excessive loss of blood within the first 24 hours after the completion of the third stage of labour for a vaginal delivery (more than 500 millilitres), or after a caesarean section (more than 1000 millilitres). This condition is caused by uterine atony, trauma, retained placenta, or coagulopathy.",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB02.2"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/1073291850",
+   "why": "haemorrhage due to uterine atony"
+  },
+  {
+   "expression": "JA43.1/JB09.0",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB09.0",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JA43.1/JB09.0",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/595260591"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB09.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB09.0",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JA43.1/JB09.0",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/595260591"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB09.0",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/595260591"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332",
+      "GET icd/release/11/2026-01/mms/820245648",
+      "GET icd/release/11/2026-01/mms/903303141",
+      "GET icd/release/11/2026-01/mms/714000734",
+      "GET icd/release/11/2026-01/mms/820245648",
+      "GET icd/release/11/2026-01/mms/1040555026",
+      "GET icd/release/11/2026-01/mms/803406203",
+      "GET icd/release/11/2026-01/mms/1252576495",
+      "GET icd/release/11/2026-01/mms/1388318842",
+      "GET icd/release/11/2026-01/mms/1811689101",
+      "GET icd/release/11/2026-01/mms/820245648/other",
+      "GET icd/release/11/2026-01/mms/820245648/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "18",
+         "title": "Pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+        },
+        {
+         "code": "",
+         "title": "Obstetric haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/903303141"
+        },
+        {
+         "code": "JA43",
+         "title": "Postpartum haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Other immediate postpartum haemorrhage",
+        "PPH - [postpartum haemorrhage]",
+        "Postpartum haemorrhage NOS",
+        "primary postpartum haemorrhage",
+        "puerperal haemorrhage",
+        "puerperal metrorrhagia",
+        "Haemorrhage following delivery of placenta",
+        "Postpartum atony of uterus",
+        "Postpartum haemorrhage atonic NOS"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "selected_expression": {
+        "code": "JA43.1/JB09.0",
+        "stem_code": "JA43.1"
+       },
+       "siblings": [
+        {
+         "code": "JA43.0",
+         "has_children": false,
+         "title": "Third-stage haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1040555026"
+        },
+        {
+         "code": "JA43.2",
+         "has_children": false,
+         "title": "Delayed or secondary postpartum haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/803406203"
+        },
+        {
+         "code": "JA43.3",
+         "has_children": false,
+         "title": "Postpartum coagulation defects",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1252576495"
+        },
+        {
+         "code": "JA43.4",
+         "has_children": false,
+         "title": "Postpartum haemorrhage following obstructed labour with uterine rupture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1388318842"
+        },
+        {
+         "code": "JA43.5",
+         "has_children": false,
+         "title": "Postpartum haemorrhage following obstructed labour without mention of uterine rupture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1811689101"
+        },
+        {
+         "code": "JA43.Y",
+         "has_children": false,
+         "title": "Other specified postpartum haemorrhage",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/other"
+        },
+        {
+         "code": "JA43.Z",
+         "has_children": false,
+         "title": "Postpartum haemorrhage, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB09.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "JA43.1/JB09.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "JA43.1/JB09.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+      "GET icd/release/11/2026-01/mms/1531859332"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "A condition characterised by excessive loss of blood within the first 24 hours after the completion of the third stage of labour for a vaginal delivery (more than 500 millilitres), or after a caesarean section (more than 1000 millilitres). This condition is caused by uterine atony, trauma, retained placenta, or coagulopathy.",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JA43.1",
+        "title": "Other immediate postpartum haemorrhage",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JA43.1/JB09.0"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332 / http://id.who.int/icd/release/11/2026-01/mms/595260591",
+   "why": "haemorrhage due to perineal laceration"
+  }
+ ],
+ "id": "pc-ja43-1",
+ "input": {
+  "built": [
+   {
+    "expression": "JA43.1/JB02.2",
+    "why": "haemorrhage due to uterine atony"
+   },
+   {
+    "expression": "JA43.1/JB09.0",
+    "why": "haemorrhage due to perineal laceration"
+   }
+  ],
+  "category": "mandatory",
+  "id": "pc-ja43-1",
+  "source": "VAs-09.04",
+  "stem": "JA43.1",
+  "why": "Postpartum haemorrhage (VA cause 09.04): required causing condition, obstetric roots"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JA43.1",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JA43.1",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA43.1",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332",
+    "GET icd/release/11/2026-01/mms/1904468617",
+    "GET icd/release/11/2026-01/mms/348663581",
+    "GET icd/release/11/2026-01/mms/1617264610",
+    "GET icd/release/11/2026-01/mms/1730591881",
+    "GET icd/release/11/2026-01/mms/554002939",
+    "GET icd/release/11/2026-01/mms/1146004591"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+         "code": "JB04",
+         "has_children": true,
+         "title": "Obstructed labour due to malposition or malpresentation of fetus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/348663581",
+         "code": "JB05",
+         "has_children": true,
+         "title": "Obstructed labour due to maternal pelvic abnormality",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/348663581"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1617264610",
+         "code": "JB06",
+         "has_children": true,
+         "title": "Obstructed labour due to other causes",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1617264610"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+        "http://id.who.int/icd/release/11/2026-01/mms/348663581",
+        "http://id.who.int/icd/release/11/2026-01/mms/1617264610"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasCausingCondition",
+       "instruction": "code also",
+       "label": "Has causing condition",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+         "code": "JB02",
+         "has_children": true,
+         "title": "Abnormalities of forces of labour",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/554002939",
+         "code": "JB09",
+         "has_children": true,
+         "title": "Perineal laceration during delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/554002939"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1146004591",
+         "code": "JB0A",
+         "has_children": true,
+         "title": "Certain specified obstetric trauma",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1146004591"
+        }
+       ],
+       "required": true,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+        "http://id.who.int/icd/release/11/2026-01/mms/554002939",
+        "http://id.who.int/icd/release/11/2026-01/mms/1146004591"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332",
+    "GET icd/release/11/2026-01/mms/1904468617",
+    "GET icd/release/11/2026-01/mms/161351394",
+    "GET icd/release/11/2026-01/mms/1825950580",
+    "GET icd/release/11/2026-01/mms/410557323",
+    "GET icd/release/11/2026-01/mms/2100516383",
+    "GET icd/release/11/2026-01/mms/249415051",
+    "GET icd/release/11/2026-01/mms/1804994591",
+    "GET icd/release/11/2026-01/mms/1904468617/other",
+    "GET icd/release/11/2026-01/mms/1904468617/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.0",
+       "has_children": false,
+       "title": "Obstructed labour due to incomplete rotation of fetal head",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/161351394"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.1",
+       "has_children": false,
+       "title": "Obstructed labour due to breech presentation",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1825950580"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.2",
+       "has_children": false,
+       "title": "Obstructed labour due to face presentation",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/410557323"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.3",
+       "has_children": false,
+       "title": "Obstructed labour due to brow presentation",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2100516383"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.4",
+       "has_children": false,
+       "title": "Obstructed labour due to shoulder presentation",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/249415051"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.5",
+       "has_children": false,
+       "title": "Obstructed labour due to compound presentation",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1804994591"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.Y",
+       "has_children": false,
+       "title": "Obstructed labour due to other malposition and malpresentation of fetus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+       "code": "JB04.Z",
+       "has_children": false,
+       "title": "Obstructed labour due to malposition or malpresentation of fetus, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1904468617",
+    "stem_code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332",
+    "GET icd/release/11/2026-01/mms/1730591881",
+    "GET icd/release/11/2026-01/mms/773832481",
+    "GET icd/release/11/2026-01/mms/1263825589",
+    "GET icd/release/11/2026-01/mms/1073291850",
+    "GET icd/release/11/2026-01/mms/1521676256",
+    "GET icd/release/11/2026-01/mms/693926988",
+    "GET icd/release/11/2026-01/mms/1730591881/other",
+    "GET icd/release/11/2026-01/mms/1730591881/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasCausingCondition",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.0",
+       "has_children": false,
+       "title": "Primary uterine inertia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/773832481"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.1",
+       "has_children": false,
+       "title": "Secondary uterine inertia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1263825589"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.2",
+       "has_children": false,
+       "title": "Other uterine inertia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1073291850"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.3",
+       "has_children": false,
+       "title": "Precipitate labour",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1521676256"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.4",
+       "has_children": false,
+       "title": "Hypertonic, incoordinate, or prolonged uterine contractions",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/693926988"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.Y",
+       "has_children": false,
+       "title": "Other specified abnormalities of forces of labour",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+       "code": "JB02.Z",
+       "has_children": false,
+       "title": "Abnormalities of forces of labour, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasCausingCondition",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1730591881",
+    "stem_code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332",
+    "GET icd/release/11/2026-01/mms/820245648",
+    "GET icd/release/11/2026-01/mms/903303141",
+    "GET icd/release/11/2026-01/mms/714000734",
+    "GET icd/release/11/2026-01/mms/820245648",
+    "GET icd/release/11/2026-01/mms/1040555026",
+    "GET icd/release/11/2026-01/mms/803406203",
+    "GET icd/release/11/2026-01/mms/1252576495",
+    "GET icd/release/11/2026-01/mms/1388318842",
+    "GET icd/release/11/2026-01/mms/1811689101",
+    "GET icd/release/11/2026-01/mms/820245648/other",
+    "GET icd/release/11/2026-01/mms/820245648/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "18",
+       "title": "Pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+      },
+      {
+       "code": "",
+       "title": "Obstetric haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/903303141"
+      },
+      {
+       "code": "JA43",
+       "title": "Postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Other immediate postpartum haemorrhage",
+      "PPH - [postpartum haemorrhage]",
+      "Postpartum haemorrhage NOS",
+      "primary postpartum haemorrhage",
+      "puerperal haemorrhage",
+      "puerperal metrorrhagia",
+      "Haemorrhage following delivery of placenta",
+      "Postpartum atony of uterus",
+      "Postpartum haemorrhage atonic NOS"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "JA43.0",
+       "has_children": false,
+       "title": "Third-stage haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1040555026"
+      },
+      {
+       "code": "JA43.2",
+       "has_children": false,
+       "title": "Delayed or secondary postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/803406203"
+      },
+      {
+       "code": "JA43.3",
+       "has_children": false,
+       "title": "Postpartum coagulation defects",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1252576495"
+      },
+      {
+       "code": "JA43.4",
+       "has_children": false,
+       "title": "Postpartum haemorrhage following obstructed labour with uterine rupture",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1388318842"
+      },
+      {
+       "code": "JA43.5",
+       "has_children": false,
+       "title": "Postpartum haemorrhage following obstructed labour without mention of uterine rupture",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1811689101"
+      },
+      {
+       "code": "JA43.Y",
+       "has_children": false,
+       "title": "Other specified postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/other"
+      },
+      {
+       "code": "JA43.Z",
+       "has_children": false,
+       "title": "Postpartum haemorrhage, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "JA43.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/1531859332"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "A condition characterised by excessive loss of blood within the first 24 hours after the completion of the third stage of labour for a vaginal delivery (more than 500 millilitres), or after a caesarean section (more than 1000 millilitres). This condition is caused by uterine atony, trauma, retained placenta, or coagulopathy.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JA43.1",
+      "title": "Other immediate postpartum haemorrhage",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JA43.1"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1040555026": {"method":"GET","path":"icd/release/11/2026-01/mms/1040555026","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1040555026","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1040555026","classKind":"category","code":"JA43.0","definition":{"@language":"en","@value":"A condition characterised by excessive loss of blood during the third stage of labour for a vaginal delivery. This condition is caused by uterine atony, trauma, retained placenta, or coagulopathy."},"inclusion":[{"label":{"@language":"en","@value":"third-stage postpartum haemorrhage"}}],"indexTerm":[{"label":{"@language":"en","@value":"Third-stage haemorrhage"}},{"label":{"@language":"en","@value":"third-stage postpartum haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/478014818","label":{"@language":"en","@value":"Haemorrhage associated with placenta accreta"}},{"foundationReference":"http://id.who.int/icd/entity/478014818","label":{"@language":"en","@value":"placenta increta NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1981794373","label":{"@language":"en","@value":"Haemorrhage associated with placenta percreta"}},{"foundationReference":"http://id.who.int/icd/entity/1244461000","label":{"@language":"en","@value":"Haemorrhage associated with retained, trapped or adherent placenta"}},{"foundationReference":"http://id.who.int/icd/entity/1244461000","label":{"@language":"en","@value":"Retained placenta NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1244461000","label":{"@language":"en","@value":"adherent placenta NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1244461000","label":{"@language":"en","@value":"haemorrhage associated with retained placenta NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1244461000","label":{"@language":"en","@value":"placenta retention NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1244461000","label":{"@language":"en","@value":"trapped placenta NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1040555026/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1579456332"]}],"source":"http://id.who.int/icd/entity/1040555026","title":{"@language":"en","@value":"Third-stage haemorrhage"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1073291850": {"method":"GET","path":"icd/release/11/2026-01/mms/1073291850","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1073291850","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1073291850","classKind":"category","code":"JB02.2","definition":{"@language":"en","@value":"A condition affecting pregnant females that is idiopathic. This condition is characterised by the absence of effective uterine contractions during labour and abnormal relaxation of the uterus during labour. This condition leads to lack of labour progress or uterine haemorrhage."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1531859332","label":{"@language":"en","@value":"atony of uterus, postpartum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1531859332"}],"inclusion":[{"label":{"@language":"en","@value":"Atony of uterus, during labour"}}],"indexTerm":[{"label":{"@language":"en","@value":"Other uterine inertia"}},{"label":{"@language":"en","@value":"Atony of uterus, during labour"}},{"label":{"@language":"en","@value":"Uterine inertia NOS"}},{"label":{"@language":"en","@value":"atony of uterus NOS"}},{"label":{"@language":"en","@value":"hypotonic dysfunction of uterus complicating delivery"}},{"label":{"@language":"en","@value":"hypotonic labour"}},{"label":{"@language":"en","@value":"inertia of uterus NOS"}},{"label":{"@language":"en","@value":"uterine atonia"}},{"label":{"@language":"en","@value":"uterine atony"}},{"foundationReference":"http://id.who.int/icd/entity/375350633","label":{"@language":"en","@value":"Cervical dystocia"}},{"foundationReference":"http://id.who.int/icd/entity/375350633","label":{"@language":"en","@value":"cervix dystocia"}},{"foundationReference":"http://id.who.int/icd/entity/638026989","label":{"@language":"en","@value":"Desultory labour"}},{"foundationReference":"http://id.who.int/icd/entity/601248643","label":{"@language":"en","@value":"Irregular uterine contractions"}},{"foundationReference":"http://id.who.int/icd/entity/601248643","label":{"@language":"en","@value":"irregular labour NOS"}},{"foundationReference":"http://id.who.int/icd/entity/2038930734","label":{"@language":"en","@value":"Poor contractions in labour"}},{"foundationReference":"http://id.who.int/icd/entity/2038930734","label":{"@language":"en","@value":"poor labour contractions"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"source":"http://id.who.int/icd/entity/1073291850","title":{"@language":"en","@value":"Other uterine inertia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1146004591": {"method":"GET","path":"icd/release/11/2026-01/mms/1146004591","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1146004591","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1146004591","child":["http://id.who.int/icd/release/11/2026-01/mms/1065499694","http://id.who.int/icd/release/11/2026-01/mms/1523184060","http://id.who.int/icd/release/11/2026-01/mms/778346821","http://id.who.int/icd/release/11/2026-01/mms/1261399249","http://id.who.int/icd/release/11/2026-01/mms/952237893","http://id.who.int/icd/release/11/2026-01/mms/398951490","http://id.who.int/icd/release/11/2026-01/mms/1569338065","http://id.who.int/icd/release/11/2026-01/mms/690446896","http://id.who.int/icd/release/11/2026-01/mms/1282191290","http://id.who.int/icd/release/11/2026-01/mms/1146004591/other","http://id.who.int/icd/release/11/2026-01/mms/1146004591/unspecified"],"classKind":"category","code":"JB0A","definition":{"@language":"en","@value":"Any injury characterised by maternal trauma. These injuries are caused by or subsequent to the process of (or any intervention related to) pregnancy, or labour and delivery."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1431827755","label":{"@language":"en","@value":"Vesicovaginal fistula"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1431827755"},{"foundationReference":"http://id.who.int/icd/entity/1092677216","label":{"@language":"en","@value":"Urethrovaginal fistula"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1092677216"},{"foundationReference":"http://id.who.int/icd/entity/1019652029","label":{"@language":"en","@value":"Combined urethrovesicovaginal fistula"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1019652029"},{"foundationReference":"http://id.who.int/icd/entity/1509590660","label":{"@language":"en","@value":"Vesicouterine fistula with severe scar or extensive tissue loss"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1509590660"},{"foundationReference":"http://id.who.int/icd/entity/1991077267","label":{"@language":"en","@value":"Other combined urinary fistula with severe scar or extensive tissue loss"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1991077267"},{"foundationReference":"http://id.who.int/icd/entity/396280789","label":{"@language":"en","@value":"Rectovaginal fistula"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/396280789"},{"foundationReference":"http://id.who.int/icd/entity/2020658461","label":{"@language":"en","@value":"Combined urinary and rectal fistula including cloaca with severe scar or extensive tissue loss"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2020658461"},{"foundationReference":"http://id.who.int/icd/entity/867626","label":{"@language":"en","@value":"Vaginal stenosis or gynatresia related to obstetric fistula"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/867626"},{"foundationReference":"http://id.who.int/icd/entity/807646581","label":{"@language":"en","@value":"Obstetric Fistula"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2088138730/unspecified"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/299840850"],"source":"http://id.who.int/icd/entity/1146004591","title":{"@language":"en","@value":"Certain specified obstetric trauma"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1252576495": {"method":"GET","path":"icd/release/11/2026-01/mms/1252576495","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1252576495","classKind":"category","code":"JA43.3","definition":{"@language":"en","@value":"A condition characterised by excessive loss of blood following a vaginal or caesarean section delivery. This condition is caused by coagulation defects during the postpartum period."},"indexTerm":[{"label":{"@language":"en","@value":"Postpartum coagulation defects"}},{"label":{"@language":"en","@value":"puerperal coagulopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1944208200","label":{"@language":"en","@value":"Circulating anticoagulants following childbirth"}},{"foundationReference":"http://id.who.int/icd/entity/1464033238","label":{"@language":"en","@value":"Postpartum afibrinogenaemia"}},{"foundationReference":"http://id.who.int/icd/entity/1942684074","label":{"@language":"en","@value":"Postpartum blood dyscrasia"}},{"foundationReference":"http://id.who.int/icd/entity/1942684074","label":{"@language":"en","@value":"puerperal blood dyscrasia"}},{"foundationReference":"http://id.who.int/icd/entity/1140386338","label":{"@language":"en","@value":"Postpartum defibrination syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1140386338","label":{"@language":"en","@value":"postpartum defibrination"}},{"foundationReference":"http://id.who.int/icd/entity/643895159","label":{"@language":"en","@value":"Postpartum fibrinolysis"}},{"foundationReference":"http://id.who.int/icd/entity/846055373","label":{"@language":"en","@value":"Postpartum fibrinolysis with haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1730294146","label":{"@language":"en","@value":"Postpartum intravascular hemolysis"}},{"foundationReference":"http://id.who.int/icd/entity/1132670224","label":{"@language":"en","@value":"Puerperal thrombocytopaenia"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1252576495/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1181865707","http://id.who.int/icd/release/11/2026-01/mms/2057381685","http://id.who.int/icd/release/11/2026-01/mms/1016799900/unspecified"]}],"source":"http://id.who.int/icd/entity/1252576495","title":{"@language":"en","@value":"Postpartum coagulation defects"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1263825589": {"method":"GET","path":"icd/release/11/2026-01/mms/1263825589","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1263825589","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1263825589","classKind":"category","code":"JB02.1","definition":{"@language":"en","@value":"A condition affecting pregnant females that is idiopathic. This condition is characterised by vigorous contractions that decrease in vigour due to exhaustion or dehydration of the individual. This condition leads to lack of labour progress."},"inclusion":[{"label":{"@language":"en","@value":"Arrested active phase of labour"}},{"label":{"@language":"en","@value":"Secondary hypotonic uterine dysfunction"}}],"indexTerm":[{"label":{"@language":"en","@value":"Secondary uterine inertia"}},{"label":{"@language":"en","@value":"Arrested active phase of labour"}},{"label":{"@language":"en","@value":"Secondary hypotonic uterine dysfunction"}},{"label":{"@language":"en","@value":"secondary hypotonic dysfunction of uterus complicating delivery"}},{"label":{"@language":"en","@value":"secondary hypotonic labour"}},{"label":{"@language":"en","@value":"secondary uterine inertia during labour"}},{"foundationReference":"http://id.who.int/icd/entity/1447662878","label":{"@language":"en","@value":"Secondary dystocia of cervix"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"source":"http://id.who.int/icd/entity/1263825589","title":{"@language":"en","@value":"Secondary uterine inertia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1388318842": {"method":"GET","path":"icd/release/11/2026-01/mms/1388318842","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1388318842","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1388318842","classKind":"category","code":"JA43.4","indexTerm":[{"label":{"@language":"en","@value":"Postpartum haemorrhage following obstructed labour with uterine rupture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1388318842/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610","http://id.who.int/icd/release/11/2026-01/mms/1523184060"]}],"source":"http://id.who.int/icd/entity/1388318842","title":{"@language":"en","@value":"Postpartum haemorrhage following obstructed labour with uterine rupture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1521676256": {"method":"GET","path":"icd/release/11/2026-01/mms/1521676256","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1521676256","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1521676256","classKind":"category","code":"JB02.3","definition":{"@language":"en","@value":"A condition affecting pregnant females that is idiopathic. This condition is characterised by rapid labour and the lack of time for standard obstetric preparations or procedures leading to the delivery of the newborn. This condition leads to vaginal bleeding, frequent strong contractions, feelings of defecation, crowning of the fetus head at the vaginal introitus, or bulging of the amniotic sac."},"indexTerm":[{"label":{"@language":"en","@value":"Precipitate labour"}},{"label":{"@language":"en","@value":"precipitate labour or delivery"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"source":"http://id.who.int/icd/entity/1521676256","title":{"@language":"en","@value":"Precipitate labour"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1531859332": {"method":"GET","path":"icd/release/11/2026-01/mms/1531859332","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1531859332","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1531859332","classKind":"category","code":"JA43.1","definition":{"@language":"en","@value":"A condition characterised by excessive loss of blood within the first 24 hours after the completion of the third stage of labour for a vaginal delivery (more than 500 millilitres), or after a caesarean section (more than 1000 millilitres). This condition is caused by uterine atony, trauma, retained placenta, or coagulopathy."},"indexTerm":[{"label":{"@language":"en","@value":"Other immediate postpartum haemorrhage"}},{"label":{"@language":"en","@value":"PPH - [postpartum haemorrhage]"}},{"label":{"@language":"en","@value":"Postpartum haemorrhage NOS"}},{"label":{"@language":"en","@value":"primary postpartum haemorrhage"}},{"label":{"@language":"en","@value":"puerperal haemorrhage"}},{"label":{"@language":"en","@value":"puerperal metrorrhagia"}},{"foundationReference":"http://id.who.int/icd/entity/732902611","label":{"@language":"en","@value":"Haemorrhage following delivery of placenta"}},{"foundationReference":"http://id.who.int/icd/entity/1618043000","label":{"@language":"en","@value":"Postpartum atony of uterus"}},{"foundationReference":"http://id.who.int/icd/entity/1618043000","label":{"@language":"en","@value":"Postpartum haemorrhage atonic NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1531859332/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1531859332/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1730591881","http://id.who.int/icd/release/11/2026-01/mms/554002939","http://id.who.int/icd/release/11/2026-01/mms/1146004591"]}],"source":"http://id.who.int/icd/entity/1531859332","title":{"@language":"en","@value":"Other immediate postpartum haemorrhage"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/161351394": {"method":"GET","path":"icd/release/11/2026-01/mms/161351394","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/161351394","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#161351394","classKind":"category","code":"JB04.0","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to incomplete rotation of fetal head"}},{"label":{"@language":"en","@value":"Labour and delivery affected by incomplete rotation of fetal head"}},{"foundationReference":"http://id.who.int/icd/entity/453992815","label":{"@language":"en","@value":"Deep transverse arrest"}},{"foundationReference":"http://id.who.int/icd/entity/453992815","label":{"@language":"en","@value":"DTA - [deep transverse arrest]"}},{"foundationReference":"http://id.who.int/icd/entity/87651317","label":{"@language":"en","@value":"Obstructed labour due to persistent occipitoiliac position"}},{"foundationReference":"http://id.who.int/icd/entity/455484289","label":{"@language":"en","@value":"Obstructed labour due to persistent occipitoposterior position"}},{"foundationReference":"http://id.who.int/icd/entity/455484289","label":{"@language":"en","@value":"OP - [occiput posterior]"}},{"foundationReference":"http://id.who.int/icd/entity/455484289","label":{"@language":"en","@value":"Obstructed labour due to persistent occipitoposterior presentation"}},{"foundationReference":"http://id.who.int/icd/entity/455484289","label":{"@language":"en","@value":"POP - [persistent occipitoposterior]"}},{"foundationReference":"http://id.who.int/icd/entity/455484289","label":{"@language":"en","@value":"persistent occipitoposterior position"}},{"foundationReference":"http://id.who.int/icd/entity/1315558864","label":{"@language":"en","@value":"Obstructed labour due to persistent occipitosacral position"}},{"foundationReference":"http://id.who.int/icd/entity/1234282917","label":{"@language":"en","@value":"Obstructed labour due to persistent occipitotransverse position"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"source":"http://id.who.int/icd/entity/161351394","title":{"@language":"en","@value":"Obstructed labour due to incomplete rotation of fetal head"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1617264610": {"method":"GET","path":"icd/release/11/2026-01/mms/1617264610","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1617264610","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1617264610","child":["http://id.who.int/icd/release/11/2026-01/mms/350318175","http://id.who.int/icd/release/11/2026-01/mms/1907008459","http://id.who.int/icd/release/11/2026-01/mms/84407092","http://id.who.int/icd/release/11/2026-01/mms/1615609506","http://id.who.int/icd/release/11/2026-01/mms/1617264610/other","http://id.who.int/icd/release/11/2026-01/mms/1617264610/unspecified"],"classKind":"category","code":"JB06","definition":{"@language":"en","@value":"Any other condition characterised by the inability of the presenting part of the fetus to progress into the birth canal for any reason."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/299840850"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1617264610/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/820245648"]}],"source":"http://id.who.int/icd/entity/1617264610","title":{"@language":"en","@value":"Obstructed labour due to other causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1730591881": {"method":"GET","path":"icd/release/11/2026-01/mms/1730591881","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1730591881","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1730591881","child":["http://id.who.int/icd/release/11/2026-01/mms/773832481","http://id.who.int/icd/release/11/2026-01/mms/1263825589","http://id.who.int/icd/release/11/2026-01/mms/1073291850","http://id.who.int/icd/release/11/2026-01/mms/1521676256","http://id.who.int/icd/release/11/2026-01/mms/693926988","http://id.who.int/icd/release/11/2026-01/mms/1730591881/other","http://id.who.int/icd/release/11/2026-01/mms/1730591881/unspecified"],"classKind":"category","code":"JB02","definition":{"@language":"en","@value":"Any condition affecting pregnant females, characterised by an anomaly or dysfunction to the tissues or processes associated with the natural progression of labour. These conditions may lead to further complications during labour and childbirth."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/299840850"],"source":"http://id.who.int/icd/entity/1730591881","title":{"@language":"en","@value":"Abnormalities of forces of labour"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1730591881/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1730591881/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1730591881/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1730591881/other","classKind":"category","code":"JB02.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified abnormalities of forces of labour"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"title":{"@language":"en","@value":"Other specified abnormalities of forces of labour"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1730591881/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1730591881/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1730591881/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1730591881/unspecified","classKind":"category","code":"JB02.Z","indexTerm":[{"label":{"@language":"en","@value":"Abnormalities of forces of labour, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1730591881","label":{"@language":"en","@value":"Abnormalities of forces of labour"}},{"foundationReference":"http://id.who.int/icd/entity/1730591881","label":{"@language":"en","@value":"abnormality of forces of labour"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"title":{"@language":"en","@value":"Abnormalities of forces of labour, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1804994591": {"method":"GET","path":"icd/release/11/2026-01/mms/1804994591","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1804994591","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1804994591","classKind":"category","code":"JB04.5","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to compound presentation"}},{"label":{"@language":"en","@value":"labour and delivery affected by compound presentation"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"source":"http://id.who.int/icd/entity/1804994591","title":{"@language":"en","@value":"Obstructed labour due to compound presentation"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1811689101": {"method":"GET","path":"icd/release/11/2026-01/mms/1811689101","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1811689101","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1811689101","classKind":"category","code":"JA43.5","indexTerm":[{"label":{"@language":"en","@value":"Postpartum haemorrhage following obstructed labour without mention of uterine rupture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1811689101/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]}],"source":"http://id.who.int/icd/entity/1811689101","title":{"@language":"en","@value":"Postpartum haemorrhage following obstructed labour without mention of uterine rupture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1825950580": {"method":"GET","path":"icd/release/11/2026-01/mms/1825950580","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1825950580","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1825950580","classKind":"category","code":"JB04.1","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to breech presentation"}},{"label":{"@language":"en","@value":"breech presentation causing obstructed labour"}},{"label":{"@language":"en","@value":"labour and delivery affected by breech presentation"}},{"foundationReference":"http://id.who.int/icd/entity/1114656665","label":{"@language":"en","@value":"Prolapsed leg in fetus or newborn causing obstructed labour"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"source":"http://id.who.int/icd/entity/1825950580","title":{"@language":"en","@value":"Obstructed labour due to breech presentation"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1904468617": {"method":"GET","path":"icd/release/11/2026-01/mms/1904468617","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1904468617","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1904468617","child":["http://id.who.int/icd/release/11/2026-01/mms/161351394","http://id.who.int/icd/release/11/2026-01/mms/1825950580","http://id.who.int/icd/release/11/2026-01/mms/410557323","http://id.who.int/icd/release/11/2026-01/mms/2100516383","http://id.who.int/icd/release/11/2026-01/mms/249415051","http://id.who.int/icd/release/11/2026-01/mms/1804994591","http://id.who.int/icd/release/11/2026-01/mms/1904468617/other","http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified"],"classKind":"category","code":"JB04","definition":{"@language":"en","@value":"A condition affecting pregnant females, caused by the abnormal position of fetal head or the abnormal presentation of the fetus away from the fetal head in vertex."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/299840850"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1904468617/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/820245648"]}],"source":"http://id.who.int/icd/entity/1904468617","title":{"@language":"en","@value":"Obstructed labour due to malposition or malpresentation of fetus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1904468617/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1904468617/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1904468617/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1904468617/other","classKind":"category","code":"JB04.Y","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to other malposition and malpresentation of fetus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1904468617/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/820245648"]}],"title":{"@language":"en","@value":"Obstructed labour due to other malposition and malpresentation of fetus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1904468617/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1904468617/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1904468617/unspecified","classKind":"category","code":"JB04.Z","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to malposition or malpresentation of fetus, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1904468617","label":{"@language":"en","@value":"Obstructed labour due to malposition or malpresentation of fetus"}},{"foundationReference":"http://id.who.int/icd/entity/1904468617","label":{"@language":"en","@value":"Labour and delivery affected by malposition or malpresentation of fetus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/820245648"]}],"title":{"@language":"en","@value":"Obstructed labour due to malposition or malpresentation of fetus, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2100516383": {"method":"GET","path":"icd/release/11/2026-01/mms/2100516383","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2100516383","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2100516383","classKind":"category","code":"JB04.3","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to brow presentation"}},{"label":{"@language":"en","@value":"labour and delivery affected by brow presentation"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"source":"http://id.who.int/icd/entity/2100516383","title":{"@language":"en","@value":"Obstructed labour due to brow presentation"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/249415051": {"method":"GET","path":"icd/release/11/2026-01/mms/249415051","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/249415051","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#249415051","classKind":"category","code":"JB04.4","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/350318175","label":{"@language":"en","@value":"impacted shoulders"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/350318175"},{"foundationReference":"http://id.who.int/icd/entity/350318175","label":{"@language":"en","@value":"Obstructed labour due to shoulder dystocia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/350318175"}],"inclusion":[{"label":{"@language":"en","@value":"Prolapsed arm"}}],"indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to shoulder presentation"}},{"label":{"@language":"en","@value":"Prolapsed arm"}},{"label":{"@language":"en","@value":"labour and delivery affected by shoulder presentation"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"source":"http://id.who.int/icd/entity/249415051","title":{"@language":"en","@value":"Obstructed labour due to shoulder presentation"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/348663581": {"method":"GET","path":"icd/release/11/2026-01/mms/348663581","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/348663581","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#348663581","child":["http://id.who.int/icd/release/11/2026-01/mms/359059041","http://id.who.int/icd/release/11/2026-01/mms/1881998325","http://id.who.int/icd/release/11/2026-01/mms/75518732","http://id.who.int/icd/release/11/2026-01/mms/1640734366","http://id.who.int/icd/release/11/2026-01/mms/304418058","http://id.who.int/icd/release/11/2026-01/mms/2003746976","http://id.who.int/icd/release/11/2026-01/mms/348663581/other","http://id.who.int/icd/release/11/2026-01/mms/348663581/unspecified"],"classKind":"category","code":"JB05","definition":{"@language":"en","@value":"Obstructed labour means that, in spite of strong contractions of the uterus, the fetus cannot descend through the pelvis because there is an insurmountable barrier preventing its descent. Obstruction usually occurs at the pelvic brim, but occasionally it may occur in the cavity or at the outlet of the pelvis. Complications resulting from obstructed labour can be avoided if a woman in obstructed labour is identified early and appropriate action is taken."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/299840850"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/348663581/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/820245648"]}],"source":"http://id.who.int/icd/entity/348663581","title":{"@language":"en","@value":"Obstructed labour due to maternal pelvic abnormality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/410557323": {"method":"GET","path":"icd/release/11/2026-01/mms/410557323","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/410557323","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#410557323","classKind":"category","code":"JB04.2","indexTerm":[{"label":{"@language":"en","@value":"Obstructed labour due to face presentation"}},{"label":{"@language":"en","@value":"Labour and delivery affected by face presentation"}},{"foundationReference":"http://id.who.int/icd/entity/2034743999","label":{"@language":"en","@value":"Obstructed labour due to chin presentation"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1904468617"],"source":"http://id.who.int/icd/entity/410557323","title":{"@language":"en","@value":"Obstructed labour due to face presentation"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/554002939": {"method":"GET","path":"icd/release/11/2026-01/mms/554002939","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/554002939","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#554002939","child":["http://id.who.int/icd/release/11/2026-01/mms/595260591","http://id.who.int/icd/release/11/2026-01/mms/1177631035","http://id.who.int/icd/release/11/2026-01/mms/849111492","http://id.who.int/icd/release/11/2026-01/mms/1473750098","http://id.who.int/icd/release/11/2026-01/mms/554002939/unspecified"],"classKind":"category","code":"JB09","definition":{"@language":"en","@value":"An injury characterised by a laceration to the maternal perineum during delivery."},"inclusion":[{"label":{"@language":"en","@value":"episiotomy extended by laceration"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/299840850"],"source":"http://id.who.int/icd/entity/554002939","title":{"@language":"en","@value":"Perineal laceration during delivery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/693926988": {"method":"GET","path":"icd/release/11/2026-01/mms/693926988","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/693926988","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#693926988","classKind":"category","code":"JB02.4","definition":{"@language":"en","@value":"A condition affecting pregnant females that is idiopathic. This condition is characterised by uterine dysfunction leading to hypertonic, uncoordinated, and prolonged rhythmic activity of the myometrium during labour."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1617264610","label":{"@language":"en","@value":"dystocia (fetal)(maternal) NOS"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1617264610"}],"indexTerm":[{"label":{"@language":"en","@value":"Hypertonic, incoordinate, or prolonged uterine contractions"}},{"label":{"@language":"en","@value":"Uterine dystocia NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"Hypertonic uterus dysfunction complicating delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"hypertonic labour"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"hypertonic uterine activity"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"hypertonic uterine contraction"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"hypertonic uterine dysfunction"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"uterine hyperstimulation"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"uterine hypertonus"}},{"foundationReference":"http://id.who.int/icd/entity/1895051446","label":{"@language":"en","@value":"uterine polysystole"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"Contraction ring dystocia"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"Bandl's retraction ring"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"Bandl's ring dystocia"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"contraction ring"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"pathological retraction ring"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"retraction ring"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"retraction ring dystocia"}},{"foundationReference":"http://id.who.int/icd/entity/898934749","label":{"@language":"en","@value":"uterine retraction ring"}},{"foundationReference":"http://id.who.int/icd/entity/446043539","label":{"@language":"en","@value":"Dyscoordinate labour"}},{"foundationReference":"http://id.who.int/icd/entity/1514954650","label":{"@language":"en","@value":"Incoordinate uterine activity"}},{"foundationReference":"http://id.who.int/icd/entity/1514954650","label":{"@language":"en","@value":"incoordinate labour"}},{"foundationReference":"http://id.who.int/icd/entity/1514954650","label":{"@language":"en","@value":"uterine incoordination"}},{"foundationReference":"http://id.who.int/icd/entity/1521067786","label":{"@language":"en","@value":"Prolonged uterine contractions in labour"}},{"foundationReference":"http://id.who.int/icd/entity/1521067786","label":{"@language":"en","@value":"prolonged uterine contractions"}},{"foundationReference":"http://id.who.int/icd/entity/1348454228","label":{"@language":"en","@value":"Hourglass uterine contraction"}},{"foundationReference":"http://id.who.int/icd/entity/725388005","label":{"@language":"en","@value":"Tetanic contractions of uterus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"source":"http://id.who.int/icd/entity/693926988","title":{"@language":"en","@value":"Hypertonic, incoordinate, or prolonged uterine contractions"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/714000734": {"method":"GET","path":"icd/release/11/2026-01/mms/714000734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/714000734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#714000734","child":["http://id.who.int/icd/release/11/2026-01/mms/877352786","http://id.who.int/icd/release/11/2026-01/mms/1042184245","http://id.who.int/icd/release/11/2026-01/mms/903303141","http://id.who.int/icd/release/11/2026-01/mms/21112155","http://id.who.int/icd/release/11/2026-01/mms/1864248550","http://id.who.int/icd/release/11/2026-01/mms/299840850","http://id.who.int/icd/release/11/2026-01/mms/973282267","http://id.who.int/icd/release/11/2026-01/mms/1421997617","http://id.who.int/icd/release/11/2026-01/mms/1781019902","http://id.who.int/icd/release/11/2026-01/mms/207290928"],"classKind":"chapter","code":"18","codingNote":{"@language":"en","@value":"The codes included in this chapter are to be used for conditions related to or aggravated by the pregnancy, childbirth or by the puerperium (maternal causes or obstetric causes)"},"definition":{"@language":"en","@value":"A group of conditions characterised as occurring during the period of time from conception to delivery (pregnancy), during labour and delivery (childbirth) or during the approximately six weeks after delivery during which the uterus returns to the original size (puerperium)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/262236278","label":{"@language":"en","@value":"Obstetrical tetanus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/262236278"},{"foundationReference":"http://id.who.int/icd/entity/768216194","label":{"@language":"en","@value":"Postpartum necrosis of pituitary gland"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/768216194"},{"foundationReference":"http://id.who.int/icd/entity/850137482","label":{"@language":"en","@value":"External causes (for mortality)"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/850137482"},{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1144140024","label":{"@language":"en","@value":"Contact with health services for reasons associated with reproduction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1144140024"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/714000734","title":{"@language":"en","@value":"Pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/773832481": {"method":"GET","path":"icd/release/11/2026-01/mms/773832481","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/773832481","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#773832481","classKind":"category","code":"JB02.0","definition":{"@language":"en","@value":"A condition affecting pregnant females characterised by insufficiently strong or inappropriately coordinated rhythmic activity of the myometrium during labour to efface and dilate the cervix."},"inclusion":[{"label":{"@language":"en","@value":"Primary hypotonic uterine dysfunction"}},{"label":{"@language":"en","@value":"Primary inadequate contractions"}},{"label":{"@language":"en","@value":"Uterine inertia during latent phase of labour"}}],"indexTerm":[{"label":{"@language":"en","@value":"Primary uterine inertia"}},{"label":{"@language":"en","@value":"Primary hypotonic uterine dysfunction"}},{"label":{"@language":"en","@value":"Primary inadequate contractions"}},{"label":{"@language":"en","@value":"Uterine inertia during latent phase of labour"}},{"label":{"@language":"en","@value":"hypotonic primary dysfunction of uterus complicating delivery"}},{"label":{"@language":"en","@value":"hypotonic primary functional disturbance of uterus complicating delivery"}},{"label":{"@language":"en","@value":"hypotonic uterine dysfunction"}},{"label":{"@language":"en","@value":"hypotonic uterine inertia"}},{"label":{"@language":"en","@value":"primary dysfunctional labour"}},{"label":{"@language":"en","@value":"primary hypotonic labour"}},{"label":{"@language":"en","@value":"primary hypotonic uterine inertia"}},{"label":{"@language":"en","@value":"primary inertia of uterus during labour"}},{"label":{"@language":"en","@value":"prolonged latent phase of labour"}},{"label":{"@language":"en","@value":"uterine hypotonus"}},{"foundationReference":"http://id.who.int/icd/entity/1571320612","label":{"@language":"en","@value":"Failure of cervical dilatation"}},{"foundationReference":"http://id.who.int/icd/entity/1571320612","label":{"@language":"en","@value":"failure of dilatation of cervix in labour"}},{"foundationReference":"http://id.who.int/icd/entity/1571320612","label":{"@language":"en","@value":"incomplete poor or slow dilatation of cervix complicating delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1571320612","label":{"@language":"en","@value":"primary dystocia of cervix"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1730591881"],"source":"http://id.who.int/icd/entity/773832481","title":{"@language":"en","@value":"Primary uterine inertia"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/803406203": {"method":"GET","path":"icd/release/11/2026-01/mms/803406203","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/803406203","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#803406203","classKind":"category","code":"JA43.2","definition":{"@language":"en","@value":"A condition characterised by excessive loss of blood between 24 hours and 12 weeks after delivery. This condition is caused by uterine atony, trauma, retained placenta, or coagulopathy."},"indexTerm":[{"label":{"@language":"en","@value":"Delayed or secondary postpartum haemorrhage"}},{"label":{"@language":"en","@value":"delayed and secondary postpartum haemorrhage, unspecified as to episode of care"}},{"label":{"@language":"en","@value":"delayed or secondary puerperal haemorrhage"}},{"label":{"@language":"en","@value":"delayed postpartum haemorrhage"}},{"label":{"@language":"en","@value":"delayed puerperal metrorrhagia"}},{"label":{"@language":"en","@value":"delayed secondary puerperal metrorrhagia"}},{"label":{"@language":"en","@value":"delayed uterine puerperal haemorrhage"}},{"label":{"@language":"en","@value":"haemorrhage after first 24 hours following delivery of placenta"}},{"label":{"@language":"en","@value":"haemorrhage after the first 24 hours following delivery"}},{"label":{"@language":"en","@value":"postpartum haemorrhage specified as delayed or secondary"}},{"foundationReference":"http://id.who.int/icd/entity/1339318856","label":{"@language":"en","@value":"Haemorrhage associated with retained portions of placenta or membranes"}},{"foundationReference":"http://id.who.int/icd/entity/1339318856","label":{"@language":"en","@value":"partial retention of secundines NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1339318856","label":{"@language":"en","@value":"retained membrane NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1339318856","label":{"@language":"en","@value":"retention of membranes NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1254690648","label":{"@language":"en","@value":"Retained products of conception following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1254690648","label":{"@language":"en","@value":"retained secundines NOS"}},{"foundationReference":"http://id.who.int/icd/entity/648918281","label":{"@language":"en","@value":"Puerperal bleeding capillary"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/803406203/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/803406203/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1730591881","http://id.who.int/icd/release/11/2026-01/mms/554002939","http://id.who.int/icd/release/11/2026-01/mms/1146004591"]}],"source":"http://id.who.int/icd/entity/803406203","title":{"@language":"en","@value":"Delayed or secondary postpartum haemorrhage"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/820245648": {"method":"GET","path":"icd/release/11/2026-01/mms/820245648","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/820245648","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#820245648","child":["http://id.who.int/icd/release/11/2026-01/mms/1040555026","http://id.who.int/icd/release/11/2026-01/mms/1531859332","http://id.who.int/icd/release/11/2026-01/mms/803406203","http://id.who.int/icd/release/11/2026-01/mms/1252576495","http://id.who.int/icd/release/11/2026-01/mms/1388318842","http://id.who.int/icd/release/11/2026-01/mms/1811689101","http://id.who.int/icd/release/11/2026-01/mms/820245648/other","http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified"],"classKind":"category","code":"JA43","inclusion":[{"label":{"@language":"en","@value":"haemorrhage after delivery of fetus or infant"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/903303141"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]}],"source":"http://id.who.int/icd/entity/820245648","title":{"@language":"en","@value":"Postpartum haemorrhage"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/820245648/other": {"method":"GET","path":"icd/release/11/2026-01/mms/820245648/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#820245648/other","classKind":"category","code":"JA43.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified postpartum haemorrhage"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]}],"title":{"@language":"en","@value":"Other specified postpartum haemorrhage"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/820245648/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/820245648/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#820245648/unspecified","classKind":"category","code":"JA43.Z","indexTerm":[{"label":{"@language":"en","@value":"Postpartum haemorrhage, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/820245648","label":{"@language":"en","@value":"Postpartum haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/820245648","label":{"@language":"en","@value":"haemorrhage after delivery of fetus or infant"}},{"foundationReference":"http://id.who.int/icd/entity/820245648","label":{"@language":"en","@value":"hemorrhage after childbirth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/820245648"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/820245648/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1904468617","http://id.who.int/icd/release/11/2026-01/mms/348663581","http://id.who.int/icd/release/11/2026-01/mms/1617264610"]}],"title":{"@language":"en","@value":"Postpartum haemorrhage, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/903303141": {"method":"GET","path":"icd/release/11/2026-01/mms/903303141","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/903303141","blockId":"BlockL1-JA4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#903303141","child":["http://id.who.int/icd/release/11/2026-01/mms/224131129","http://id.who.int/icd/release/11/2026-01/mms/1794172502","http://id.who.int/icd/release/11/2026-01/mms/86946424","http://id.who.int/icd/release/11/2026-01/mms/820245648","http://id.who.int/icd/release/11/2026-01/mms/903303141/unspecified"],"classKind":"block","code":"","codeRange":"JA40-JA4Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/714000734"],"source":"http://id.who.int/icd/entity/903303141","title":{"@language":"en","@value":"Obstetric haemorrhage"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JA43.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA43.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA43.1","code":"JA43.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB02.2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA43.1%2fJB02.2","code":"JA43.1/JB02.2","hasCausingCondition":["JB02.2"],"stemCode":"JA43.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA43.1%2FJB09.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA43.1%2fJB09.0","code":"JA43.1/JB09.0","hasCausingCondition":["JB09.0"],"stemCode":"JA43.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB02.2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB02.2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB02.2","code":"JB02.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1073291850"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB09.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB09.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB09.0","code":"JB09.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/595260591"},"request_body":null,"status":200}
+ }
+}

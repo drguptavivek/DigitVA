@@ -1,0 +1,98 @@
+{
+ "id": "s070-dm",
+ "input": {
+  "id": "s070-dm",
+  "kind": "abbreviation",
+  "query": "DM",
+  "source": "VAs-03.03",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #395fd3a0d0"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 10,
+     "items": [
+      {
+       "code": "1B21.3",
+       "has_coding_note": false,
+       "matching_text": "Disseminated non-tuberculous mycobacterial infection",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Disseminated non-tuberculous mycobacterial infection",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/625446129"
+      },
+      {
+       "code": "5A14",
+       "has_coding_note": false,
+       "matching_text": "Diabetes mellitus, type unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Diabetes mellitus, type unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1697306310"
+      },
+      {
+       "code": "8C70.1",
+       "has_coding_note": false,
+       "matching_text": "Duchenne muscular dystrophy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Duchenne muscular dystrophy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1479561744"
+      },
+      {
+       "code": "8C71.0",
+       "has_coding_note": false,
+       "matching_text": "Myotonic dystrophy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Myotonic dystrophy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/192087511"
+      },
+      {
+       "code": "5A11",
+       "has_coding_note": false,
+       "matching_text": "Type 2 diabetes mellitus",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Type 2 diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/119724091"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "DM",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #395fd3a0d0": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/625446129","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1953154909","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'>AC</em> - [disseminated mycobacterium avium-intracellulare complex infection]","propertyId":"Synonym","propertyValueType":1,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/625446129","theCode":"1B21.3","title":"Disseminated non-tuberculous mycobacterial infection","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1697306310","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1697306310","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'></em> - [diabetes mellitus] NOS","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1697306310","theCode":"5A14","title":"Diabetes mellitus, type unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1479561744","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1479561744","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'>D</em> - [Duchenne muscular dystrophy]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1479561744","theCode":"8C70.1","title":"Duchenne muscular dystrophy","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/192087511","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/192087511","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'></em> - [dystrophia myotonica]","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/557405480","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'></em>1 - [Myotonic dystrophy type 1]","propertyId":"Synonym","propertyValueType":1,"score":-0.4371186726143852}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/192087511","theCode":"8C71.0","title":"Myotonic dystrophy","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/119724091","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/119724091","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'></em>2","propertyId":"Synonym","propertyValueType":0,"score":-0.40712964640640936},{"foundationUri":"http://id.who.int/icd/entity/119724091","important":false,"label":"<em class='found'>DM</em><em class='nonwbe'></em> type II","propertyId":"Synonym","propertyValueType":0,"score":-1.0342932458951566},{"foundationUri":"http://id.who.int/icd/entity/119724091","important":false,"label":"T2<em class='found'>DM</em><em class='nonwbe'></em> - [Type 2 diabetes mellitus]","propertyId":"Synonym","propertyValueType":0,"score":-1.0454256919398874}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.40712964640640936,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091","theCode":"5A11","title":"Type 2 diabetes mellitus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/388963453","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/388963453","important":false,"label":"chemical <em class='found'>DM</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.7120424541454748}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.7120424541454748,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/388963453","theCode":"5A13.4","title":"Diabetes mellitus due to drug or chemical","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"14","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1860717527","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1908011031","important":false,"label":"EBS-<em class='found'>DM</em><em class='nonwbe'></em> - [generalised epidermolysis bullosa simplex, Dowling-Meara]","propertyId":"Synonym","propertyValueType":1,"score":-0.9102099992523547}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.9102099992523547,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1860717527","theCode":"EC30","title":"Epidermolysis bullosa simplex","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1156295616","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/23809728","important":false,"label":"brittle <em class='found'>DM</em><em class='nonwbe'></em> - [diabetes mellitus]","propertyId":"Synonym","propertyValueType":1,"score":-1.025742361942771}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.025742361942771,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1156295616","theCode":"5A24","title":"Uncontrolled or unstable diabetes mellitus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1651053999","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1651053999","important":false,"label":"T1<em class='found'>DM</em><em class='nonwbe'></em> - [type 1 diabetes mellitus]","propertyId":"Synonym","propertyValueType":0,"score":-1.0754147181478633}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0754147181478633,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1651053999","theCode":"5A10","title":"Type 1 diabetes mellitus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1004695600","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1004695600","important":false,"label":"hypoglycemia (non-<em class='found'>DM</em><em class='nonwbe'></em>)","propertyId":"Synonym","propertyValueType":0,"score":-3.1491813441282765}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.1491813441282765,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1004695600","theCode":"5A41","title":"Hypoglycaemia without associated diabetes","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=DM%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

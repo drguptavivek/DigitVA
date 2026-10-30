@@ -1,0 +1,62 @@
+{
+ "id": "s023-hepatocellular-carcinoma",
+ "input": {
+  "id": "s023-hepatocellular-carcinoma",
+  "kind": "disease",
+  "query": "hepatocellular carcinoma",
+  "source": "VAs-02.02",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #c729f5e4f1"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 2,
+     "items": [
+      {
+       "code": "2C12.02",
+       "has_coding_note": false,
+       "matching_text": "Hepatocellular carcinoma of liver",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Hepatocellular carcinoma of liver",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1294035808"
+      },
+      {
+       "code": "2C12.00",
+       "has_coding_note": false,
+       "matching_text": "Combined hepatocellular-cholangiocarcinoma",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Combined hepatocellular-cholangiocarcinoma",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1097637010"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "hepatocellular carcinoma",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #c729f5e4f1": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1294035808","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1294035808","important":true,"label":"<em class='found'>Hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1294035808","important":true,"label":"<em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em>, NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1294035808","important":false,"label":"primary <em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.5505592792144038},{"foundationUri":"http://id.who.int/icd/entity/1294035808","important":false,"label":"HCC - [<em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.35614181684455914},{"foundationUri":"http://id.who.int/icd/entity/290874188","important":false,"label":"fibrolamellar <em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em> of unspecified site","propertyId":"Synonym","propertyValueType":1,"score":0.23943004841653237},{"foundationUri":"http://id.who.int/icd/entity/290874188","important":false,"label":"Fibrolamellar <em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em> of liver","propertyId":"Title","propertyValueType":1,"score":0.16835040578357233}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1294035808","theCode":"2C12.02","title":"<em class='found'>Hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em> of liver","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1097637010","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1097637010","important":false,"label":"mixed <em class='found'>hepatocellular</em> and bile duct <em class='found'>carcinoma</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.20436008225920507},{"foundationUri":"http://id.who.int/icd/entity/1097637010","important":false,"label":"<em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em> with cholangiocarcinoma","propertyId":"Synonym","propertyValueType":0,"score":-0.07465153703359477},{"foundationUri":"http://id.who.int/icd/entity/1097637010","important":false,"label":"combined <em class='found'>hepatocellular</em> <em class='found'>carcinoma</em><em class='nonwbe'></em> and cholangiocarcinoma","propertyId":"Synonym","propertyValueType":0,"score":-0.22928978178413173}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.20436008225920507,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1097637010","theCode":"2C12.00","title":"Combined <em class='found'>hepatocellular</em>-cholangiocarcinoma","titleIsASearchResult":true,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=hepatocellular+carcinoma%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

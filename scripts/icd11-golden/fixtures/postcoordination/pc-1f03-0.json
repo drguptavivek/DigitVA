@@ -1,0 +1,345 @@
+{
+ "built": [],
+ "id": "pc-1f03-0",
+ "input": {
+  "category": "plain",
+  "id": "pc-1f03-0",
+  "source": "VAs-01.06",
+  "stem": "1F03.0",
+  "why": "Measles (VA cause 01.06): no axes, perinatal link"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1F03.0",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1F03.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1F03.0",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1F03.0",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1F03.0",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1F03.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914",
+    "GET icd/release/11/2026-01/mms/1826431497",
+    "GET icd/release/11/2026-01/mms/1646490591",
+    "GET icd/release/11/2026-01/mms/1435254666",
+    "GET icd/release/11/2026-01/mms/1826431497",
+    "GET icd/entity/911707612",
+    "GET icd/release/11/2026-01/mms/844511898",
+    "GET icd/release/11/2026-01/mms/1461581580",
+    "GET icd/release/11/2026-01/mms/1826431497/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "01",
+       "title": "Certain infectious or parasitic diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+      },
+      {
+       "code": "",
+       "title": "Viral infections characterised by skin or mucous membrane lesions",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1646490591"
+      },
+      {
+       "code": "1F03",
+       "title": "Measles",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1826431497"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Measles without complication",
+      "Koplik spots",
+      "Rubeola",
+      "measles NOS"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/entity/911707612"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1F03.0",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "1F03.1",
+       "has_children": false,
+       "title": "Measles complicated by encephalitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/844511898"
+      },
+      {
+       "code": "1F03.2",
+       "has_children": false,
+       "title": "Measles complicated by meningitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1461581580"
+      },
+      {
+       "code": "1F03.Y",
+       "has_children": false,
+       "title": "Measles with other complications",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1826431497/other"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1F03.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1F03.0",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "1F03.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914",
+    "GET icd/release/11/2026-01/mms/911707612",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/1935107489",
+    "GET icd/release/11/2026-01/mms/1645664101",
+    "GET icd/release/11/2026-01/mms/528118622",
+    "GET icd/release/11/2026-01/mms/1945127438",
+    "GET icd/release/11/2026-01/mms/188684108",
+    "GET icd/release/11/2026-01/mms/911707612/other",
+    "GET icd/release/11/2026-01/mms/911707612/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1F03.0",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "terms": [
+      {
+       "code": "KA60",
+       "requires_postcoordination": false,
+       "title": "Sepsis of fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+      },
+      {
+       "code": "KA61",
+       "requires_postcoordination": true,
+       "title": "Other bacterial infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+      },
+      {
+       "code": "KA62",
+       "requires_postcoordination": false,
+       "title": "Viral infection in the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1645664101"
+      },
+      {
+       "code": "KA63",
+       "requires_postcoordination": false,
+       "title": "Fungal infection of fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/528118622"
+      },
+      {
+       "code": "KA64",
+       "requires_postcoordination": false,
+       "title": "Parasitic diseases in the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1945127438"
+      },
+      {
+       "code": "KA65",
+       "requires_postcoordination": false,
+       "title": "Neonatal infections of certain specified sites",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/188684108"
+      },
+      {
+       "code": "KA6Y",
+       "requires_postcoordination": false,
+       "title": "Other specified infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/other"
+      },
+      {
+       "code": "KA6Z",
+       "requires_postcoordination": false,
+       "title": "Infections of the fetus or newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "1F03.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1F03.0",
+    "GET icd/release/11/2026-01/mms/1503293914"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "A disease caused by an infection with Morbillivirus. This disease is characterised by fever, cough, coryza, conjunctivitis, enanthema, or maculopapular rash, without any additional secondary pathological conditions. Transmission is by inhalation of infected respiratory secretions, or direct contact. Confirmation is by detection of Morbillivirus RNA, or detection measles-specific IgM antibodies.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1F03.0",
+      "title": "Measles without complication",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1F03.0"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/911707612": {"method":"GET","path":"icd/entity/911707612","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/911707612","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#911707612","child":["http://id.who.int/icd/entity/953221469","http://id.who.int/icd/entity/381388700","http://id.who.int/icd/entity/1935107489","http://id.who.int/icd/entity/1645664101","http://id.who.int/icd/entity/528118622","http://id.who.int/icd/entity/1945127438","http://id.who.int/icd/entity/188684108","http://id.who.int/icd/entity/492702806","http://id.who.int/icd/entity/587996426","http://id.who.int/icd/entity/1643777651"],"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1511167574","label":{"@language":"en","@value":"Asymptomatic human immunodeficiency virus infection"}},{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"congenital gonococcal infection"}},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"human immunodeficiency virus [HIV] disease"}},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"}},{"foundationReference":"http://id.who.int/icd/entity/82994689","label":{"@language":"en","@value":"Laboratory evidence of human immunodeficiency virus"}}],"inclusion":[{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}}],"parent":["http://id.who.int/icd/entity/1435254666","http://id.who.int/icd/entity/1306203631"],"synonym":[{"label":{"@language":"en","@value":"fetal infection"}},{"label":{"@language":"en","@value":"infection in perinatal period"}},{"label":{"@language":"en","@value":"infection of newborn NOS"}},{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}},{"label":{"@language":"en","@value":"newborn infection"}},{"label":{"@language":"en","@value":"newborn opportunistic infection"}},{"label":{"@language":"en","@value":"perinatal infection"}}],"title":{"@language":"en","@value":"Infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1435254666": {"method":"GET","path":"icd/release/11/2026-01/mms/1435254666","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1435254666","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1435254666","child":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"],"classKind":"chapter","code":"01","definition":{"@language":"en","@value":"This chapter includes certain conditions caused by pathogenic organisms or microorganisms, such as bacteria, viruses, parasites or fungi."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1612485599","label":{"@language":"en","@value":"Infection arising from device, implant or graft, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1612485599"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"Infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/911707612"},{"foundationReference":"http://id.who.int/icd/entity/1965146397","label":{"@language":"en","@value":"Human prion diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965146397"},{"foundationReference":"http://id.who.int/icd/entity/142052508","label":{"@language":"en","@value":"Pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/142052508"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1435254666","title":{"@language":"en","@value":"Certain infectious or parasitic diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1461581580": {"method":"GET","path":"icd/release/11/2026-01/mms/1461581580","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1461581580","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1461581580","classKind":"category","code":"1F03.2","definition":{"@language":"en","@value":"A disease caused by an infection with Morbillivirus that is complicated by an infection of the meninges. This disease is characterised by symptoms of measles as well as inflammation of the meninges. This disease may also present with a fever, vomiting, lethargy, confusion, muscle pain, photophobia, or convulsions. Transmission is by haematogenous spread to the meninges after inhalation of infected respiratory secretions, airborne transmission, or direct contact. Confirmation is by detection of Morbillivirus RNA or measles-specific IgM antibodies."},"inclusion":[{"label":{"@language":"en","@value":"Postmeasles meningitis"}}],"indexTerm":[{"label":{"@language":"en","@value":"Measles complicated by meningitis"}},{"label":{"@language":"en","@value":"Postmeasles meningitis"}},{"label":{"@language":"en","@value":"post measles meningitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1826431497"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/1461581580","title":{"@language":"en","@value":"Measles complicated by meningitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1503293914": {"method":"GET","path":"icd/release/11/2026-01/mms/1503293914","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1503293914","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1503293914","classKind":"category","code":"1F03.0","definition":{"@language":"en","@value":"A disease caused by an infection with Morbillivirus. This disease is characterised by fever, cough, coryza, conjunctivitis, enanthema, or maculopapular rash, without any additional secondary pathological conditions. Transmission is by inhalation of infected respiratory secretions, or direct contact. Confirmation is by detection of Morbillivirus RNA, or detection measles-specific IgM antibodies."},"indexTerm":[{"label":{"@language":"en","@value":"Measles without complication"}},{"label":{"@language":"en","@value":"Koplik spots"}},{"label":{"@language":"en","@value":"Rubeola"}},{"label":{"@language":"en","@value":"measles NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1826431497"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/1503293914","title":{"@language":"en","@value":"Measles without complication"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1645664101": {"method":"GET","path":"icd/release/11/2026-01/mms/1645664101","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1645664101","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1645664101","child":["http://id.who.int/icd/release/11/2026-01/mms/755611612","http://id.who.int/icd/release/11/2026-01/mms/1861788994","http://id.who.int/icd/release/11/2026-01/mms/2071159826","http://id.who.int/icd/release/11/2026-01/mms/1515465998","http://id.who.int/icd/release/11/2026-01/mms/1354629557","http://id.who.int/icd/release/11/2026-01/mms/1981771784","http://id.who.int/icd/release/11/2026-01/mms/453730080","http://id.who.int/icd/release/11/2026-01/mms/648536096","http://id.who.int/icd/release/11/2026-01/mms/1059053724","http://id.who.int/icd/release/11/2026-01/mms/1270001765","http://id.who.int/icd/release/11/2026-01/mms/788102641","http://id.who.int/icd/release/11/2026-01/mms/1645664101/other","http://id.who.int/icd/release/11/2026-01/mms/1645664101/unspecified"],"classKind":"category","code":"KA62","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a virus."},"longDefinition":{"@language":"en","@value":"Congential viral diseases are diseases caused by either the bloodborne transmission of a virus from a pregnant mother to the placenta and her fetus (horizontal infection) or less commonly a direct infection of the membranes and placenta transvaginally across the cervix (vertical transmission) during any point during gestation and through the first 28 days of life The clinical manifestations of these diseases vary depending on the viral agent and gestational age at exposure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1645664101/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1646490591"]}],"source":"http://id.who.int/icd/entity/1645664101","title":{"@language":"en","@value":"Viral infection in the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1646490591": {"method":"GET","path":"icd/release/11/2026-01/mms/1646490591","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1646490591","blockId":"BlockL1-1E7","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1646490591","child":["http://id.who.int/icd/release/11/2026-01/mms/2080431678","http://id.who.int/icd/release/11/2026-01/mms/772982663","http://id.who.int/icd/release/11/2026-01/mms/80976093","http://id.who.int/icd/release/11/2026-01/mms/248851702","http://id.who.int/icd/release/11/2026-01/mms/1883970802","http://id.who.int/icd/release/11/2026-01/mms/410022648","http://id.who.int/icd/release/11/2026-01/mms/1826431497","http://id.who.int/icd/release/11/2026-01/mms/352375140","http://id.who.int/icd/release/11/2026-01/mms/299242184","http://id.who.int/icd/release/11/2026-01/mms/1646490591/other","http://id.who.int/icd/release/11/2026-01/mms/1646490591/unspecified"],"classKind":"block","code":"","codeRange":"1E70-1F0Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/1646490591","title":{"@language":"en","@value":"Viral infections characterised by skin or mucous membrane lesions"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1826431497": {"method":"GET","path":"icd/release/11/2026-01/mms/1826431497","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1826431497","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1826431497","child":["http://id.who.int/icd/release/11/2026-01/mms/1503293914","http://id.who.int/icd/release/11/2026-01/mms/844511898","http://id.who.int/icd/release/11/2026-01/mms/1461581580","http://id.who.int/icd/release/11/2026-01/mms/1826431497/other"],"classKind":"category","code":"1F03","definition":{"@language":"en","@value":"A disease of the respiratory system, caused by an infection with Morbillivirus. This disease is characterised by a blotchy rash, fever, cough, conjunctivitis, or malaise. This disease may also present with tiny white spots with bluish-white centres inside the mouth. Transmission is by inhalation of infected respiratory secretions, airborne transmission or direct contact. Confirmation is by detection of Morbillivirus RNA or measles-specific IgM antibodies."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1098683540","label":{"@language":"en","@value":"Subacute sclerosing panencephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1098683540"}],"inclusion":[{"label":{"@language":"en","@value":"morbilli"}}],"indexTerm":[{"label":{"@language":"en","@value":"Measles"}},{"label":{"@language":"en","@value":"morbilli"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1646490591"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826431497/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/657977518","http://id.who.int/icd/release/11/2026-01/mms/1188755650","http://id.who.int/icd/release/11/2026-01/mms/1079654421","http://id.who.int/icd/release/11/2026-01/mms/1024154490"]}],"source":"http://id.who.int/icd/entity/1826431497","title":{"@language":"en","@value":"Measles"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1826431497/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1826431497/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1826431497/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1826431497/other","classKind":"category","code":"1F03.Y","indexTerm":[{"label":{"@language":"en","@value":"Measles with other complications"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"Measles complicated by pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"GIP - [giant cell interstitial pneumonitis]"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"Postmeasles pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"giant cell interstitial pneumonitis"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"giant cell pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"measles pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/598779891","label":{"@language":"en","@value":"post measles pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1190881895","label":{"@language":"en","@value":"Measles complicated by otitis media"}},{"foundationReference":"http://id.who.int/icd/entity/1190881895","label":{"@language":"en","@value":"otitis media in measles"}},{"foundationReference":"http://id.who.int/icd/entity/1647523187","label":{"@language":"en","@value":"Post measles otitis media"}},{"foundationReference":"http://id.who.int/icd/entity/1647523187","label":{"@language":"en","@value":"Postmeasles otitis media"}},{"foundationReference":"http://id.who.int/icd/entity/890632691","label":{"@language":"en","@value":"Measles with intestinal complications"}},{"foundationReference":"http://id.who.int/icd/entity/1759129589","label":{"@language":"en","@value":"Keratitis and keratoconjunctivitis in measles"}},{"foundationReference":"http://id.who.int/icd/entity/1759129589","label":{"@language":"en","@value":"Interstitial keratitis and keratoconjunctivitis in measles"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1826431497"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1826431497/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/657977518","http://id.who.int/icd/release/11/2026-01/mms/1188755650","http://id.who.int/icd/release/11/2026-01/mms/1079654421","http://id.who.int/icd/release/11/2026-01/mms/1024154490"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"title":{"@language":"en","@value":"Measles with other complications"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/188684108": {"method":"GET","path":"icd/release/11/2026-01/mms/188684108","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#188684108","child":["http://id.who.int/icd/release/11/2026-01/mms/358047372","http://id.who.int/icd/release/11/2026-01/mms/244932428","http://id.who.int/icd/release/11/2026-01/mms/78758887","http://id.who.int/icd/release/11/2026-01/mms/1880920858","http://id.who.int/icd/release/11/2026-01/mms/1366690608","http://id.who.int/icd/release/11/2026-01/mms/188684108/other"],"classKind":"category","code":"KA65","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2040953952","label":{"@language":"en","@value":"Neonatal tracheitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2040953952"},{"foundationReference":"http://id.who.int/icd/entity/2002735219","label":{"@language":"en","@value":"Neonatal skin infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2002735219"}],"indexTerm":[{"label":{"@language":"en","@value":"Neonatal infections of certain specified sites"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1644747126","http://id.who.int/icd/release/11/2026-01/mms/687250607","http://id.who.int/icd/release/11/2026-01/mms/1509166126"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"source":"http://id.who.int/icd/entity/188684108","title":{"@language":"en","@value":"Neonatal infections of certain specified sites"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935107489": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489","child":["http://id.who.int/icd/release/11/2026-01/mms/576751653","http://id.who.int/icd/release/11/2026-01/mms/864425294","http://id.who.int/icd/release/11/2026-01/mms/1935107489/other","http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"],"classKind":"category","code":"KA61","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/358047372","label":{"@language":"en","@value":"Neonatal conjunctivitis or dacryocystitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/358047372"},{"foundationReference":"http://id.who.int/icd/entity/1880920858","label":{"@language":"en","@value":"Neonatal infectious mastitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1880920858"},{"foundationReference":"http://id.who.int/icd/entity/78758887","label":{"@language":"en","@value":"Neonatal urinary tract infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/78758887"},{"foundationReference":"http://id.who.int/icd/entity/244932428","label":{"@language":"en","@value":"Omphalitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/244932428"},{"foundationReference":"http://id.who.int/icd/entity/1366690608","label":{"@language":"en","@value":"Neonatal meningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1366690608"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1926763926","label":{"@language":"en","@value":"Early congenital syphilis, latent"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1926763926"},{"foundationReference":"http://id.who.int/icd/entity/395565060","label":{"@language":"en","@value":"Early congenital syphilis, symptomatic"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/395565060"},{"foundationReference":"http://id.who.int/icd/entity/1681155693","label":{"@language":"en","@value":"Neonatal necrotising fasciitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1681155693"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/756297560","label":{"@language":"en","@value":"Neonatal pyogenic skin infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/756297560"},{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"Congenital pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"source":"http://id.who.int/icd/entity/1935107489","title":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1945127438": {"method":"GET","path":"icd/release/11/2026-01/mms/1945127438","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1945127438","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1945127438","child":["http://id.who.int/icd/release/11/2026-01/mms/1194018225","http://id.who.int/icd/release/11/2026-01/mms/738335517","http://id.who.int/icd/release/11/2026-01/mms/1945127438/other","http://id.who.int/icd/release/11/2026-01/mms/1945127438/unspecified"],"classKind":"category","code":"KA64","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a parasite."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/587996426","label":{"@language":"en","@value":"Congenital syphilis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/587996426"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1945127438/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1439886552","http://id.who.int/icd/release/11/2026-01/mms/817691561","http://id.who.int/icd/release/11/2026-01/mms/1786908147","http://id.who.int/icd/release/11/2026-01/mms/793136270","http://id.who.int/icd/release/11/2026-01/mms/255141529/other","http://id.who.int/icd/release/11/2026-01/mms/255141529/unspecified"]}],"source":"http://id.who.int/icd/entity/1945127438","title":{"@language":"en","@value":"Parasitic diseases in the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381388700": {"method":"GET","path":"icd/release/11/2026-01/mms/381388700","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381388700","classKind":"category","code":"KA60","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/622600769","label":{"@language":"en","@value":"Sepsis without septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/622600769"},{"foundationReference":"http://id.who.int/icd/entity/1683090852","label":{"@language":"en","@value":"Sepsis with septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1683090852"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1244991579","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified staphylococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"},{"foundationReference":"http://id.who.int/icd/entity/1540590898","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified streptococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis of fetus or newborn"}},{"label":{"@language":"en","@value":"congenital sepsis"}},{"label":{"@language":"en","@value":"neonatal sepsis"}},{"label":{"@language":"en","@value":"perinatal sepsis"}},{"label":{"@language":"en","@value":"sepsis neonatorum"}},{"foundationReference":"http://id.who.int/icd/entity/1559390111","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to streptococcus, group A"}},{"foundationReference":"http://id.who.int/icd/entity/1559390111","label":{"@language":"en","@value":"neonatal sepsis due to streptococcus, group A"}},{"foundationReference":"http://id.who.int/icd/entity/1050165412","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/1050165412","label":{"@language":"en","@value":"neonatal sepsis due to streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/796843471","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to Staphylococcus aureus infection"}},{"foundationReference":"http://id.who.int/icd/entity/796843471","label":{"@language":"en","@value":"neonatal sepsis due to Staphylococcus aureus infection"}},{"foundationReference":"http://id.who.int/icd/entity/970687439","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to Escherichia coli infection"}},{"foundationReference":"http://id.who.int/icd/entity/970687439","label":{"@language":"en","@value":"neonatal sepsis due to Escherichia coli"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/519468631","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628"]}],"source":"http://id.who.int/icd/entity/381388700","title":{"@language":"en","@value":"Sepsis of fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/528118622": {"method":"GET","path":"icd/release/11/2026-01/mms/528118622","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/528118622","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#528118622","child":["http://id.who.int/icd/release/11/2026-01/mms/1888209399","http://id.who.int/icd/release/11/2026-01/mms/1791817517","http://id.who.int/icd/release/11/2026-01/mms/1080592090","http://id.who.int/icd/release/11/2026-01/mms/528118622/other","http://id.who.int/icd/release/11/2026-01/mms/528118622/unspecified"],"classKind":"category","code":"KA63","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a fungal agent."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/528118622/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1913468488","http://id.who.int/icd/release/11/2026-01/mms/2087283296","http://id.who.int/icd/release/11/2026-01/mms/1968108845","http://id.who.int/icd/release/11/2026-01/mms/2055968951","http://id.who.int/icd/release/11/2026-01/mms/1438584733","http://id.who.int/icd/release/11/2026-01/mms/132287989","http://id.who.int/icd/release/11/2026-01/mms/1326582778","http://id.who.int/icd/release/11/2026-01/mms/390527954","http://id.who.int/icd/release/11/2026-01/mms/1802307036","http://id.who.int/icd/release/11/2026-01/mms/1866587875","http://id.who.int/icd/release/11/2026-01/mms/1303003466","http://id.who.int/icd/release/11/2026-01/mms/566562143","http://id.who.int/icd/release/11/2026-01/mms/1676389165","http://id.who.int/icd/release/11/2026-01/mms/532698403","http://id.who.int/icd/release/11/2026-01/mms/268777657","http://id.who.int/icd/release/11/2026-01/mms/547567937","http://id.who.int/icd/release/11/2026-01/mms/404370038","http://id.who.int/icd/release/11/2026-01/mms/807637046","http://id.who.int/icd/release/11/2026-01/mms/579570784","http://id.who.int/icd/release/11/2026-01/mms/646368820","http://id.who.int/icd/release/11/2026-01/mms/1357848258","http://id.who.int/icd/release/11/2026-01/mms/730271848","http://id.who.int/icd/release/11/2026-01/mms/1939815950/other","http://id.who.int/icd/release/11/2026-01/mms/1939815950/unspecified"]}],"source":"http://id.who.int/icd/entity/528118622","title":{"@language":"en","@value":"Fungal infection of fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/844511898": {"method":"GET","path":"icd/release/11/2026-01/mms/844511898","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/844511898","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#844511898","classKind":"category","code":"1F03.1","definition":{"@language":"en","@value":"A disease caused by an infection with Morbillivirus that is complicated by an infection of the brain. This disease is characterised by symptoms of measles as well as inflammation of the brain. This disease may also present with fever, headache, poor appetite, vomiting, confusion, lethargy, or photophobia. Transmission is by haematogenous spread to the brain after inhalation of infected respiratory secretions, by airborne transmission, or by direct contact. Confirmation is by detection of Morbillivirus RNA or measles-specific IgM antibodies."},"indexTerm":[{"label":{"@language":"en","@value":"Measles complicated by encephalitis"}},{"label":{"@language":"en","@value":"Encephalitis due to Morbillivirus"}},{"label":{"@language":"en","@value":"Post measles encephalitis"}},{"label":{"@language":"en","@value":"Postmeasles encephalomyelitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1826431497"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/911707612"],"source":"http://id.who.int/icd/entity/844511898","title":{"@language":"en","@value":"Measles complicated by encephalitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612","blockId":"BlockL1-KA6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612","child":["http://id.who.int/icd/release/11/2026-01/mms/381388700","http://id.who.int/icd/release/11/2026-01/mms/1935107489","http://id.who.int/icd/release/11/2026-01/mms/1645664101","http://id.who.int/icd/release/11/2026-01/mms/528118622","http://id.who.int/icd/release/11/2026-01/mms/1945127438","http://id.who.int/icd/release/11/2026-01/mms/188684108","http://id.who.int/icd/release/11/2026-01/mms/911707612/other","http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"],"classKind":"block","code":"","codeRange":"KA60-KA6Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1511167574","label":{"@language":"en","@value":"Asymptomatic human immunodeficiency virus infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/574153866"},{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"congenital gonococcal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/609214049"},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"human immunodeficiency virus [HIV] disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1000704511"},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/588616678"},{"foundationReference":"http://id.who.int/icd/entity/82994689","label":{"@language":"en","@value":"Laboratory evidence of human immunodeficiency virus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/82994689"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/953221469","label":{"@language":"en","@value":"Fetus or newborn affected by maternal infectious diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/953221469"},{"foundationReference":"http://id.who.int/icd/entity/587996426","label":{"@language":"en","@value":"Congenital syphilis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/587996426"}],"inclusion":[{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1306203631"],"source":"http://id.who.int/icd/entity/911707612","title":{"@language":"en","@value":"Infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612/other": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612/other","classKind":"category","code":"KA6Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified infections of the fetus or newborn"}},{"foundationReference":"http://id.who.int/icd/entity/492702806","label":{"@language":"en","@value":"Neonatal hyperbilirubinaemia due to red cell haemolysis with infection"}},{"foundationReference":"http://id.who.int/icd/entity/492702806","label":{"@language":"en","@value":"Neonatal hyperbilirubinemia secondary to red cell haemolysis with infection"}},{"foundationReference":"http://id.who.int/icd/entity/1643777651","label":{"@language":"en","@value":"Intra-amniotic infection of fetus"}},{"foundationReference":"http://id.who.int/icd/entity/1643777651","label":{"@language":"en","@value":"intra-amniotic infection of fetus nos"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"title":{"@language":"en","@value":"Other specified infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612/unspecified","classKind":"category","code":"KA6Z","indexTerm":[{"label":{"@language":"en","@value":"Infections of the fetus or newborn, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"fetal infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infection in perinatal period"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infection of newborn NOS"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infections acquired in utero or during birth"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"newborn infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"newborn opportunistic infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"perinatal infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"title":{"@language":"en","@value":"Infections of the fetus or newborn, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1F03.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1F03.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1F03.0","code":"1F03.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1503293914"},"request_body":null,"status":200}
+ }
+}

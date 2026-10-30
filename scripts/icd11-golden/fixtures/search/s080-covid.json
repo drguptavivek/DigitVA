@@ -1,0 +1,98 @@
+{
+ "id": "s080-covid",
+ "input": {
+  "id": "s080-covid",
+  "kind": "abbreviation",
+  "query": "COVID",
+  "source": "VAs-01.13",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #4239afcdef"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 11,
+     "items": [
+      {
+       "code": "RA01.0",
+       "has_coding_note": true,
+       "matching_text": "COVID-19, virus identified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "COVID-19, virus identified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1790791774"
+      },
+      {
+       "code": "RA02",
+       "has_coding_note": true,
+       "matching_text": "Post COVID-19 condition",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Post COVID-19 condition",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2024855916"
+      },
+      {
+       "code": "RA01",
+       "has_coding_note": false,
+       "matching_text": "COVID-19",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "COVID-19",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730556128"
+      },
+      {
+       "code": "RA01.1",
+       "has_coding_note": true,
+       "matching_text": "COVID-19, virus not identified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "COVID-19, virus not identified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/563410356"
+      },
+      {
+       "code": "QA08.5",
+       "has_coding_note": false,
+       "matching_text": "Special screening examination for other viral diseases",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Special screening examination for other viral diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/412651167"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "COVID",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #4239afcdef": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"25","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1790791774","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":true,"label":"<em class='found'>covid</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":false,"label":"<em class='found'>COVID</em><em class='nonwbe'></em>-19 NOS","propertyId":"Synonym","propertyValueType":0,"score":-2.2154398323666293},{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":false,"label":"confirmed <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-2.8018433311961592},{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":false,"label":"lab confirmed <em class='found'>covid</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.2525305618430203},{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":false,"label":"confirmed <em class='found'>COVID</em><em class='nonwbe'></em>-19 with symptoms","propertyId":"Synonym","propertyValueType":0,"score":-3.2678001746781398},{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":false,"label":"laboratory confirmed <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-3.688155796964076},{"foundationUri":"http://id.who.int/icd/entity/1790791774","important":false,"label":"<em class='found'>COVID</em><em class='nonwbe'></em>-19 confirmed with laboratory testing with symptoms","propertyId":"Synonym","propertyValueType":0,"score":-4.8534720735808214}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1790791774","theCode":"RA01.0","title":"<em class='found'>COVID</em><em class='nonwbe'></em>-19, virus identified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"25","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2024855916","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2024855916","important":false,"label":"long <em class='found'>COVID</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.1068868255912228},{"foundationUri":"http://id.who.int/icd/entity/2024855916","important":false,"label":"post-<em class='found'>COVID</em><em class='nonwbe'></em>-19 condition","propertyId":"Synonym","propertyValueType":0,"score":-4.285021390409406}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.1068868255912228,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2024855916","theCode":"RA02","title":"Post <em class='found'>COVID</em><em class='nonwbe'></em>-19 condition","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"25","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1730556128","important":false,"isLeaf":false,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.2154398323666293,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1730556128","theCode":"RA01","title":"<em class='found'>COVID</em><em class='nonwbe'></em>-19","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"25","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/563410356","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/563410356","important":false,"label":"clinical <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-2.7564876203379853},{"foundationUri":"http://id.who.int/icd/entity/563410356","important":false,"label":"suspected <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-2.973592171186726},{"foundationUri":"http://id.who.int/icd/entity/563410356","important":false,"label":"probable <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-3.162796394123787},{"foundationUri":"http://id.who.int/icd/entity/563410356","important":false,"label":"clinically diagnosed <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-3.557585275513862},{"foundationUri":"http://id.who.int/icd/entity/563410356","important":false,"label":"epidemilogically diagnosed <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":0,"score":-4.426556796063726}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.7564876203379853,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/563410356","theCode":"RA01.1","title":"<em class='found'>COVID</em><em class='nonwbe'></em>-19, virus not identified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/412651167","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/741241668","important":false,"label":"testing for <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":1,"score":-2.914799265501394},{"foundationUri":"http://id.who.int/icd/entity/741241668","important":false,"label":"Screening for <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Title","propertyValueType":1,"score":-4.3910402266111745},{"foundationUri":"http://id.who.int/icd/entity/741241668","important":false,"label":"<em class='found'>COVID</em><em class='nonwbe'></em>-19 screening","propertyId":"Synonym","propertyValueType":1,"score":-4.3910402266111745}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.914799265501394,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/412651167","theCode":"QA08.5","title":"Special screening examination for other viral diseases","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1550698926","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/105090806","important":false,"label":"Personal history of <em class='found'>COVID</em><em class='nonwbe'></em>-19, NOS","propertyId":"Synonym","propertyValueType":1,"score":-3.3416961114817525},{"foundationUri":"http://id.who.int/icd/entity/105090806","important":false,"label":"Personal history of <em class='found'>COVID</em><em class='nonwbe'></em>-19, virus identified","propertyId":"Title","propertyValueType":1,"score":-4.3857380828469905},{"foundationUri":"http://id.who.int/icd/entity/1201573795","important":false,"label":"Personal history of <em class='found'>COVID</em><em class='nonwbe'></em>-19, virus not identified","propertyId":"Title","propertyValueType":1,"score":-4.794400207252823}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.3416961114817525,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1550698926","theCode":"QC42.0","title":"Personal history of <em class='found'>COVID</em><em class='nonwbe'></em>-19","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/122701393","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/122701393","important":false,"label":"Prophylactic <em class='found'>COVID</em><em class='nonwbe'></em>-19 vaccination","propertyId":"Synonym","propertyValueType":0,"score":-3.7601962091624026}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.7601962091624026,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/122701393","theCode":"QC01.9","title":"Need for immunization against <em class='found'>COVID</em><em class='nonwbe'></em>-19","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"25","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1195031154","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2115464528","important":false,"label":"hypercytokinemia temporally associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":1,"score":-4.7836835855706905},{"foundationUri":"http://id.who.int/icd/entity/91496703","important":false,"label":"Kawasaki-like syndrome temporally associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Title","propertyValueType":1,"score":-5.539366928120313},{"foundationUri":"http://id.who.int/icd/entity/824560915","important":false,"label":"Multisystem inflammatory syndrome in children temporally associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Title","propertyValueType":1,"score":-6.024211456726595},{"foundationUri":"http://id.who.int/icd/entity/824560915","important":false,"label":"Paediatric inflammatory multisystem syndrome temporally associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":1,"score":-6.155138057640503},{"foundationUri":"http://id.who.int/icd/entity/824560915","important":false,"label":"MIS-C - [Multisystem inflammatory syndrome in children] temporally associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Synonym","propertyValueType":1,"score":-6.2217991173681115},{"foundationUri":"http://id.who.int/icd/entity/2115464528","important":false,"label":"Cytokine storm temporally associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","propertyId":"Title","propertyValueType":1,"score":-8.104533915977918}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.523571282581893,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1195031154","theCode":"RA03","title":"Multisystem inflammatory syndrome associated with <em class='found'>COVID</em><em class='nonwbe'></em>-19","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"25","descendants":[],"entityType":1,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1790791774 / http://id.who.int/icd/release/11/2026-01/mms/1024154490/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-7.2448504823611835,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1790791774","theCode":"RA01.0/CA40.1Z","title":"<em class='found'>COVID</em><em class='nonwbe'></em>-19 with pneumonia, SARS-CoV-2 identified","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"25","descendants":[],"entityType":1,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/563410356 / http://id.who.int/icd/release/11/2026-01/mms/1024154490/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-7.653512606767016,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/563410356","theCode":"RA01.1/CA40.1Z","title":"<em class='found'>COVID</em><em class='nonwbe'></em>-19 with pneumonia, SARS-CoV-2 not identified","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1158914813","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/135018067","important":false,"label":"Drugs, medicaments or biological substances associated with injury or harm in therapeutic use, <em class='found'>COVID</em><em class='nonwbe'></em>-19 vaccine","propertyId":"Title","propertyValueType":1,"score":-8.04830897003957},{"foundationUri":"http://id.who.int/icd/entity/135018067","important":false,"label":"Correct administration of <em class='found'>COVID</em><em class='nonwbe'></em>-19 vaccine in prophylactic therapeutic use as the cause of any adverse effect","propertyId":"Synonym","propertyValueType":1,"score":-8.644513354577576}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.04830897003957,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1158914813","theCode":"PL00","title":"Drugs, medicaments or biological substances associated with injury or harm in therapeutic use","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=COVID%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

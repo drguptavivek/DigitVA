@@ -1,0 +1,98 @@
+{
+ "id": "s003-congestive-heart-failure",
+ "input": {
+  "id": "s003-congestive-heart-failure",
+  "kind": "disease",
+  "query": "congestive heart failure",
+  "source": "VAs-04.01",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #68400000ce"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 14,
+     "items": [
+      {
+       "code": "BD10",
+       "has_coding_note": false,
+       "matching_text": "Congestive heart failure",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Congestive heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+      },
+      {
+       "code": "BD10&XT5R",
+       "has_coding_note": false,
+       "matching_text": "Acute congestive heart failure",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Acute congestive heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/786106375"
+      },
+      {
+       "code": "BD10&XT8W",
+       "has_coding_note": false,
+       "matching_text": "Chronic congestive heart failure",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic congestive heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/490003542"
+      },
+      {
+       "code": "BD11.0",
+       "has_coding_note": false,
+       "matching_text": "Left ventricular failure with preserved ejection fraction",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Left ventricular failure with preserved ejection fraction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1428007510"
+      },
+      {
+       "code": "BD14",
+       "has_coding_note": false,
+       "matching_text": "Biventricular failure",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Biventricular failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1992125824"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "congestive heart failure",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #68400000ce": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2136808878","important":false,"label":"<em class='found'>congested</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/2136808878","important":false,"label":"<em class='found'>congestive</em> <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/2011334376","important":false,"label":"Decompensated <em class='found'>congestive</em> <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.5466312774516165},{"foundationUri":"http://id.who.int/icd/entity/2011334376","important":false,"label":"Decompensated <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":0.5466312774516165},{"foundationUri":"http://id.who.int/icd/entity/2136808878","important":false,"label":"CHF - [<em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.49958697373435274},{"foundationUri":"http://id.who.int/icd/entity/2136808878","important":false,"label":"CCF - [<em class='found'>congestive</em> <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.46477822335581265}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10","title":"<em class='found'>Congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/786106375","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.7149525215271938,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10&XT5R","title":"Acute <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/490003542","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.7126560209494677,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10&XT8W","title":"Chronic <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1428007510","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1970105132","important":false,"label":"Chronic diastolic <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.42521092424686485}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.42521092424686485,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1428007510","theCode":"BD11.0","title":"Left ventricular <em class='found'>failure</em><em class='nonwbe'></em> with preserved ejection fraction","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1992125824","important":false,"label":"biventricular <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.4231854496249628}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.4231854496249628,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1992125824","theCode":"BD14","title":"Biventricular <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1611051049/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1992034474","important":false,"label":"Newborn <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.21705797288900006},{"foundationUri":"http://id.who.int/icd/entity/1992034474","important":false,"label":"newborn acute <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":0.09137677589228814}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.21705797288900006,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1611051049/other","theCode":"KB40.Y","title":"Other specified neonatal <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1210166201 / http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"<em class='found'>Congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em> due to hypertension","propertyId":"Synonym","propertyValueType":2,"score":0.20126114289881464},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"hypertensive <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":0.20126114289881464},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"Hypertensive <em class='found'>heart</em> disease with <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":0.10772277209318382},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"benign hypertensive <em class='found'>heart</em> disease with <em class='found'>congestive</em> <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-0.045018131149686974},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"benign hypertensive <em class='found'>heart</em> disease with <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-0.045018131149686974},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"hypertensive CCF - [<em class='found'>congestive</em> <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":2,"score":-0.17459435226927822},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"malignant hypertensive <em class='found'>heart</em> disease with <em class='found'>congestive</em> <em class='found'>cardiac</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-0.25027926036836945},{"foundationUri":"http://id.who.int/icd/entity/600660459","important":false,"label":"malignant hypertensive <em class='found'>heart</em> disease with <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-0.25027926036836945}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.20126114289881464,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1210166201","theCode":"BA01/BD1Z","title":"Hypertensive <em class='found'>heart</em> disease with <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/206731332","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.14407777266363694,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10&XS3A","title":"<em class='found'>Congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em> NYHA Class I","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/1232119755","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.11496882925119581,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10&XS6B","title":"<em class='found'>Congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em> NYHA Class II","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/537685513","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1068960732","important":false,"label":"<em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em> NYHA Class III - Marked limitation of physical activity. Comfortable at rest. Less than ordinary activity causes fatigue, palpitation or dyspnoea.","propertyId":"Synonym","propertyValueType":2,"score":-4.5723461105595975}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.06894576200624396,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10&XS9T","title":"<em class='found'>Congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em> NYHA Class III","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878 & http://id.who.int/icd/release/11/2026-01/mms/175684441","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.047829735140920544,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","theCode":"BD10&XS9F","title":"<em class='found'>Congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em> NYHA Class IV","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified / http://id.who.int/icd/release/11/2026-01/mms/2136808878","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.005981828592619705,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified","theCode":"BA52.Z/BD10","title":"Arteriosclerotic <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1210166201","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1208029865","important":false,"label":"Hypertensive <em class='found'>heart</em> disease without <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.02645831913060687}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.02645831913060687,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1210166201","theCode":"BA01","title":"Hypertensive <em class='found'>heart</em> disease","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/291726710/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1750190872","important":false,"label":"Inactive or quiescent rheumatic fever with <em class='found'>congestive</em> <em class='found'>heart</em> <em class='found'>failure</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.9884451120085254}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.9884451120085254,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/291726710/other","theCode":"BC20.Y","title":"Other specified chronic rheumatic <em class='found'>heart</em> disease","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=congestive+heart+failure%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

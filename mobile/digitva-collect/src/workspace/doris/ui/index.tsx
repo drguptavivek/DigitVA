@@ -210,7 +210,7 @@ export function Button({ label, children, onPress, variant = "default", size = "
       ]}
     >
       {loading ? <ActivityIndicator size="small" color={tone.fg} /> : null}
-      {children ?? <Text style={{ fontSize: font.body, lineHeight: 20, fontWeight: "500", color: tone.fg }}>{label}</Text>}
+      {children ?? <Text style={{ flexShrink: 1, textAlign: "center", fontSize: font.body, lineHeight: 20, fontWeight: "500", color: tone.fg }}>{label}</Text>}
     </Pressable>
   );
 }
@@ -398,7 +398,7 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
             <Pressable accessibilityLabel="Close menu" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }} />
             <View accessibilityRole="menu" onLayout={(event) => setMenuHeight(event.nativeEvent.layout.height)}
               style={[{ position: "absolute", top, left, minWidth: width, opacity: ready ? 1 : 0, backgroundColor: t.popover, borderWidth: 1, borderColor: t.border, borderRadius: uiRadius.md, padding: gap.xs, elevation: 4 }]}>
-              <ScrollView style={{ maxHeight: listMaxHeight }} keyboardShouldPersistTaps="handled">
+              <ScrollView keyboardDismissMode="on-drag" style={{ maxHeight: listMaxHeight }} keyboardShouldPersistTaps="handled">
                 {options.map((option) => {
                   const on = option.value === selected;
                   return (
@@ -438,7 +438,10 @@ export function useLayout() {
     panel: phone ? { borderWidth: 0, borderRadius: 0, padding: gap.sm, ...(isWeb ? { marginHorizontal: -14 } : {}) } as ViewStyle : {} as ViewStyle,
     row: { flexDirection: "row", alignItems: "center", gap: gap.md, flexWrap: "wrap" } as ViewStyle,
     nowrap: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: gap.sm, flexWrap: "nowrap" } as ViewStyle,
-    iconRow: { flexDirection: "row", alignItems: "center", gap: gap.xs, flexShrink: 0 } as ViewStyle,
+    // 8px apart: the 4px hit-slop of two neighbouring 36px buttons then meets without overlapping.
+    iconRow: { flexDirection: "row", alignItems: "center", gap: gap.sm, flexShrink: 0 } as ViewStyle,
+    // Cells are row items (flexBasis is their width). Anything with flexGrow or flexBasis inside a cell must itself be in a
+    // row: in a column Yoga reads them as a height, and with RN's legacy stretch errata a growing child fills the height it was offered.
     grid: { flexDirection: "row", flexWrap: "wrap", gap: gap.md } as ViewStyle,
     cell: { flexGrow: 1, flexBasis: 240, minWidth: 0, gap: gap.xs } as ViewStyle,
     stack: { gap: gap.xs } as ViewStyle,

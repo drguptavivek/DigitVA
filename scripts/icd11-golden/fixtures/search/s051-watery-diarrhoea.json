@@ -1,0 +1,74 @@
+{
+ "id": "s051-watery-diarrhoea",
+ "input": {
+  "id": "s051-watery-diarrhoea",
+  "kind": "lay",
+  "query": "watery diarrhoea",
+  "source": "VAs-01.04",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #a47c314e90"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "ME05.1",
+       "has_coding_note": false,
+       "matching_text": "Diarrhoea",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Diarrhoea",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/116759077"
+      },
+      {
+       "code": "1A40.Z",
+       "has_coding_note": false,
+       "matching_text": "Infectious gastroenteritis or colitis without specification of infectious agent",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Infectious gastroenteritis or colitis without specification of infectious agent",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified"
+      },
+      {
+       "code": "2C10.1",
+       "has_coding_note": false,
+       "matching_text": "Neuroendocrine neoplasms of pancreas",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Neuroendocrine neoplasms of pancreas",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1421495979"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "watery diarrhoea",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #a47c314e90": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/116759077","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/116759077","important":true,"label":"<em class='found'>watery</em> <em class='found'>diarrhoea</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/116759077","theCode":"ME05.1","title":"<em class='found'>Diarrhoea</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1688127370","important":false,"label":"acute <em class='found'>watery</em> <em class='found'>diarrhoea</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.2752439478629853}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.2752439478629853,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified","theCode":"1A40.Z","title":"Infectious gastroenteritis or colitis without specification of infectious agent","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1421495979","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/20634476","important":false,"label":"WDHA - [<em class='found'>watery</em> diarrhea, hypokalemia, and achlorhydria] syndrome","propertyId":"Synonym","propertyValueType":1,"score":-4.225916340079222}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.225916340079222,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1421495979","theCode":"2C10.1","title":"Neuroendocrine neoplasms of pancreas","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=watery+diarrhoea%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

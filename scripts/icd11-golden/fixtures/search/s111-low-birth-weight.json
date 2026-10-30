@@ -1,0 +1,98 @@
+{
+ "id": "s111-low-birth-weight",
+ "input": {
+  "id": "s111-low-birth-weight",
+  "kind": "neonatal",
+  "query": "low birth weight",
+  "source": "VAs-10.01; scripts/icd11-parity/queries.json",
+  "why": "neonatal or stillbirth cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #860f7207d1"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 12,
+     "items": [
+      {
+       "code": "KA21.0Z",
+       "has_coding_note": true,
+       "matching_text": "Extremely low birth weight of newborn, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Extremely low birth weight of newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/307162488/unspecified"
+      },
+      {
+       "code": "KA21.2Z",
+       "has_coding_note": false,
+       "matching_text": "Low birth weight of newborn, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Low birth weight of newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2041060050/unspecified"
+      },
+      {
+       "code": "KA21.1Z",
+       "has_coding_note": true,
+       "matching_text": "Very low birth weight of newborn, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Very low birth weight of newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1996824802/unspecified"
+      },
+      {
+       "code": "4A01.0Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified immunodeficiencies with predominantly antibody defects",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified immunodeficiencies with predominantly antibody defects",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/85074116/other"
+      },
+      {
+       "code": "KA21",
+       "has_coding_note": true,
+       "matching_text": "Disorders of newborn related to short gestation or low birth weight, not elsewhere classified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Disorders of newborn related to short gestation or low birth weight, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1950379483"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "low birth weight",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #860f7207d1": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/307162488/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/307162488","important":false,"label":"extreme <em class='found'>low</em> <em class='found'>birthweight</em>","propertyId":"Synonym","propertyValueType":0,"score":0.3330722842725496},{"foundationUri":"http://id.who.int/icd/entity/307162488","important":false,"label":"extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> infant","propertyId":"Synonym","propertyValueType":0,"score":0.019876721403578802},{"foundationUri":"http://id.who.int/icd/entity/307162488","important":false,"label":"severe LBW - [<em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em>] infant","propertyId":"Synonym","propertyValueType":0,"score":-0.4237215834346679},{"foundationUri":"http://id.who.int/icd/entity/307162488","important":false,"label":"ELBW - [extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em>] infant","propertyId":"Synonym","propertyValueType":0,"score":-0.5566829158200632},{"foundationUri":"http://id.who.int/icd/entity/307162488","important":false,"label":"Extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-0.5964605752345041}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.3330722842725496,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/307162488/unspecified","theCode":"KA21.0Z","title":"Extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2041060050/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2041060050","important":false,"label":"<em class='found'>Low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-0.24391295963484372},{"foundationUri":"http://id.who.int/icd/entity/2041060050","important":false,"label":"<em class='found'>birthweight</em> <em class='found'>low</em> for gestational age","propertyId":"Synonym","propertyValueType":0,"score":-0.45407113113415}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.24391295963484372,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2041060050/unspecified","theCode":"KA21.2Z","title":"<em class='found'>Low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1996824802/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1996824802","important":false,"label":"Very <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-0.574491896288758}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.574491896288758,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1996824802/unspecified","theCode":"KA21.1Z","title":"Very <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"04","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/85074116/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/409218252","important":false,"label":"<em class='found'>Low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> - dwarfism - dysgammaglobulinaemia","propertyId":"Title","propertyValueType":1,"score":-1.53613095837384}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.53613095837384,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/85074116/other","theCode":"4A01.0Y","title":"Other specified immunodeficiencies with predominantly antibody defects","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1950379483","important":false,"isLeaf":false,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.5964276220564213,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1950379483","theCode":"KA21","title":"Disorders of newborn related to short gestation or <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em>, not elsewhere classified","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1367524480","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.6337948207506956,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1367524480","theCode":"KA21.21","title":"<em class='found'>Low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 2000-2499g","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1809412104","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.6681190353788442,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1809412104","theCode":"KA21.20","title":"<em class='found'>Low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 1500-1999g","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1206947523","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.7722861028228252,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1206947523","theCode":"KA21.00","title":"Extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 499g or less","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1252260130","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.911379857387729,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1252260130","theCode":"KA21.01","title":"Extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 500-749g","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1803031185","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.9778744796688958,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1803031185","theCode":"KA21.10","title":"Very <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 1000-1249g","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1714120052","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.0216586209714174,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1714120052","theCode":"KA21.11","title":"Very <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 1250-1499g","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/409571627","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.0665879488558234,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/409571627","theCode":"KA21.02","title":"Extremely <em class='found'>low</em> <em class='found'>birth</em> <em class='found'>weight</em><em class='nonwbe'></em> of newborn, 750-999g","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=low+birth+weight%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

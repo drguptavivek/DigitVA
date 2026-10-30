@@ -1,0 +1,86 @@
+{
+ "id": "s116-neonatal-jaundice",
+ "input": {
+  "id": "s116-neonatal-jaundice",
+  "kind": "neonatal",
+  "query": "neonatal jaundice",
+  "source": "VAs-10.99",
+  "why": "neonatal or stillbirth cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #23f1b7cc9b"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "KA87.Z",
+       "has_coding_note": false,
+       "matching_text": "Neonatal hyperbilirubinaemia, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Neonatal hyperbilirubinaemia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/628615515/unspecified"
+      },
+      {
+       "code": "KA87.2",
+       "has_coding_note": false,
+       "matching_text": "Neonatal hyperbilirubinaemia due to breast milk inhibitor of bilirubin conjugation",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Neonatal hyperbilirubinaemia due to breast milk inhibitor of bilirubin conjugation",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1693256001"
+      },
+      {
+       "code": "KA87.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified neonatal hyperbilirubinaemia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified neonatal hyperbilirubinaemia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/628615515/other"
+      },
+      {
+       "code": "KA87.6",
+       "has_coding_note": false,
+       "matching_text": "Neonatal hyperbilirubinaemia from other or unspecified hepatocellular damage",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Neonatal hyperbilirubinaemia from other or unspecified hepatocellular damage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1755224858"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "neonatal jaundice",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #23f1b7cc9b": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/628615515/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/628615515","important":true,"label":"<em class='found'>Neonatal</em> <em class='found'>jaundice</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/628615515","important":false,"label":"unspecified fetal and <em class='found'>neonatal</em> <em class='found'>jaundice</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.5569782106469555}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/628615515/unspecified","theCode":"KA87.Z","title":"<em class='found'>Neonatal</em> hyperbilirubinaemia, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1693256001","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1693256001","important":false,"label":"breast-feeding inhibitors causing <em class='found'>neonatal</em> <em class='found'>jaundice</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.598014606100353},{"foundationUri":"http://id.who.int/icd/entity/1693256001","important":false,"label":"<em class='found'>neonatal</em> <em class='found'>jaundice</em><em class='nonwbe'></em> due to delayed conjugation from breast milk inhibitors","propertyId":"Synonym","propertyValueType":0,"score":-2.3526984517892315}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.598014606100353,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1693256001","theCode":"KA87.2","title":"<em class='found'>Neonatal</em> hyperbilirubinaemia due to breast milk inhibitor of bilirubin conjugation","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/628615515/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/272652736","important":false,"label":"<em class='found'>Neonatal</em> <em class='found'>jaundice</em><em class='nonwbe'></em> associated with preterm delivery","propertyId":"Synonym","propertyValueType":1,"score":-2.2488435013490222}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.2488435013490222,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/628615515/other","theCode":"KA87.Y","title":"Other specified <em class='found'>neonatal</em> hyperbilirubinaemia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1755224858","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/27706581","important":false,"label":"<em class='found'>Neonatal</em> <em class='found'>jaundice</em><em class='nonwbe'></em> from other and unspecified hepatocellular damage","propertyId":"Synonym","propertyValueType":1,"score":-2.3275125506445873}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.3275125506445873,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1755224858","theCode":"KA87.6","title":"<em class='found'>Neonatal</em> hyperbilirubinaemia from other or unspecified hepatocellular damage","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=neonatal+jaundice%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

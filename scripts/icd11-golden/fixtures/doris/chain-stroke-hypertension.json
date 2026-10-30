@@ -1,0 +1,158 @@
+{
+ "id": "chain-stroke-hypertension",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P68Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "8B00.Z",
+       "Interval": "P2D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified",
+       "Text": "Brain haemorrhage"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "BA00.Z",
+       "Interval": "P15Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+       "Text": "High blood pressure"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-stroke-hypertension",
+  "source": "VA cause VAs-04.02 Stroke; VA cause VAs-04.99 Other and unspecified cardiac disease",
+  "why": "Two lines: intracerebral haemorrhage due to hypertension"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8B00.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z",
+    "POST icd/release/11/2026-01/doris #e23c26f008",
+    "POST icd/release/11/2026-01/codedit #e23c26f008"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P68Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "8B00.Z",
+          "Interval": "P2D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified",
+          "Text": "Brain haemorrhage"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "BA00.Z",
+          "Interval": "P15Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+          "Text": "High blood pressure"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "8B00.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: BA00.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM1: There is a special instruction on BA00.Z reported with mention of 8B00.Z.\nM1: 8B00.Z is selected as the TUC.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: BA00.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA00.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is a special instruction on BA00.Z reported with mention of 8B00.Z.\nM1: 8B00.Z is selected as the TUC.\nM1: There is no special instruction applicable with TUC 8B00.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\nSP6: is not applicable with the current TSP 8B00.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 8B00.Z.\nM2: is not applicable.\n",
+       "stemCode": "8B00.Z",
+       "stemURI": "http://id.who.int/icd/entity/873092535/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;BA00.Z;BA00.Z;;;0;SP3: BA00.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA00.Z;;;;;0;SP6: is not applicable with the current TSP BA00.Z.;;;;BER\nSP7;False;BA00.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA00.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;BA00.Z;8B00.Z;8B00.Z, 8B00.Z;;;0;M1: There is a special instruction on BA00.Z reported with mention of 8B00.Z. M1: 8B00.Z is selected as the TUC.;;;;BER BER\nM1;False;8B00.Z;;;;;0;M1: There is no special instruction applicable with TUC 8B00.Z.;;;;BER\nM2;False;8B00.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;8B00.Z;;;;;0;M3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.;;;;BER\nSP6;False;8B00.Z;;;;;0;SP6: is not applicable with the current TSP 8B00.Z.;;;;BER\nSP7;False;8B00.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;8B00.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;8B00.Z;;;;;0;M1: There is no special instruction applicable with TUC 8B00.Z.;;;;BER\nM2;False;8B00.Z;;;;;0;M2: is not applicable.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/873092535/unspecified",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "8B00.Z",
+       "role": "stem",
+       "title": "Brain haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/mms/873092535/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P68Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "8B00.Z",
+         "Interval": "P2D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified",
+         "Text": "Brain haemorrhage"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "BA00.Z",
+         "Interval": "P15Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+         "Text": "High blood pressure"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/8B00.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/8B00.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/8B00.Z","code":"8B00.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA00.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA00.Z","code":"BA00.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #e23c26f008": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P68Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"8B00.Z\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified\",\"Text\":\"Brain haemorrhage\"}]},{\"Conditions\":[{\"Code\":\"BA00.Z\",\"Interval\":\"P15Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"High blood pressure\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #e23c26f008": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"8B00.Z","error":null,"reject":false,"report":"SP3: BA00.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM1: There is a special instruction on BA00.Z reported with mention of 8B00.Z.\nM1: 8B00.Z is selected as the TUC.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: BA00.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA00.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is a special instruction on BA00.Z reported with mention of 8B00.Z.\nM1: 8B00.Z is selected as the TUC.\nM1: There is no special instruction applicable with TUC 8B00.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\nSP6: is not applicable with the current TSP 8B00.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 8B00.Z.\nM2: is not applicable.\n","stemCode":"8B00.Z","stemURI":"http://id.who.int/icd/entity/873092535/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;BA00.Z;BA00.Z;;;0;SP3: BA00.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA00.Z;;;;;0;SP6: is not applicable with the current TSP BA00.Z.;;;;BER\nSP7;False;BA00.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA00.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;BA00.Z;8B00.Z;8B00.Z, 8B00.Z;;;0;M1: There is a special instruction on BA00.Z reported with mention of 8B00.Z. M1: 8B00.Z is selected as the TUC.;;;;BER BER\nM1;False;8B00.Z;;;;;0;M1: There is no special instruction applicable with TUC 8B00.Z.;;;;BER\nM2;False;8B00.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;8B00.Z;;;;;0;M3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.;;;;BER\nSP6;False;8B00.Z;;;;;0;SP6: is not applicable with the current TSP 8B00.Z.;;;;BER\nSP7;False;8B00.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;8B00.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;8B00.Z;;;;;0;M1: There is no special instruction applicable with TUC 8B00.Z.;;;;BER\nM2;False;8B00.Z;;;;;0;M2: is not applicable.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/873092535/unspecified","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P68Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"8B00.Z\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified\",\"Text\":\"Brain haemorrhage\"}]},{\"Conditions\":[{\"Code\":\"BA00.Z\",\"Interval\":\"P15Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"High blood pressure\"}]}]}","status":200}
+ }
+}

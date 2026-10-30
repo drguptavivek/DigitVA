@@ -51,6 +51,8 @@ jest.mock("../src/sync", () => ({
   refreshCases: (userId: string, db: unknown) => mockRefreshCases(userId, db),
   refreshReferenceData: (userId: string, db: unknown, options: unknown) => mockRefreshReferenceData(userId, db, options),
 }));
+let mockCanTryDoris = false;
+jest.mock("../src/dorisDemoAccess", () => ({ canTryDorisDemo: () => mockCanTryDoris }));
 jest.mock("../src/network", () => ({ isOffline: () => false, OfflineError: class OfflineError extends Error {} }));
 jest.mock("../src/errorLogDb", () => ({ installErrorLog: jest.fn() }));
 jest.mock("../src/errorLog", () => ({ flushErrors: jest.fn(), setErrorRoute: jest.fn() }));
@@ -100,6 +102,7 @@ beforeEach(() => {
   mockRefreshCases.mockClear();
   mockAccount = { user_id: "u1", name: "Asha Sharma", collection_access: true, registration_access: true, coding_access: true, reviewing_access: true };
   mockIsUnlocked = true;
+  mockCanTryDoris = false;
 });
 
 describe("navigation adapter", () => {
@@ -328,6 +331,91 @@ describe("help", () => {
     } finally {
       open.mockRestore();
     }
+  });
+});
+
+describe("Try DORIS (Collect Plus)", () => {
+  const tryLabel = en.helpTryDoris;
+  it("Help offers the offline demo in Collect Plus, and it opens without an account", async () => {
+    mockCanTryDoris = true;
+    mockParams = {};
+    mockPathname = "/";
+    const value = shellValue({ sheet: "help", userId: undefined, server: undefined });
+    const tree = await render(<HelpSheet />, value);
+    await press(tree, tryLabel);
+    expect(value.closeSheet).toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith("/doris-demo");
+  });
+  it("plain Collect and the web do not offer it", async () => {
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    expect(byLabel(tree, tryLabel)).toHaveLength(0);
+  });
+  it("is not offered over an open form or on the demo itself", async () => {
+    mockCanTryDoris = true;
+    for (const path of ["/form", "/revision", "/doris-demo"]) {
+      mockPathname = path;
+      const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+      expect(byLabel(tree, tryLabel)).toHaveLength(0);
+    }
+  });
+  it("the header keeps Help on the sign-in, lock and enrolment screens in Collect Plus only", async () => {
+    for (const path of ["/sign-in", "/unlock", "/enrol", "/pin-setup"]) {
+      mockPathname = path;
+      mockCanTryDoris = false;
+      expect(byLabel(await render(<NativeHeader />, shellValue()), "Help")).toHaveLength(0);
+      mockCanTryDoris = true;
+      const plus = await render(<NativeHeader />, shellValue({ userId: undefined }));
+      expect(byLabel(plus, "Help")).toHaveLength(1);
+      expect(byLabel(plus, "Account")).toHaveLength(0);
+    }
+  });
+});
+
+describe("Help before the PIN", () => {
+  const accountButtons = (tree: ReactTestRenderer) => byLabel(tree, "Open account menu");
+  const faqSearch = async (tree: ReactTestRenderer, text: string) => {
+    const input = tree.root.findAll((n) => n.props.accessibilityLabel === "Search questions" && typeof n.props.onChangeText === "function")[0];
+    await act(async () => { input.props.onChangeText(text); });
+  };
+
+  it("offers no account, sync, settings or worklist button while the account's store is locked", async () => {
+    mockPathname = "/unlock";
+    mockCanTryDoris = true;
+    mockIsUnlocked = false;
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    // The Help sheet itself is rendered (guide text, FAQ, the demo button) before the absences are asserted.
+    expect(texts(tree)).toContain(en.faqTitle);
+    expect(byLabel(tree, en.helpTryDoris)).toHaveLength(1);
+    // All answers whose text is opened by the search show; none carries a go button.
+    await faqSearch(tree, "a");
+    expect(tree.root.findAll((n) => n.props.testID === "faq-entry" && n.type === View).length).toBeGreaterThan(0);
+    await faqSearch(tree, "app language");
+    expect(texts(tree)).toContain(en.faq_language_a);
+    for (const label of ["Open account menu", "Open Sync", "Open Settings", "Open Drafts", "Open Sent"]) expect(byLabel(tree, label)).toHaveLength(0);
+    for (const query of ["Where do I see errors", "error log to support", "continue an interview", "forms I have sent"]) {
+      await faqSearch(tree, query);
+      for (const label of ["Open Sync", "Open Settings", "Open Drafts", "Open Sent"]) expect(byLabel(tree, label)).toHaveLength(0);
+    }
+  });
+
+  it("offers them once that account is unlocked", async () => {
+    mockPathname = "/worklist";
+    mockIsUnlocked = true;
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    expect(texts(tree)).toContain(en.faqTitle);
+    await faqSearch(tree, "app language");
+    expect(accountButtons(tree)).toHaveLength(1);
+    await faqSearch(tree, "Where do I see errors");
+    expect(byLabel(tree, "Open Sync")).toHaveLength(1);
+  });
+
+  it("offers none when no account is named", async () => {
+    mockPathname = "/sign-in";
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help", userId: undefined }));
+    expect(texts(tree)).toContain(en.faqTitle);
+    await faqSearch(tree, "app language");
+    expect(texts(tree)).toContain(en.faq_language_a);
+    expect(accountButtons(tree)).toHaveLength(0);
   });
 });
 

@@ -1,0 +1,87 @@
+{
+ "id": "s213-syn-venomous-snake",
+ "input": {
+  "concept": "snake bite",
+  "id": "s213-syn-venomous-snake",
+  "kind": "synonym",
+  "query": "venomous snake",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for snake bite (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #133a164b87"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "PA78&XE9H6",
+       "has_coding_note": false,
+       "matching_text": "Contact with venomous snake",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Contact with venomous snake",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148"
+      },
+      {
+       "code": "NE61",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+      },
+      {
+       "code": "PA78&XE1PT",
+       "has_coding_note": false,
+       "matching_text": "Contact with venomous snakes or lizards",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Contact with venomous snakes or lizards",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/114330365"
+      },
+      {
+       "code": "9A60.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified conjunctivitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified conjunctivitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/831696556/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "venomous snake",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #133a164b87": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/234436746","important":false,"label":"<em class='found'>venomous</em> <em class='found'>snake</em><em class='nonwbe'></em> bite","propertyId":"Synonym","propertyValueType":2,"score":0.10747473160058149},{"foundationUri":"http://id.who.int/icd/entity/234436746","important":false,"label":"bitten by <em class='found'>venomous</em> <em class='found'>snake</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-0.08091934110445514}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.17756780641695274,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","theCode":"PA78&XE9H6","title":"Contact with <em class='found'>venomous</em> <em class='found'>snake</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"harmful effect of <em class='found'>venom</em> of <em class='found'>snake</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":0.0369773569049236},{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"harmful effect of <em class='found'>venomous</em> <em class='found'>snake</em><em class='nonwbe'></em> bite","propertyId":"Synonym","propertyValueType":1,"score":-0.3656511401809252},{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"poisoning by <em class='found'>snake</em><em class='nonwbe'></em> <em class='found'>venom</em>","propertyId":"Synonym","propertyValueType":1,"score":-0.594980317716255},{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"poisoning due to <em class='found'>venomous</em> <em class='found'>snake</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.594980317716255},{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"Sea-<em class='found'>snake</em><em class='nonwbe'></em> <em class='found'>venom</em> poisoning","propertyId":"Synonym","propertyValueType":1,"score":-1.1192403169949217},{"foundationUri":"http://id.who.int/icd/entity/57961351","important":false,"label":"Harmful effects of or exposure to noxious substances, Substances chiefly nonmedicinal as to source, <em class='found'>Venoms</em> or toxins, <em class='found'>Snake</em><em class='nonwbe'></em> <em class='found'>venom</em>","propertyId":"Title","propertyValueType":1,"score":-2.867476046440666}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.0369773569049236,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","theCode":"NE61","title":"Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/114330365","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.521054454189349,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","theCode":"PA78&XE1PT","title":"Contact with <em class='found'>venomous</em> <em class='found'>snake</em><em class='nonwbe'>s</em> or lizards","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"09","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/831696556/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/147658612","important":false,"label":"<em class='found'>snake</em><em class='nonwbe'></em> <em class='found'>venom</em> ophthalmia","propertyId":"Synonym","propertyValueType":1,"score":-1.0612485892079673}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0612485892079673,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/831696556/other","theCode":"9A60.Y","title":"Other specified conjunctivitis","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=venomous+snake%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

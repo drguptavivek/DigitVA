@@ -1,0 +1,879 @@
+{
+ "built": [
+  {
+   "expression": "NC71.Z&XK8G&XA5S78",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA5S78",
+      "GET icd/release/11/2026-01/mms/524905963/unspecified"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "NC71.Z&XK8G&XA5S78",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Open wound of hip or thigh, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified & http://id.who.int/icd/release/11/2026-01/mms/271422288 & http://id.who.int/icd/release/11/2026-01/mms/238202718"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "NC71.Z&XK8G&XA5S78"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA5S78",
+      "GET icd/release/11/2026-01/mms/524905963/unspecified"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "NC71.Z&XK8G&XA5S78",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Open wound of hip or thigh, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified & http://id.who.int/icd/release/11/2026-01/mms/271422288 & http://id.who.int/icd/release/11/2026-01/mms/238202718"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "NC71.Z&XK8G&XA5S78",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified & http://id.who.int/icd/release/11/2026-01/mms/271422288 & http://id.who.int/icd/release/11/2026-01/mms/238202718"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/524905963/unspecified",
+      "GET icd/release/11/2026-01/mms/524905963",
+      "GET icd/release/11/2026-01/mms/375360441",
+      "GET icd/release/11/2026-01/mms/435227771",
+      "GET icd/release/11/2026-01/mms/524905963",
+      "GET icd/release/11/2026-01/mms/253966967",
+      "GET icd/release/11/2026-01/mms/951065353",
+      "GET icd/release/11/2026-01/mms/439601516",
+      "GET icd/release/11/2026-01/mms/895754877",
+      "GET icd/release/11/2026-01/mms/495169632",
+      "GET icd/release/11/2026-01/mms/1708554788",
+      "GET icd/release/11/2026-01/mms/524905963/other"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "22",
+         "title": "Injury, poisoning or certain other consequences of external causes",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/435227771"
+        },
+        {
+         "code": "",
+         "title": "Injuries to the hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/375360441"
+        },
+        {
+         "code": "NC71",
+         "title": "Open wound of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Open wound of hip or thigh, unspecified",
+        "Open wound of hip or thigh",
+        "Open wound of hip",
+        "open wound of hip region",
+        "Open wound of thigh"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "NC71.Z",
+        "title": "Open wound of hip or thigh, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+       },
+       "selected_expression": {
+        "code": "NC71.Z&XK8G&XA5S78",
+        "stem_code": "NC71.Z"
+       },
+       "siblings": [
+        {
+         "code": "NC71.0",
+         "has_children": false,
+         "title": "Laceration without foreign body of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/253966967"
+        },
+        {
+         "code": "NC71.1",
+         "has_children": false,
+         "title": "Laceration with foreign body of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/951065353"
+        },
+        {
+         "code": "NC71.2",
+         "has_children": false,
+         "title": "Puncture wound without foreign body of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/439601516"
+        },
+        {
+         "code": "NC71.3",
+         "has_children": false,
+         "title": "Puncture wound with foreign body of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/895754877"
+        },
+        {
+         "code": "NC71.4",
+         "has_children": false,
+         "title": "Open bite of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/495169632"
+        },
+        {
+         "code": "NC71.5",
+         "has_children": false,
+         "title": "Multiple open wounds of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1708554788"
+        },
+        {
+         "code": "NC71.Y",
+         "has_children": false,
+         "title": "Other specified open wound of hip or thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/other"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "NC71.Z&XK8G&XA5S78"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/524905963/unspecified"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "NC71.Z",
+        "title": "Open wound of hip or thigh, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "NC71.Z&XK8G&XA5S78"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/524905963/unspecified"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "NC71.Z",
+        "title": "Open wound of hip or thigh, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "NC71.Z&XK8G&XA5S78"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+      "GET icd/release/11/2026-01/mms/524905963/unspecified"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "NC71.Z",
+        "title": "Open wound of hip or thigh, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "NC71.Z&XK8G&XA5S78"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified & http://id.who.int/icd/release/11/2026-01/mms/271422288 & http://id.who.int/icd/release/11/2026-01/mms/238202718",
+   "why": "left thigh"
+  }
+ ],
+ "id": "pc-nc71-z",
+ "input": {
+  "built": [
+   {
+    "expression": "NC71.Z&XK8G&XA5S78",
+    "why": "left thigh"
+   }
+  ],
+  "category": "injury",
+  "id": "pc-nc71-z",
+  "source": "owner list 2026-10-29",
+  "stem": "NC71.Z",
+  "why": "Open wound of hip or thigh: laterality, anatomy and associated-with (external causes chapter)"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "NC71.Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "NC71.Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC71.Z",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified",
+    "GET icd/release/11/2026-01/mms/627678743",
+    "GET icd/release/11/2026-01/mms/271422288",
+    "GET icd/release/11/2026-01/mms/876572005",
+    "GET icd/release/11/2026-01/mms/1038788978",
+    "GET icd/release/11/2026-01/mms/238202718",
+    "GET icd/release/11/2026-01/mms/850137482",
+    "GET icd/release/11/2026-01/mms/755612283"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "laterality",
+       "instruction": "use additional code, if desired",
+       "label": "Laterality",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+         "code": "XK9J",
+         "has_children": false,
+         "title": "Bilateral",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+         "code": "XK8G",
+         "has_children": false,
+         "title": "Left",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+         "code": "XK9K",
+         "has_children": false,
+         "title": "Right",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978",
+         "code": "XK70",
+         "has_children": false,
+         "title": "Unilateral, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+        "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+        "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+        "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+         "code": "XA5S78",
+         "has_children": true,
+         "title": "Thigh",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/238202718"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+         "code": "23",
+         "has_children": true,
+         "title": "External causes of morbidity or mortality",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/755612283",
+         "code": "QC50",
+         "has_children": false,
+         "title": "Late effect of prior health problem, not elsewhere classified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/755612283"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+        "http://id.who.int/icd/release/11/2026-01/mms/755612283"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified",
+    "GET icd/release/11/2026-01/mms/238202718",
+    "GET icd/release/11/2026-01/mms/1956868073",
+    "GET icd/release/11/2026-01/mms/1089399959",
+    "GET icd/release/11/2026-01/mms/1472628823",
+    "GET icd/release/11/2026-01/mms/927597086"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+       "code": "XA98B3",
+       "has_children": false,
+       "title": "Anterior surface of thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1956868073"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+       "code": "XA8RH9",
+       "has_children": true,
+       "title": "Lateral surface of thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1089399959"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+       "code": "XA0183",
+       "has_children": false,
+       "title": "Posterior surface of thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1472628823"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+       "code": "XA1YQ6",
+       "has_children": true,
+       "title": "Medial surface of thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/927597086"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/238202718",
+    "stem_code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified",
+    "GET icd/release/11/2026-01/mms/850137482",
+    "GET icd/release/11/2026-01/mms/980862652",
+    "GET icd/release/11/2026-01/mms/851395624",
+    "GET icd/release/11/2026-01/mms/73322695",
+    "GET icd/release/11/2026-01/mms/128104623",
+    "GET icd/release/11/2026-01/mms/1491356379",
+    "GET icd/release/11/2026-01/mms/491063206",
+    "GET icd/release/11/2026-01/mms/185842968",
+    "GET icd/release/11/2026-01/mms/2143219175",
+    "GET icd/release/11/2026-01/mms/558785723",
+    "GET icd/release/11/2026-01/mms/850137482/other",
+    "GET icd/release/11/2026-01/mms/850137482/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Unintentional causes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/980862652"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Intentional self-harm",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/851395624"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Assault",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/73322695"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Undetermined intent",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/128104623"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Exposure to extreme forces of nature",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1491356379"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Maltreatment",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/491063206"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Legal intervention",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/185842968"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Armed conflict",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2143219175"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Causes of healthcare related harm or injury",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/558785723"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "PL2Y",
+       "has_children": false,
+       "title": "Other specified external causes of morbidity or mortality",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "PL2Z",
+       "has_children": false,
+       "title": "External causes of morbidity or mortality, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+    "stem_code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified",
+    "GET icd/release/11/2026-01/mms/524905963",
+    "GET icd/release/11/2026-01/mms/375360441",
+    "GET icd/release/11/2026-01/mms/435227771",
+    "GET icd/release/11/2026-01/mms/524905963",
+    "GET icd/release/11/2026-01/mms/253966967",
+    "GET icd/release/11/2026-01/mms/951065353",
+    "GET icd/release/11/2026-01/mms/439601516",
+    "GET icd/release/11/2026-01/mms/895754877",
+    "GET icd/release/11/2026-01/mms/495169632",
+    "GET icd/release/11/2026-01/mms/1708554788",
+    "GET icd/release/11/2026-01/mms/524905963/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "22",
+       "title": "Injury, poisoning or certain other consequences of external causes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/435227771"
+      },
+      {
+       "code": "",
+       "title": "Injuries to the hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/375360441"
+      },
+      {
+       "code": "NC71",
+       "title": "Open wound of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Open wound of hip or thigh, unspecified",
+      "Open wound of hip or thigh",
+      "Open wound of hip",
+      "open wound of hip region",
+      "Open wound of thigh"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "NC71.0",
+       "has_children": false,
+       "title": "Laceration without foreign body of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/253966967"
+      },
+      {
+       "code": "NC71.1",
+       "has_children": false,
+       "title": "Laceration with foreign body of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/951065353"
+      },
+      {
+       "code": "NC71.2",
+       "has_children": false,
+       "title": "Puncture wound without foreign body of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/439601516"
+      },
+      {
+       "code": "NC71.3",
+       "has_children": false,
+       "title": "Puncture wound with foreign body of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/895754877"
+      },
+      {
+       "code": "NC71.4",
+       "has_children": false,
+       "title": "Open bite of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/495169632"
+      },
+      {
+       "code": "NC71.5",
+       "has_children": false,
+       "title": "Multiple open wounds of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1708554788"
+      },
+      {
+       "code": "NC71.Y",
+       "has_children": false,
+       "title": "Other specified open wound of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/other"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "NC71.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z",
+    "GET icd/release/11/2026-01/mms/524905963/unspecified"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC71.Z",
+      "title": "Open wound of hip or thigh, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC71.Z"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1038788978": {"method":"GET","path":"icd/release/11/2026-01/mms/1038788978","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1038788978","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1038788978","classKind":"category","code":"XK70","indexTerm":[{"label":{"@language":"en","@value":"Unilateral, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/1038788978","title":{"@language":"en","@value":"Unilateral, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1089399959": {"method":"GET","path":"icd/release/11/2026-01/mms/1089399959","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1089399959","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1089399959","child":["http://id.who.int/icd/release/11/2026-01/mms/421186462"],"classKind":"category","code":"XA8RH9","indexTerm":[{"label":{"@language":"en","@value":"Lateral surface of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/238202718"],"source":"http://id.who.int/icd/entity/1089399959","title":{"@language":"en","@value":"Lateral surface of thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/128104623": {"method":"GET","path":"icd/release/11/2026-01/mms/128104623","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/128104623","blockId":"BlockL1-PF4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#128104623","child":["http://id.who.int/icd/release/11/2026-01/mms/238901123","http://id.who.int/icd/release/11/2026-01/mms/173760338","http://id.who.int/icd/release/11/2026-01/mms/1041697133","http://id.who.int/icd/release/11/2026-01/mms/1018874801","http://id.who.int/icd/release/11/2026-01/mms/225208565","http://id.who.int/icd/release/11/2026-01/mms/1054800896","http://id.who.int/icd/release/11/2026-01/mms/946967676","http://id.who.int/icd/release/11/2026-01/mms/817370856","http://id.who.int/icd/release/11/2026-01/mms/513624168","http://id.who.int/icd/release/11/2026-01/mms/128104623/other","http://id.who.int/icd/release/11/2026-01/mms/128104623/unspecified"],"classKind":"block","code":"","codeRange":"PF40-PH8Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/128104623","title":{"@language":"en","@value":"Undetermined intent"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1472628823": {"method":"GET","path":"icd/release/11/2026-01/mms/1472628823","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1472628823","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1472628823","classKind":"category","code":"XA0183","indexTerm":[{"label":{"@language":"en","@value":"Posterior surface of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/238202718"],"source":"http://id.who.int/icd/entity/1472628823","title":{"@language":"en","@value":"Posterior surface of thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1491356379": {"method":"GET","path":"icd/release/11/2026-01/mms/1491356379","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1491356379","blockId":"BlockL1-PJ0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1491356379","child":["http://id.who.int/icd/release/11/2026-01/mms/1295772309","http://id.who.int/icd/release/11/2026-01/mms/700289973","http://id.who.int/icd/release/11/2026-01/mms/1837231441","http://id.who.int/icd/release/11/2026-01/mms/526124884","http://id.who.int/icd/release/11/2026-01/mms/395675088","http://id.who.int/icd/release/11/2026-01/mms/1444009771","http://id.who.int/icd/release/11/2026-01/mms/802885284","http://id.who.int/icd/release/11/2026-01/mms/1491356379/other","http://id.who.int/icd/release/11/2026-01/mms/1491356379/unspecified"],"classKind":"block","code":"","codeRange":"PJ00-PJ0Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/1491356379","title":{"@language":"en","@value":"Exposure to extreme forces of nature"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1708554788": {"method":"GET","path":"icd/release/11/2026-01/mms/1708554788","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1708554788","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1708554788","classKind":"category","code":"NC71.5","codingNote":{"@language":"en","@value":"Assign additional codes for the specific injuries."},"indexTerm":[{"label":{"@language":"en","@value":"Multiple open wounds of hip or thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1708554788/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/1708554788","title":{"@language":"en","@value":"Multiple open wounds of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/185842968": {"method":"GET","path":"icd/release/11/2026-01/mms/185842968","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/185842968","blockId":"BlockL1-PJ4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#185842968","child":["http://id.who.int/icd/release/11/2026-01/mms/871056364","http://id.who.int/icd/release/11/2026-01/mms/683609750","http://id.who.int/icd/release/11/2026-01/mms/1195774739","http://id.who.int/icd/release/11/2026-01/mms/883458183","http://id.who.int/icd/release/11/2026-01/mms/947230496","http://id.who.int/icd/release/11/2026-01/mms/1453362810","http://id.who.int/icd/release/11/2026-01/mms/571334279","http://id.who.int/icd/release/11/2026-01/mms/1175172993","http://id.who.int/icd/release/11/2026-01/mms/185842968/other","http://id.who.int/icd/release/11/2026-01/mms/185842968/unspecified"],"classKind":"block","code":"","codeRange":"PJ40-PJ4Z","codingNote":{"@language":"en","@value":"Injuries inflicted by the police or other law-enforcing agents, including military on duty, in the course of arresting or attempting to arrest lawbreakers, suppressing disturbances, maintaining order, or other legal action."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/185842968","title":{"@language":"en","@value":"Legal intervention"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1956868073": {"method":"GET","path":"icd/release/11/2026-01/mms/1956868073","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1956868073","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1956868073","classKind":"category","code":"XA98B3","indexTerm":[{"label":{"@language":"en","@value":"Anterior surface of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/238202718"],"source":"http://id.who.int/icd/entity/1956868073","title":{"@language":"en","@value":"Anterior surface of thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2143219175": {"method":"GET","path":"icd/release/11/2026-01/mms/2143219175","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2143219175","blockId":"BlockL1-PJ6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2143219175","child":["http://id.who.int/icd/release/11/2026-01/mms/1857281413","http://id.who.int/icd/release/11/2026-01/mms/1462185542","http://id.who.int/icd/release/11/2026-01/mms/596278969","http://id.who.int/icd/release/11/2026-01/mms/440114554","http://id.who.int/icd/release/11/2026-01/mms/592240375","http://id.who.int/icd/release/11/2026-01/mms/1348791597","http://id.who.int/icd/release/11/2026-01/mms/617201106","http://id.who.int/icd/release/11/2026-01/mms/340856240","http://id.who.int/icd/release/11/2026-01/mms/1022059782","http://id.who.int/icd/release/11/2026-01/mms/2143219175/other","http://id.who.int/icd/release/11/2026-01/mms/2143219175/unspecified"],"classKind":"block","code":"","codeRange":"PJ60-PK6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/2143219175","title":{"@language":"en","@value":"Armed conflict"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/238202718": {"method":"GET","path":"icd/release/11/2026-01/mms/238202718","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/238202718","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#238202718","child":["http://id.who.int/icd/release/11/2026-01/mms/1956868073","http://id.who.int/icd/release/11/2026-01/mms/1089399959","http://id.who.int/icd/release/11/2026-01/mms/1472628823","http://id.who.int/icd/release/11/2026-01/mms/927597086"],"classKind":"category","code":"XA5S78","indexTerm":[{"label":{"@language":"en","@value":"Thigh"}},{"label":{"@language":"en","@value":"Thigh, NOS"}},{"label":{"@language":"en","@value":"upper leg"}},{"foundationReference":"http://id.who.int/icd/entity/1187127983","label":{"@language":"en","@value":"Skin of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2093217246"],"source":"http://id.who.int/icd/entity/238202718","title":{"@language":"en","@value":"Thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/253966967": {"method":"GET","path":"icd/release/11/2026-01/mms/253966967","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/253966967","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#253966967","classKind":"category","code":"NC71.0","inclusion":[{"label":{"@language":"en","@value":"laceration of skin of hip or thigh"}}],"indexTerm":[{"label":{"@language":"en","@value":"Laceration without foreign body of hip or thigh"}},{"label":{"@language":"en","@value":"laceration of skin of hip or thigh"}},{"label":{"@language":"en","@value":"skin tear without foreign body of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/705728802","label":{"@language":"en","@value":"Laceration without foreign body of thigh"}},{"foundationReference":"http://id.who.int/icd/entity/136223681","label":{"@language":"en","@value":"Laceration without foreign body of hip"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/253966967/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/253966967/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/253966967/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/253966967","title":{"@language":"en","@value":"Laceration without foreign body of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271422288": {"method":"GET","path":"icd/release/11/2026-01/mms/271422288","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271422288","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271422288","classKind":"category","code":"XK8G","indexTerm":[{"label":{"@language":"en","@value":"Left"}},{"label":{"@language":"en","@value":"unilateral, left"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/271422288","title":{"@language":"en","@value":"Left"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/375360441": {"method":"GET","path":"icd/release/11/2026-01/mms/375360441","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441","blockId":"BlockL1-NC7","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#375360441","child":["http://id.who.int/icd/release/11/2026-01/mms/2046992511","http://id.who.int/icd/release/11/2026-01/mms/524905963","http://id.who.int/icd/release/11/2026-01/mms/1810119958","http://id.who.int/icd/release/11/2026-01/mms/246411392","http://id.who.int/icd/release/11/2026-01/mms/2101437204","http://id.who.int/icd/release/11/2026-01/mms/403353218","http://id.who.int/icd/release/11/2026-01/mms/1822948991","http://id.who.int/icd/release/11/2026-01/mms/166474731","http://id.who.int/icd/release/11/2026-01/mms/1954883241","http://id.who.int/icd/release/11/2026-01/mms/271309016","http://id.who.int/icd/release/11/2026-01/mms/375360441/other","http://id.who.int/icd/release/11/2026-01/mms/375360441/unspecified"],"classKind":"block","code":"","codeRange":"NC70-NC7Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/163532889","label":{"@language":"en","@value":"Burns"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/163532889"},{"foundationReference":"http://id.who.int/icd/entity/152692065","label":{"@language":"en","@value":"Frostbite"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/152692065"},{"foundationReference":"http://id.who.int/icd/entity/507000791","label":{"@language":"en","@value":"Other injuries of leg, level unspecified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/507000791"},{"foundationReference":"http://id.who.int/icd/entity/1645464025","label":{"@language":"en","@value":"Insect bite or sting, venomous"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/435227771"],"source":"http://id.who.int/icd/entity/375360441","title":{"@language":"en","@value":"Injuries to the hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/435227771": {"method":"GET","path":"icd/release/11/2026-01/mms/435227771","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/435227771","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#435227771","child":["http://id.who.int/icd/release/11/2026-01/mms/452386362","http://id.who.int/icd/release/11/2026-01/mms/1842013215","http://id.who.int/icd/release/11/2026-01/mms/805284915","http://id.who.int/icd/release/11/2026-01/mms/1489212950","http://id.who.int/icd/release/11/2026-01/mms/1416283029","http://id.who.int/icd/release/11/2026-01/mms/592902578","http://id.who.int/icd/release/11/2026-01/mms/1633923486","http://id.who.int/icd/release/11/2026-01/mms/375360441","http://id.who.int/icd/release/11/2026-01/mms/2016483996","http://id.who.int/icd/release/11/2026-01/mms/252518591","http://id.who.int/icd/release/11/2026-01/mms/159081656","http://id.who.int/icd/release/11/2026-01/mms/1121827324","http://id.who.int/icd/release/11/2026-01/mms/1237810616","http://id.who.int/icd/release/11/2026-01/mms/163532889","http://id.who.int/icd/release/11/2026-01/mms/152692065","http://id.who.int/icd/release/11/2026-01/mms/1236563202","http://id.who.int/icd/release/11/2026-01/mms/383104340","http://id.who.int/icd/release/11/2026-01/mms/609351978","http://id.who.int/icd/release/11/2026-01/mms/435227771/other","http://id.who.int/icd/release/11/2026-01/mms/435227771/unspecified"],"classKind":"chapter","code":"22","definition":{"@language":"en","@value":"!markdown\nIn the ICD, injury means physical or physiological bodily harm resulting from interaction of the body with energy (mechanical, thermal, electrical, chemical or radiant, or due to extreme pressure) in an amount, or at a rate of transfer, that exceeds physical or physiological tolerance. Injury can also result from lack of vital elements, such as oxygen. Poisoning by and toxic effects of substances are included, as is damage of or due to implanted devices.  \n\nInjury usually has rapid onset in response to a well-defined event (e.g. a car crash, striking the ground after falling, drinking a strongly alkaline liquid, an overdose of a medication, a burn sustained during a surgical procedure). These events are often referred to as external causes of injury. The injurious energy can, however, originate from the injured person and/or from his or her immediate environment (e.g. a person running on a hot day sustains heat exhaustion), and injury can be caused by the injured person (i.e. intentional self-harm).\n\nInjury includes manifestations that are evident immediately after onset, which may persist or not, and manifestations that first become evident at a later date."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/624443803","label":{"@language":"en","@value":"Birth injury"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/624443803"},{"foundationReference":"http://id.who.int/icd/entity/1146004591","label":{"@language":"en","@value":"Certain specified obstetric trauma"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1146004591"},{"foundationReference":"http://id.who.int/icd/entity/560404604","label":{"@language":"en","@value":"Malunion of fracture"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/560404604"},{"foundationReference":"http://id.who.int/icd/entity/1143789038","label":{"@language":"en","@value":"Nonunion of fracture"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1143789038"},{"foundationReference":"http://id.who.int/icd/entity/639949585","label":{"@language":"en","@value":"Pathological fracture"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/639949585"},{"foundationReference":"http://id.who.int/icd/entity/1439320197","label":{"@language":"en","@value":"Stress fracture, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1439320197"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/435227771","title":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/439601516": {"method":"GET","path":"icd/release/11/2026-01/mms/439601516","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/439601516","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#439601516","classKind":"category","code":"NC71.2","indexTerm":[{"label":{"@language":"en","@value":"Puncture wound without foreign body of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/833584560","label":{"@language":"en","@value":"Puncture wound without foreign body of thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1070926882","label":{"@language":"en","@value":"Puncture wound without foreign body of hip"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/439601516/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/439601516/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/439601516/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/439601516","title":{"@language":"en","@value":"Puncture wound without foreign body of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/491063206": {"method":"GET","path":"icd/release/11/2026-01/mms/491063206","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/491063206","blockId":"BlockL1-PJ2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#491063206","child":["http://id.who.int/icd/release/11/2026-01/mms/282888955","http://id.who.int/icd/release/11/2026-01/mms/1192102653","http://id.who.int/icd/release/11/2026-01/mms/109729818","http://id.who.int/icd/release/11/2026-01/mms/491063206/other","http://id.who.int/icd/release/11/2026-01/mms/491063206/unspecified"],"classKind":"block","code":"","codeRange":"PJ20-PJ2Z","definition":{"@language":"en","@value":"Non-accidental acts of physical force, forced or coerced sexual acts, verbal or symbolic acts, or significant caregiving omissions that result in harm or have a reasonable potential for harm. These categories are applied to the victim of the maltreatment, not the perpetrator."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/491063206","title":{"@language":"en","@value":"Maltreatment"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/495169632": {"method":"GET","path":"icd/release/11/2026-01/mms/495169632","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/495169632","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#495169632","classKind":"category","code":"NC71.4","indexTerm":[{"label":{"@language":"en","@value":"Open bite of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/616533675","label":{"@language":"en","@value":"Open bite of thigh"}},{"foundationReference":"http://id.who.int/icd/entity/833058196","label":{"@language":"en","@value":"Open bite of hip"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/495169632/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/495169632/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/495169632/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/495169632","title":{"@language":"en","@value":"Open bite of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/524905963": {"method":"GET","path":"icd/release/11/2026-01/mms/524905963","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#524905963","child":["http://id.who.int/icd/release/11/2026-01/mms/253966967","http://id.who.int/icd/release/11/2026-01/mms/951065353","http://id.who.int/icd/release/11/2026-01/mms/439601516","http://id.who.int/icd/release/11/2026-01/mms/895754877","http://id.who.int/icd/release/11/2026-01/mms/495169632","http://id.who.int/icd/release/11/2026-01/mms/1708554788","http://id.who.int/icd/release/11/2026-01/mms/524905963/other","http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"],"classKind":"category","code":"NC71","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1954883241","label":{"@language":"en","@value":"Traumatic amputation of hip or thigh"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1954883241"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/524905963","title":{"@language":"en","@value":"Open wound of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/524905963/other": {"method":"GET","path":"icd/release/11/2026-01/mms/524905963/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#524905963/other","classKind":"category","code":"NC71.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified open wound of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1814225318","label":{"@language":"en","@value":"Sequelae of open wound of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1814225318","label":{"@language":"en","@value":"late effect of of open wound of hip or thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/other/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/other/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"title":{"@language":"en","@value":"Other specified open wound of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/524905963/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/524905963/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#524905963/unspecified","classKind":"category","code":"NC71.Z","indexTerm":[{"label":{"@language":"en","@value":"Open wound of hip or thigh, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/524905963","label":{"@language":"en","@value":"Open wound of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/372828592","label":{"@language":"en","@value":"Open wound of hip"}},{"foundationReference":"http://id.who.int/icd/entity/372828592","label":{"@language":"en","@value":"open wound of hip region"}},{"foundationReference":"http://id.who.int/icd/entity/1936925734","label":{"@language":"en","@value":"Open wound of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"title":{"@language":"en","@value":"Open wound of hip or thigh, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/558785723": {"method":"GET","path":"icd/release/11/2026-01/mms/558785723","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/558785723","blockId":"BlockL1-PK8","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#558785723","child":["http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1583926619","http://id.who.int/icd/release/11/2026-01/mms/2024436666","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121","http://id.who.int/icd/release/11/2026-01/mms/1323892810","http://id.who.int/icd/release/11/2026-01/mms/1669303982"],"classKind":"block","code":"","codeRange":"PK80-PL14.Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/558785723","title":{"@language":"en","@value":"Causes of healthcare related harm or injury"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/627678743": {"method":"GET","path":"icd/release/11/2026-01/mms/627678743","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/627678743","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#627678743","classKind":"category","code":"XK9J","indexTerm":[{"label":{"@language":"en","@value":"Bilateral"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/627678743","title":{"@language":"en","@value":"Bilateral"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/73322695": {"method":"GET","path":"icd/release/11/2026-01/mms/73322695","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/73322695","blockId":"BlockL1-PD5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#73322695","child":["http://id.who.int/icd/release/11/2026-01/mms/376636382","http://id.who.int/icd/release/11/2026-01/mms/447363203","http://id.who.int/icd/release/11/2026-01/mms/970723824","http://id.who.int/icd/release/11/2026-01/mms/743156834","http://id.who.int/icd/release/11/2026-01/mms/406207542","http://id.who.int/icd/release/11/2026-01/mms/1822125259","http://id.who.int/icd/release/11/2026-01/mms/1489018295","http://id.who.int/icd/release/11/2026-01/mms/1530721759","http://id.who.int/icd/release/11/2026-01/mms/1749521479","http://id.who.int/icd/release/11/2026-01/mms/73322695/other","http://id.who.int/icd/release/11/2026-01/mms/73322695/unspecified"],"classKind":"block","code":"","codeRange":"PD50-PF2Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/73322695","title":{"@language":"en","@value":"Assault"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/755612283": {"method":"GET","path":"icd/release/11/2026-01/mms/755612283","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/755612283","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#755612283","classKind":"category","code":"QC50","definition":{"@language":"en","@value":"Code used to indicate that a prior health problem is now associated with a late effect causing current symptoms or conditions. This concept excludes prior health problems that are NOT causing a current symptom or condition."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/2142880493","label":{"@language":"en","@value":"Personal history of health problems"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2142880493"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/569289074","label":{"@language":"en","@value":"Sequelae of complication of pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/569289074"},{"foundationReference":"http://id.who.int/icd/entity/1968623900","label":{"@language":"en","@value":"Sequelae of tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1968623900"},{"foundationReference":"http://id.who.int/icd/entity/270343310","label":{"@language":"en","@value":"Sequelae of poliomyelitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/270343310"},{"foundationReference":"http://id.who.int/icd/entity/1689275505","label":{"@language":"en","@value":"Sequelae of leprosy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1689275505"},{"foundationReference":"http://id.who.int/icd/entity/456774323","label":{"@language":"en","@value":"Sequelae of diphtheria"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/456774323"},{"foundationReference":"http://id.who.int/icd/entity/1100625760","label":{"@language":"en","@value":"Sequelae of trachoma"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1100625760"},{"foundationReference":"http://id.who.int/icd/entity/617741002","label":{"@language":"en","@value":"Sequelae of viral encephalitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/617741002"}],"indexTerm":[{"label":{"@language":"en","@value":"Late effect of prior health problem, not elsewhere classified"}},{"label":{"@language":"en","@value":"sequelae of prior health problem, not elsewhere classified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/856028269"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/755612283/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1435254666","http://id.who.int/icd/release/11/2026-01/mms/1630407678","http://id.who.int/icd/release/11/2026-01/mms/21500692","http://id.who.int/icd/release/11/2026-01/mms/1296093776","http://id.who.int/icd/release/11/2026-01/mms/868865918","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/1639304259","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/435227771"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/755612283/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/21500692","http://id.who.int/icd/release/11/2026-01/mms/1296093776","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/435227771"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/569289074"],"source":"http://id.who.int/icd/entity/755612283","title":{"@language":"en","@value":"Late effect of prior health problem, not elsewhere classified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482","child":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"],"classKind":"chapter","code":"23","definition":{"@language":"en","@value":"!markdown\nThe WHO definition of an ‘injury’ is: ‘Injuries are caused by acute exposure to physical agents such as mechanical energy, heat, electricity, chemicals, and ionizing radiation interacting with the body in amounts or at rates that exceed the threshold of human tolerance. In some cases, (for example, drowning and frostbite), injuries result from the sudden lack of essential agents such as oxygen or heat.\nInjuries may be categorized in a number of ways. However, for most analytical purposes and for identifying intervention opportunities, it is especially useful to categorize injuries according to whether or not they were deliberately inflicted and by whom. Commonly used categories are:\n\n- unintentional (i.e. accidental)\n- intentional (i.e. deliberate):\n- interpersonal (e.g. assault and homicide)\n- self-harm (e.g. abuse of drugs and alcohol, self-mutilation, suicide)\n- legal intervention (e.g. action by police or other law enforcement personnel)\n- war, civil insurrection and disturbances (e.g. demonstrations and riots)\n- undetermined intent\n\nRegarding the collection of events that cause injuries, a set of definitions apply. See ICD-11 Reference guide sections 2.21.8.9 'Coding of transport injury events', and 2.23.19 'Standards and coding instructions for injury events'."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/850137482","title":{"@language":"en","@value":"External causes of morbidity or mortality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482/other": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482/other","classKind":"category","code":"PL2Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified external causes of morbidity or mortality"}},{"foundationReference":"http://id.who.int/icd/entity/173320128","label":{"@language":"en","@value":"Sequelae of external causes of morbidity and mortality"}},{"foundationReference":"http://id.who.int/icd/entity/173320128","label":{"@language":"en","@value":"late effect of external causes of morbidity or mortality"}},{"foundationReference":"http://id.who.int/icd/entity/551890744","label":{"@language":"en","@value":"Sequelae of transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/551890744","label":{"@language":"en","@value":"late effect of transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/2095825097","label":{"@language":"en","@value":"Sequelae of motor-vehicle accident"}},{"foundationReference":"http://id.who.int/icd/entity/2095825097","label":{"@language":"en","@value":"late effect of motor vehicle accident"}},{"foundationReference":"http://id.who.int/icd/entity/388467595","label":{"@language":"en","@value":"Sequelae of other or unspecified transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/388467595","label":{"@language":"en","@value":"late effect of other or unspecified transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/1414037447","label":{"@language":"en","@value":"Sequelae of other accidents"}},{"foundationReference":"http://id.who.int/icd/entity/1414037447","label":{"@language":"en","@value":"late effect of other accidents"}},{"foundationReference":"http://id.who.int/icd/entity/822325843","label":{"@language":"en","@value":"Sequelae of intentional self-harm, assault or events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/822325843","label":{"@language":"en","@value":"late effect of intentional self-harm, assault or events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/1637132408","label":{"@language":"en","@value":"Sequelae of intentional self-harm"}},{"foundationReference":"http://id.who.int/icd/entity/1637132408","label":{"@language":"en","@value":"late effect of self inflicted injury"}},{"foundationReference":"http://id.who.int/icd/entity/1637132408","label":{"@language":"en","@value":"late effects of self-inflicted injury"}},{"foundationReference":"http://id.who.int/icd/entity/81749474","label":{"@language":"en","@value":"Sequelae of assault"}},{"foundationReference":"http://id.who.int/icd/entity/81749474","label":{"@language":"en","@value":"late effect of assault"}},{"foundationReference":"http://id.who.int/icd/entity/1886532893","label":{"@language":"en","@value":"Sequelae of events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/1886532893","label":{"@language":"en","@value":"late effect of events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/1282058001","label":{"@language":"en","@value":"Sequelae with surgical or medical care as external cause"}},{"foundationReference":"http://id.who.int/icd/entity/1282058001","label":{"@language":"en","@value":"late effect with surgical or medical care as external cause"}},{"foundationReference":"http://id.who.int/icd/entity/789609418","label":{"@language":"en","@value":"Sequelae of adverse effects caused by drugs, medicaments or biological substances in therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/789609418","label":{"@language":"en","@value":"late effect of adverse effects caused by drugs, medicaments or biological substances in therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/1247524448","label":{"@language":"en","@value":"Sequelae of misadventures to patients during surgical or medical procedures"}},{"foundationReference":"http://id.who.int/icd/entity/1247524448","label":{"@language":"en","@value":"late effect of misadventures to patients during surgical or medical procedures"}},{"foundationReference":"http://id.who.int/icd/entity/1056368289","label":{"@language":"en","@value":"Sequelae of adverse incidents associated with medical devices in diagnostic or therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/1056368289","label":{"@language":"en","@value":"late effect of adverse incidents associated with medical devices in diagnostic or therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/1539124021","label":{"@language":"en","@value":"Sequelae of surgical or medical procedures as the cause of abnormal reaction of the patient, or of later complication, without mention of misadventure at the time of the procedure"}},{"foundationReference":"http://id.who.int/icd/entity/1539124021","label":{"@language":"en","@value":"late effect of surgical or medical procedures as the cause of abnormal reaction of the patient, or of later complication, without mention of misadventure at the time of the procedure"}},{"foundationReference":"http://id.who.int/icd/entity/690055813","label":{"@language":"en","@value":"Sequelae of other external causes"}},{"foundationReference":"http://id.who.int/icd/entity/690055813","label":{"@language":"en","@value":"late effect of other external causes"}},{"foundationReference":"http://id.who.int/icd/entity/870888267","label":{"@language":"en","@value":"Sequelae of legal intervention"}},{"foundationReference":"http://id.who.int/icd/entity/870888267","label":{"@language":"en","@value":"late effects of injuries due to legal intervention"}},{"foundationReference":"http://id.who.int/icd/entity/870888267","label":{"@language":"en","@value":"late effects of injury due to legal intervention"}},{"foundationReference":"http://id.who.int/icd/entity/1453555423","label":{"@language":"en","@value":"Sequelae of war operations"}},{"foundationReference":"http://id.who.int/icd/entity/1453555423","label":{"@language":"en","@value":"late effect of injury due to war operations"}},{"foundationReference":"http://id.who.int/icd/entity/1453555423","label":{"@language":"en","@value":"late effects of injury due to war operations"}},{"foundationReference":"http://id.who.int/icd/entity/1478817801","label":{"@language":"en","@value":"Sequelae of unspecified external cause"}},{"foundationReference":"http://id.who.int/icd/entity/1478817801","label":{"@language":"en","@value":"late effect of unspecified external cause"}},{"foundationReference":"http://id.who.int/icd/entity/1478817801","label":{"@language":"en","@value":"sequelae NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"title":{"@language":"en","@value":"Other specified external causes of morbidity or mortality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482/unspecified","classKind":"category","code":"PL2Z","indexTerm":[{"label":{"@language":"en","@value":"External causes of morbidity or mortality, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"title":{"@language":"en","@value":"External causes of morbidity or mortality, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/851395624": {"method":"GET","path":"icd/release/11/2026-01/mms/851395624","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/851395624","blockId":"BlockL1-PB8","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#851395624","child":["http://id.who.int/icd/release/11/2026-01/mms/1268872746","http://id.who.int/icd/release/11/2026-01/mms/1578494278","http://id.who.int/icd/release/11/2026-01/mms/477124011","http://id.who.int/icd/release/11/2026-01/mms/1576273742","http://id.who.int/icd/release/11/2026-01/mms/1798532905","http://id.who.int/icd/release/11/2026-01/mms/242787005","http://id.who.int/icd/release/11/2026-01/mms/102325528","http://id.who.int/icd/release/11/2026-01/mms/248569732","http://id.who.int/icd/release/11/2026-01/mms/916346088","http://id.who.int/icd/release/11/2026-01/mms/851395624/other","http://id.who.int/icd/release/11/2026-01/mms/851395624/unspecified"],"classKind":"block","code":"","codeRange":"PB80-PD3Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/851395624","title":{"@language":"en","@value":"Intentional self-harm"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/876572005": {"method":"GET","path":"icd/release/11/2026-01/mms/876572005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/876572005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#876572005","classKind":"category","code":"XK9K","indexTerm":[{"label":{"@language":"en","@value":"Right"}},{"label":{"@language":"en","@value":"unilateral, right"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/876572005","title":{"@language":"en","@value":"Right"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/895754877": {"method":"GET","path":"icd/release/11/2026-01/mms/895754877","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/895754877","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#895754877","classKind":"category","code":"NC71.3","indexTerm":[{"label":{"@language":"en","@value":"Puncture wound with foreign body of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/321695701","label":{"@language":"en","@value":"Puncture wound with foreign body of thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1152795025","label":{"@language":"en","@value":"Puncture wound with foreign body of hip"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/895754877/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/895754877/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/895754877/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/895754877","title":{"@language":"en","@value":"Puncture wound with foreign body of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/927597086": {"method":"GET","path":"icd/release/11/2026-01/mms/927597086","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/927597086","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#927597086","child":["http://id.who.int/icd/release/11/2026-01/mms/543319774"],"classKind":"category","code":"XA1YQ6","indexTerm":[{"label":{"@language":"en","@value":"Medial surface of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/238202718"],"source":"http://id.who.int/icd/entity/927597086","title":{"@language":"en","@value":"Medial surface of thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/951065353": {"method":"GET","path":"icd/release/11/2026-01/mms/951065353","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/951065353","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#951065353","classKind":"category","code":"NC71.1","indexTerm":[{"label":{"@language":"en","@value":"Laceration with foreign body of hip or thigh"}},{"label":{"@language":"en","@value":"skin tear with foreign body of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/143868741","label":{"@language":"en","@value":"Laceration with foreign body of thigh"}},{"foundationReference":"http://id.who.int/icd/entity/410235399","label":{"@language":"en","@value":"Laceration with foreign body of hip"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/524905963"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/951065353/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/951065353/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/951065353/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/951065353","title":{"@language":"en","@value":"Laceration with foreign body of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/980862652": {"method":"GET","path":"icd/release/11/2026-01/mms/980862652","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/980862652","blockId":"BlockL1-PA0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#980862652","child":["http://id.who.int/icd/release/11/2026-01/mms/1609069486","http://id.who.int/icd/release/11/2026-01/mms/134290789","http://id.who.int/icd/release/11/2026-01/mms/1054699166","http://id.who.int/icd/release/11/2026-01/mms/138214015","http://id.who.int/icd/release/11/2026-01/mms/497764339","http://id.who.int/icd/release/11/2026-01/mms/1546589464","http://id.who.int/icd/release/11/2026-01/mms/615802413","http://id.who.int/icd/release/11/2026-01/mms/746448055","http://id.who.int/icd/release/11/2026-01/mms/425728062","http://id.who.int/icd/release/11/2026-01/mms/980862652/other","http://id.who.int/icd/release/11/2026-01/mms/980862652/unspecified"],"classKind":"block","code":"","codeRange":"PA00-PB6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/980862652","title":{"@language":"en","@value":"Unintentional causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NC71.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NC71.Z","code":"NC71.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NC71.Z%26XK8G%26XA5S78","code":"NC71.Z&XK8G&XA5S78","laterality":["XK8G"],"specificAnatomy":["XA5S78"],"stemCode":"NC71.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XA5S78": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XA5S78","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XA5S78","code":"XA5S78","stemId":"http://id.who.int/icd/release/11/2026-01/mms/238202718"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XK8G": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XK8G","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XK8G","code":"XK8G","stemId":"http://id.who.int/icd/release/11/2026-01/mms/271422288"},"request_body":null,"status":200}
+ }
+}

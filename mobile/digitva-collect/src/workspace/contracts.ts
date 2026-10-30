@@ -53,6 +53,9 @@ export interface DorisTerm {
   related_maternal: boolean;
   related_perinatal: boolean;
   has_coding_note: boolean;
+  /** Optional: the web picker shows an "age-restricted" tag for it. The server's terms reply does not send it yet. */
+  age_restricted?: boolean;
+  restriction_note?: string;
 }
 
 export interface DorisTermsReply {
@@ -68,8 +71,7 @@ export interface DorisCodeInfoItem extends JsonObject {
   uri: string;
   release: string;
   postcoordination: boolean;
-  /** Local engine result only: the stem that drives VA mapping for a / cluster. */
-  primary_stem: string | null;
+  // The server's reply has no `primary_stem`. The offline VA definition asks the editor's primaryStem() instead.
 }
 
 export interface DorisCodeInfoReply {
@@ -919,6 +921,8 @@ export function parseDorisTerms(value: unknown): DorisTermsReply {
       const term = record(item, field);
       return {
         code: string(term.code, `${field}.code`), title: string(term.title, `${field}.title`), uri: string(term.uri, `${field}.uri`), release: string(term.release, `${field}.release`), matching_text: string(term.matching_text, `${field}.matching_text`), postcoordination: boolean(term.postcoordination, `${field}.postcoordination`), postcoordination_availability: parseJsonValue(term.postcoordination_availability, `${field}.postcoordination_availability`), related_maternal: boolean(term.related_maternal, `${field}.related_maternal`), related_perinatal: boolean(term.related_perinatal, `${field}.related_perinatal`), has_coding_note: boolean(term.has_coding_note, `${field}.has_coding_note`),
+        ...(term.age_restricted === true ? { age_restricted: true } : {}),
+        ...(typeof term.restriction_note === "string" && term.restriction_note ? { restriction_note: term.restriction_note } : {}),
       };
     }),
     truncated: boolean(source.truncated, "doris.terms.truncated"),
@@ -941,7 +945,6 @@ export function parseDorisCodeInfo(value: unknown): DorisCodeInfoReply {
       uri: string(rawItem.uri, "doris.codeinfo.item.uri"),
       release: string(rawItem.release, "doris.codeinfo.item.release"),
       postcoordination: boolean(rawItem.postcoordination, "doris.codeinfo.item.postcoordination"),
-      primary_stem: typeof rawItem.primary_stem === "string" ? rawItem.primary_stem : null,
     },
   };
 }

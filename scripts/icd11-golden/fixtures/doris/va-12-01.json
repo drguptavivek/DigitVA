@@ -1,0 +1,176 @@
+{
+ "id": "va-12-01",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P28Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "DateOfExternalCauseOrPoisoning": "2026-03-02",
+    "DescriptionExternalCause": "Motorcycle collision on the highway",
+    "MannerOfDeath": 1,
+    "PlaceOfOccuranceExternalCause": 5
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NA02.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified",
+       "Text": "Head injury"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA01",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1460349350",
+       "Text": "Motorcycle rider hit by a truck"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-01",
+  "source": "VA cause VAs-12.01 Road traffic accident",
+  "why": "Road traffic accident: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NA02.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA01",
+    "POST icd/release/11/2026-01/doris #75fc66eb37",
+    "POST icd/release/11/2026-01/codedit #75fc66eb37"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P28Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "DateOfExternalCauseOrPoisoning": "2026-03-02",
+       "DescriptionExternalCause": "Motorcycle collision on the highway",
+       "MannerOfDeath": 1,
+       "PlaceOfOccuranceExternalCause": 5
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NA02.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified",
+          "Text": "Head injury"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA01",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1460349350",
+          "Text": "Motorcycle rider hit by a truck"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA01/NA02.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NA02.Z - as postcoordination for the current TUC - PA01.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NA02.Z - as postcoordination for the current TUC - PA01.\n",
+       "stemCode": "PA01",
+       "stemURI": "http://id.who.int/icd/entity/1460349350",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA01;PA01;;;0;SP3: PA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA01;;;;;0;SP6: is not applicable with the current TSP PA01.;;;;BER\nSP7;False;PA01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA01;;;;;0;M1: There is no special instruction applicable with TUC PA01.;;;;BER\nM2;False;PA01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA01/NA02.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1460349350 / http://id.who.int/icd/release/11/mms/399491868/unspecified",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA01",
+       "role": "stem",
+       "title": "Motorcycle rider hit by a truck",
+       "uri": "http://id.who.int/icd/release/11/mms/1460349350"
+      },
+      {
+       "code": "NA02.Z",
+       "role": "postcoordinated",
+       "title": "Head injury",
+       "uri": "http://id.who.int/icd/release/11/mms/399491868/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P28Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "DateOfExternalCauseOrPoisoning": "2026-03-02",
+      "DescriptionExternalCause": "Motorcycle collision on the highway",
+      "MannerOfDeath": 1,
+      "PlaceOfOccuranceExternalCause": 5
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NA02.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified",
+         "Text": "Head injury"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA01",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1460349350",
+         "Text": "Motorcycle rider hit by a truck"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NA02.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NA02.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NA02.Z","code":"NA02.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA01": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA01","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA01","code":"PA01","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1460349350"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #75fc66eb37": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P28Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"DateOfExternalCauseOrPoisoning\":\"2026-03-02\",\"DescriptionExternalCause\":\"Motorcycle collision on the highway\",\"MannerOfDeath\":1,\"PlaceOfOccuranceExternalCause\":5},\"Part1\":[{\"Conditions\":[{\"Code\":\"NA02.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified\",\"Text\":\"Head injury\"}]},{\"Conditions\":[{\"Code\":\"PA01\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1460349350\",\"Text\":\"Motorcycle rider hit by a truck\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #75fc66eb37": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA01/NA02.Z","error":null,"reject":false,"report":"SP3: PA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NA02.Z - as postcoordination for the current TUC - PA01.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NA02.Z - as postcoordination for the current TUC - PA01.\n","stemCode":"PA01","stemURI":"http://id.who.int/icd/entity/1460349350","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA01;PA01;;;0;SP3: PA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA01;;;;;0;SP6: is not applicable with the current TSP PA01.;;;;BER\nSP7;False;PA01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA01;;;;;0;M1: There is no special instruction applicable with TUC PA01.;;;;BER\nM2;False;PA01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA01/NA02.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1460349350 / http://id.who.int/icd/release/11/mms/399491868/unspecified","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P28Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"DateOfExternalCauseOrPoisoning\":\"2026-03-02\",\"DescriptionExternalCause\":\"Motorcycle collision on the highway\",\"MannerOfDeath\":1,\"PlaceOfOccuranceExternalCause\":5},\"Part1\":[{\"Conditions\":[{\"Code\":\"NA02.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified\",\"Text\":\"Head injury\"}]},{\"Conditions\":[{\"Code\":\"PA01\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1460349350\",\"Text\":\"Motorcycle rider hit by a truck\"}]}]}","status":200}
+ }
+}

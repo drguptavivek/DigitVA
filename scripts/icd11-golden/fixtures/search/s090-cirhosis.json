@@ -1,0 +1,37 @@
+{
+ "id": "s090-cirhosis",
+ "input": {
+  "id": "s090-cirhosis",
+  "kind": "typo",
+  "query": "cirhosis",
+  "source": "VAs-06.02",
+  "why": "misspelling a hurried user types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #75b8cf7016"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 0,
+     "items": [],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "cirhosis",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #75b8cf7016": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=cirhosis%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

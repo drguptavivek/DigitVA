@@ -1,0 +1,1776 @@
+{
+ "status": "draft",
+ "kind": "search",
+ "release": "2026-01",
+ "options": {
+  "q": "<query>%",
+  "includePostcoordination": "true",
+  "flatResults": "true",
+  "highlightingEnabled": "true",
+  "medicalCodingMode": "true",
+  "limit": 20,
+  "expected": "top 5"
+ },
+ "description": "Terms passed to DigitVA's search_terms(query, limit=20); the expected top 5 are recorded in order.",
+ "items": [
+  {
+   "id": "s001-myocardial-infarction",
+   "query": "myocardial infarction",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.01"
+  },
+  {
+   "id": "s002-acute-myocardial-infarction",
+   "query": "acute myocardial infarction",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s003-congestive-heart-failure",
+   "query": "congestive heart failure",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.01"
+  },
+  {
+   "id": "s004-cardiomyopathy",
+   "query": "cardiomyopathy",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.99"
+  },
+  {
+   "id": "s005-pulmonary-embolism",
+   "query": "pulmonary embolism",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.01"
+  },
+  {
+   "id": "s006-ischaemic-stroke",
+   "query": "ischaemic stroke",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.02"
+  },
+  {
+   "id": "s007-intracerebral-haemorrhage",
+   "query": "intracerebral haemorrhage",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.02; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s008-essential-hypertension",
+   "query": "essential hypertension",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.99"
+  },
+  {
+   "id": "s009-type-2-diabetes-mellitus",
+   "query": "type 2 diabetes mellitus",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-03.03"
+  },
+  {
+   "id": "s010-diabetic-ketoacidosis",
+   "query": "diabetic ketoacidosis",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-03.03"
+  },
+  {
+   "id": "s011-diabetic-foot",
+   "query": "diabetic foot",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-03.03; docs/kb/doris-picker-who-behaviour-rules.md"
+  },
+  {
+   "id": "s012-chronic-kidney-disease",
+   "query": "chronic kidney disease",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-07.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s013-acute-kidney-failure",
+   "query": "acute kidney failure",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-07.01"
+  },
+  {
+   "id": "s014-pneumonia",
+   "query": "pneumonia",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.02; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s015-pulmonary-tuberculosis",
+   "query": "pulmonary tuberculosis",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.09"
+  },
+  {
+   "id": "s016-hiv-disease",
+   "query": "HIV disease",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.03"
+  },
+  {
+   "id": "s017-falciparum-malaria",
+   "query": "falciparum malaria",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.05"
+  },
+  {
+   "id": "s018-severe-dengue",
+   "query": "severe dengue",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.12"
+  },
+  {
+   "id": "s019-typhoid-fever",
+   "query": "typhoid fever",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.99"
+  },
+  {
+   "id": "s020-septic-shock",
+   "query": "septic shock",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.01"
+  },
+  {
+   "id": "s021-bacterial-meningitis",
+   "query": "bacterial meningitis",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.07"
+  },
+  {
+   "id": "s022-alcoholic-cirrhosis",
+   "query": "alcoholic cirrhosis",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-06.02"
+  },
+  {
+   "id": "s023-hepatocellular-carcinoma",
+   "query": "hepatocellular carcinoma",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-02.02"
+  },
+  {
+   "id": "s024-cancer-of-the-oesophagus",
+   "query": "cancer of the oesophagus",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-02.02"
+  },
+  {
+   "id": "s025-carcinoma-of-cervix",
+   "query": "carcinoma of cervix",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-02.05"
+  },
+  {
+   "id": "s026-prostate-cancer",
+   "query": "prostate cancer",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-02.06"
+  },
+  {
+   "id": "s027-acute-leukaemia",
+   "query": "acute leukaemia",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-02.99"
+  },
+  {
+   "id": "s028-severe-acute-malnutrition",
+   "query": "severe acute malnutrition",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-03.02"
+  },
+  {
+   "id": "s029-sickle-cell-crisis",
+   "query": "sickle cell crisis",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-04.03"
+  },
+  {
+   "id": "s030-status-epilepticus",
+   "query": "status epilepticus",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-08.01"
+  },
+  {
+   "id": "s031-tetanus",
+   "query": "tetanus",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.08"
+  },
+  {
+   "id": "s032-rabies",
+   "query": "rabies",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.07"
+  },
+  {
+   "id": "s033-cholera",
+   "query": "cholera",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.04"
+  },
+  {
+   "id": "s034-covid-19",
+   "query": "COVID-19",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-01.13"
+  },
+  {
+   "id": "s035-peritonitis",
+   "query": "peritonitis",
+   "kind": "disease",
+   "why": "common disease name a medical officer types",
+   "source": "VAs-06.01"
+  },
+  {
+   "id": "s036-heart-attack",
+   "query": "heart attack",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-04.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s037-fits",
+   "query": "fits",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-08.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s038-jaundice",
+   "query": "jaundice",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-06.02; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s039-sugar",
+   "query": "sugar",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-03.03"
+  },
+  {
+   "id": "s040-high-blood-pressure",
+   "query": "high blood pressure",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-04.99; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s041-water-in-the-lungs",
+   "query": "water in the lungs",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-04.99"
+  },
+  {
+   "id": "s042-kidney-failure",
+   "query": "kidney failure",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-07.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s043-blood-cancer",
+   "query": "blood cancer",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-02.99"
+  },
+  {
+   "id": "s044-paralysis",
+   "query": "paralysis",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-04.02; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s045-brain-haemorrhage",
+   "query": "brain haemorrhage",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-04.02"
+  },
+  {
+   "id": "s046-bleeding-after-delivery",
+   "query": "bleeding after delivery",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-09.04; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s047-convulsions",
+   "query": "convulsions",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-08.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s048-shortness-of-breath",
+   "query": "shortness of breath",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-05.01"
+  },
+  {
+   "id": "s049-chest-pain",
+   "query": "chest pain",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-04.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s050-vomiting-blood",
+   "query": "vomiting blood",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-06.01"
+  },
+  {
+   "id": "s051-watery-diarrhoea",
+   "query": "watery diarrhoea",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-01.04"
+  },
+  {
+   "id": "s052-wasting",
+   "query": "wasting",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-03.02"
+  },
+  {
+   "id": "s053-animal-bite",
+   "query": "animal bite",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-12.99"
+  },
+  {
+   "id": "s054-snake-bite",
+   "query": "snake bite",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-12.06; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s055-poison",
+   "query": "poison",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-12.07"
+  },
+  {
+   "id": "s056-drowned",
+   "query": "drowned",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-12.04"
+  },
+  {
+   "id": "s057-cot-death",
+   "query": "cot death",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-10.99"
+  },
+  {
+   "id": "s058-asphyxia-neonatorum",
+   "query": "asphyxia neonatorum",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-10.02"
+  },
+  {
+   "id": "s059-premature-baby",
+   "query": "premature baby",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-10.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s060-old-age",
+   "query": "old age",
+   "kind": "lay",
+   "why": "lay wording used in verbal autopsy narratives",
+   "source": "VAs-99; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s061-mi",
+   "query": "MI",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-04.01"
+  },
+  {
+   "id": "s062-tb",
+   "query": "TB",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-01.09; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s063-rta",
+   "query": "RTA",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-12.01"
+  },
+  {
+   "id": "s064-copd",
+   "query": "COPD",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-05.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s065-pph",
+   "query": "PPH",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-09.04"
+  },
+  {
+   "id": "s066-hiv",
+   "query": "HIV",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-01.03; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s067-aids",
+   "query": "AIDS",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-01.03; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s068-ckd",
+   "query": "CKD",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-07.01"
+  },
+  {
+   "id": "s069-cva",
+   "query": "CVA",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-04.02"
+  },
+  {
+   "id": "s070-dm",
+   "query": "DM",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-03.03"
+  },
+  {
+   "id": "s071-htn",
+   "query": "HTN",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-04.99"
+  },
+  {
+   "id": "s072-urti",
+   "query": "URTI",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-01.02"
+  },
+  {
+   "id": "s073-ihd",
+   "query": "IHD",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-04.01"
+  },
+  {
+   "id": "s074-lbw",
+   "query": "LBW",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-10.01"
+  },
+  {
+   "id": "s075-hie",
+   "query": "HIE",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-10.02"
+  },
+  {
+   "id": "s076-rds",
+   "query": "RDS",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-10.02"
+  },
+  {
+   "id": "s077-gi-bleed",
+   "query": "GI bleed",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-06.01"
+  },
+  {
+   "id": "s078-aph",
+   "query": "APH",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-09.04"
+  },
+  {
+   "id": "s079-sids",
+   "query": "SIDS",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-10.99"
+  },
+  {
+   "id": "s080-covid",
+   "query": "COVID",
+   "kind": "abbreviation",
+   "why": "abbreviation common on Indian death certificates",
+   "source": "VAs-01.13"
+  },
+  {
+   "id": "s081-diabetis",
+   "query": "diabetis",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s082-neumonia",
+   "query": "neumonia",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s083-tuberclosis",
+   "query": "tuberclosis",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s084-malnutriton",
+   "query": "malnutriton",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-03.02"
+  },
+  {
+   "id": "s085-hypertention",
+   "query": "hypertention",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-04.99"
+  },
+  {
+   "id": "s086-strok",
+   "query": "strok",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-04.02"
+  },
+  {
+   "id": "s087-jaundise",
+   "query": "jaundise",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-06.02"
+  },
+  {
+   "id": "s088-asma",
+   "query": "asma",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-05.02"
+  },
+  {
+   "id": "s089-epilepsi",
+   "query": "epilepsi",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-08.01"
+  },
+  {
+   "id": "s090-cirhosis",
+   "query": "cirhosis",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-06.02"
+  },
+  {
+   "id": "s091-meningitus",
+   "query": "meningitus",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-01.07"
+  },
+  {
+   "id": "s092-dehydraton",
+   "query": "dehydraton",
+   "kind": "typo",
+   "why": "misspelling a hurried user types",
+   "source": "VAs-01.04"
+  },
+  {
+   "id": "s093-road-traffic-accident",
+   "query": "road traffic accident",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s094-motorcycle-accident",
+   "query": "motorcycle accident",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.01"
+  },
+  {
+   "id": "s095-fall-from-height",
+   "query": "fall from height",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.03"
+  },
+  {
+   "id": "s096-drowning",
+   "query": "drowning",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.04; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s097-burns",
+   "query": "burns",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.05; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s098-hanging",
+   "query": "hanging",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.08; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s099-pesticide-poisoning",
+   "query": "pesticide poisoning",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.07; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s100-gunshot-wound",
+   "query": "gunshot wound",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.09"
+  },
+  {
+   "id": "s101-head-injury",
+   "query": "head injury",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.99"
+  },
+  {
+   "id": "s102-fracture-of-femur",
+   "query": "fracture of femur",
+   "kind": "injury",
+   "why": "injury or external-cause wording",
+   "source": "VAs-12.99"
+  },
+  {
+   "id": "s103-postpartum-haemorrhage",
+   "query": "postpartum haemorrhage",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.04; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s104-eclampsia",
+   "query": "eclampsia",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.03; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s105-puerperal-sepsis",
+   "query": "puerperal sepsis",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.06; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s106-obstructed-labour",
+   "query": "obstructed labour",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.05; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s107-ectopic-pregnancy",
+   "query": "ectopic pregnancy",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.01"
+  },
+  {
+   "id": "s108-septic-abortion",
+   "query": "septic abortion",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.02"
+  },
+  {
+   "id": "s109-anaemia-in-pregnancy",
+   "query": "anaemia in pregnancy",
+   "kind": "maternal",
+   "why": "maternal death cause",
+   "source": "VAs-09.07"
+  },
+  {
+   "id": "s110-preterm-birth",
+   "query": "preterm birth",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.01"
+  },
+  {
+   "id": "s111-low-birth-weight",
+   "query": "low birth weight",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s112-birth-asphyxia",
+   "query": "birth asphyxia",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.02; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s113-neonatal-sepsis",
+   "query": "neonatal sepsis",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.04; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s114-respiratory-distress-syndrome-of-newborn",
+   "query": "respiratory distress syndrome of newborn",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.02"
+  },
+  {
+   "id": "s115-congenital-heart-disease",
+   "query": "congenital heart disease",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.06"
+  },
+  {
+   "id": "s116-neonatal-jaundice",
+   "query": "neonatal jaundice",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-10.99"
+  },
+  {
+   "id": "s117-stillbirth",
+   "query": "stillbirth",
+   "kind": "neonatal",
+   "why": "neonatal or stillbirth cause",
+   "source": "VAs-11.01; scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s118-diab",
+   "query": "diab",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes",
+   "source": "scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s119-pneum",
+   "query": "pneum",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes",
+   "source": "scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s120-tuber",
+   "query": "tuber",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes",
+   "source": "scripts/icd11-parity/queries.json"
+  },
+  {
+   "id": "s121-partial-myocard",
+   "query": "myocard",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s122-partial-hyperten",
+   "query": "hyperten",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s123-partial-cirrho",
+   "query": "cirrho",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s124-partial-pneumon",
+   "query": "pneumon",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s125-partial-tubercul",
+   "query": "tubercul",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s126-partial-septic",
+   "query": "septic",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s127-partial-haemorrh",
+   "query": "haemorrh",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s128-partial-hemorrh",
+   "query": "hemorrh",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s129-partial-eclamp",
+   "query": "eclamp",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s130-partial-asphyx",
+   "query": "asphyx",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s131-partial-prematur",
+   "query": "prematur",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s132-partial-malign",
+   "query": "malign",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s133-partial-diabet",
+   "query": "diabet",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s134-partial-drown",
+   "query": "drown",
+   "kind": "partial",
+   "why": "partial word typed before the user finishes (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s135-mid-mellitus",
+   "query": "mellitus",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s136-mid-insipidus",
+   "query": "insipidus",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s137-mid-sarcoma",
+   "query": "sarcoma",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s138-mid-carcinoma",
+   "query": "carcinoma",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s139-mid-infarction",
+   "query": "infarction",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s140-mid-failure",
+   "query": "failure",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s141-mid-fracture",
+   "query": "fracture",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s142-mid-obstruction",
+   "query": "obstruction",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s143-mid-haemorrhage",
+   "query": "haemorrhage",
+   "kind": "mid-title",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s144-mid-mellit",
+   "query": "mellit",
+   "kind": "mid-title-partial",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s145-mid-sarcom",
+   "query": "sarcom",
+   "kind": "mid-title-partial",
+   "why": "word in the middle or end of a title, not its first word (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s146-syn-cardiac-infarction",
+   "query": "cardiac infarction",
+   "kind": "synonym",
+   "concept": "myocardial infarction",
+   "why": "common synonym, abbreviation or spelling variant for myocardial infarction (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s147-syn-coronary-thrombosis",
+   "query": "coronary thrombosis",
+   "kind": "synonym",
+   "concept": "myocardial infarction",
+   "why": "common synonym, abbreviation or spelling variant for myocardial infarction (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s148-syn-cerebrovascular-accident",
+   "query": "cerebrovascular accident",
+   "kind": "synonym",
+   "concept": "stroke",
+   "why": "common synonym, abbreviation or spelling variant for stroke (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s149-syn-cerebral-infarction",
+   "query": "cerebral infarction",
+   "kind": "synonym",
+   "concept": "stroke",
+   "why": "common synonym, abbreviation or spelling variant for stroke (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s150-syn-paralysis-attack",
+   "query": "paralysis attack",
+   "kind": "synonym",
+   "concept": "stroke",
+   "why": "common synonym, abbreviation or spelling variant for stroke (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s151-syn-raised-blood-pressure",
+   "query": "raised blood pressure",
+   "kind": "synonym",
+   "concept": "hypertension",
+   "why": "common synonym, abbreviation or spelling variant for hypertension (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s152-syn-hypertensive-heart-disease",
+   "query": "hypertensive heart disease",
+   "kind": "synonym",
+   "concept": "hypertension",
+   "why": "common synonym, abbreviation or spelling variant for hypertension (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s153-syn-phthisis",
+   "query": "phthisis",
+   "kind": "synonym",
+   "concept": "tuberculosis",
+   "why": "common synonym, abbreviation or spelling variant for tuberculosis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s154-syn-koch-s-disease",
+   "query": "koch's disease",
+   "kind": "synonym",
+   "concept": "tuberculosis",
+   "why": "common synonym, abbreviation or spelling variant for tuberculosis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s155-syn-diabetes",
+   "query": "diabetes",
+   "kind": "synonym",
+   "concept": "diabetes mellitus",
+   "why": "common synonym, abbreviation or spelling variant for diabetes mellitus (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s156-syn-sugar-disease",
+   "query": "sugar disease",
+   "kind": "synonym",
+   "concept": "diabetes mellitus",
+   "why": "common synonym, abbreviation or spelling variant for diabetes mellitus (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s157-syn-type-2-diabetes",
+   "query": "type 2 diabetes",
+   "kind": "synonym",
+   "concept": "diabetes mellitus",
+   "why": "common synonym, abbreviation or spelling variant for diabetes mellitus (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s158-syn-renal-failure",
+   "query": "renal failure",
+   "kind": "synonym",
+   "concept": "chronic kidney disease",
+   "why": "common synonym, abbreviation or spelling variant for chronic kidney disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s159-syn-end-stage-renal-disease",
+   "query": "end stage renal disease",
+   "kind": "synonym",
+   "concept": "chronic kidney disease",
+   "why": "common synonym, abbreviation or spelling variant for chronic kidney disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s160-syn-uraemia",
+   "query": "uraemia",
+   "kind": "synonym",
+   "concept": "chronic kidney disease",
+   "why": "common synonym, abbreviation or spelling variant for chronic kidney disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s161-syn-uremia",
+   "query": "uremia",
+   "kind": "synonym",
+   "concept": "chronic kidney disease",
+   "why": "common synonym, abbreviation or spelling variant for chronic kidney disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s162-syn-cirrhosis-of-liver",
+   "query": "cirrhosis of liver",
+   "kind": "synonym",
+   "concept": "liver cirrhosis",
+   "why": "common synonym, abbreviation or spelling variant for liver cirrhosis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s163-syn-hepatic-cirrhosis",
+   "query": "hepatic cirrhosis",
+   "kind": "synonym",
+   "concept": "liver cirrhosis",
+   "why": "common synonym, abbreviation or spelling variant for liver cirrhosis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s164-syn-alcoholic-liver-disease",
+   "query": "alcoholic liver disease",
+   "kind": "synonym",
+   "concept": "liver cirrhosis",
+   "why": "common synonym, abbreviation or spelling variant for liver cirrhosis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s165-syn-chronic-liver-disease",
+   "query": "chronic liver disease",
+   "kind": "synonym",
+   "concept": "liver cirrhosis",
+   "why": "common synonym, abbreviation or spelling variant for liver cirrhosis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s166-syn-septicaemia",
+   "query": "septicaemia",
+   "kind": "synonym",
+   "concept": "sepsis",
+   "why": "common synonym, abbreviation or spelling variant for sepsis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s167-syn-septicemia",
+   "query": "septicemia",
+   "kind": "synonym",
+   "concept": "sepsis",
+   "why": "common synonym, abbreviation or spelling variant for sepsis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s168-syn-blood-poisoning",
+   "query": "blood poisoning",
+   "kind": "synonym",
+   "concept": "sepsis",
+   "why": "common synonym, abbreviation or spelling variant for sepsis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s169-syn-bacteraemia",
+   "query": "bacteraemia",
+   "kind": "synonym",
+   "concept": "sepsis",
+   "why": "common synonym, abbreviation or spelling variant for sepsis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s170-syn-diarrhea",
+   "query": "diarrhea",
+   "kind": "synonym",
+   "concept": "diarrhoea",
+   "why": "common synonym, abbreviation or spelling variant for diarrhoea (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s171-syn-loose-motions",
+   "query": "loose motions",
+   "kind": "synonym",
+   "concept": "diarrhoea",
+   "why": "common synonym, abbreviation or spelling variant for diarrhoea (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s172-syn-gastroenteritis",
+   "query": "gastroenteritis",
+   "kind": "synonym",
+   "concept": "diarrhoea",
+   "why": "common synonym, abbreviation or spelling variant for diarrhoea (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s173-syn-acute-watery-diarrhoea",
+   "query": "acute watery diarrhoea",
+   "kind": "synonym",
+   "concept": "diarrhoea",
+   "why": "common synonym, abbreviation or spelling variant for diarrhoea (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s174-syn-dysentery",
+   "query": "dysentery",
+   "kind": "synonym",
+   "concept": "diarrhoea",
+   "why": "common synonym, abbreviation or spelling variant for diarrhoea (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s175-syn-chest-infection",
+   "query": "chest infection",
+   "kind": "synonym",
+   "concept": "pneumonia",
+   "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s176-syn-lower-respiratory-tract-infection",
+   "query": "lower respiratory tract infection",
+   "kind": "synonym",
+   "concept": "pneumonia",
+   "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s177-syn-bronchopneumonia",
+   "query": "bronchopneumonia",
+   "kind": "synonym",
+   "concept": "pneumonia",
+   "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s178-syn-lrti",
+   "query": "LRTI",
+   "kind": "synonym",
+   "concept": "pneumonia",
+   "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s179-syn-chronic-obstructive-pulmonary-disease",
+   "query": "chronic obstructive pulmonary disease",
+   "kind": "synonym",
+   "concept": "COPD",
+   "why": "common synonym, abbreviation or spelling variant for COPD (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s180-syn-chronic-bronchitis",
+   "query": "chronic bronchitis",
+   "kind": "synonym",
+   "concept": "COPD",
+   "why": "common synonym, abbreviation or spelling variant for COPD (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s181-syn-emphysema",
+   "query": "emphysema",
+   "kind": "synonym",
+   "concept": "COPD",
+   "why": "common synonym, abbreviation or spelling variant for COPD (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s182-syn-bronchial-asthma",
+   "query": "bronchial asthma",
+   "kind": "synonym",
+   "concept": "asthma",
+   "why": "common synonym, abbreviation or spelling variant for asthma (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s183-syn-wheezing",
+   "query": "wheezing",
+   "kind": "synonym",
+   "concept": "asthma",
+   "why": "common synonym, abbreviation or spelling variant for asthma (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s184-syn-cardiac-failure",
+   "query": "cardiac failure",
+   "kind": "synonym",
+   "concept": "heart failure",
+   "why": "common synonym, abbreviation or spelling variant for heart failure (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s185-syn-chf",
+   "query": "CHF",
+   "kind": "synonym",
+   "concept": "heart failure",
+   "why": "common synonym, abbreviation or spelling variant for heart failure (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s186-syn-left-ventricular-failure",
+   "query": "left ventricular failure",
+   "kind": "synonym",
+   "concept": "heart failure",
+   "why": "common synonym, abbreviation or spelling variant for heart failure (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s187-syn-enteric-fever",
+   "query": "enteric fever",
+   "kind": "synonym",
+   "concept": "typhoid",
+   "why": "common synonym, abbreviation or spelling variant for typhoid (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s188-syn-plasmodium-falciparum",
+   "query": "plasmodium falciparum",
+   "kind": "synonym",
+   "concept": "malaria",
+   "why": "common synonym, abbreviation or spelling variant for malaria (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s189-syn-cerebral-malaria",
+   "query": "cerebral malaria",
+   "kind": "synonym",
+   "concept": "malaria",
+   "why": "common synonym, abbreviation or spelling variant for malaria (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s190-syn-acquired-immunodeficiency-syndrome",
+   "query": "acquired immunodeficiency syndrome",
+   "kind": "synonym",
+   "concept": "HIV",
+   "why": "common synonym, abbreviation or spelling variant for HIV (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s191-syn-anemia",
+   "query": "anemia",
+   "kind": "synonym",
+   "concept": "anaemia",
+   "why": "common synonym, abbreviation or spelling variant for anaemia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s192-syn-iron-deficiency-anaemia",
+   "query": "iron deficiency anaemia",
+   "kind": "synonym",
+   "concept": "anaemia",
+   "why": "common synonym, abbreviation or spelling variant for anaemia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s193-syn-low-haemoglobin",
+   "query": "low haemoglobin",
+   "kind": "synonym",
+   "concept": "anaemia",
+   "why": "common synonym, abbreviation or spelling variant for anaemia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s194-syn-edema",
+   "query": "edema",
+   "kind": "synonym",
+   "concept": "oedema",
+   "why": "common synonym, abbreviation or spelling variant for oedema (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s195-syn-swelling-of-feet",
+   "query": "swelling of feet",
+   "kind": "synonym",
+   "concept": "oedema",
+   "why": "common synonym, abbreviation or spelling variant for oedema (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s196-syn-malignant-neoplasm",
+   "query": "malignant neoplasm",
+   "kind": "synonym",
+   "concept": "cancer",
+   "why": "common synonym, abbreviation or spelling variant for cancer (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s197-syn-malignancy",
+   "query": "malignancy",
+   "kind": "synonym",
+   "concept": "cancer",
+   "why": "common synonym, abbreviation or spelling variant for cancer (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s198-syn-tumour",
+   "query": "tumour",
+   "kind": "synonym",
+   "concept": "cancer",
+   "why": "common synonym, abbreviation or spelling variant for cancer (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s199-syn-tumor",
+   "query": "tumor",
+   "kind": "synonym",
+   "concept": "cancer",
+   "why": "common synonym, abbreviation or spelling variant for cancer (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s200-syn-leukemia",
+   "query": "leukemia",
+   "kind": "synonym",
+   "concept": "leukaemia",
+   "why": "common synonym, abbreviation or spelling variant for leukaemia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s201-syn-ischemic-heart-disease",
+   "query": "ischemic heart disease",
+   "kind": "synonym",
+   "concept": "ischaemic heart disease",
+   "why": "common synonym, abbreviation or spelling variant for ischaemic heart disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s202-syn-coronary-artery-disease",
+   "query": "coronary artery disease",
+   "kind": "synonym",
+   "concept": "ischaemic heart disease",
+   "why": "common synonym, abbreviation or spelling variant for ischaemic heart disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s203-syn-cad",
+   "query": "CAD",
+   "kind": "synonym",
+   "concept": "ischaemic heart disease",
+   "why": "common synonym, abbreviation or spelling variant for ischaemic heart disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s204-syn-angina",
+   "query": "angina",
+   "kind": "synonym",
+   "concept": "ischaemic heart disease",
+   "why": "common synonym, abbreviation or spelling variant for ischaemic heart disease (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s205-syn-motor-vehicle-accident",
+   "query": "motor vehicle accident",
+   "kind": "synonym",
+   "concept": "road traffic accident",
+   "why": "common synonym, abbreviation or spelling variant for road traffic accident (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s206-syn-road-accident",
+   "query": "road accident",
+   "kind": "synonym",
+   "concept": "road traffic accident",
+   "why": "common synonym, abbreviation or spelling variant for road traffic accident (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s207-syn-traffic-injury",
+   "query": "traffic injury",
+   "kind": "synonym",
+   "concept": "road traffic accident",
+   "why": "common synonym, abbreviation or spelling variant for road traffic accident (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s208-syn-self-harm",
+   "query": "self harm",
+   "kind": "synonym",
+   "concept": "suicide",
+   "why": "common synonym, abbreviation or spelling variant for suicide (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s209-syn-intentional-self-harm",
+   "query": "intentional self-harm",
+   "kind": "synonym",
+   "concept": "suicide",
+   "why": "common synonym, abbreviation or spelling variant for suicide (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s210-syn-poisoning-by-pesticide",
+   "query": "poisoning by pesticide",
+   "kind": "synonym",
+   "concept": "suicide",
+   "why": "common synonym, abbreviation or spelling variant for suicide (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s211-syn-organophosphate-poisoning",
+   "query": "organophosphate poisoning",
+   "kind": "synonym",
+   "concept": "suicide",
+   "why": "common synonym, abbreviation or spelling variant for suicide (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s212-syn-snakebite",
+   "query": "snakebite",
+   "kind": "synonym",
+   "concept": "snake bite",
+   "why": "common synonym, abbreviation or spelling variant for snake bite (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s213-syn-venomous-snake",
+   "query": "venomous snake",
+   "kind": "synonym",
+   "concept": "snake bite",
+   "why": "common synonym, abbreviation or spelling variant for snake bite (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s214-syn-envenomation",
+   "query": "envenomation",
+   "kind": "synonym",
+   "concept": "snake bite",
+   "why": "common synonym, abbreviation or spelling variant for snake bite (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s215-syn-burn-injury",
+   "query": "burn injury",
+   "kind": "synonym",
+   "concept": "burns",
+   "why": "common synonym, abbreviation or spelling variant for burns (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s216-syn-thermal-burn",
+   "query": "thermal burn",
+   "kind": "synonym",
+   "concept": "burns",
+   "why": "common synonym, abbreviation or spelling variant for burns (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s217-syn-scald",
+   "query": "scald",
+   "kind": "synonym",
+   "concept": "burns",
+   "why": "common synonym, abbreviation or spelling variant for burns (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s218-syn-postpartum-hemorrhage",
+   "query": "postpartum hemorrhage",
+   "kind": "synonym",
+   "concept": "postpartum haemorrhage",
+   "why": "common synonym, abbreviation or spelling variant for postpartum haemorrhage (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s219-syn-pre-eclampsia",
+   "query": "pre-eclampsia",
+   "kind": "synonym",
+   "concept": "eclampsia",
+   "why": "common synonym, abbreviation or spelling variant for eclampsia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s220-syn-toxaemia-of-pregnancy",
+   "query": "toxaemia of pregnancy",
+   "kind": "synonym",
+   "concept": "eclampsia",
+   "why": "common synonym, abbreviation or spelling variant for eclampsia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s221-syn-pregnancy-induced-hypertension",
+   "query": "pregnancy induced hypertension",
+   "kind": "synonym",
+   "concept": "eclampsia",
+   "why": "common synonym, abbreviation or spelling variant for eclampsia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s222-syn-perinatal-asphyxia",
+   "query": "perinatal asphyxia",
+   "kind": "synonym",
+   "concept": "birth asphyxia",
+   "why": "common synonym, abbreviation or spelling variant for birth asphyxia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s223-syn-birth-hypoxia",
+   "query": "birth hypoxia",
+   "kind": "synonym",
+   "concept": "birth asphyxia",
+   "why": "common synonym, abbreviation or spelling variant for birth asphyxia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s224-syn-hypoxic-ischaemic-encephalopathy",
+   "query": "hypoxic ischaemic encephalopathy",
+   "kind": "synonym",
+   "concept": "birth asphyxia",
+   "why": "common synonym, abbreviation or spelling variant for birth asphyxia (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s225-syn-sepsis-of-newborn",
+   "query": "sepsis of newborn",
+   "kind": "synonym",
+   "concept": "neonatal sepsis",
+   "why": "common synonym, abbreviation or spelling variant for neonatal sepsis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s226-syn-neonatal-infection",
+   "query": "neonatal infection",
+   "kind": "synonym",
+   "concept": "neonatal sepsis",
+   "why": "common synonym, abbreviation or spelling variant for neonatal sepsis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s227-syn-brain-fever",
+   "query": "brain fever",
+   "kind": "synonym",
+   "concept": "meningitis",
+   "why": "common synonym, abbreviation or spelling variant for meningitis (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s228-syn-seizure-disorder",
+   "query": "seizure disorder",
+   "kind": "synonym",
+   "concept": "epilepsy",
+   "why": "common synonym, abbreviation or spelling variant for epilepsy (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s229-syn-hepatitis",
+   "query": "hepatitis",
+   "kind": "synonym",
+   "concept": "jaundice",
+   "why": "common synonym, abbreviation or spelling variant for jaundice (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s230-syn-yellow-fever",
+   "query": "yellow fever",
+   "kind": "synonym",
+   "concept": "jaundice",
+   "why": "common synonym, abbreviation or spelling variant for jaundice (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s231-syn-viral-hepatitis",
+   "query": "viral hepatitis",
+   "kind": "synonym",
+   "concept": "jaundice",
+   "why": "common synonym, abbreviation or spelling variant for jaundice (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s232-syn-dengue-fever",
+   "query": "dengue fever",
+   "kind": "synonym",
+   "concept": "dengue",
+   "why": "common synonym, abbreviation or spelling variant for dengue (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s233-syn-dengue-haemorrhagic-fever",
+   "query": "dengue haemorrhagic fever",
+   "kind": "synonym",
+   "concept": "dengue",
+   "why": "common synonym, abbreviation or spelling variant for dengue (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s234-syn-submersion",
+   "query": "submersion",
+   "kind": "synonym",
+   "concept": "drowning",
+   "why": "common synonym, abbreviation or spelling variant for drowning (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s235-syn-accidental-fall",
+   "query": "accidental fall",
+   "kind": "synonym",
+   "concept": "fall",
+   "why": "common synonym, abbreviation or spelling variant for fall (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s236-syn-sudden-cardiac-death",
+   "query": "sudden cardiac death",
+   "kind": "synonym",
+   "concept": "cardiac arrest",
+   "why": "common synonym, abbreviation or spelling variant for cardiac arrest (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s237-syn-heart-stopped",
+   "query": "heart stopped",
+   "kind": "synonym",
+   "concept": "cardiac arrest",
+   "why": "common synonym, abbreviation or spelling variant for cardiac arrest (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  },
+  {
+   "id": "s238-syn-senescence",
+   "query": "senescence",
+   "kind": "synonym",
+   "concept": "senility",
+   "why": "common synonym, abbreviation or spelling variant for senility (owner 2026-10-29)",
+   "source": "owner 2026-10-29"
+  }
+ ]
+}

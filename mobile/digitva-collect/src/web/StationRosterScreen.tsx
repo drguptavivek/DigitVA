@@ -428,7 +428,7 @@ export function StationRosterScreen({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView keyboardDismissMode="on-drag" style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.title}>{t("stationRosterTitle")}</Text>

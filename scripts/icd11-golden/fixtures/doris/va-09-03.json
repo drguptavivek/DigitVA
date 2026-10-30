@@ -1,0 +1,142 @@
+{
+ "id": "va-09-03",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P23Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MaternalDeath": {
+    "PregnancyContribute": 1,
+    "TimeFromPregnancy": 0,
+    "WasPregnant": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "JA25",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1759760659",
+       "Text": "Eclampsia"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-09-03",
+  "source": "VA cause VAs-09.03 Pregnancy-induced hypertension",
+  "why": "Pregnancy-induced hypertension: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25",
+    "POST icd/release/11/2026-01/doris #724ae39b29",
+    "POST icd/release/11/2026-01/codedit #724ae39b29",
+    "GET icd/release/11/2026-01/mms/codeinfo/JA25.3",
+    "GET icd/release/11/2026-01/mms/250375350"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P23Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MaternalDeath": {
+       "PregnancyContribute": 1,
+       "TimeFromPregnancy": 0,
+       "WasPregnant": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "JA25",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1759760659",
+          "Text": "Eclampsia"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "BER-CE-10",
+       "report": "JA25 is not a terminal code in the MMS linearization.",
+       "tabularReport": "0,JA25 is not a terminal code in the MMS linearization.,BER-CE-10;JA25;JA25.3;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "JA25.3",
+       "error": null,
+       "reject": false,
+       "report": "SP1: JA25.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA25.3 - remains the TUC.\n\n\nFull report:\nSP1: JA25.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA25.3.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA25.3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA25.3 - remains the TUC.\n",
+       "stemCode": "JA25.3",
+       "stemURI": "http://id.who.int/icd/entity/250375350",
+       "tabularReport": "MCC;True;;;;Substitution:0:JA25>JA25.3;;1;JA25 is not a terminal code in the MMS linearization. JA25 was recoded to JA25.3 which is not a residual.;;;;BER\nMCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JA25.3;JA25.3;;;0;SP1: JA25.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA25.3;;;;;0;SP6: is not applicable with the current TSP JA25.3.;;;;BER\nSP7;False;JA25.3;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA25.3;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA25.3;;;;;0;M1: There is no special instruction applicable with TUC JA25.3.;;;;BER\nM2;False;JA25.3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA25.3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA25.3;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA25.3;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA25.3 - remains the TUC.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/250375350",
+       "warning": "JA25 is not a terminal code in the MMS linearization.\nJA25 was recoded to JA25.3 which is not a residual.\nPregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "JA25.3",
+       "role": "stem",
+       "title": "Eclampsia, time period unspecified",
+       "uri": "http://id.who.int/icd/release/11/mms/250375350"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P23Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MaternalDeath": {
+      "PregnancyContribute": 1,
+      "TimeFromPregnancy": 0,
+      "WasPregnant": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "JA25",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1759760659",
+         "Text": "Eclampsia"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/250375350": {"method":"GET","path":"icd/release/11/2026-01/mms/250375350","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/250375350","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#250375350","classKind":"category","code":"JA25.3","definition":{"@language":"en","@value":"Onset of convulsions in a woman with pre-eclampsia not attributable to other causes without a specific onset time."},"indexTerm":[{"label":{"@language":"en","@value":"Eclampsia, time period unspecified"}},{"label":{"@language":"en","@value":"Eclampsia NOS"}},{"label":{"@language":"en","@value":"eclamptic coma"}},{"label":{"@language":"en","@value":"eclamptic toxaemia"}},{"label":{"@language":"en","@value":"toxaemia with convulsions"}},{"foundationReference":"http://id.who.int/icd/entity/1979552354","label":{"@language":"en","@value":"Convulsions following gestational [pregnancy-induced] hypertension with significant proteinuria"}},{"foundationReference":"http://id.who.int/icd/entity/718945235","label":{"@language":"en","@value":"Convulsions following gestational [pregnancy-induced] hypertension without significant proteinuria"}},{"foundationReference":"http://id.who.int/icd/entity/890149511","label":{"@language":"en","@value":"Convulsions following gestational [pregnancy-induced] oedema and proteinuria without hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/1893793650","label":{"@language":"en","@value":"Convulsions following pre-existing hypertension complicating pregnancy, childbirth and the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/826685717","label":{"@language":"en","@value":"Convulsions following pre-existing hypertensive disorder with superimposed proteinuria"}},{"foundationReference":"http://id.who.int/icd/entity/2143063924","label":{"@language":"en","@value":"Convulsions following unspecified maternal hypertension"}},{"foundationReference":"http://id.who.int/icd/entity/17700269","label":{"@language":"en","@value":"Eclampsia with pregnancy-induced or pre-existing hypertension"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1759760659"],"source":"http://id.who.int/icd/entity/250375350","title":{"@language":"en","@value":"Eclampsia, time period unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JA25": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA25","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA25","code":"JA25","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1759760659"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JA25.3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA25.3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA25.3","code":"JA25.3","stemId":"http://id.who.int/icd/release/11/2026-01/mms/250375350"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #724ae39b29": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"BER-CE-10","report":"JA25 is not a terminal code in the MMS linearization.","tabularReport":"0,JA25 is not a terminal code in the MMS linearization.,BER-CE-10;JA25;JA25.3;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P23Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JA25\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1759760659\",\"Text\":\"Eclampsia\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #724ae39b29": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"JA25.3","error":null,"reject":false,"report":"SP1: JA25.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA25.3 - remains the TUC.\n\n\nFull report:\nSP1: JA25.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA25.3.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA25.3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA25.3 - remains the TUC.\n","stemCode":"JA25.3","stemURI":"http://id.who.int/icd/entity/250375350","tabularReport":"MCC;True;;;;Substitution:0:JA25>JA25.3;;1;JA25 is not a terminal code in the MMS linearization. JA25 was recoded to JA25.3 which is not a residual.;;;;BER\nMCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JA25.3;JA25.3;;;0;SP1: JA25.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA25.3;;;;;0;SP6: is not applicable with the current TSP JA25.3.;;;;BER\nSP7;False;JA25.3;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA25.3;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA25.3;;;;;0;M1: There is no special instruction applicable with TUC JA25.3.;;;;BER\nM2;False;JA25.3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA25.3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA25.3;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA25.3;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA25.3 - remains the TUC.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/250375350","warning":"JA25 is not a terminal code in the MMS linearization.\nJA25 was recoded to JA25.3 which is not a residual.\nPregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P23Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JA25\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1759760659\",\"Text\":\"Eclampsia\"}]}]}","status":200}
+ }
+}

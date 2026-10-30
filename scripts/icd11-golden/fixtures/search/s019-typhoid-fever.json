@@ -1,0 +1,98 @@
+{
+ "id": "s019-typhoid-fever",
+ "input": {
+  "id": "s019-typhoid-fever",
+  "kind": "disease",
+  "query": "typhoid fever",
+  "source": "VAs-01.99",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #8a402be23d"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 5,
+     "items": [
+      {
+       "code": "1A07.Z",
+       "has_coding_note": false,
+       "matching_text": "Typhoid fever, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Typhoid fever, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified"
+      },
+      {
+       "code": "1A07.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified typhoid fever",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified typhoid fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070/other"
+      },
+      {
+       "code": "1A07.Y/CA40.0Z",
+       "has_coding_note": false,
+       "matching_text": "Typhoid pneumonia",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Typhoid pneumonia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070/other / http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"
+      },
+      {
+       "code": "1D49",
+       "has_coding_note": false,
+       "matching_text": "Crimean-Congo haemorrhagic fever",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Crimean-Congo haemorrhagic fever",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1562906700"
+      },
+      {
+       "code": "1A07.Y/BB40",
+       "has_coding_note": false,
+       "matching_text": "Typhoid endocarditis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Typhoid endocarditis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1528414070/other / http://id.who.int/icd/release/11/2026-01/mms/512128824"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "typhoid fever",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #8a402be23d": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1528414070","important":false,"label":"<em class='found'>Typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1528414070","important":false,"label":"<em class='found'>typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em> confirmed","propertyId":"Synonym","propertyValueType":0,"score":0.39435834740481907},{"foundationUri":"http://id.who.int/icd/entity/1528414070","important":false,"label":"<em class='found'>typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em> any site","propertyId":"Synonym","propertyValueType":0,"score":0.27046027813663065}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/unspecified","theCode":"1A07.Z","title":"<em class='found'>Typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/367810165","important":false,"label":"<em class='found'>Typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em> with heart involvement","propertyId":"Title","propertyValueType":1,"score":0.023630561318635238}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.46614216353635685,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other","theCode":"1A07.Y","title":"Other specified <em class='found'>typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"01","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other / http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1890032609","important":false,"label":"Pneumonia due to <em class='found'>typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":0.04312375170506527}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.04312375170506527,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other","theCode":"1A07.Y/CA40.0Z","title":"<em class='found'>Typhoid</em> pneumonia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1562906700","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1562906700","important":false,"label":"Kara mikh <em class='found'>typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.20324142799994838}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.20324142799994838,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1562906700","theCode":"1D49","title":"Crimean-Congo haemorrhagic <em class='found'>fever</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other / http://id.who.int/icd/release/11/2026-01/mms/512128824","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/425206566","important":false,"label":"endocardial involvement in <em class='found'>typhoid</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-0.42126713883483063}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.42126713883483063,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1528414070/other","theCode":"1A07.Y/BB40","title":"<em class='found'>Typhoid</em> endocarditis","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=typhoid+fever%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

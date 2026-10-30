@@ -137,7 +137,8 @@ export function DateFieldShell({ label, value, onChange, precision, date, month,
 
   if (!precision) {
     const stored = value !== "" && !isFullIso(value);
-    if (!stored) return <>{date(value, onChange)}</>;
+    // In a row: the date controls size themselves with flexGrow/flexBasis, which is a height in a column cell.
+    if (!stored) return <View style={layout.row}>{date(value, onChange)}</View>;
     return (
       <View style={{ gap: 4 }}>
         <Input accessibilityLabel={label} placeholder="YYYY-MM-DD" maxLength={10} value={text} invalid={Boolean(error)} onChangeText={(next) => {

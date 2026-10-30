@@ -1,0 +1,228 @@
+{
+ "id": "chain-4lines",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P39Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "MG40.1",
+       "Interval": "PT6H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/284999005",
+       "Text": "Shock"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "1G40",
+       "Interval": "P2D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+       "Text": "Sepsis"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "DC50.Z",
+       "Interval": "P4D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified",
+       "Text": "Peritonitis"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "DB10.01",
+       "Interval": "P6D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2049027138",
+       "Text": "Burst appendix"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-4lines",
+  "source": "VA cause VAs-06.01 Acute abdomen; VA cause VAs-01.01 Sepsis",
+  "why": "Four lines: shock, sepsis, peritonitis, appendicitis"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/MG40.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/1G40",
+    "GET icd/release/11/2026-01/mms/codeinfo/DC50.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/DB10.01",
+    "POST icd/release/11/2026-01/doris #b109d5f594",
+    "POST icd/release/11/2026-01/codedit #b109d5f594"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P39Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "MG40.1",
+          "Interval": "PT6H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/284999005",
+          "Text": "Shock"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "1G40",
+          "Interval": "P2D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+          "Text": "Sepsis"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "DC50.Z",
+          "Interval": "P4D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified",
+          "Text": "Peritonitis"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "DB10.01",
+          "Interval": "P6D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2049027138",
+          "Text": "Burst appendix"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "DB10.01/1G40",
+       "error": null,
+       "reject": false,
+       "report": "SP3: DB10.01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n1G40 are manifestations of the selected underlying cause of death DB10.01 and it is added as a postcoordination - DB10.01>DB10.01/1G40.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: DB10.01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP DB10.01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC DB10.01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n1G40 are manifestations of the selected underlying cause of death DB10.01 and it is added as a postcoordination - DB10.01>DB10.01/1G40.\n",
+       "stemCode": "DB10.01",
+       "stemURI": "http://id.who.int/icd/entity/2049027138",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;DB10.01;DB10.01;;;0;SP3: DB10.01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;DB10.01;;;;;0;SP6: is not applicable with the current TSP DB10.01.;;;;BER\nSP7;False;DB10.01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;DB10.01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;DB10.01;;;;;0;M1: There is no special instruction applicable with TUC DB10.01.;;;;BER\nM2;False;DB10.01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;DB10.01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;DB10.01;DB10.01/1G40;1G40;Substitution:3:DB10.01>DB10.01/1G40;;0;1G40 are manifestations of the selected underlying cause of death DB10.01 and it is added as a postcoordination - DB10.01>DB10.01/1G40.;;;1,\"The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - DB10.01, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/2049027138 / http://id.who.int/icd/release/11/mms/622600769",
+       "warning": "The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - DB10.01, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "DB10.01",
+       "role": "stem",
+       "title": "Burst appendix",
+       "uri": "http://id.who.int/icd/release/11/mms/2049027138"
+      },
+      {
+       "code": "1G40",
+       "role": "postcoordinated",
+       "title": "Sepsis",
+       "uri": "http://id.who.int/icd/release/11/mms/622600769"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P39Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "MG40.1",
+         "Interval": "PT6H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/284999005",
+         "Text": "Shock"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "1G40",
+         "Interval": "P2D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+         "Text": "Sepsis"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "DC50.Z",
+         "Interval": "P4D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified",
+         "Text": "Peritonitis"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "DB10.01",
+         "Interval": "P6D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2049027138",
+         "Text": "Burst appendix"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1G40": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1G40","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1G40","code":"1G40","stemId":"http://id.who.int/icd/release/11/2026-01/mms/622600769"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/DB10.01": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/DB10.01","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/DB10.01","code":"DB10.01","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2049027138"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/DC50.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/DC50.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/DC50.Z","code":"DC50.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/MG40.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/MG40.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/MG40.1","code":"MG40.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/284999005"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #b109d5f594": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P39Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"MG40.1\",\"Interval\":\"PT6H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/284999005\",\"Text\":\"Shock\"}]},{\"Conditions\":[{\"Code\":\"1G40\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/622600769\",\"Text\":\"Sepsis\"}]},{\"Conditions\":[{\"Code\":\"DC50.Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified\",\"Text\":\"Peritonitis\"}]},{\"Conditions\":[{\"Code\":\"DB10.01\",\"Interval\":\"P6D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2049027138\",\"Text\":\"Burst appendix\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #b109d5f594": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"DB10.01/1G40","error":null,"reject":false,"report":"SP3: DB10.01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n1G40 are manifestations of the selected underlying cause of death DB10.01 and it is added as a postcoordination - DB10.01>DB10.01/1G40.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: DB10.01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP DB10.01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC DB10.01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n1G40 are manifestations of the selected underlying cause of death DB10.01 and it is added as a postcoordination - DB10.01>DB10.01/1G40.\n","stemCode":"DB10.01","stemURI":"http://id.who.int/icd/entity/2049027138","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;DB10.01;DB10.01;;;0;SP3: DB10.01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;DB10.01;;;;;0;SP6: is not applicable with the current TSP DB10.01.;;;;BER\nSP7;False;DB10.01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;DB10.01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;DB10.01;;;;;0;M1: There is no special instruction applicable with TUC DB10.01.;;;;BER\nM2;False;DB10.01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;DB10.01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;DB10.01;DB10.01/1G40;1G40;Substitution:3:DB10.01>DB10.01/1G40;;0;1G40 are manifestations of the selected underlying cause of death DB10.01 and it is added as a postcoordination - DB10.01>DB10.01/1G40.;;;1,\"The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - DB10.01, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/2049027138 / http://id.who.int/icd/release/11/mms/622600769","warning":"The postcoordinations - 1G40 - were selected from conditions that are potential manifestations of the tentative underlying cause - DB10.01, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P39Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"MG40.1\",\"Interval\":\"PT6H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/284999005\",\"Text\":\"Shock\"}]},{\"Conditions\":[{\"Code\":\"1G40\",\"Interval\":\"P2D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/622600769\",\"Text\":\"Sepsis\"}]},{\"Conditions\":[{\"Code\":\"DC50.Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified\",\"Text\":\"Peritonitis\"}]},{\"Conditions\":[{\"Code\":\"DB10.01\",\"Interval\":\"P6D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2049027138\",\"Text\":\"Burst appendix\"}]}]}","status":200}
+ }
+}

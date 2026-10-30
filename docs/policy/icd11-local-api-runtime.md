@@ -3,7 +3,7 @@ title: Local WHO ICD-11 API Runtime
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-29
 ---
 
 # Local WHO ICD-11 API Runtime
@@ -98,3 +98,21 @@ The server architecture and follow-up remain:
   that owner decision as WHO permission or separately publish the engine bundle.
 - After the call, ask WHO for one written line covering points 1 and 2 and
   record it here.
+
+On 2026-10-29 the owner spoke with the WHO ICD team. The team welcomed
+Android support (WHO has had many requests for it), asked DigitVA to share the
+solution and a write-up, and raised one concern: future breakage and
+maintenance, since the REST API is backward compatible but the assemblies'
+internals may not be. The licence was not discussed.
+
+Owner decision, 2026-10-29: the offline engine bundle may be published as a
+public release asset, including new builds, **on condition that every input
+is public and open with no restriction**: WHO's assemblies only from the
+public `whoicd/icd-api` image (pinned by digest), WHO's data only from WHO's
+public CDN and storage (pinned by SHA-256), and DigitVA's own bridge sources
+from this repository. Nothing private, licensed separately or access-
+controlled goes into a bundle. The existing release `icd11-engine-v2026.10.25.1`
+stays public on that basis. This is the owner's decision, not WHO permission;
+the write-up to WHO states plainly that the bundle is public and still asks
+for the written line on points 1 and 2 (and on redistributing WHO's data
+files, which is a separate question from the assemblies).

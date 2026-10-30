@@ -1,0 +1,37 @@
+{
+ "id": "s041-water-in-the-lungs",
+ "input": {
+  "id": "s041-water-in-the-lungs",
+  "kind": "lay",
+  "query": "water in the lungs",
+  "source": "VAs-04.99",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #fbb749c36d"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 0,
+     "items": [],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "water in the lungs",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #fbb749c36d": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=water+in+the+lungs%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

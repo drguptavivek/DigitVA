@@ -1,0 +1,137 @@
+{
+ "id": "fetal-week-old-drops-24h",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P8D",
+    "Sex": 1
+   },
+   "FetalOrInfantDeath": {
+    "BirthWeight": 2700,
+    "DeathWithin24h": 5,
+    "PregnancyWeeks": 38
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "KA60",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+       "Text": "Sepsis of newborn"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "neonatal",
+  "id": "fetal-week-old-drops-24h",
+  "source": "docs/policy/doris-certificate-rules.md",
+  "why": "Neonate at 8 days: DeathWithin24h dropped"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "POST icd/release/11/2026-01/doris #5a8a9ad393",
+    "POST icd/release/11/2026-01/codedit #5a8a9ad393"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P8D",
+       "Sex": 1
+      },
+      "FetalOrInfantDeath": {
+       "BirthWeight": 2700,
+       "PregnancyWeeks": 38
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "KA60",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+          "Text": "Sepsis of newborn"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KA60",
+       "error": null,
+       "reject": false,
+       "report": "SP1: KA60 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KA60 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA60.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA60.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "KA60",
+       "stemURI": "http://id.who.int/icd/entity/381388700",
+       "tabularReport": "MCC;True;;;;;;1;The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.;;Age;;BER\nSP1;True;;KA60;KA60;;;0;SP1: KA60 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA60;;;;;0;SP6: is not applicable with the current TSP KA60.;;;;BER\nSP7;False;KA60;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA60;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KA60;;;;;0;M1: There is no special instruction applicable with TUC KA60.;;;;BER\nM2;False;KA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA60;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/381388700",
+       "warning": "The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KA60",
+       "role": "stem",
+       "title": "Sepsis of newborn",
+       "uri": "http://id.who.int/icd/release/11/mms/381388700"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P8D",
+      "Sex": 1
+     },
+     "FetalOrInfantDeath": {
+      "BirthWeight": 2700,
+      "DeathWithin24h": 5,
+      "PregnancyWeeks": 38
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "KA60",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+         "Text": "Sepsis of newborn"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/KA60": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA60","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA60","code":"KA60","stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #5a8a9ad393": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P8D\",\"Sex\":1},\"FetalOrInfantDeath\":{\"BirthWeight\":2700,\"PregnancyWeeks\":38},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KA60\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/381388700\",\"Text\":\"Sepsis of newborn\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #5a8a9ad393": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KA60","error":null,"reject":false,"report":"SP1: KA60 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KA60 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA60.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA60.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"KA60","stemURI":"http://id.who.int/icd/entity/381388700","tabularReport":"MCC;True;;;;;;1;The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.;;Age;;BER\nSP1;True;;KA60;KA60;;;0;SP1: KA60 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA60;;;;;0;SP6: is not applicable with the current TSP KA60.;;;;BER\nSP7;False;KA60;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA60;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KA60;;;;;0;M1: There is no special instruction applicable with TUC KA60.;;;;BER\nM2;False;KA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA60;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/381388700","warning":"The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P8D\",\"Sex\":1},\"FetalOrInfantDeath\":{\"BirthWeight\":2700,\"PregnancyWeeks\":38},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KA60\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/381388700\",\"Text\":\"Sepsis of newborn\"}]}]}","status":200}
+ }
+}

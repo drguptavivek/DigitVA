@@ -27,7 +27,7 @@ export function BottomSheet({ visible, title, onClose, children, full = false }:
               </Pressable>
             ) : null}
           </View>
-          {full ? <View style={{ flex: 1 }}>{children}</View> : <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>}
+          {full ? <View style={{ flex: 1 }}>{children}</View> : <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">{children}</ScrollView>}
         </View>
       </View>
     </Modal>

@@ -1,0 +1,204 @@
+{
+ "id": "line-three-conditions",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P62Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BD10",
+       "Interval": "P3M",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+       "Text": "Heart failure"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "BA01",
+       "Interval": "P9Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1210166201",
+       "Text": "Hypertensive heart"
+      },
+      {
+       "Code": "5A11",
+       "Interval": "P9Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetes"
+      },
+      {
+       "Code": "GB61.Z",
+       "Interval": "P9Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+       "Text": "CKD"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "line-three-conditions",
+  "source": "docs/kb/doris-icd-api-and-va.md",
+  "why": "Three conditions on the last line"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA01",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z",
+    "POST icd/release/11/2026-01/doris #b92c7707e6",
+    "POST icd/release/11/2026-01/codedit #b92c7707e6"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P62Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "BD10",
+          "Interval": "P3M",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+          "Text": "Heart failure"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "BA01",
+          "Interval": "P9Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1210166201",
+          "Text": "Hypertensive heart"
+         },
+         {
+          "Code": "5A11",
+          "Interval": "P9Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetes"
+         },
+         {
+          "Code": "GB61.Z",
+          "Interval": "P9Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+          "Text": "CKD"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "BA01/BD10",
+       "error": null,
+       "reject": false,
+       "report": "SP3: BA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nBD10 are manifestations of the selected underlying cause of death BA01 and it is added as a postcoordination - BA01>BA01/BD10.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: BA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC BA01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nBD10 are manifestations of the selected underlying cause of death BA01 and it is added as a postcoordination - BA01>BA01/BD10.\n",
+       "stemCode": "BA01",
+       "stemURI": "http://id.who.int/icd/entity/1210166201",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;BA01;BA01;;;0;SP3: BA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA01;;;;;0;SP6: is not applicable with the current TSP BA01.;;;;BER\nSP7;False;BA01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;BA01;;;;;0;M1: There is no special instruction applicable with TUC BA01.;;;;BER\nM2;False;BA01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;BA01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;BA01;BA01/BD10;BD10;Substitution:1:BA01>BA01/BD10;;0;BD10 are manifestations of the selected underlying cause of death BA01 and it is added as a postcoordination - BA01>BA01/BD10.;;;1,\"The postcoordinations - BD10 - were selected from conditions that are potential manifestations of the tentative underlying cause - BA01, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1210166201 / http://id.who.int/icd/release/11/mms/2136808878",
+       "warning": "The postcoordinations - BD10 - were selected from conditions that are potential manifestations of the tentative underlying cause - BA01, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "BA01",
+       "role": "stem",
+       "title": "Hypertensive heart",
+       "uri": "http://id.who.int/icd/release/11/mms/1210166201"
+      },
+      {
+       "code": "BD10",
+       "role": "postcoordinated",
+       "title": "Heart failure",
+       "uri": "http://id.who.int/icd/release/11/mms/2136808878"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P62Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BD10",
+         "Interval": "P3M",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+         "Text": "Heart failure"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "BA01",
+         "Interval": "P9Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1210166201",
+         "Text": "Hypertensive heart"
+        },
+        {
+         "Code": "5A11",
+         "Interval": "P9Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        },
+        {
+         "Code": "GB61.Z",
+         "Interval": "P9Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+         "Text": "CKD"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA01": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA01","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA01","code":"BA01","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1210166201"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BD10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BD10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD10","code":"BD10","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/GB61.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.Z","code":"GB61.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #b92c7707e6": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P62Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BD10\",\"Interval\":\"P3M\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2136808878\",\"Text\":\"Heart failure\"}]},{\"Conditions\":[{\"Code\":\"BA01\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1210166201\",\"Text\":\"Hypertensive heart\"},{\"Code\":\"5A11\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"},{\"Code\":\"GB61.Z\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified\",\"Text\":\"CKD\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #b92c7707e6": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"BA01/BD10","error":null,"reject":false,"report":"SP3: BA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nBD10 are manifestations of the selected underlying cause of death BA01 and it is added as a postcoordination - BA01>BA01/BD10.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: BA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC BA01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nBD10 are manifestations of the selected underlying cause of death BA01 and it is added as a postcoordination - BA01>BA01/BD10.\n","stemCode":"BA01","stemURI":"http://id.who.int/icd/entity/1210166201","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;BA01;BA01;;;0;SP3: BA01 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA01;;;;;0;SP6: is not applicable with the current TSP BA01.;;;;BER\nSP7;False;BA01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;BA01;;;;;0;M1: There is no special instruction applicable with TUC BA01.;;;;BER\nM2;False;BA01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;BA01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;BA01;BA01/BD10;BD10;Substitution:1:BA01>BA01/BD10;;0;BD10 are manifestations of the selected underlying cause of death BA01 and it is added as a postcoordination - BA01>BA01/BD10.;;;1,\"The postcoordinations - BD10 - were selected from conditions that are potential manifestations of the tentative underlying cause - BA01, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/1210166201 / http://id.who.int/icd/release/11/mms/2136808878","warning":"The postcoordinations - BD10 - were selected from conditions that are potential manifestations of the tentative underlying cause - BA01, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P62Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BD10\",\"Interval\":\"P3M\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2136808878\",\"Text\":\"Heart failure\"}]},{\"Conditions\":[{\"Code\":\"BA01\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1210166201\",\"Text\":\"Hypertensive heart\"},{\"Code\":\"5A11\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"},{\"Code\":\"GB61.Z\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified\",\"Text\":\"CKD\"}]}]}","status":200}
+ }
+}

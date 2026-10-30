@@ -5,6 +5,9 @@
  *   1. DIGITVA_ICD11_ENGINE_ARCHIVE: the icd11-engine-<version>.tar.gz that scripts/package-icd11-engine.sh made (CI
  *      downloads and checksums the public release asset, then sets this). Extracted to a temp dir, staged, removed.
  *   2. DIGITVA_ICD11_SPIKE_DIR, else the owner's private spike folder (private/icd11-offline-spike, git-ignored).
+ * Prefer the archive for local builds. The shim refuses an engine library without digitva_icd11_call (engines before
+ * 2026.10.29, such as an old private spike): the app then reports the engine unavailable. A spike folder works only with a
+ * digitva_icd11.so from engine-src/build.sh of this checkout.
  * Both have the same layout, and engineFiles() lists the files the app ships from it:
  *   bridge-aot/pub-bionic/digitva_icd11.so -> android/src/main/jniLibs/arm64-v8a/libdigitva_icd11.so
  *   bundle_min/**                          -> android/src/main/assets/digitva-icd11/bundle/**.bin
@@ -37,9 +40,10 @@ const DORIS_DIR = "DORIS_v2.1_1.2.0";
 // DORIS's zip is fetched by the engine, and its log.txt is written by the engine: neither is shipped.
 const DORIS_SKIP = new Set(["DORIS_v2.1_1.2.0.zip", "log.txt"]);
 const MISSING_ENGINE =
-  "Collect Plus (APP_VARIANT=plus) needs the offline ICD-11 engine: DIGITVA_ICD11_ENGINE_ARCHIVE, or the folder " +
-  "private/icd11-offline-spike/ (bridge-aot/pub-bionic/digitva_icd11.so, bundle_min/, data/), which is not in git. " +
-  "Run this build from a checkout that has private/, or set DIGITVA_ICD11_SPIKE_DIR to the spike folder.";
+  "Collect Plus (APP_VARIANT=plus) needs the offline ICD-11 engine: set DIGITVA_ICD11_ENGINE_ARCHIVE to the " +
+  "icd11-engine-<version>.tar.gz of the release the CI workflow pins (preferred), or provide the folder " +
+  "private/icd11-offline-spike/ (bridge-aot/pub-bionic/digitva_icd11.so, bundle_min/, data/), which is not in git, or set " +
+  "DIGITVA_ICD11_SPIKE_DIR to such a folder. The library must export digitva_icd11_call (built by engine-src/build.sh of 2026.10.29 or later).";
 
 /** The spike folder: $DIGITVA_ICD11_SPIKE_DIR, else the first ancestor of this module that has private/icd11-offline-spike (a worktree finds the main checkout's). */
 function findSpike(env = process.env, from = MODULE_DIR) {

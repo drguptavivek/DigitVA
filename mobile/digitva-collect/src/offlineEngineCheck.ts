@@ -57,6 +57,7 @@ function summarize(result: EngineResult, pick: (data: unknown) => string): Omit<
   return { ok: true, ms: result.ms, nativeMs: result.nativeMs, note: pick(result.data) };
 }
 
+/** A string field of a WHO reply (camelCase, as WHO's REST layer writes it). */
 const field = (data: unknown, key: string): string => {
   const value = (data as Record<string, unknown> | null)?.[key];
   return typeof value === "string" ? value : "?";
@@ -102,8 +103,8 @@ export async function runEngineCheck(engine: OfflineEngine, onStep: (step: Check
     return `${Array.isArray(entities) ? entities.length : 0} results`;
   }) });
   push({ name: "codeinfo BC42.Z", ...summarize(await engine.codeinfo("BC42.Z"), (data) => field(data, "code")) });
-  push({ name: "doris", ...summarize(await engine.doris(CHECK_CERTIFICATE), (data) => `underlying ${field(data, "Code")}`) });
-  push({ name: "doris (warm)", ...summarize(await engine.doris(CHECK_CERTIFICATE), (data) => `underlying ${field(data, "Code")}`) });
+  push({ name: "doris", ...summarize(await engine.doris(CHECK_CERTIFICATE), (data) => `underlying ${field(data, "code")}`) });
+  push({ name: "doris (warm)", ...summarize(await engine.doris(CHECK_CERTIFICATE), (data) => `underlying ${field(data, "code")}`) });
   push({ name: "codedit", ...summarize(await engine.codedit(CHECK_CERTIFICATE), () => "checked") });
   return steps;
 }

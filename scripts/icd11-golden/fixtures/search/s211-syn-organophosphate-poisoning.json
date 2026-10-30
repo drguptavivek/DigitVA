@@ -1,0 +1,38 @@
+{
+ "id": "s211-syn-organophosphate-poisoning",
+ "input": {
+  "concept": "suicide",
+  "id": "s211-syn-organophosphate-poisoning",
+  "kind": "synonym",
+  "query": "organophosphate poisoning",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for suicide (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #3293fbadb8"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 0,
+     "items": [],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "organophosphate poisoning",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #3293fbadb8": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=organophosphate+poisoning%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

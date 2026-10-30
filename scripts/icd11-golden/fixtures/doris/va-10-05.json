@@ -1,0 +1,133 @@
+{
+ "id": "va-10-05",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P9D",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1C15",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2085616610",
+       "Text": "Neonatal tetanus"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "neonatal",
+  "id": "va-10-05",
+  "source": "VA cause VAs-10.05 Neonatal tetanus",
+  "why": "Neonatal tetanus: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C15",
+    "POST icd/release/11/2026-01/doris #3fc53483c3",
+    "POST icd/release/11/2026-01/codedit #3fc53483c3",
+    "GET icd/release/11/2026-01/mms/codeinfo/KA61.Z",
+    "GET icd/release/11/2026-01/mms/1935107489/unspecified"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P9D",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1C15",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2085616610",
+          "Text": "Neonatal tetanus"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-934",
+       "report": "This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.",
+       "tabularReport": "0,\"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.\",FER-CE-934;;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KA61.Z/1C15",
+       "error": null,
+       "reject": false,
+       "report": "SP1: KA61.Z/1C15 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KA61.Z/1C15 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA61.Z/1C15.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA61.Z/1C15.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "KA61.Z",
+       "stemURI": "http://id.who.int/icd/entity/1935107489/mms/unspecified",
+       "tabularReport": "MCC;True;;;;;;1;The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.;;Age;;BER\nMCC;True;;;;;;1;1C15 has a related entities in perinatal chapter and was recoded to KA61.Z/1C15.;;;;BER\nSP1;True;;KA61.Z/1C15;KA61.Z/1C15;;;0;SP1: KA61.Z/1C15 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA61.Z/1C15;;;;;0;SP6: is not applicable with the current TSP KA61.Z/1C15.;;;;BER\nSP7;False;KA61.Z/1C15;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA61.Z/1C15;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KA61.Z/1C15;;;;;0;M1: There is no special instruction applicable with TUC KA61.Z/1C15.;;;;BER\nM2;False;KA61.Z/1C15;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA61.Z/1C15;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1935107489/unspecified / http://id.who.int/icd/release/11/mms/2085616610",
+       "warning": "The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.\n1C15 has a related entities in perinatal chapter and was recoded to KA61.Z/1C15.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KA61.Z",
+       "role": "stem",
+       "title": "Bacterial infection of the fetus or newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/mms/1935107489/unspecified"
+      },
+      {
+       "code": "1C15",
+       "role": "postcoordinated",
+       "title": "Neonatal tetanus",
+       "uri": "http://id.who.int/icd/release/11/mms/2085616610"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P9D",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1C15",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2085616610",
+         "Text": "Neonatal tetanus"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1935107489/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489/unspecified","classKind":"category","code":"KA61.Z","indexTerm":[{"label":{"@language":"en","@value":"Bacterial infection of the fetus or newborn, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1935107489","label":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},{"foundationReference":"http://id.who.int/icd/entity/1935107489","label":{"@language":"en","@value":"congenital bacterial infections of newborn"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935107489"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"title":{"@language":"en","@value":"Bacterial infection of the fetus or newborn, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1C15": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1C15","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1C15","code":"1C15","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KA61.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA61.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA61.Z","code":"KA61.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #3fc53483c3": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-934","report":"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.","tabularReport":"0,\"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.\",FER-CE-934;;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P9D\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1C15\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2085616610\",\"Text\":\"Neonatal tetanus\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #3fc53483c3": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KA61.Z/1C15","error":null,"reject":false,"report":"SP1: KA61.Z/1C15 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KA61.Z/1C15 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KA61.Z/1C15.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KA61.Z/1C15.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"KA61.Z","stemURI":"http://id.who.int/icd/entity/1935107489/mms/unspecified","tabularReport":"MCC;True;;;;;;1;The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.;;Age;;BER\nMCC;True;;;;;;1;1C15 has a related entities in perinatal chapter and was recoded to KA61.Z/1C15.;;;;BER\nSP1;True;;KA61.Z/1C15;KA61.Z/1C15;;;0;SP1: KA61.Z/1C15 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KA61.Z/1C15;;;;;0;SP6: is not applicable with the current TSP KA61.Z/1C15.;;;;BER\nSP7;False;KA61.Z/1C15;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KA61.Z/1C15;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KA61.Z/1C15;;;;;0;M1: There is no special instruction applicable with TUC KA61.Z/1C15.;;;;BER\nM2;False;KA61.Z/1C15;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KA61.Z/1C15;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1935107489/unspecified / http://id.who.int/icd/release/11/mms/2085616610","warning":"The age is between day 7 and day 27 after birth. Manual check is recommended for neonatal conditions.\n1C15 has a related entities in perinatal chapter and was recoded to KA61.Z/1C15.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P9D\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1C15\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2085616610\",\"Text\":\"Neonatal tetanus\"}]}]}","status":200}
+ }
+}

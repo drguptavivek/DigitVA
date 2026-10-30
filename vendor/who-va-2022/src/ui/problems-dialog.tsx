@@ -78,7 +78,7 @@ export function createProblemsDialog({ View, Text, Pressable, ScrollView, Modal 
               </Text>
             </Pressable>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" style={styles.list}>
+          <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.list}>
             {rows.length ? (
               rows.map((row) => (
                 <View key={row.key} style={styles.row} testID={`problem-${row.name ?? "general"}`}>

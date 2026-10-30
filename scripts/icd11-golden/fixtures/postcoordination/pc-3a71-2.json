@@ -1,0 +1,714 @@
+{
+ "built": [
+  {
+   "expression": "3A71.2/GB61.5",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/GB61.5",
+      "GET icd/release/11/2026-01/mms/874359291"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "3A71.2/GB61.5",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Anaemia in chronic kidney disease",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291 / http://id.who.int/icd/release/11/2026-01/mms/820638928"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "3A71.2/GB61.5"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/GB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/GB61.5",
+      "GET icd/release/11/2026-01/mms/874359291"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "3A71.2/GB61.5",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Anaemia in chronic kidney disease",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291 / http://id.who.int/icd/release/11/2026-01/mms/820638928"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "3A71.2/GB61.5",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291 / http://id.who.int/icd/release/11/2026-01/mms/820638928"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/874359291",
+      "GET icd/release/11/2026-01/mms/1981248479",
+      "GET icd/release/11/2026-01/mms/224336967",
+      "GET icd/release/11/2026-01/mms/1766440644",
+      "GET icd/release/11/2026-01/mms/1981248479",
+      "GET icd/entity/1426960900",
+      "GET icd/entity/1148519290",
+      "GET icd/release/11/2026-01/mms/161015452",
+      "GET icd/release/11/2026-01/mms/836005435",
+      "GET icd/release/11/2026-01/mms/1981248479/other",
+      "GET icd/release/11/2026-01/mms/1981248479/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "03",
+         "title": "Diseases of the blood or blood-forming organs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1766440644"
+        },
+        {
+         "code": "",
+         "title": "Anaemias or other erythrocyte disorders",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/224336967"
+        },
+        {
+         "code": "3A71",
+         "title": "Anaemia due to chronic disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1981248479"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Anaemia in chronic kidney disease"
+       ],
+       "related_maternal": [
+        {
+         "code": "",
+         "title": "Anaemia complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/entity/1426960900"
+        }
+       ],
+       "related_perinatal": [
+        {
+         "code": "",
+         "title": "Anaemia of prematurity",
+         "uri": "http://id.who.int/icd/entity/1148519290"
+        }
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "3A71.2",
+        "title": "Anaemia in chronic kidney disease",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+       },
+       "selected_expression": {
+        "code": "3A71.2/GB61.5",
+        "stem_code": "3A71.2"
+       },
+       "siblings": [
+        {
+         "code": "3A71.0",
+         "has_children": false,
+         "title": "Anaemia in neoplastic disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/161015452"
+        },
+        {
+         "code": "3A71.1",
+         "has_children": false,
+         "title": "Anaemia in chronic infectious diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/836005435"
+        },
+        {
+         "code": "3A71.Y",
+         "has_children": false,
+         "title": "Anaemia due to other specified chronic disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1981248479/other"
+        },
+        {
+         "code": "3A71.Z",
+         "has_children": false,
+         "title": "Anaemia due to chronic disease, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1981248479/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "3A71.2/GB61.5"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/874359291",
+      "GET icd/release/11/2026-01/mms/1426960900"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": {
+        "code": "JB64.0/3A71.2",
+        "title": "Anaemia complicating pregnancy, childbirth or the puerperium / Anaemia in chronic kidney disease",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "3A71.2",
+        "title": "Anaemia in chronic kidney disease",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+       },
+       "terms": [
+        {
+         "code": "JB64.0",
+         "requires_postcoordination": false,
+         "title": "Anaemia complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1426960900"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "3A71.2/GB61.5"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/874359291",
+      "GET icd/release/11/2026-01/mms/1148519290"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": {
+        "code": "KA8B/3A71.2",
+        "title": "Anaemia of prematurity / Anaemia in chronic kidney disease",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "3A71.2",
+        "title": "Anaemia in chronic kidney disease",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+       },
+       "terms": [
+        {
+         "code": "KA8B",
+         "requires_postcoordination": false,
+         "title": "Anaemia of prematurity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1148519290"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "3A71.2/GB61.5"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5",
+      "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+      "GET icd/release/11/2026-01/mms/874359291"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "A disease caused by chronic kidney disease. This disease is characterised by a low red blood cell count in the blood. This disease may present with pallor, fatigue, or shortness of breath. Confirmation is by identification of a low red blood cell count in a blood sample.",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "3A71.2",
+        "title": "Anaemia in chronic kidney disease",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "3A71.2/GB61.5"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291 / http://id.who.int/icd/release/11/2026-01/mms/820638928",
+   "why": "anaemia with stage 5 kidney disease"
+  }
+ ],
+ "id": "pc-3a71-2",
+ "input": {
+  "built": [
+   {
+    "expression": "3A71.2/GB61.5",
+    "why": "anaemia with stage 5 kidney disease"
+   }
+  ],
+  "category": "mandatory",
+  "id": "pc-3a71-2",
+  "source": "VAs-03.01",
+  "stem": "3A71.2",
+  "why": "Anaemia in chronic kidney disease: single required axis with a single root"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "3A71.2",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "3A71.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "3A71.2",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "3A71.2",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291",
+    "GET icd/release/11/2026-01/mms/412389819"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasCausingCondition",
+       "instruction": "code also",
+       "label": "Has causing condition",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+         "code": "GB61",
+         "has_children": true,
+         "title": "Chronic kidney disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819"
+        }
+       ],
+       "required": true,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/412389819"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "3A71.2",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "3A71.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291",
+    "GET icd/release/11/2026-01/mms/412389819",
+    "GET icd/release/11/2026-01/mms/933902267",
+    "GET icd/release/11/2026-01/mms/1124558660",
+    "GET icd/release/11/2026-01/mms/1416760208",
+    "GET icd/release/11/2026-01/mms/671059308",
+    "GET icd/release/11/2026-01/mms/1436694854",
+    "GET icd/release/11/2026-01/mms/820638928",
+    "GET icd/release/11/2026-01/mms/412389819/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasCausingCondition",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.0",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage 1",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/933902267"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.1",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage 2",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1124558660"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.2",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage 3a",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1416760208"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.3",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage 3b",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/671059308"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.4",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage 4",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1436694854"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.5",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage 5",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/820638928"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+       "code": "GB61.Z",
+       "has_children": false,
+       "title": "Chronic kidney disease, stage unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "3A71.2",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasCausingCondition",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819",
+    "stem_code": "3A71.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291",
+    "GET icd/release/11/2026-01/mms/1981248479",
+    "GET icd/release/11/2026-01/mms/224336967",
+    "GET icd/release/11/2026-01/mms/1766440644",
+    "GET icd/release/11/2026-01/mms/1981248479",
+    "GET icd/entity/1426960900",
+    "GET icd/entity/1148519290",
+    "GET icd/release/11/2026-01/mms/161015452",
+    "GET icd/release/11/2026-01/mms/836005435",
+    "GET icd/release/11/2026-01/mms/1981248479/other",
+    "GET icd/release/11/2026-01/mms/1981248479/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "03",
+       "title": "Diseases of the blood or blood-forming organs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1766440644"
+      },
+      {
+       "code": "",
+       "title": "Anaemias or other erythrocyte disorders",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/224336967"
+      },
+      {
+       "code": "3A71",
+       "title": "Anaemia due to chronic disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1981248479"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Anaemia in chronic kidney disease"
+     ],
+     "related_maternal": [
+      {
+       "code": "",
+       "title": "Anaemia complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/entity/1426960900"
+      }
+     ],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Anaemia of prematurity",
+       "uri": "http://id.who.int/icd/entity/1148519290"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "3A71.2",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "3A71.0",
+       "has_children": false,
+       "title": "Anaemia in neoplastic disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/161015452"
+      },
+      {
+       "code": "3A71.1",
+       "has_children": false,
+       "title": "Anaemia in chronic infectious diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/836005435"
+      },
+      {
+       "code": "3A71.Y",
+       "has_children": false,
+       "title": "Anaemia due to other specified chronic disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1981248479/other"
+      },
+      {
+       "code": "3A71.Z",
+       "has_children": false,
+       "title": "Anaemia due to chronic disease, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1981248479/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "3A71.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291",
+    "GET icd/release/11/2026-01/mms/1426960900"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": {
+      "code": "JB64.0/3A71.2",
+      "title": "Anaemia complicating pregnancy, childbirth or the puerperium / Anaemia in chronic kidney disease",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "3A71.2",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "terms": [
+      {
+       "code": "JB64.0",
+       "requires_postcoordination": false,
+       "title": "Anaemia complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1426960900"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "3A71.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291",
+    "GET icd/release/11/2026-01/mms/1148519290"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": {
+      "code": "KA8B/3A71.2",
+      "title": "Anaemia of prematurity / Anaemia in chronic kidney disease",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "3A71.2",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "terms": [
+      {
+       "code": "KA8B",
+       "requires_postcoordination": false,
+       "title": "Anaemia of prematurity",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1148519290"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "3A71.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A71.2",
+    "GET icd/release/11/2026-01/mms/874359291"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "A disease caused by chronic kidney disease. This disease is characterised by a low red blood cell count in the blood. This disease may present with pallor, fatigue, or shortness of breath. Confirmation is by identification of a low red blood cell count in a blood sample.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "3A71.2",
+      "title": "Anaemia in chronic kidney disease",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/874359291"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "3A71.2"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/1148519290": {"method":"GET","path":"icd/entity/1148519290","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1148519290","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1148519290","definition":{"@language":"en","@value":"A paediatric condition characterised by a decrease in number of red blood cells (RBCs) or less than the normal quantity of haemoglobin in the blood of a newborn associated with the child being born prior to completing 37 weeks of gestation."},"parent":["http://id.who.int/icd/entity/224336967","http://id.who.int/icd/entity/1800910986"],"title":{"@language":"en","@value":"Anaemia of prematurity"}},"request_body":null,"status":200},
+  "GET icd/entity/1426960900": {"method":"GET","path":"icd/entity/1426960900","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1426960900","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1426960900","child":["http://id.who.int/icd/entity/663716152","http://id.who.int/icd/entity/1830082093","http://id.who.int/icd/entity/1509007767","http://id.who.int/icd/entity/1729594335","http://id.who.int/icd/entity/764204228","http://id.who.int/icd/entity/82047986","http://id.who.int/icd/entity/1363803437","http://id.who.int/icd/entity/1792653435"],"definition":{"@language":"en","@value":"A condition of the circulatory system affecting pregnant females, characterised by a haemoglobin level below 11 grams per decilitre that complicates pregnancy, childbirth, or the puerperium."},"parent":["http://id.who.int/icd/entity/224336967","http://id.who.int/icd/entity/1298211163"],"synonym":[{"label":{"@language":"en","@value":"anaemia in mother complicating pregnancy, childbirth or puerperium"}}],"title":{"@language":"en","@value":"Anaemia complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1124558660": {"method":"GET","path":"icd/release/11/2026-01/mms/1124558660","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1124558660","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1124558660","classKind":"category","code":"GB61.1","definition":{"@language":"en","@value":"Kidney damage and GFR 60-89 ml/min/1.73m²"},"inclusion":[{"label":{"@language":"en","@value":"chronic renal failure, stage 2"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage 2"}},{"label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 2"}},{"label":{"@language":"en","@value":"chronic renal failure, stage 2"}},{"label":{"@language":"en","@value":"eGFR - [estimated glomerular filtration rate] 60-89 ml/min/1.73m²"}},{"label":{"@language":"en","@value":"kidney damage and mild decrease in GFR"}},{"label":{"@language":"en","@value":"kidney damage and mild decrease in eGFR - [estimated glomerular filtration rate]"}}],"longDefinition":{"@language":"en","@value":"A disease of the kidney, caused by exposure to another disease, condition, or disorder, commonly diabetes mellitus, hypertension, or glomerulonephritis. This disease is characterized by a gradual rise in serum creatinine, mildly reduced renal function, or kidney damage with a glomerular filtration rate of 60-89 millilitres per minute per 1.73 square metre for over 3 months. Confirmation is by estimated glomerular filtration rate, blood testing for creatinine, urinalysis, and abdominal ultrasound to differentiate chronic kidney disease from acute renal failure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1124558660/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"source":"http://id.who.int/icd/entity/1124558660","title":{"@language":"en","@value":"Chronic kidney disease, stage 2"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1148519290": {"method":"GET","path":"icd/release/11/2026-01/mms/1148519290","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1148519290","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1148519290","classKind":"category","code":"KA8B","definition":{"@language":"en","@value":"A paediatric condition characterised by a decrease in number of red blood cells (RBCs) or less than the normal quantity of haemoglobin in the blood of a newborn associated with the child being born prior to completing 37 weeks of gestation."},"indexTerm":[{"label":{"@language":"en","@value":"Anaemia of prematurity"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1800910986"],"source":"http://id.who.int/icd/entity/1148519290","title":{"@language":"en","@value":"Anaemia of prematurity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1416760208": {"method":"GET","path":"icd/release/11/2026-01/mms/1416760208","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1416760208","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1416760208","classKind":"category","code":"GB61.2","definition":{"@language":"en","@value":"GFR 45-59 ml/min/1.73m²"},"inclusion":[{"label":{"@language":"en","@value":"chronic renal failure, stage 3a"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage 3a"}},{"label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 3a"}},{"label":{"@language":"en","@value":"chronic kidney disease stage 3 NOS"}},{"label":{"@language":"en","@value":"chronic renal failure, stage 3a"}},{"label":{"@language":"en","@value":"eGFR - [estimated glomerular filtration rate] 45-59 ml/min/1.73m²"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1416760208/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"source":"http://id.who.int/icd/entity/1416760208","title":{"@language":"en","@value":"Chronic kidney disease, stage 3a"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1426960900": {"method":"GET","path":"icd/release/11/2026-01/mms/1426960900","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1426960900","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1426960900","classKind":"category","code":"JB64.0","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"A condition of the circulatory system affecting pregnant females, characterised by a haemoglobin level below 11 grams per decilitre that complicates pregnancy, childbirth, or the puerperium."},"indexTerm":[{"label":{"@language":"en","@value":"Anaemia complicating pregnancy, childbirth or the puerperium"}},{"label":{"@language":"en","@value":"anaemia in mother complicating pregnancy, childbirth or puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/663716152","label":{"@language":"en","@value":"Anaemia of or complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1830082093","label":{"@language":"en","@value":"Anaemia of the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1830082093","label":{"@language":"en","@value":"puerperal anaemia"}},{"foundationReference":"http://id.who.int/icd/entity/1509007767","label":{"@language":"en","@value":"Aplastic and other anaemias complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1729594335","label":{"@language":"en","@value":"Haemolytic anaemias complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/764204228","label":{"@language":"en","@value":"Macrocytic anaemia of or complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/82047986","label":{"@language":"en","@value":"Megaloblastic anaemia of or complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1363803437","label":{"@language":"en","@value":"Nutritional anaemias complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1792653435","label":{"@language":"en","@value":"Valsuani's disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1426960900/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/963670118","http://id.who.int/icd/release/11/2026-01/mms/162762794","http://id.who.int/icd/release/11/2026-01/mms/330259189","http://id.who.int/icd/release/11/2026-01/mms/975559344","http://id.who.int/icd/release/11/2026-01/mms/1980066564","http://id.who.int/icd/release/11/2026-01/mms/502834133","http://id.who.int/icd/release/11/2026-01/mms/1981248479","http://id.who.int/icd/release/11/2026-01/mms/235504456","http://id.who.int/icd/release/11/2026-01/mms/899830967","http://id.who.int/icd/release/11/2026-01/mms/457885282","http://id.who.int/icd/release/11/2026-01/mms/492611740","http://id.who.int/icd/release/11/2026-01/mms/1981095916","http://id.who.int/icd/release/11/2026-01/mms/586921197","http://id.who.int/icd/release/11/2026-01/mms/746336827","http://id.who.int/icd/release/11/2026-01/mms/324845131","http://id.who.int/icd/release/11/2026-01/mms/224336967/other","http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified"]}],"source":"http://id.who.int/icd/entity/1426960900","title":{"@language":"en","@value":"Anaemia complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1436694854": {"method":"GET","path":"icd/release/11/2026-01/mms/1436694854","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1436694854","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1436694854","classKind":"category","code":"GB61.4","definition":{"@language":"en","@value":"GFR (15-29 ml/min/1.73m²)"},"inclusion":[{"label":{"@language":"en","@value":"chronic renal failure, stage 4"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage 4"}},{"label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 4"}},{"label":{"@language":"en","@value":"chronic renal failure, stage 4"}},{"label":{"@language":"en","@value":"eGFR - [estimated glomerular filtration rate] 15-29 ml/min/1.73m²"}},{"label":{"@language":"en","@value":"severe decrease in GFR"}}],"longDefinition":{"@language":"en","@value":"A disease of the kidney, caused by exposure to another disease, condition, or disorder, commonly diabetes mellitus, hypertension, or glomerulonephritis. This disease is characterized by a gradual rise in serum creatinine, severely reduced renal function, and kidney damage with a glomerular filtration rate of 15-29 millilitres per minute per 1.73 square metre for over 3 months. Confirmation is by estimated glomerular filtration rate, blood testing for creatinine, urinalysis, and abdominal ultrasound to differentiate chronic kidney disease from acute renal failure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1436694854/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"source":"http://id.who.int/icd/entity/1436694854","title":{"@language":"en","@value":"Chronic kidney disease, stage 4"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/161015452": {"method":"GET","path":"icd/release/11/2026-01/mms/161015452","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/161015452","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#161015452","classKind":"category","code":"3A71.0","definition":{"@language":"en","@value":"A disease caused by chronic neoplastic diseases. This disease is characterised by inflammatory responses targeted at red blood cell leading to low levels of red blood cells in the body. This disease may present with pallor, fatigue, or shortness of breath. Confirmation is by identification of low levels of red blood cells in a blood sample"},"indexTerm":[{"label":{"@language":"en","@value":"Anaemia in neoplastic disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1981248479"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/161015452/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/944754984","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/531713107","http://id.who.int/icd/release/11/2026-01/mms/1167133946","http://id.who.int/icd/release/11/2026-01/mms/1158485193","http://id.who.int/icd/release/11/2026-01/mms/1844086508","http://id.who.int/icd/release/11/2026-01/mms/264268169"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1426960900"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1148519290"],"source":"http://id.who.int/icd/entity/161015452","title":{"@language":"en","@value":"Anaemia in neoplastic disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1766440644": {"method":"GET","path":"icd/release/11/2026-01/mms/1766440644","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1766440644","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1766440644","child":["http://id.who.int/icd/release/11/2026-01/mms/224336967","http://id.who.int/icd/release/11/2026-01/mms/1762461746","http://id.who.int/icd/release/11/2026-01/mms/567425990","http://id.who.int/icd/release/11/2026-01/mms/1766440644/other","http://id.who.int/icd/release/11/2026-01/mms/1766440644/unspecified"],"classKind":"chapter","code":"03","definition":{"@language":"en","@value":"This chapter includes diseases of the blood as well as diseases of blood forming organs."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/809926550","label":{"@language":"en","@value":"Other diseases of the blood or blood-forming organs or certain disorders involving the immune mechanism complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/809926550"},{"foundationReference":"http://id.who.int/icd/entity/223744320","label":{"@language":"en","@value":"Congenital malformations, deformations or chromosomal abnormalities"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/223744320"},{"foundationReference":"http://id.who.int/icd/entity/1954798891","label":{"@language":"en","@value":"Diseases of the immune system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1954798891"},{"foundationReference":"http://id.who.int/icd/entity/1306203631","label":{"@language":"en","@value":"Certain conditions originating in the perinatal period"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1306203631"},{"foundationReference":"http://id.who.int/icd/entity/714000734","label":{"@language":"en","@value":"Complications of pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/714000734"},{"foundationReference":"http://id.who.int/icd/entity/21500692","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/21500692"},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"Human immunodeficiency virus disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1000704511"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/944754984","label":{"@language":"en","@value":"Neoplasms of haematopoietic or lymphoid tissues"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/944754984"},{"foundationReference":"http://id.who.int/icd/entity/1994504557","label":{"@language":"en","@value":"Symptoms, signs or clinical findings of blood, blood-forming organs, or the immune system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1994504557"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1766440644","title":{"@language":"en","@value":"Diseases of the blood or blood-forming organs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1981248479": {"method":"GET","path":"icd/release/11/2026-01/mms/1981248479","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1981248479","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1981248479","child":["http://id.who.int/icd/release/11/2026-01/mms/161015452","http://id.who.int/icd/release/11/2026-01/mms/836005435","http://id.who.int/icd/release/11/2026-01/mms/874359291","http://id.who.int/icd/release/11/2026-01/mms/1981248479/other","http://id.who.int/icd/release/11/2026-01/mms/1981248479/unspecified"],"classKind":"category","code":"3A71","definition":{"@language":"en","@value":"A disease caused by chronic diseases such as chronic infection. This disease is characterised by inflammatory responses targeted at red blood cells leading to low levels of red blood cells in the body. This disease may present with pallor, fatigue, or shortness of breath. Confirmation is by identification of low levels of red blood cells in a blood sample."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/224336967"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1981248479/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1443317238","http://id.who.int/icd/release/11/2026-01/mms/576319925"]}],"source":"http://id.who.int/icd/entity/1981248479","title":{"@language":"en","@value":"Anaemia due to chronic disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1981248479/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1981248479/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1981248479/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1981248479/other","classKind":"category","code":"3A71.Y","indexTerm":[{"label":{"@language":"en","@value":"Anaemia due to other specified chronic disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1981248479"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1981248479/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1443317238","http://id.who.int/icd/release/11/2026-01/mms/576319925"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1426960900"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1148519290"],"title":{"@language":"en","@value":"Anaemia due to other specified chronic disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1981248479/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1981248479/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1981248479/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1981248479/unspecified","classKind":"category","code":"3A71.Z","indexTerm":[{"label":{"@language":"en","@value":"Anaemia due to chronic disease, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1981248479","label":{"@language":"en","@value":"Anaemia due to chronic disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1981248479"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1426960900"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1148519290"],"title":{"@language":"en","@value":"Anaemia due to chronic disease, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/224336967": {"method":"GET","path":"icd/release/11/2026-01/mms/224336967","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/224336967","blockId":"BlockL1-3A0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#224336967","child":["http://id.who.int/icd/release/11/2026-01/mms/963670118","http://id.who.int/icd/release/11/2026-01/mms/162762794","http://id.who.int/icd/release/11/2026-01/mms/330259189","http://id.who.int/icd/release/11/2026-01/mms/975559344","http://id.who.int/icd/release/11/2026-01/mms/1980066564","http://id.who.int/icd/release/11/2026-01/mms/502834133","http://id.who.int/icd/release/11/2026-01/mms/1981248479","http://id.who.int/icd/release/11/2026-01/mms/235504456","http://id.who.int/icd/release/11/2026-01/mms/899830967","http://id.who.int/icd/release/11/2026-01/mms/457885282","http://id.who.int/icd/release/11/2026-01/mms/492611740","http://id.who.int/icd/release/11/2026-01/mms/1981095916","http://id.who.int/icd/release/11/2026-01/mms/586921197","http://id.who.int/icd/release/11/2026-01/mms/746336827","http://id.who.int/icd/release/11/2026-01/mms/324845131","http://id.who.int/icd/release/11/2026-01/mms/224336967/other","http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified"],"classKind":"block","code":"","codeRange":"3A00-3A9Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1426960900","label":{"@language":"en","@value":"Anaemia complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1426960900"},{"foundationReference":"http://id.who.int/icd/entity/1148519290","label":{"@language":"en","@value":"Anaemia of prematurity"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1148519290"}],"inclusion":[{"label":{"@language":"en","@value":"Anaemia, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1766440644"],"source":"http://id.who.int/icd/entity/224336967","title":{"@language":"en","@value":"Anaemias or other erythrocyte disorders"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/412389819": {"method":"GET","path":"icd/release/11/2026-01/mms/412389819","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#412389819","child":["http://id.who.int/icd/release/11/2026-01/mms/933902267","http://id.who.int/icd/release/11/2026-01/mms/1124558660","http://id.who.int/icd/release/11/2026-01/mms/1416760208","http://id.who.int/icd/release/11/2026-01/mms/671059308","http://id.who.int/icd/release/11/2026-01/mms/1436694854","http://id.who.int/icd/release/11/2026-01/mms/820638928","http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"],"classKind":"category","code":"GB61","definition":{"@language":"en","@value":"Glomerular Filtration Rate (GFR) < 60 ml/min/1.73m² or presence of kidney damage that is present for more than 3 months. Evidence of kidney damage can include structural abnormalities (imaging or histology), albuminuria above normal limits, urinary sediment abnormalities or electrolyte disturbances due to tubular disorders."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1015872326","label":{"@language":"en","@value":"Hypertensive renal disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1015872326"}],"inclusion":[{"label":{"@language":"en","@value":"Chronic renal insufficiency"}},{"label":{"@language":"en","@value":"chronic renal failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/761526554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2080031371","http://id.who.int/icd/release/11/2026-01/mms/393562786","http://id.who.int/icd/release/11/2026-01/mms/885246206","http://id.who.int/icd/release/11/2026-01/mms/108919913","http://id.who.int/icd/release/11/2026-01/mms/1523445293","http://id.who.int/icd/release/11/2026-01/mms/1140842756","http://id.who.int/icd/release/11/2026-01/mms/1932345217/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1518538819"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"source":"http://id.who.int/icd/entity/412389819","title":{"@language":"en","@value":"Chronic kidney disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/412389819/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/412389819/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#412389819/unspecified","classKind":"category","code":"GB61.Z","indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"Chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"CKD - [chronic kidney disease]"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"CRF - [chronic renal failure]"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"Chronic renal insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic hypoxic kidney failure"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney collapse"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney failure"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney hypofunction"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney impairment"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney shutdown"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney toxaemia"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal disease"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal impairment"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal suppression"}},{"foundationReference":"http://id.who.int/icd/entity/615062102","label":{"@language":"en","@value":"Diabetic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/615062102","label":{"@language":"en","@value":"DKD - [diabetic kidney disease]"}},{"foundationReference":"http://id.who.int/icd/entity/1905915973","label":{"@language":"en","@value":"Diabetic nephropathy"}},{"foundationReference":"http://id.who.int/icd/entity/1905915973","label":{"@language":"en","@value":"diabetic nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/550552258","label":{"@language":"en","@value":"Glomerular lesion diffuse sclerosing nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/550552258","label":{"@language":"en","@value":"diffuse sclerosing glomerulonephritis"}},{"foundationReference":"http://id.who.int/icd/entity/550552258","label":{"@language":"en","@value":"diffuse sclerosing nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"Chronic uraemic syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic high blood urea"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemia"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemia disease"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemia syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemic coma"}},{"foundationReference":"http://id.who.int/icd/entity/1017718945","label":{"@language":"en","@value":"Chronic kidney disease with mineral or bone disease"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"Abnormal bone disease in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"ROD - [renal osteodystrophy]"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"pseudorickets"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"renal bone disease"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"renal osteodystrophy"}},{"foundationReference":"http://id.who.int/icd/entity/1152718093","label":{"@language":"en","@value":"Abnormal mineralisation of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1292771850","label":{"@language":"en","@value":"Abnormal turnover of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1292771850","label":{"@language":"en","@value":"Abnormal turnover of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/678379417","label":{"@language":"en","@value":"Abnormal volume of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/678379417","label":{"@language":"en","@value":"Abnormal volume of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/609156581","label":{"@language":"en","@value":"Suspected renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/609156581","label":{"@language":"en","@value":"Suspected renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/808237921","label":{"@language":"en","@value":"Other renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/808237921","label":{"@language":"en","@value":"Other renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/77618338","label":{"@language":"en","@value":"Azotaemic osteodystrophy"}},{"foundationReference":"http://id.who.int/icd/entity/349009254","label":{"@language":"en","@value":"Phosphate-losing tubular disease"}},{"foundationReference":"http://id.who.int/icd/entity/349009254","label":{"@language":"en","@value":"phosphate-losing tubular disorder"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"Renal dwarfism"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal dwarf"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal infantilism"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal rickets"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal short stature"}},{"foundationReference":"http://id.who.int/icd/entity/243524493","label":{"@language":"en","@value":"Biochemical abnormalities in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/417567446","label":{"@language":"en","@value":"Hypercalcaemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/201759431","label":{"@language":"en","@value":"Hypocalcaemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1748381154","label":{"@language":"en","@value":"Hyperphosphatemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1679290270","label":{"@language":"en","@value":"Hypophosphatemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1886759194","label":{"@language":"en","@value":"High intact parathyroid hormone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1886759194","label":{"@language":"en","@value":"High iTPH - [intact parathyroid hormone] in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/2085907302","label":{"@language":"en","@value":"Low intact parathyroid hormone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/2085907302","label":{"@language":"en","@value":"Low iTPH - [intact parathyroid hormone] in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1488004114","label":{"@language":"en","@value":"Low vitamin D in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1418782318","label":{"@language":"en","@value":"High alkaline phosphatase in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1089642730","label":{"@language":"en","@value":"Low alkaline phosphatase in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/44179953","label":{"@language":"en","@value":"Calcification abnormalities in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/2056232143","label":{"@language":"en","@value":"Calcification of the vasculature"}},{"foundationReference":"http://id.who.int/icd/entity/2056232143","label":{"@language":"en","@value":"Calcification of the vasculature in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1991138995","label":{"@language":"en","@value":"Calcification of the valves"}},{"foundationReference":"http://id.who.int/icd/entity/1991138995","label":{"@language":"en","@value":"Calcification of the valves in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/773537073","label":{"@language":"en","@value":"Calcification of the soft tissue"}},{"foundationReference":"http://id.who.int/icd/entity/773537073","label":{"@language":"en","@value":"Calcification of the soft tissue in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1197204188","label":{"@language":"en","@value":"Other calcification"}},{"foundationReference":"http://id.who.int/icd/entity/1197204188","label":{"@language":"en","@value":"Other calcification in chronic kidney disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2080031371","http://id.who.int/icd/release/11/2026-01/mms/393562786","http://id.who.int/icd/release/11/2026-01/mms/885246206","http://id.who.int/icd/release/11/2026-01/mms/108919913","http://id.who.int/icd/release/11/2026-01/mms/1523445293","http://id.who.int/icd/release/11/2026-01/mms/1140842756","http://id.who.int/icd/release/11/2026-01/mms/1932345217/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1518538819"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"title":{"@language":"en","@value":"Chronic kidney disease, stage unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/671059308": {"method":"GET","path":"icd/release/11/2026-01/mms/671059308","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/671059308","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#671059308","classKind":"category","code":"GB61.3","definition":{"@language":"en","@value":"GFR 30-44 ml/min/1.73m²"},"inclusion":[{"label":{"@language":"en","@value":"chronic renal failure, stage 3b"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage 3b"}},{"label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 3b"}},{"label":{"@language":"en","@value":"chronic renal failure, stage 3b"}},{"label":{"@language":"en","@value":"eGFR - [estimated glomerular filtration rate] 30-44 ml/min/1.73m²"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/671059308/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"source":"http://id.who.int/icd/entity/671059308","title":{"@language":"en","@value":"Chronic kidney disease, stage 3b"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/820638928": {"method":"GET","path":"icd/release/11/2026-01/mms/820638928","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/820638928","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#820638928","classKind":"category","code":"GB61.5","definition":{"@language":"en","@value":"Kidney failure, GFR < 15 ml/min/1.73m²"},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2097971745","label":{"@language":"en","@value":"Albuminurica retinopathy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2000854880/other"}],"inclusion":[{"label":{"@language":"en","@value":"chronic renal failure, stage 5"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage 5"}},{"label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 5"}},{"label":{"@language":"en","@value":"ESRD - [end stage renal diseases]"}},{"label":{"@language":"en","@value":"ESRF - [end stage renal failure]"}},{"label":{"@language":"en","@value":"chronic renal disease, stage V"}},{"label":{"@language":"en","@value":"chronic renal failure, stage 5"}},{"label":{"@language":"en","@value":"eGFR - [estimated glomerular filtration rate] < 15 ml/min/1.73m²"}},{"label":{"@language":"en","@value":"end stage chronic renal failure"}},{"label":{"@language":"en","@value":"end stage kidney disease"}},{"label":{"@language":"en","@value":"end stage kidney failure"}},{"label":{"@language":"en","@value":"end stage renal disease"}},{"label":{"@language":"en","@value":"end stage renal failure"}},{"label":{"@language":"en","@value":"kidney disease, stage 5"}},{"label":{"@language":"en","@value":"kidney disease, stage V"}},{"label":{"@language":"en","@value":"renal disease, stage 5"}},{"label":{"@language":"en","@value":"renal disease, stage V"}},{"foundationReference":"http://id.who.int/icd/entity/522394067","label":{"@language":"en","@value":"Chronic kidney disease, stage 5, not on dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/522394067","label":{"@language":"en","@value":"CKD- [chronic kidney disease] stage 5 not on dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/522394067","label":{"@language":"en","@value":"chronic renal failure, stage 5 not on dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/1726595166","label":{"@language":"en","@value":"Chronic kidney disease, stage 5, on dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/1726595166","label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 5 on dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/1726595166","label":{"@language":"en","@value":"chronic renal failure, stage 5 on dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/1726595166","label":{"@language":"en","@value":"end stage renal failure of dialysis"}},{"foundationReference":"http://id.who.int/icd/entity/1726595166","label":{"@language":"en","@value":"end stage renal failure on haemodialysis"}},{"foundationReference":"http://id.who.int/icd/entity/284627949","label":{"@language":"en","@value":"Renal retinitis in chronic kidney disease, stage 5"}}],"longDefinition":{"@language":"en","@value":"A disease of the kidney, caused by exposure to another disease, condition, or disorder, commonly diabetes mellitus, hypertension, or glomerulonephritis. This disease is characterized by a gradual rise in serum creatinine, severely reduced renal function, and end stage kidney damage with a glomerular filtration rate of less than 15 millilitres per minute per 1.73 square metre for over 3 months. Confirmation is by estimated glomerular filtration rate, blood testing for creatinine, urinalysis, and abdominal ultrasound to differentiate chronic kidney disease from acute renal failure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/820638928/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1002499710"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/820638928/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2000854880/other","http://id.who.int/icd/release/11/2026-01/mms/1932345217/unspecified"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/820638928/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526","http://id.who.int/icd/release/11/2026-01/mms/1783829886","http://id.who.int/icd/release/11/2026-01/mms/1184209951","http://id.who.int/icd/release/11/2026-01/mms/1467154806","http://id.who.int/icd/release/11/2026-01/mms/1210263011","http://id.who.int/icd/release/11/2026-01/mms/1746821938","http://id.who.int/icd/release/11/2026-01/mms/854539401","http://id.who.int/icd/release/11/2026-01/mms/1490912126","http://id.who.int/icd/release/11/2026-01/mms/4407978"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"source":"http://id.who.int/icd/entity/820638928","title":{"@language":"en","@value":"Chronic kidney disease, stage 5"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/836005435": {"method":"GET","path":"icd/release/11/2026-01/mms/836005435","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/836005435","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#836005435","classKind":"category","code":"3A71.1","definition":{"@language":"en","@value":"A disease caused by chronic infectious diseases leading to decreased levels of red blood cells in the blood. This disease is characterised by a low red blood cell count in the body. This disease may present with pallor, fatigue, or shortness of breath. Confirmation is by identification of low red blood cell count in a blood sample."},"indexTerm":[{"label":{"@language":"en","@value":"Anaemia in chronic infectious diseases"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1981248479"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/836005435/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1426960900"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1148519290"],"source":"http://id.who.int/icd/entity/836005435","title":{"@language":"en","@value":"Anaemia in chronic infectious diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/874359291": {"method":"GET","path":"icd/release/11/2026-01/mms/874359291","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/874359291","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#874359291","classKind":"category","code":"3A71.2","definition":{"@language":"en","@value":"A disease caused by chronic kidney disease. This disease is characterised by a low red blood cell count in the blood. This disease may present with pallor, fatigue, or shortness of breath. Confirmation is by identification of a low red blood cell count in a blood sample."},"indexTerm":[{"label":{"@language":"en","@value":"Anaemia in chronic kidney disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1981248479"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/874359291/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/412389819"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1426960900"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1148519290"],"source":"http://id.who.int/icd/entity/874359291","title":{"@language":"en","@value":"Anaemia in chronic kidney disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/933902267": {"method":"GET","path":"icd/release/11/2026-01/mms/933902267","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/933902267","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#933902267","classKind":"category","code":"GB61.0","definition":{"@language":"en","@value":"Kidney damage with normal or increased GFR (>90 ml/min/1.73m²)"},"inclusion":[{"label":{"@language":"en","@value":"chronic renal failure, stage 1"}}],"indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage 1"}},{"label":{"@language":"en","@value":"CKD - [chronic kidney disease] stage 1"}},{"label":{"@language":"en","@value":"chronic renal failure, stage 1"}},{"label":{"@language":"en","@value":"normal or increased eGFR (>90 ml/min/1.73m²)"}}],"longDefinition":{"@language":"en","@value":"A disease of the kidney, caused by exposure to another disease, condition, or disorder, commonly diabetes mellitus, hypertension, or glomerulonephritis. This disease is characterized by a gradual rise in serum creatinine and kidney damage, but normal renal function with a glomerular filtration rate of greater or equal to 90 millilitres per minute per 1.73 square metre for over 3 months. Confirmation is by estimated glomerular filtration rate, blood testing for creatinine, urinalysis, and abdominal ultrasound to differentiate chronic kidney disease from acute renal failure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/933902267/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"source":"http://id.who.int/icd/entity/933902267","title":{"@language":"en","@value":"Chronic kidney disease, stage 1"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/3A71.2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/3A71.2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/3A71.2","code":"3A71.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/874359291"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/3A71.2%2FGB61.5","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/3A71.2%2fGB61.5","code":"3A71.2/GB61.5","hasCausingCondition":["GB61.5"],"stemCode":"3A71.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/874359291"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/GB61.5": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/GB61.5","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.5","code":"GB61.5","stemId":"http://id.who.int/icd/release/11/2026-01/mms/820638928"},"request_body":null,"status":200}
+ }
+}

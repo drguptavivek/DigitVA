@@ -1,0 +1,1744 @@
+{
+ "built": [
+  {
+   "expression": "1B12.2&XA0G74",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/883140666"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1B12.2&XA0G74",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/883140666"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1B12.2&XA0G74",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/746680558",
+      "GET icd/release/11/2026-01/mms/2072728114",
+      "GET icd/release/11/2026-01/mms/979278646",
+      "GET icd/release/11/2026-01/mms/1435254666",
+      "GET icd/release/11/2026-01/mms/746680558",
+      "GET icd/entity/1240824451",
+      "GET icd/entity/576751653",
+      "GET icd/release/11/2026-01/mms/271545608",
+      "GET icd/release/11/2026-01/mms/1074723013",
+      "GET icd/release/11/2026-01/mms/807058764",
+      "GET icd/release/11/2026-01/mms/1459473353",
+      "GET icd/release/11/2026-01/mms/1196243886",
+      "GET icd/release/11/2026-01/mms/870345553",
+      "GET icd/release/11/2026-01/mms/1873777499",
+      "GET icd/release/11/2026-01/mms/625292625",
+      "GET icd/release/11/2026-01/mms/746680558/other"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "01",
+         "title": "Certain infectious or parasitic diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+        },
+        {
+         "code": "",
+         "title": "Mycobacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/979278646"
+        },
+        {
+         "code": "",
+         "title": "Tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2072728114"
+        },
+        {
+         "code": "1B12",
+         "title": "Tuberculosis of other systems or organs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Tuberculosis of ear",
+        "tuberculous ear",
+        "Tuberculous otitis media",
+        "otitis media in tuberculosis",
+        "tuberculosis of middle ear",
+        "Tuberculosis of inner ear"
+       ],
+       "related_maternal": [
+        {
+         "code": "",
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/entity/1240824451"
+        }
+       ],
+       "related_perinatal": [
+        {
+         "code": "",
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/entity/576751653"
+        }
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "selected_expression": {
+        "code": "1B12.2&XA0G74",
+        "stem_code": "1B12.2"
+       },
+       "siblings": [
+        {
+         "code": "1B12.0",
+         "has_children": false,
+         "title": "Tuberculosis of heart",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271545608"
+        },
+        {
+         "code": "1B12.1",
+         "has_children": false,
+         "title": "Tuberculosis of eye",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1074723013"
+        },
+        {
+         "code": "1B12.3",
+         "has_children": false,
+         "title": "Tuberculosis of endocrine glands",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/807058764"
+        },
+        {
+         "code": "1B12.4",
+         "has_children": true,
+         "title": "Tuberculosis of the musculoskeletal system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1459473353"
+        },
+        {
+         "code": "1B12.5",
+         "has_children": false,
+         "title": "Tuberculosis of the genitourinary system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1196243886"
+        },
+        {
+         "code": "1B12.6",
+         "has_children": false,
+         "title": "Tuberculous peripheral lymphadenopathy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/870345553"
+        },
+        {
+         "code": "1B12.7",
+         "has_children": false,
+         "title": "Tuberculosis of the digestive system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1873777499"
+        },
+        {
+         "code": "1B12.8",
+         "has_children": false,
+         "title": "Cutaneous tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/625292625"
+        },
+        {
+         "code": "1B12.Y",
+         "has_children": false,
+         "title": "Tuberculosis of other specified organ or site",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558/other"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/1240824451",
+      "GET icd/release/11/2026-01/mms/340229833",
+      "GET icd/release/11/2026-01/mms/1240824451/other",
+      "GET icd/release/11/2026-01/mms/1240824451/unspecified"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": {
+        "code": "JB63.0/1B12.2",
+        "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium / Tuberculosis of ear",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "terms": [
+        {
+         "code": "JB63.0",
+         "requires_postcoordination": false,
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451"
+        },
+        {
+         "code": "JB63.00",
+         "requires_postcoordination": false,
+         "title": "Tuberculous placenta",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/340229833"
+        },
+        {
+         "code": "JB63.0Y",
+         "requires_postcoordination": false,
+         "title": "Other specified tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/other"
+        },
+        {
+         "code": "JB63.0Z",
+         "requires_postcoordination": false,
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "1B12.2&XA0G74"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/576751653"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": {
+        "code": "KA61.0/1B12.2",
+        "title": "Congenital tuberculosis / Tuberculosis of ear",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "terms": [
+        {
+         "code": "KA61.0",
+         "requires_postcoordination": false,
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/576751653"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "1B12.2&XA0G74"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/570881596",
+      "GET icd/release/11/2026-01/mms/625292625"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "This is a common, and in many cases lethal, infectious disease caused by various strains of mycobacteria, usually Mycobacterium tuberculosis. This diagnosis is of the ear.",
+       "exclusions": [
+        {
+         "code": "1B12.40",
+         "title": "Tuberculous mastoiditis"
+        },
+        {
+         "code": "1B12.8",
+         "title": "tuberculosis of skin of external ear"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [
+        "Tuberculous otitis media"
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114",
+   "why": "middle ear (the KB cluster)"
+  },
+  {
+   "expression": "1B12.2&XA0G74&XK8G",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/883140666"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1B12.2&XA0G74&XK8G",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74&XK8G"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/883140666"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1B12.2&XA0G74&XK8G",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74&XK8G",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/746680558",
+      "GET icd/release/11/2026-01/mms/2072728114",
+      "GET icd/release/11/2026-01/mms/979278646",
+      "GET icd/release/11/2026-01/mms/1435254666",
+      "GET icd/release/11/2026-01/mms/746680558",
+      "GET icd/entity/1240824451",
+      "GET icd/entity/576751653",
+      "GET icd/release/11/2026-01/mms/271545608",
+      "GET icd/release/11/2026-01/mms/1074723013",
+      "GET icd/release/11/2026-01/mms/807058764",
+      "GET icd/release/11/2026-01/mms/1459473353",
+      "GET icd/release/11/2026-01/mms/1196243886",
+      "GET icd/release/11/2026-01/mms/870345553",
+      "GET icd/release/11/2026-01/mms/1873777499",
+      "GET icd/release/11/2026-01/mms/625292625",
+      "GET icd/release/11/2026-01/mms/746680558/other"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "01",
+         "title": "Certain infectious or parasitic diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+        },
+        {
+         "code": "",
+         "title": "Mycobacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/979278646"
+        },
+        {
+         "code": "",
+         "title": "Tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2072728114"
+        },
+        {
+         "code": "1B12",
+         "title": "Tuberculosis of other systems or organs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Tuberculosis of ear",
+        "tuberculous ear",
+        "Tuberculous otitis media",
+        "otitis media in tuberculosis",
+        "tuberculosis of middle ear",
+        "Tuberculosis of inner ear"
+       ],
+       "related_maternal": [
+        {
+         "code": "",
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/entity/1240824451"
+        }
+       ],
+       "related_perinatal": [
+        {
+         "code": "",
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/entity/576751653"
+        }
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "selected_expression": {
+        "code": "1B12.2&XA0G74&XK8G",
+        "stem_code": "1B12.2"
+       },
+       "siblings": [
+        {
+         "code": "1B12.0",
+         "has_children": false,
+         "title": "Tuberculosis of heart",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271545608"
+        },
+        {
+         "code": "1B12.1",
+         "has_children": false,
+         "title": "Tuberculosis of eye",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1074723013"
+        },
+        {
+         "code": "1B12.3",
+         "has_children": false,
+         "title": "Tuberculosis of endocrine glands",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/807058764"
+        },
+        {
+         "code": "1B12.4",
+         "has_children": true,
+         "title": "Tuberculosis of the musculoskeletal system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1459473353"
+        },
+        {
+         "code": "1B12.5",
+         "has_children": false,
+         "title": "Tuberculosis of the genitourinary system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1196243886"
+        },
+        {
+         "code": "1B12.6",
+         "has_children": false,
+         "title": "Tuberculous peripheral lymphadenopathy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/870345553"
+        },
+        {
+         "code": "1B12.7",
+         "has_children": false,
+         "title": "Tuberculosis of the digestive system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1873777499"
+        },
+        {
+         "code": "1B12.8",
+         "has_children": false,
+         "title": "Cutaneous tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/625292625"
+        },
+        {
+         "code": "1B12.Y",
+         "has_children": false,
+         "title": "Tuberculosis of other specified organ or site",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558/other"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74&XK8G"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/1240824451",
+      "GET icd/release/11/2026-01/mms/340229833",
+      "GET icd/release/11/2026-01/mms/1240824451/other",
+      "GET icd/release/11/2026-01/mms/1240824451/unspecified"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": {
+        "code": "JB63.0/1B12.2",
+        "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium / Tuberculosis of ear",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "terms": [
+        {
+         "code": "JB63.0",
+         "requires_postcoordination": false,
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451"
+        },
+        {
+         "code": "JB63.00",
+         "requires_postcoordination": false,
+         "title": "Tuberculous placenta",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/340229833"
+        },
+        {
+         "code": "JB63.0Y",
+         "requires_postcoordination": false,
+         "title": "Other specified tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/other"
+        },
+        {
+         "code": "JB63.0Z",
+         "requires_postcoordination": false,
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "1B12.2&XA0G74&XK8G"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/576751653"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": {
+        "code": "KA61.0/1B12.2",
+        "title": "Congenital tuberculosis / Tuberculosis of ear",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "terms": [
+        {
+         "code": "KA61.0",
+         "requires_postcoordination": false,
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/576751653"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "1B12.2&XA0G74&XK8G"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/570881596",
+      "GET icd/release/11/2026-01/mms/625292625"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "This is a common, and in many cases lethal, infectious disease caused by various strains of mycobacteria, usually Mycobacterium tuberculosis. This diagnosis is of the ear.",
+       "exclusions": [
+        {
+         "code": "1B12.40",
+         "title": "Tuberculous mastoiditis"
+        },
+        {
+         "code": "1B12.8",
+         "title": "tuberculosis of skin of external ear"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [
+        "Tuberculous otitis media"
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2&XA0G74&XK8G"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114 & http://id.who.int/icd/release/11/2026-01/mms/271422288",
+   "why": "middle ear, left"
+  },
+  {
+   "expression": "1B12.2/MG52.0",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
+      "GET icd/release/11/2026-01/mms/883140666"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1B12.2/MG52.0",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 / http://id.who.int/icd/release/11/2026-01/mms/672063490"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2/MG52.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
+      "GET icd/release/11/2026-01/mms/883140666"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "1B12.2/MG52.0",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 / http://id.who.int/icd/release/11/2026-01/mms/672063490"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2/MG52.0",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 / http://id.who.int/icd/release/11/2026-01/mms/672063490"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/746680558",
+      "GET icd/release/11/2026-01/mms/2072728114",
+      "GET icd/release/11/2026-01/mms/979278646",
+      "GET icd/release/11/2026-01/mms/1435254666",
+      "GET icd/release/11/2026-01/mms/746680558",
+      "GET icd/entity/1240824451",
+      "GET icd/entity/576751653",
+      "GET icd/release/11/2026-01/mms/271545608",
+      "GET icd/release/11/2026-01/mms/1074723013",
+      "GET icd/release/11/2026-01/mms/807058764",
+      "GET icd/release/11/2026-01/mms/1459473353",
+      "GET icd/release/11/2026-01/mms/1196243886",
+      "GET icd/release/11/2026-01/mms/870345553",
+      "GET icd/release/11/2026-01/mms/1873777499",
+      "GET icd/release/11/2026-01/mms/625292625",
+      "GET icd/release/11/2026-01/mms/746680558/other"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "01",
+         "title": "Certain infectious or parasitic diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+        },
+        {
+         "code": "",
+         "title": "Mycobacterial diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/979278646"
+        },
+        {
+         "code": "",
+         "title": "Tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2072728114"
+        },
+        {
+         "code": "1B12",
+         "title": "Tuberculosis of other systems or organs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Tuberculosis of ear",
+        "tuberculous ear",
+        "Tuberculous otitis media",
+        "otitis media in tuberculosis",
+        "tuberculosis of middle ear",
+        "Tuberculosis of inner ear"
+       ],
+       "related_maternal": [
+        {
+         "code": "",
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/entity/1240824451"
+        }
+       ],
+       "related_perinatal": [
+        {
+         "code": "",
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/entity/576751653"
+        }
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "selected_expression": {
+        "code": "1B12.2/MG52.0",
+        "stem_code": "1B12.2"
+       },
+       "siblings": [
+        {
+         "code": "1B12.0",
+         "has_children": false,
+         "title": "Tuberculosis of heart",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271545608"
+        },
+        {
+         "code": "1B12.1",
+         "has_children": false,
+         "title": "Tuberculosis of eye",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1074723013"
+        },
+        {
+         "code": "1B12.3",
+         "has_children": false,
+         "title": "Tuberculosis of endocrine glands",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/807058764"
+        },
+        {
+         "code": "1B12.4",
+         "has_children": true,
+         "title": "Tuberculosis of the musculoskeletal system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1459473353"
+        },
+        {
+         "code": "1B12.5",
+         "has_children": false,
+         "title": "Tuberculosis of the genitourinary system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1196243886"
+        },
+        {
+         "code": "1B12.6",
+         "has_children": false,
+         "title": "Tuberculous peripheral lymphadenopathy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/870345553"
+        },
+        {
+         "code": "1B12.7",
+         "has_children": false,
+         "title": "Tuberculosis of the digestive system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1873777499"
+        },
+        {
+         "code": "1B12.8",
+         "has_children": false,
+         "title": "Cutaneous tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/625292625"
+        },
+        {
+         "code": "1B12.Y",
+         "has_children": false,
+         "title": "Tuberculosis of other specified organ or site",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558/other"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2/MG52.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/1240824451",
+      "GET icd/release/11/2026-01/mms/340229833",
+      "GET icd/release/11/2026-01/mms/1240824451/other",
+      "GET icd/release/11/2026-01/mms/1240824451/unspecified"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": {
+        "code": "JB63.0/1B12.2",
+        "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium / Tuberculosis of ear",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "terms": [
+        {
+         "code": "JB63.0",
+         "requires_postcoordination": false,
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451"
+        },
+        {
+         "code": "JB63.00",
+         "requires_postcoordination": false,
+         "title": "Tuberculous placenta",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/340229833"
+        },
+        {
+         "code": "JB63.0Y",
+         "requires_postcoordination": false,
+         "title": "Other specified tuberculosis complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/other"
+        },
+        {
+         "code": "JB63.0Z",
+         "requires_postcoordination": false,
+         "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "1B12.2/MG52.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/576751653"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": {
+        "code": "KA61.0/1B12.2",
+        "title": "Congenital tuberculosis / Tuberculosis of ear",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "terms": [
+        {
+         "code": "KA61.0",
+         "requires_postcoordination": false,
+         "title": "Congenital tuberculosis",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/576751653"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "1B12.2/MG52.0"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/570881596",
+      "GET icd/release/11/2026-01/mms/625292625"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "This is a common, and in many cases lethal, infectious disease caused by various strains of mycobacteria, usually Mycobacterium tuberculosis. This diagnosis is of the ear.",
+       "exclusions": [
+        {
+         "code": "1B12.40",
+         "title": "Tuberculous mastoiditis"
+        },
+        {
+         "code": "1B12.8",
+         "title": "tuberculosis of skin of external ear"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [
+        "Tuberculous otitis media"
+       ],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "1B12.2",
+        "title": "Tuberculosis of ear",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "1B12.2/MG52.0"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 / http://id.who.int/icd/release/11/2026-01/mms/672063490",
+   "why": "antibiotic resistant organism"
+  }
+ ],
+ "id": "pc-1b12-2",
+ "input": {
+  "built": [
+   {
+    "expression": "1B12.2&XA0G74",
+    "why": "middle ear (the KB cluster)"
+   },
+   {
+    "expression": "1B12.2&XA0G74&XK8G",
+    "why": "middle ear, left"
+   },
+   {
+    "expression": "1B12.2/MG52.0",
+    "why": "antibiotic resistant organism"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-1b12-2",
+  "source": "docs/kb/doris-certificate-ui-contract.md; docs/kb/doris-icd-api-and-va.md",
+  "stem": "1B12.2",
+  "why": "Tuberculosis of ear: stem of the KB cluster example 1B12.2&XA0G74; maternal and perinatal links, exclusions, inclusion"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1B12.2",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "1B12.2",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1B12.2",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/627678743",
+    "GET icd/release/11/2026-01/mms/271422288",
+    "GET icd/release/11/2026-01/mms/876572005",
+    "GET icd/release/11/2026-01/mms/1038788978",
+    "GET icd/release/11/2026-01/mms/1393618433",
+    "GET icd/release/11/2026-01/mms/1902897114",
+    "GET icd/release/11/2026-01/mms/672063490"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "laterality",
+       "instruction": "use additional code, if desired",
+       "label": "Laterality",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+         "code": "XK9J",
+         "has_children": false,
+         "title": "Bilateral",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+         "code": "XK8G",
+         "has_children": false,
+         "title": "Left",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+         "code": "XK9K",
+         "has_children": false,
+         "title": "Right",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978",
+         "code": "XK70",
+         "has_children": false,
+         "title": "Unilateral, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+        "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+        "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+        "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+         "code": "XA57R3",
+         "has_children": true,
+         "title": "Inner Ear",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1902897114",
+         "code": "XA0G74",
+         "has_children": true,
+         "title": "Middle Ear",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1902897114"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+        "http://id.who.int/icd/release/11/2026-01/mms/1902897114"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+         "code": "MG52.0",
+         "has_children": true,
+         "title": "Antibiotic resistant Mycobacterium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/672063490"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/1393618433",
+    "GET icd/release/11/2026-01/mms/1802939686",
+    "GET icd/release/11/2026-01/mms/1597714010",
+    "GET icd/release/11/2026-01/mms/1715700506",
+    "GET icd/release/11/2026-01/mms/2086586854",
+    "GET icd/release/11/2026-01/mms/1209223834"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+       "code": "XA3MS6",
+       "has_children": false,
+       "title": "Semicircular canals",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1802939686"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+       "code": "XA0JV0",
+       "has_children": false,
+       "title": "Cochlea",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1597714010"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+       "code": "XA6ZY7",
+       "has_children": false,
+       "title": "Internal acoustic meatus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1715700506"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+       "code": "XA0L54",
+       "has_children": false,
+       "title": "Labyrinth",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2086586854"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+       "code": "XA44P4",
+       "has_children": false,
+       "title": "Auditory vestibule",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1209223834"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1393618433",
+    "stem_code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/672063490",
+    "GET icd/release/11/2026-01/mms/757332010",
+    "GET icd/release/11/2026-01/mms/1876329639",
+    "GET icd/release/11/2026-01/mms/1947911830",
+    "GET icd/release/11/2026-01/mms/672063490/other",
+    "GET icd/release/11/2026-01/mms/672063490/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+       "code": "MG52.00",
+       "has_children": false,
+       "title": "Multi-drug resistant Mycobacterium tuberculosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/757332010"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+       "code": "MG52.01",
+       "has_children": false,
+       "title": "Antibiotic resistant non-tuberculous Mycobacterium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1876329639"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+       "code": "MG52.02",
+       "has_children": false,
+       "title": "Extensively drug-resistant mycobacterium tuberculosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1947911830"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+       "code": "MG52.0Y",
+       "has_children": false,
+       "title": "Other specified antibiotic resistant Mycobacterium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+       "code": "MG52.0Z",
+       "has_children": false,
+       "title": "Antibiotic resistant Mycobacterium, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/672063490",
+    "stem_code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/746680558",
+    "GET icd/release/11/2026-01/mms/2072728114",
+    "GET icd/release/11/2026-01/mms/979278646",
+    "GET icd/release/11/2026-01/mms/1435254666",
+    "GET icd/release/11/2026-01/mms/746680558",
+    "GET icd/entity/1240824451",
+    "GET icd/entity/576751653",
+    "GET icd/release/11/2026-01/mms/271545608",
+    "GET icd/release/11/2026-01/mms/1074723013",
+    "GET icd/release/11/2026-01/mms/807058764",
+    "GET icd/release/11/2026-01/mms/1459473353",
+    "GET icd/release/11/2026-01/mms/1196243886",
+    "GET icd/release/11/2026-01/mms/870345553",
+    "GET icd/release/11/2026-01/mms/1873777499",
+    "GET icd/release/11/2026-01/mms/625292625",
+    "GET icd/release/11/2026-01/mms/746680558/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "01",
+       "title": "Certain infectious or parasitic diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435254666"
+      },
+      {
+       "code": "",
+       "title": "Mycobacterial diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/979278646"
+      },
+      {
+       "code": "",
+       "title": "Tuberculosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2072728114"
+      },
+      {
+       "code": "1B12",
+       "title": "Tuberculosis of other systems or organs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Tuberculosis of ear",
+      "tuberculous ear",
+      "Tuberculous otitis media",
+      "otitis media in tuberculosis",
+      "tuberculosis of middle ear",
+      "Tuberculosis of inner ear"
+     ],
+     "related_maternal": [
+      {
+       "code": "",
+       "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/entity/1240824451"
+      }
+     ],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Congenital tuberculosis",
+       "uri": "http://id.who.int/icd/entity/576751653"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "1B12.0",
+       "has_children": false,
+       "title": "Tuberculosis of heart",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/271545608"
+      },
+      {
+       "code": "1B12.1",
+       "has_children": false,
+       "title": "Tuberculosis of eye",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1074723013"
+      },
+      {
+       "code": "1B12.3",
+       "has_children": false,
+       "title": "Tuberculosis of endocrine glands",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/807058764"
+      },
+      {
+       "code": "1B12.4",
+       "has_children": true,
+       "title": "Tuberculosis of the musculoskeletal system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1459473353"
+      },
+      {
+       "code": "1B12.5",
+       "has_children": false,
+       "title": "Tuberculosis of the genitourinary system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1196243886"
+      },
+      {
+       "code": "1B12.6",
+       "has_children": false,
+       "title": "Tuberculous peripheral lymphadenopathy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/870345553"
+      },
+      {
+       "code": "1B12.7",
+       "has_children": false,
+       "title": "Tuberculosis of the digestive system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1873777499"
+      },
+      {
+       "code": "1B12.8",
+       "has_children": false,
+       "title": "Cutaneous tuberculosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/625292625"
+      },
+      {
+       "code": "1B12.Y",
+       "has_children": false,
+       "title": "Tuberculosis of other specified organ or site",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/746680558/other"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/1240824451",
+    "GET icd/release/11/2026-01/mms/340229833",
+    "GET icd/release/11/2026-01/mms/1240824451/other",
+    "GET icd/release/11/2026-01/mms/1240824451/unspecified"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": {
+      "code": "JB63.0/1B12.2",
+      "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium / Tuberculosis of ear",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "terms": [
+      {
+       "code": "JB63.0",
+       "requires_postcoordination": false,
+       "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451"
+      },
+      {
+       "code": "JB63.00",
+       "requires_postcoordination": false,
+       "title": "Tuberculous placenta",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/340229833"
+      },
+      {
+       "code": "JB63.0Y",
+       "requires_postcoordination": false,
+       "title": "Other specified tuberculosis complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/other"
+      },
+      {
+       "code": "JB63.0Z",
+       "requires_postcoordination": false,
+       "title": "Tuberculosis complicating pregnancy, childbirth or the puerperium, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/576751653"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": {
+      "code": "KA61.0/1B12.2",
+      "title": "Congenital tuberculosis / Tuberculosis of ear",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "terms": [
+      {
+       "code": "KA61.0",
+       "requires_postcoordination": false,
+       "title": "Congenital tuberculosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/576751653"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "1B12.2"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+    "GET icd/release/11/2026-01/mms/883140666",
+    "GET icd/release/11/2026-01/mms/570881596",
+    "GET icd/release/11/2026-01/mms/625292625"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "This is a common, and in many cases lethal, infectious disease caused by various strains of mycobacteria, usually Mycobacterium tuberculosis. This diagnosis is of the ear.",
+     "exclusions": [
+      {
+       "code": "1B12.40",
+       "title": "Tuberculous mastoiditis"
+      },
+      {
+       "code": "1B12.8",
+       "title": "tuberculosis of skin of external ear"
+      }
+     ],
+     "fully_specified_name": "",
+     "inclusions": [
+      "Tuberculous otitis media"
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "1B12.2",
+      "title": "Tuberculosis of ear",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "1B12.2"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/1240824451": {"method":"GET","path":"icd/entity/1240824451","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1240824451","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1240824451","child":["http://id.who.int/icd/entity/340229833"],"parent":["http://id.who.int/icd/entity/2072728114","http://id.who.int/icd/entity/673901775"],"synonym":[{"label":{"@language":"en","@value":"maternal tuberculosis during pregnancy, childbirth and the puerperium"}},{"label":{"@language":"en","@value":"tuberculosis in mother complicating pregnancy, childbirth and/or puerperium"}}],"title":{"@language":"en","@value":"Tuberculosis complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/entity/576751653": {"method":"GET","path":"icd/entity/576751653","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/576751653","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#576751653","definition":{"@language":"en","@value":"A disease affecting infants, caused by an infection with the bacteria Mycobacterium tuberculosis in utero. Transmission is by vertical transmission."},"longDefinition":{"@language":"en","@value":"Congenital tuberculosis is the infection with Mycobacterium tuberculosis complex to the infant of a mother with haematogenously spread tuberculosis or by aspiration of infected amniotic fluid in cases of tuberculosis endometritis. If a mother is infected with tuberculosis, which is an airborne infectious disease, congenital tuberculosis may occur through bloodborne transmission to the placenta or genital tract. Symptoms are most often seen in the second or third week of life, and may include poor weight gain, lethargy, irritability, and cough. In addition to pulmonary involvement, transmission and infection in the bone, skin, kidney and brain may be seen."},"parent":["http://id.who.int/icd/entity/2072728114","http://id.who.int/icd/entity/1935107489"],"synonym":[{"label":{"@language":"en","@value":"congenital necrotic tuberculosis"}},{"label":{"@language":"en","@value":"congenital tuberculous degeneration"}},{"label":{"@language":"en","@value":"congenital tuberculous gangrene"}},{"label":{"@language":"en","@value":"congenital tuberculous infection"}}],"title":{"@language":"en","@value":"Congenital tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1038788978": {"method":"GET","path":"icd/release/11/2026-01/mms/1038788978","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1038788978","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1038788978","classKind":"category","code":"XK70","indexTerm":[{"label":{"@language":"en","@value":"Unilateral, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/1038788978","title":{"@language":"en","@value":"Unilateral, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1074723013": {"method":"GET","path":"icd/release/11/2026-01/mms/1074723013","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1074723013","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1074723013","classKind":"category","code":"1B12.1","definition":{"@language":"en","@value":"Tuberculosis involving the eye. This may manifest in multiple different ways including keratoconjunctivitis, episcleritis, anterior uveitis and posterior uveitis"},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1292667822","label":{"@language":"en","@value":"lupus vulgaris of eyelid"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/625292625"}],"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/706418049","label":{"@language":"en","@value":"Tuberculous episcleritis"}}],"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of eye"}},{"label":{"@language":"en","@value":"ocular tuberculosis"}},{"label":{"@language":"en","@value":"tuberculous eye"}},{"foundationReference":"http://id.who.int/icd/entity/601074779","label":{"@language":"en","@value":"Keratitis or keratoconjunctivitis in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/601074779","label":{"@language":"en","@value":"interstitial keratitis and keratoconjunctivitis in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/601074779","label":{"@language":"en","@value":"tuberculous conjunctivitis"}},{"foundationReference":"http://id.who.int/icd/entity/601074779","label":{"@language":"en","@value":"tuberculous keratitis"}},{"foundationReference":"http://id.who.int/icd/entity/601074779","label":{"@language":"en","@value":"tuberculous keratoconjunctivitis"}},{"foundationReference":"http://id.who.int/icd/entity/601074779","label":{"@language":"en","@value":"tuberculous phlyctenular keratoconjunctivitis"}},{"foundationReference":"http://id.who.int/icd/entity/706418049","label":{"@language":"en","@value":"Tuberculous episcleritis"}},{"foundationReference":"http://id.who.int/icd/entity/804417063","label":{"@language":"en","@value":"Tuberculous anterior uveitis"}},{"foundationReference":"http://id.who.int/icd/entity/27573878","label":{"@language":"en","@value":"Tuberculous posterior uveitis"}},{"foundationReference":"http://id.who.int/icd/entity/1868140502","label":{"@language":"en","@value":"Involvement of eyelid in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/992006178","label":{"@language":"en","@value":"Mycobacterium tuberculosis dacryoadenitis"}},{"foundationReference":"http://id.who.int/icd/entity/1442616444","label":{"@language":"en","@value":"Tuberculous panuveitis"}},{"foundationReference":"http://id.who.int/icd/entity/668145713","label":{"@language":"en","@value":"Chronic tuberculous iridocyclitis"}},{"foundationReference":"http://id.who.int/icd/entity/668145713","label":{"@language":"en","@value":"iridocyclitis in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1195154042","label":{"@language":"en","@value":"Tuberculous chorioretinitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074723013/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074723013/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2055915829"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074723013/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/657977518","http://id.who.int/icd/release/11/2026-01/mms/404886274","http://id.who.int/icd/release/11/2026-01/mms/406987739","http://id.who.int/icd/release/11/2026-01/mms/1722408748","http://id.who.int/icd/release/11/2026-01/mms/1884626736/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1709165622"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1074723013/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/1074723013","title":{"@language":"en","@value":"Tuberculosis of eye"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1196243886": {"method":"GET","path":"icd/release/11/2026-01/mms/1196243886","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1196243886","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1196243886","classKind":"category","code":"1B12.5","definition":{"@language":"en","@value":"Tuberculosis involving the urinary tract and/or reproductive organs. The primary site of infection is most commonly the kidney as a result of haematogenous spread from distant sites: infection may then spread further down the urinary tract and/or to the reproductive organs. Genital infection may be sexually transmitted."},"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of the genitourinary system"}},{"label":{"@language":"en","@value":"urogenital tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/570426565","label":{"@language":"en","@value":"Tuberculosis of the urinary system"}},{"foundationReference":"http://id.who.int/icd/entity/570426565","label":{"@language":"en","@value":"urinary tract TB - [tuberculosis]"}},{"foundationReference":"http://id.who.int/icd/entity/1875456885","label":{"@language":"en","@value":"Tuberculosis of kidney or ureter"}},{"foundationReference":"http://id.who.int/icd/entity/1875456885","label":{"@language":"en","@value":"tuberculous pyelonephritis"}},{"foundationReference":"http://id.who.int/icd/entity/1349090821","label":{"@language":"en","@value":"Tuberculosis of kidney"}},{"foundationReference":"http://id.who.int/icd/entity/1349090821","label":{"@language":"en","@value":"kidney TB - [tuberculosis]"}},{"foundationReference":"http://id.who.int/icd/entity/1349090821","label":{"@language":"en","@value":"renal TB - [tuberculosis]"}},{"foundationReference":"http://id.who.int/icd/entity/1349090821","label":{"@language":"en","@value":"renal tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/912956102","label":{"@language":"en","@value":"Tuberculous kidney abscess"}},{"foundationReference":"http://id.who.int/icd/entity/912956102","label":{"@language":"en","@value":"Tuberculous perinephritic abscess"}},{"foundationReference":"http://id.who.int/icd/entity/861844792","label":{"@language":"en","@value":"Tuberculous hydronephrosis"}},{"foundationReference":"http://id.who.int/icd/entity/861844792","label":{"@language":"en","@value":"tuberculous hydroureteronephrosis"}},{"foundationReference":"http://id.who.int/icd/entity/1125164235","label":{"@language":"en","@value":"Tuberculous hydrocalycosis"}},{"foundationReference":"http://id.who.int/icd/entity/1340619978","label":{"@language":"en","@value":"Tuberculosis of ureter"}},{"foundationReference":"http://id.who.int/icd/entity/112180879","label":{"@language":"en","@value":"Tuberculosis of bladder"}},{"foundationReference":"http://id.who.int/icd/entity/112180879","label":{"@language":"en","@value":"tuberculous cystitis"}},{"foundationReference":"http://id.who.int/icd/entity/1202598073","label":{"@language":"en","@value":"Disorders of kidney or ureter in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1296752914","label":{"@language":"en","@value":"Tuberculosis of male reproductive organs"}},{"foundationReference":"http://id.who.int/icd/entity/1529752564","label":{"@language":"en","@value":"Tuberculosis of prostate"}},{"foundationReference":"http://id.who.int/icd/entity/1527592153","label":{"@language":"en","@value":"Tuberculosis of seminal vesicle"}},{"foundationReference":"http://id.who.int/icd/entity/964166088","label":{"@language":"en","@value":"Tuberculosis of testis or epididymis"}},{"foundationReference":"http://id.who.int/icd/entity/1092166548","label":{"@language":"en","@value":"Tuberculous epididymitis"}},{"foundationReference":"http://id.who.int/icd/entity/1602781566","label":{"@language":"en","@value":"Tuberculous orchitis"}},{"foundationReference":"http://id.who.int/icd/entity/59287076","label":{"@language":"en","@value":"Tuberculosis of testis"}},{"foundationReference":"http://id.who.int/icd/entity/59287076","label":{"@language":"en","@value":"Testis TB - [tuberculosis]"}},{"foundationReference":"http://id.who.int/icd/entity/59287076","label":{"@language":"en","@value":"testicular TB - [tuberculosis]"}},{"foundationReference":"http://id.who.int/icd/entity/59287076","label":{"@language":"en","@value":"testicular TBC - [tuberculosis]"}},{"foundationReference":"http://id.who.int/icd/entity/304307337","label":{"@language":"en","@value":"Tuberculosis of female reproductive organs"}},{"foundationReference":"http://id.who.int/icd/entity/418746015","label":{"@language":"en","@value":"Tuberculous oophoritis or salpingitis"}},{"foundationReference":"http://id.who.int/icd/entity/1634640694","label":{"@language":"en","@value":"Tuberculous oophoritis"}},{"foundationReference":"http://id.who.int/icd/entity/1634640694","label":{"@language":"en","@value":"Tuberculosis of ovaries"}},{"foundationReference":"http://id.who.int/icd/entity/1634640694","label":{"@language":"en","@value":"ovarian tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/25239933","label":{"@language":"en","@value":"Tuberculous salpingitis"}},{"foundationReference":"http://id.who.int/icd/entity/25239933","label":{"@language":"en","@value":"tuberculosis of Fallopian tubes"}},{"foundationReference":"http://id.who.int/icd/entity/1839040430","label":{"@language":"en","@value":"Tuberculous endometritis"}},{"foundationReference":"http://id.who.int/icd/entity/1839040430","label":{"@language":"en","@value":"uterine tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/2109621003","label":{"@language":"en","@value":"Tuberculosis of cervix uteri"}},{"foundationReference":"http://id.who.int/icd/entity/2109621003","label":{"@language":"en","@value":"tuberculous cervicitis"}},{"foundationReference":"http://id.who.int/icd/entity/1312360131","label":{"@language":"en","@value":"Tuberculous ulceration of vulva"}},{"foundationReference":"http://id.who.int/icd/entity/1312360131","label":{"@language":"en","@value":"Vulval tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1178099668","label":{"@language":"en","@value":"Tuberculous female pelvic inflammatory disease"}},{"foundationReference":"http://id.who.int/icd/entity/1178099668","label":{"@language":"en","@value":"Female pelvic inflammatory diseases caused by mycobacterium tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/136122369","label":{"@language":"en","@value":"Tuberculosis of breast"}}],"longDefinition":{"@language":"en","@value":"Genitourinary tuberculosis is a severe form of extrapulmonary tuberculosis that affects the urogenital system. In GUTB, the kidneys are the most common sites of infection and are infected through hematogenous spread of the bacilli, which then spread further through the renal and genital tract."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1196243886/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1223109342","http://id.who.int/icd/release/11/2026-01/mms/2091559330"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1196243886/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1230041477","http://id.who.int/icd/release/11/2026-01/mms/1986295220","http://id.who.int/icd/release/11/2026-01/mms/1594247995","http://id.who.int/icd/release/11/2026-01/mms/1480951888","http://id.who.int/icd/release/11/2026-01/mms/510369115"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1196243886/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/1196243886","title":{"@language":"en","@value":"Tuberculosis of the genitourinary system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1209223834": {"method":"GET","path":"icd/release/11/2026-01/mms/1209223834","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1209223834","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1209223834","classKind":"category","code":"XA44P4","indexTerm":[{"label":{"@language":"en","@value":"Auditory vestibule"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1393618433"],"source":"http://id.who.int/icd/entity/1209223834","title":{"@language":"en","@value":"Auditory vestibule"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1240824451": {"method":"GET","path":"icd/release/11/2026-01/mms/1240824451","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1240824451","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1240824451","child":["http://id.who.int/icd/release/11/2026-01/mms/340229833","http://id.who.int/icd/release/11/2026-01/mms/1240824451/other","http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified"],"classKind":"category","code":"JB63.0","parent":["http://id.who.int/icd/release/11/2026-01/mms/673901775"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1240824451/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2072728114","http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"source":"http://id.who.int/icd/entity/1240824451","title":{"@language":"en","@value":"Tuberculosis complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1240824451/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1240824451/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1240824451/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1240824451/other","classKind":"category","code":"JB63.0Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified tuberculosis complicating pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1240824451"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1240824451/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2072728114","http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"title":{"@language":"en","@value":"Other specified tuberculosis complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1240824451/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1240824451/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1240824451/unspecified","classKind":"category","code":"JB63.0Z","indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis complicating pregnancy, childbirth or the puerperium, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1240824451","label":{"@language":"en","@value":"Tuberculosis complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1240824451","label":{"@language":"en","@value":"maternal tuberculosis during pregnancy, childbirth and the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1240824451","label":{"@language":"en","@value":"tuberculosis in mother complicating pregnancy, childbirth and/or puerperium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1240824451"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1240824451/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2072728114","http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"title":{"@language":"en","@value":"Tuberculosis complicating pregnancy, childbirth or the puerperium, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1393618433": {"method":"GET","path":"icd/release/11/2026-01/mms/1393618433","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1393618433","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1393618433","child":["http://id.who.int/icd/release/11/2026-01/mms/1802939686","http://id.who.int/icd/release/11/2026-01/mms/1597714010","http://id.who.int/icd/release/11/2026-01/mms/1715700506","http://id.who.int/icd/release/11/2026-01/mms/2086586854","http://id.who.int/icd/release/11/2026-01/mms/1209223834"],"classKind":"category","code":"XA57R3","indexTerm":[{"label":{"@language":"en","@value":"Inner Ear"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1144556225"],"source":"http://id.who.int/icd/entity/1393618433","title":{"@language":"en","@value":"Inner Ear"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1435254666": {"method":"GET","path":"icd/release/11/2026-01/mms/1435254666","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1435254666","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1435254666","child":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"],"classKind":"chapter","code":"01","definition":{"@language":"en","@value":"This chapter includes certain conditions caused by pathogenic organisms or microorganisms, such as bacteria, viruses, parasites or fungi."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1612485599","label":{"@language":"en","@value":"Infection arising from device, implant or graft, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1612485599"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"Infections of the fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/911707612"},{"foundationReference":"http://id.who.int/icd/entity/1965146397","label":{"@language":"en","@value":"Human prion diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1965146397"},{"foundationReference":"http://id.who.int/icd/entity/142052508","label":{"@language":"en","@value":"Pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/142052508"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1435254666","title":{"@language":"en","@value":"Certain infectious or parasitic diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1459473353": {"method":"GET","path":"icd/release/11/2026-01/mms/1459473353","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1459473353","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1459473353","child":["http://id.who.int/icd/release/11/2026-01/mms/570881596","http://id.who.int/icd/release/11/2026-01/mms/1828714202","http://id.who.int/icd/release/11/2026-01/mms/1459473353/other","http://id.who.int/icd/release/11/2026-01/mms/1459473353/unspecified"],"classKind":"category","code":"1B12.4","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/331489899","label":{"@language":"en","@value":"Mycobacterial infection of vertebra"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/420403478"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1459473353/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1569734721"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1459473353/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"source":"http://id.who.int/icd/entity/1459473353","title":{"@language":"en","@value":"Tuberculosis of the musculoskeletal system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1597714010": {"method":"GET","path":"icd/release/11/2026-01/mms/1597714010","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1597714010","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1597714010","classKind":"category","code":"XA0JV0","indexTerm":[{"label":{"@language":"en","@value":"Cochlea"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1393618433"],"source":"http://id.who.int/icd/entity/1597714010","title":{"@language":"en","@value":"Cochlea"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1715700506": {"method":"GET","path":"icd/release/11/2026-01/mms/1715700506","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1715700506","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1715700506","classKind":"category","code":"XA6ZY7","indexTerm":[{"label":{"@language":"en","@value":"Internal acoustic meatus"}},{"label":{"@language":"en","@value":"internal auditory canal"}},{"label":{"@language":"en","@value":"internal auditory meatus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1393618433"],"source":"http://id.who.int/icd/entity/1715700506","title":{"@language":"en","@value":"Internal acoustic meatus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1802939686": {"method":"GET","path":"icd/release/11/2026-01/mms/1802939686","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1802939686","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1802939686","classKind":"category","code":"XA3MS6","indexTerm":[{"label":{"@language":"en","@value":"Semicircular canals"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1393618433"],"source":"http://id.who.int/icd/entity/1802939686","title":{"@language":"en","@value":"Semicircular canals"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1873777499": {"method":"GET","path":"icd/release/11/2026-01/mms/1873777499","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1873777499","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1873777499","classKind":"category","code":"1B12.7","definition":{"@language":"en","@value":"Tuberculosis of the digestive tract or hepatobiliary system"},"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of the digestive system"}},{"label":{"@language":"en","@value":"tuberculosis of gastrointestinal tract"}},{"foundationReference":"http://id.who.int/icd/entity/905049915","label":{"@language":"en","@value":"Tuberculous duodenitis"}},{"foundationReference":"http://id.who.int/icd/entity/1618639246","label":{"@language":"en","@value":"Tuberculous gastritis"}},{"foundationReference":"http://id.who.int/icd/entity/1618639246","label":{"@language":"en","@value":"tuberculosis of stomach"}},{"foundationReference":"http://id.who.int/icd/entity/191056506","label":{"@language":"en","@value":"Tuberculous enteritis"}},{"foundationReference":"http://id.who.int/icd/entity/191056506","label":{"@language":"en","@value":"tuberculosis of small intestine"}},{"foundationReference":"http://id.who.int/icd/entity/404038772","label":{"@language":"en","@value":"Tuberculosis of large intestine"}},{"foundationReference":"http://id.who.int/icd/entity/404038772","label":{"@language":"en","@value":"large intestinal tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1930646408","label":{"@language":"en","@value":"Ileocecal tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1930646408","label":{"@language":"en","@value":"tuberculous ileocolitis"}},{"foundationReference":"http://id.who.int/icd/entity/1930646408","label":{"@language":"en","@value":"tuberculous of terminal ileum"}},{"foundationReference":"http://id.who.int/icd/entity/806060582","label":{"@language":"en","@value":"Tuberculous dysentery"}},{"foundationReference":"http://id.who.int/icd/entity/131635852","label":{"@language":"en","@value":"Intestinal tuberculosis, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/131635852","label":{"@language":"en","@value":"Intestinal TB NOS"}},{"foundationReference":"http://id.who.int/icd/entity/925657864","label":{"@language":"en","@value":"Tuberculous peritonitis"}},{"foundationReference":"http://id.who.int/icd/entity/925657864","label":{"@language":"en","@value":"Tuberculosis of peritoneum"}},{"foundationReference":"http://id.who.int/icd/entity/925657864","label":{"@language":"en","@value":"peritoneal TB infection"}},{"foundationReference":"http://id.who.int/icd/entity/925657864","label":{"@language":"en","@value":"tuberculous peritoneum abscess"}},{"foundationReference":"http://id.who.int/icd/entity/957834829","label":{"@language":"en","@value":"Tuberculous oesophagitis"}},{"foundationReference":"http://id.who.int/icd/entity/957834829","label":{"@language":"en","@value":"oesophageal tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/957834829","label":{"@language":"en","@value":"tuberculosis of oesophagus"}},{"foundationReference":"http://id.who.int/icd/entity/742775377","label":{"@language":"en","@value":"Tuberculosis of liver"}},{"foundationReference":"http://id.who.int/icd/entity/61552199","label":{"@language":"en","@value":"Tuberculous infection of bile duct"}},{"foundationReference":"http://id.who.int/icd/entity/1570548505","label":{"@language":"en","@value":"Tuberculosis of anal canal"}},{"foundationReference":"http://id.who.int/icd/entity/1183156309","label":{"@language":"en","@value":"Tuberculous enterocolitis"}},{"foundationReference":"http://id.who.int/icd/entity/381331990","label":{"@language":"en","@value":"Tuberculous appendicitis"}},{"foundationReference":"http://id.who.int/icd/entity/1774867184","label":{"@language":"en","@value":"Mesenteric tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1774867184","label":{"@language":"en","@value":"tuberculosis of mesenteric glands"}},{"foundationReference":"http://id.who.int/icd/entity/1774867184","label":{"@language":"en","@value":"tuberculous mesenteric adenitis"}},{"foundationReference":"http://id.who.int/icd/entity/2010448518","label":{"@language":"en","@value":"Tuberculosis of omentum"}},{"foundationReference":"http://id.who.int/icd/entity/660758859","label":{"@language":"en","@value":"Retroperitoneal tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/660758859","label":{"@language":"en","@value":"Tuberculosis of retroperitoneal lymph nodes"}},{"foundationReference":"http://id.who.int/icd/entity/1578143543","label":{"@language":"en","@value":"Tuberculosis of anus or rectum"}},{"foundationReference":"http://id.who.int/icd/entity/1747509566","label":{"@language":"en","@value":"Tuberculous ascites"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1873777499/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1337584902","http://id.who.int/icd/release/11/2026-01/mms/1515005003","http://id.who.int/icd/release/11/2026-01/mms/899820155","http://id.who.int/icd/release/11/2026-01/mms/1651798887","http://id.who.int/icd/release/11/2026-01/mms/616736219","http://id.who.int/icd/release/11/2026-01/mms/532265365","http://id.who.int/icd/release/11/2026-01/mms/1924631190"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1873777499/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/135352227","http://id.who.int/icd/release/11/2026-01/mms/1917562684/other","http://id.who.int/icd/release/11/2026-01/mms/1871672644/other","http://id.who.int/icd/release/11/2026-01/mms/590662611/other","http://id.who.int/icd/release/11/2026-01/mms/1881255733"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1873777499/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/757332010","http://id.who.int/icd/release/11/2026-01/mms/672063490/other","http://id.who.int/icd/release/11/2026-01/mms/1947911830"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/1873777499","title":{"@language":"en","@value":"Tuberculosis of the digestive system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1876329639": {"method":"GET","path":"icd/release/11/2026-01/mms/1876329639","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1876329639","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1876329639","classKind":"category","code":"MG52.01","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"indexTerm":[{"label":{"@language":"en","@value":"Antibiotic resistant non-tuberculous Mycobacterium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672063490"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1876329639/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/149072669","http://id.who.int/icd/release/11/2026-01/mms/1839818377"]}],"source":"http://id.who.int/icd/entity/1876329639","title":{"@language":"en","@value":"Antibiotic resistant non-tuberculous Mycobacterium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1902897114": {"method":"GET","path":"icd/release/11/2026-01/mms/1902897114","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1902897114","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1902897114","child":["http://id.who.int/icd/release/11/2026-01/mms/987893786","http://id.who.int/icd/release/11/2026-01/mms/60472666","http://id.who.int/icd/release/11/2026-01/mms/595221519","http://id.who.int/icd/release/11/2026-01/mms/1391287252","http://id.who.int/icd/release/11/2026-01/mms/122233677","http://id.who.int/icd/release/11/2026-01/mms/347265434"],"classKind":"category","code":"XA0G74","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1851292761","label":{"@language":"en","@value":"Bones of middle ear"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1851292761"}],"indexTerm":[{"label":{"@language":"en","@value":"Middle Ear"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1144556225"],"source":"http://id.who.int/icd/entity/1902897114","title":{"@language":"en","@value":"Middle Ear"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1947911830": {"method":"GET","path":"icd/release/11/2026-01/mms/1947911830","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1947911830","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1947911830","classKind":"category","code":"MG52.02","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"definition":{"@language":"en","@value":"Extensively drug-resistant tuberculous mycobacteria are resistant to at least four of the core anti-TB drugs. XDR-TB mycobacteria are resistant to the two most powerful anti-TB drugs, isoniazid and rifampicin, also known as multidrug-resistance, in addition to resistance to any of the fluoroquinolones (such as levofloxacin or moxifloxacin) and to at least one of the three injectable second-line drugs (amikacin, capreomycin or kanamycin)."},"indexTerm":[{"label":{"@language":"en","@value":"Extensively drug-resistant mycobacterium tuberculosis"}},{"label":{"@language":"en","@value":"XDR TB - [extensively drug-resistant tuberculosis]"}},{"label":{"@language":"en","@value":"XDR tuberculous mycobacterium - [Extensively drug-resistant] tuberculous mycobacterium"}},{"label":{"@language":"en","@value":"extensively drug-resistant tuberculous mycobacterium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672063490"],"source":"http://id.who.int/icd/entity/1947911830","title":{"@language":"en","@value":"Extensively drug-resistant mycobacterium tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2072728114": {"method":"GET","path":"icd/release/11/2026-01/mms/2072728114","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2072728114","blockId":"BlockL2-1B1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2072728114","child":["http://id.who.int/icd/release/11/2026-01/mms/882244568","http://id.who.int/icd/release/11/2026-01/mms/729372485","http://id.who.int/icd/release/11/2026-01/mms/746680558","http://id.who.int/icd/release/11/2026-01/mms/861638547","http://id.who.int/icd/release/11/2026-01/mms/454434138","http://id.who.int/icd/release/11/2026-01/mms/2072728114/other","http://id.who.int/icd/release/11/2026-01/mms/2072728114/unspecified"],"classKind":"block","code":"","codeRange":"1B10-1B1Z","definition":{"@language":"en","@value":"A disease caused by an infection with bacteria of the Mycobacterium tuberculosis complex. This disease presents with symptoms depending on the site of infection. Transmission is commonly by inhalation of infected respiratory secretions."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/852375268","label":{"@language":"en","@value":"Pneumoconiosis associated with tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/852375268"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/576751653","label":{"@language":"en","@value":"Congenital tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/576751653"},{"foundationReference":"http://id.who.int/icd/entity/1240824451","label":{"@language":"en","@value":"Tuberculosis complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1240824451"},{"foundationReference":"http://id.who.int/icd/entity/215309692","label":{"@language":"en","@value":"HIV disease clinical stage 1 associated with tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/215309692"},{"foundationReference":"http://id.who.int/icd/entity/1386132895","label":{"@language":"en","@value":"HIV disease clinical stage 2 associated with tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1386132895"},{"foundationReference":"http://id.who.int/icd/entity/865305628","label":{"@language":"en","@value":"HIV disease clinical stage 3 associated with tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/865305628"},{"foundationReference":"http://id.who.int/icd/entity/1280139157","label":{"@language":"en","@value":"HIV disease clinical stage 4 associated with tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1280139157"},{"foundationReference":"http://id.who.int/icd/entity/236924369","label":{"@language":"en","@value":"Human immunodeficiency virus disease associated with tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/236924369"},{"foundationReference":"http://id.who.int/icd/entity/200718952","label":{"@language":"en","@value":"Tuberculosis of orbit"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/412401982"}],"fullySpecifiedName":{"@language":"en","@value":"Tuberculosis attributable to Mycobacterium tuberculosis"},"inclusion":[{"label":{"@language":"en","@value":"Infections due to Mycobacterium tuberculosis and Mycobacterium bovis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/979278646"],"source":"http://id.who.int/icd/entity/2072728114","title":{"@language":"en","@value":"Tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2086586854": {"method":"GET","path":"icd/release/11/2026-01/mms/2086586854","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2086586854","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2086586854","classKind":"category","code":"XA0L54","indexTerm":[{"label":{"@language":"en","@value":"Labyrinth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1393618433"],"source":"http://id.who.int/icd/entity/2086586854","title":{"@language":"en","@value":"Labyrinth"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271422288": {"method":"GET","path":"icd/release/11/2026-01/mms/271422288","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271422288","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271422288","classKind":"category","code":"XK8G","indexTerm":[{"label":{"@language":"en","@value":"Left"}},{"label":{"@language":"en","@value":"unilateral, left"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/271422288","title":{"@language":"en","@value":"Left"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271545608": {"method":"GET","path":"icd/release/11/2026-01/mms/271545608","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271545608","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271545608","classKind":"category","code":"1B12.0","definition":{"@language":"en","@value":"Mycobacterium tuberculosis infection involving the heart and pericardium"},"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of heart"}},{"foundationReference":"http://id.who.int/icd/entity/551171489","label":{"@language":"en","@value":"Tuberculosis of endocardium"}},{"foundationReference":"http://id.who.int/icd/entity/551171489","label":{"@language":"en","@value":"Endocardial involvement in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/551171489","label":{"@language":"en","@value":"tuberculous endocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/633835087","label":{"@language":"en","@value":"Tuberculosis of myocardium"}},{"foundationReference":"http://id.who.int/icd/entity/633835087","label":{"@language":"en","@value":"tuberculous cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/633835087","label":{"@language":"en","@value":"tuberculous myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/2135325100","label":{"@language":"en","@value":"Tuberculosis of pericardium"}},{"foundationReference":"http://id.who.int/icd/entity/2135325100","label":{"@language":"en","@value":"tuberculous pericarditis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/271545608/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1196650747"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/271545608/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2051676830","http://id.who.int/icd/release/11/2026-01/mms/512128824","http://id.who.int/icd/release/11/2026-01/mms/654702340"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/271545608/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/271545608","title":{"@language":"en","@value":"Tuberculosis of heart"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/340229833": {"method":"GET","path":"icd/release/11/2026-01/mms/340229833","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/340229833","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#340229833","classKind":"category","code":"JB63.00","indexTerm":[{"label":{"@language":"en","@value":"Tuberculous placenta"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1240824451"],"source":"http://id.who.int/icd/entity/340229833","title":{"@language":"en","@value":"Tuberculous placenta"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/570881596": {"method":"GET","path":"icd/release/11/2026-01/mms/570881596","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/570881596","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#570881596","classKind":"category","code":"1B12.40","definition":{"@language":"en","@value":"A disease of the bones and joints, caused by an infection with the bacteria Mycobacterium tuberculosis. This disease commonly presents with bone pain, joint inflammation, loss of movement or feeling in the affected bone or joint, and weak bones prone to fracture. Transmission is through haematogenous spread to the bones and joints after inhalation of infected respiratory secretions. Confirmation is by identification of Mycobacterium tuberculosis in biopsy samples of the affected site."},"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of bones or joints"}},{"label":{"@language":"en","@value":"TB of bones and joints"}},{"label":{"@language":"en","@value":"tuberculosis of bone"}},{"label":{"@language":"en","@value":"tuberculosis of joint"}},{"label":{"@language":"en","@value":"tuberculous bone"}},{"label":{"@language":"en","@value":"tuberculous bursa"}},{"label":{"@language":"en","@value":"tuberculous cartilage"}},{"foundationReference":"http://id.who.int/icd/entity/103363566","label":{"@language":"en","@value":"Tuberculosis of bones or joints, shoulder region"}},{"foundationReference":"http://id.who.int/icd/entity/644908246","label":{"@language":"en","@value":"Tuberculosis of bones or joints, acromioclavicular joints"}},{"foundationReference":"http://id.who.int/icd/entity/740381946","label":{"@language":"en","@value":"Tuberculosis of bones or joints, clavicle"}},{"foundationReference":"http://id.who.int/icd/entity/315061938","label":{"@language":"en","@value":"Tuberculosis of bones or joints, glenohumeral joint"}},{"foundationReference":"http://id.who.int/icd/entity/1915286777","label":{"@language":"en","@value":"Tuberculosis of bones or joints, scapula"}},{"foundationReference":"http://id.who.int/icd/entity/574105416","label":{"@language":"en","@value":"Tuberculosis of bones or joints, sternoclavicular joints"}},{"foundationReference":"http://id.who.int/icd/entity/1921278739","label":{"@language":"en","@value":"Tuberculosis of bones or joints, upper arm"}},{"foundationReference":"http://id.who.int/icd/entity/1575419081","label":{"@language":"en","@value":"Tuberculosis of bones or joints, elbow joint"}},{"foundationReference":"http://id.who.int/icd/entity/1575419081","label":{"@language":"en","@value":"tuberculosis of bones or joints, elbow"}},{"foundationReference":"http://id.who.int/icd/entity/61674540","label":{"@language":"en","@value":"Tuberculosis of bones or joints, humerus"}},{"foundationReference":"http://id.who.int/icd/entity/399486599","label":{"@language":"en","@value":"Tuberculosis of bones or joints, forearm"}},{"foundationReference":"http://id.who.int/icd/entity/343542119","label":{"@language":"en","@value":"Tuberculosis of bones or joints, wrist joint"}},{"foundationReference":"http://id.who.int/icd/entity/1679899923","label":{"@language":"en","@value":"Tuberculosis of bones or joints, hand"}},{"foundationReference":"http://id.who.int/icd/entity/877642021","label":{"@language":"en","@value":"Tuberculosis of bones or joints, carpus"}},{"foundationReference":"http://id.who.int/icd/entity/1778657734","label":{"@language":"en","@value":"Tuberculosis of bones or joints, fingers"}},{"foundationReference":"http://id.who.int/icd/entity/1612165384","label":{"@language":"en","@value":"Tuberculosis of bones or joints, metacarpus"}},{"foundationReference":"http://id.who.int/icd/entity/23785607","label":{"@language":"en","@value":"Tuberculosis of bones or joints, pelvic region and thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1893542078","label":{"@language":"en","@value":"Tuberculosis of bones or joints, pelvis"}},{"foundationReference":"http://id.who.int/icd/entity/251917105","label":{"@language":"en","@value":"Tuberculosis of bones or joints, femur"}},{"foundationReference":"http://id.who.int/icd/entity/1042157835","label":{"@language":"en","@value":"Tuberculosis of bones or joints, sacroiliac joint"}},{"foundationReference":"http://id.who.int/icd/entity/1480174118","label":{"@language":"en","@value":"Tuberculosis of hip"}},{"foundationReference":"http://id.who.int/icd/entity/1480174118","label":{"@language":"en","@value":"tuberculosis of hip joint"}},{"foundationReference":"http://id.who.int/icd/entity/1480174118","label":{"@language":"en","@value":"tuberculous disorder of hip"}},{"foundationReference":"http://id.who.int/icd/entity/1480174118","label":{"@language":"en","@value":"tuberculous hip"}},{"foundationReference":"http://id.who.int/icd/entity/1976017018","label":{"@language":"en","@value":"Tuberculosis of bones or joints, lower leg"}},{"foundationReference":"http://id.who.int/icd/entity/1975535022","label":{"@language":"en","@value":"Tuberculosis of bones or joints, fibula"}},{"foundationReference":"http://id.who.int/icd/entity/1058626133","label":{"@language":"en","@value":"Tuberculosis of bones or joints, tibia"}},{"foundationReference":"http://id.who.int/icd/entity/913136967","label":{"@language":"en","@value":"Tuberculosis of knee"}},{"foundationReference":"http://id.who.int/icd/entity/913136967","label":{"@language":"en","@value":"tuberculosis of knee joint"}},{"foundationReference":"http://id.who.int/icd/entity/277638636","label":{"@language":"en","@value":"Tuberculosis of bones or joints, ankle or foot"}},{"foundationReference":"http://id.who.int/icd/entity/1434156914","label":{"@language":"en","@value":"Tuberculosis of bones or joints, ankle joint"}},{"foundationReference":"http://id.who.int/icd/entity/1649172051","label":{"@language":"en","@value":"Tuberculosis of bones or joints, metatarsus"}},{"foundationReference":"http://id.who.int/icd/entity/1554676763","label":{"@language":"en","@value":"Tuberculosis of bones or joints, other joints in foot"}},{"foundationReference":"http://id.who.int/icd/entity/372321024","label":{"@language":"en","@value":"Tuberculosis of bones or joints, tarsus"}},{"foundationReference":"http://id.who.int/icd/entity/1817521647","label":{"@language":"en","@value":"Tuberculosis of bones or joints, toes"}},{"foundationReference":"http://id.who.int/icd/entity/1753457875","label":{"@language":"en","@value":"Tuberculous mastoiditis"}},{"foundationReference":"http://id.who.int/icd/entity/1753457875","label":{"@language":"en","@value":"tuberculosis of mastoid"}},{"foundationReference":"http://id.who.int/icd/entity/1753457875","label":{"@language":"en","@value":"tuberculosis of mastoid process"}},{"foundationReference":"http://id.who.int/icd/entity/66580313","label":{"@language":"en","@value":"Tuberculous necrosis of bone"}},{"foundationReference":"http://id.who.int/icd/entity/1431820992","label":{"@language":"en","@value":"Tuberculous osteitis"}},{"foundationReference":"http://id.who.int/icd/entity/1431820992","label":{"@language":"en","@value":"tuberculosa osteitis"}},{"foundationReference":"http://id.who.int/icd/entity/142101563","label":{"@language":"en","@value":"Tuberculous osteomyelitis"}},{"foundationReference":"http://id.who.int/icd/entity/29588286","label":{"@language":"en","@value":"Tuberculous synovitis"}},{"foundationReference":"http://id.who.int/icd/entity/1688364719","label":{"@language":"en","@value":"Tuberculous tenosynovitis"}},{"foundationReference":"http://id.who.int/icd/entity/486812263","label":{"@language":"en","@value":"Tuberculous arthritis"}},{"foundationReference":"http://id.who.int/icd/entity/675886632","label":{"@language":"en","@value":"Tuberculous arthritis of multiple sites"}},{"foundationReference":"http://id.who.int/icd/entity/1292041138","label":{"@language":"en","@value":"Tuberculous arthritis of shoulder region"}},{"foundationReference":"http://id.who.int/icd/entity/1776254178","label":{"@language":"en","@value":"Tuberculous arthritis of the acromioclavicular joints"}},{"foundationReference":"http://id.who.int/icd/entity/154205867","label":{"@language":"en","@value":"Tuberculous arthritis of the clavicle"}},{"foundationReference":"http://id.who.int/icd/entity/1495280916","label":{"@language":"en","@value":"Tuberculous arthritis of the glenohumeral joints"}},{"foundationReference":"http://id.who.int/icd/entity/654243483","label":{"@language":"en","@value":"Tuberculous arthritis of the scapula"}},{"foundationReference":"http://id.who.int/icd/entity/2025135736","label":{"@language":"en","@value":"Tuberculous arthritis of the sternoclavicular joints"}},{"foundationReference":"http://id.who.int/icd/entity/967813965","label":{"@language":"en","@value":"Tuberculous arthritis of upper arm"}},{"foundationReference":"http://id.who.int/icd/entity/7749900","label":{"@language":"en","@value":"Tuberculous arthritis of the elbow joint"}},{"foundationReference":"http://id.who.int/icd/entity/2141756035","label":{"@language":"en","@value":"Tuberculous arthritis of the humerus"}},{"foundationReference":"http://id.who.int/icd/entity/1558472409","label":{"@language":"en","@value":"Tuberculous arthritis of forearm"}},{"foundationReference":"http://id.who.int/icd/entity/1868694325","label":{"@language":"en","@value":"Tuberculous arthritis of the radius"}},{"foundationReference":"http://id.who.int/icd/entity/1331153783","label":{"@language":"en","@value":"Tuberculous arthritis of the ulna"}},{"foundationReference":"http://id.who.int/icd/entity/287056790","label":{"@language":"en","@value":"Tuberculous arthritis of the wrist joint"}},{"foundationReference":"http://id.who.int/icd/entity/789247309","label":{"@language":"en","@value":"Tuberculous arthritis of hand"}},{"foundationReference":"http://id.who.int/icd/entity/804913630","label":{"@language":"en","@value":"Tuberculous arthritis of the carpus"}},{"foundationReference":"http://id.who.int/icd/entity/454015836","label":{"@language":"en","@value":"Tuberculous arthritis of the fingers"}},{"foundationReference":"http://id.who.int/icd/entity/1947990371","label":{"@language":"en","@value":"Tuberculous arthritis of the metacarpus"}},{"foundationReference":"http://id.who.int/icd/entity/1245788377","label":{"@language":"en","@value":"Tuberculous arthritis of pelvic region or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1158028121","label":{"@language":"en","@value":"Tuberculous arthritis of the femur"}},{"foundationReference":"http://id.who.int/icd/entity/1264394245","label":{"@language":"en","@value":"Tuberculous arthritis of the hip joint"}},{"foundationReference":"http://id.who.int/icd/entity/881064842","label":{"@language":"en","@value":"Tuberculous arthritis of the pelvis"}},{"foundationReference":"http://id.who.int/icd/entity/1260349669","label":{"@language":"en","@value":"Tuberculous arthritis of the sacroiliac joint"}},{"foundationReference":"http://id.who.int/icd/entity/1055680550","label":{"@language":"en","@value":"Tuberculous arthritis of lower leg"}},{"foundationReference":"http://id.who.int/icd/entity/128908517","label":{"@language":"en","@value":"Tuberculous arthritis of the fibula"}},{"foundationReference":"http://id.who.int/icd/entity/696403739","label":{"@language":"en","@value":"Tuberculous arthritis of the knee joint"}},{"foundationReference":"http://id.who.int/icd/entity/139803799","label":{"@language":"en","@value":"Tuberculous arthritis of the tibia"}},{"foundationReference":"http://id.who.int/icd/entity/1537713588","label":{"@language":"en","@value":"Tuberculous arthritis of ankle or foot"}},{"foundationReference":"http://id.who.int/icd/entity/1194786318","label":{"@language":"en","@value":"Tuberculous arthritis of the ankle joint"}},{"foundationReference":"http://id.who.int/icd/entity/664482983","label":{"@language":"en","@value":"Tuberculous arthritis of the metatarsus"}},{"foundationReference":"http://id.who.int/icd/entity/1198831340","label":{"@language":"en","@value":"Tuberculous arthritis of the other joints in foot"}},{"foundationReference":"http://id.who.int/icd/entity/183383519","label":{"@language":"en","@value":"Tuberculous arthritis of the tarsus"}},{"foundationReference":"http://id.who.int/icd/entity/872945559","label":{"@language":"en","@value":"Tuberculous arthritis of the toes"}},{"foundationReference":"http://id.who.int/icd/entity/1427502672","label":{"@language":"en","@value":"Tuberculous arthritis of the head"}},{"foundationReference":"http://id.who.int/icd/entity/392750532","label":{"@language":"en","@value":"Tuberculous arthritis of the skull"}},{"foundationReference":"http://id.who.int/icd/entity/697223052","label":{"@language":"en","@value":"Tuberculous arthritis of the ribs"}},{"foundationReference":"http://id.who.int/icd/entity/205757000","label":{"@language":"en","@value":"Tuberculous arthritis of the trunk"}},{"foundationReference":"http://id.who.int/icd/entity/1843755182","label":{"@language":"en","@value":"Tuberculosis of bones or joints, head"}},{"foundationReference":"http://id.who.int/icd/entity/973022000","label":{"@language":"en","@value":"Tuberculosis of bones or joints, neck"}},{"foundationReference":"http://id.who.int/icd/entity/580260954","label":{"@language":"en","@value":"Tuberculosis of bones or joints, ribs"}},{"foundationReference":"http://id.who.int/icd/entity/2143686367","label":{"@language":"en","@value":"Tuberculosis of bones or joints, skull"}},{"foundationReference":"http://id.who.int/icd/entity/711720960","label":{"@language":"en","@value":"Tuberculosis of bones or joints, trunk"}},{"foundationReference":"http://id.who.int/icd/entity/1836197860","label":{"@language":"en","@value":"Baker cyst tuberculous"}},{"foundationReference":"http://id.who.int/icd/entity/140849193","label":{"@language":"en","@value":"Ganglionic tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/205348487","label":{"@language":"en","@value":"Post tuberculous reactive arthritis"}},{"foundationReference":"http://id.who.int/icd/entity/205348487","label":{"@language":"en","@value":"Grocco-Poncet disease"}},{"foundationReference":"http://id.who.int/icd/entity/205348487","label":{"@language":"en","@value":"Poncet's disease"}},{"foundationReference":"http://id.who.int/icd/entity/1217804494","label":{"@language":"en","@value":"Tuberculous dactylitis"}},{"foundationReference":"http://id.who.int/icd/entity/205953461","label":{"@language":"en","@value":"Tuberculous rheumatism"}}],"longDefinition":{"@language":"en","@value":"Osteoarticular tuberculosis(OATB) is a type of extrapulmonary tuberculosis that affects bone joints, presenting symptoms of gradually worsening arthritis. Unlike traditional arthritis, osteoarticular tuberculosis usually affects only one joint. A patient that presents with pulmonary and extrapulmonary tuberculosis should be classified as a pulmonary case."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1459473353"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/570881596/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/570881596/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/657365008","http://id.who.int/icd/release/11/2026-01/mms/1363003152","http://id.who.int/icd/release/11/2026-01/mms/1959335168","http://id.who.int/icd/release/11/2026-01/mms/192726145","http://id.who.int/icd/release/11/2026-01/mms/223741850","http://id.who.int/icd/release/11/2026-01/mms/319259361"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/570881596/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/444340411","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/1370972705","http://id.who.int/icd/release/11/2026-01/mms/353204415","http://id.who.int/icd/release/11/2026-01/mms/163006370","http://id.who.int/icd/release/11/2026-01/mms/536467755","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/1569734721"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/570881596/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/570881596","title":{"@language":"en","@value":"Tuberculosis of bones or joints"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/576751653": {"method":"GET","path":"icd/release/11/2026-01/mms/576751653","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/576751653","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#576751653","classKind":"category","code":"KA61.0","definition":{"@language":"en","@value":"A disease affecting infants, caused by an infection with the bacteria Mycobacterium tuberculosis in utero. Transmission is by vertical transmission."},"indexTerm":[{"label":{"@language":"en","@value":"Congenital tuberculosis"}},{"label":{"@language":"en","@value":"congenital necrotic tuberculosis"}},{"label":{"@language":"en","@value":"congenital tuberculous degeneration"}},{"label":{"@language":"en","@value":"congenital tuberculous gangrene"}},{"label":{"@language":"en","@value":"congenital tuberculous infection"}}],"longDefinition":{"@language":"en","@value":"Congenital tuberculosis is the infection with Mycobacterium tuberculosis complex to the infant of a mother with haematogenously spread tuberculosis or by aspiration of infected amniotic fluid in cases of tuberculosis endometritis. If a mother is infected with tuberculosis, which is an airborne infectious disease, congenital tuberculosis may occur through bloodborne transmission to the placenta or genital tract. Symptoms are most often seen in the second or third week of life, and may include poor weight gain, lethargy, irritability, and cough. In addition to pulmonary involvement, transmission and infection in the bone, skin, kidney and brain may be seen."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1935107489"],"source":"http://id.who.int/icd/entity/576751653","title":{"@language":"en","@value":"Congenital tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/625292625": {"method":"GET","path":"icd/release/11/2026-01/mms/625292625","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/625292625","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#625292625","classKind":"category","code":"1B12.8","definition":{"@language":"en","@value":"Tuberculosis involving the skin and mucous membranes including lupus vulgaris, scrofuloderma and periorificial tuberculosis."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1768852047","label":{"@language":"en","@value":"Tuberculids"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435641775/other"},{"foundationReference":"http://id.who.int/icd/entity/1401435771","label":{"@language":"en","@value":"Skin complications of BCG immunisation"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1401435771"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2106294878","label":{"@language":"en","@value":"Acute miliary cutaneous tuberculosis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1056849595"}],"indexTerm":[{"label":{"@language":"en","@value":"Cutaneous tuberculosis"}},{"label":{"@language":"en","@value":"Tuberculosis cutis"}},{"label":{"@language":"en","@value":"Tuberculosis of skin"}},{"foundationReference":"http://id.who.int/icd/entity/1431244630","label":{"@language":"en","@value":"Tuberculous chancre"}},{"foundationReference":"http://id.who.int/icd/entity/1431244630","label":{"@language":"en","@value":"Primary inoculation tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1559509073","label":{"@language":"en","@value":"Warty tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1559509073","label":{"@language":"en","@value":"Tuberculosis verrucosa cutis"}},{"foundationReference":"http://id.who.int/icd/entity/1559509073","label":{"@language":"en","@value":"Verrucous tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1292667822","label":{"@language":"en","@value":"Lupus vulgaris"}},{"foundationReference":"http://id.who.int/icd/entity/1292667822","label":{"@language":"en","@value":"lupus vulgaris of nose"}},{"foundationReference":"http://id.who.int/icd/entity/1333941851","label":{"@language":"en","@value":"Scrofuloderma"}},{"foundationReference":"http://id.who.int/icd/entity/1333941851","label":{"@language":"en","@value":"Tuberculosis cutis colliquativa"}},{"foundationReference":"http://id.who.int/icd/entity/1707607718","label":{"@language":"en","@value":"Periorificial tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1707607718","label":{"@language":"en","@value":"Acute tuberculous ulcer"}},{"foundationReference":"http://id.who.int/icd/entity/1707607718","label":{"@language":"en","@value":"Orificial tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1707607718","label":{"@language":"en","@value":"Tuberculosis cutis orificialis"}},{"foundationReference":"http://id.who.int/icd/entity/1327388107","label":{"@language":"en","@value":"Tuberculosis of male urethra or penis"}},{"foundationReference":"http://id.who.int/icd/entity/1327388107","label":{"@language":"en","@value":"Penile tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1819488673","label":{"@language":"en","@value":"Metastatic tuberculous abscess"}},{"foundationReference":"http://id.who.int/icd/entity/1819488673","label":{"@language":"en","@value":"Tuberculous gumma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/625292625/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/625292625","title":{"@language":"en","@value":"Cutaneous tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/627678743": {"method":"GET","path":"icd/release/11/2026-01/mms/627678743","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/627678743","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#627678743","classKind":"category","code":"XK9J","indexTerm":[{"label":{"@language":"en","@value":"Bilateral"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/627678743","title":{"@language":"en","@value":"Bilateral"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672063490": {"method":"GET","path":"icd/release/11/2026-01/mms/672063490","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672063490","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672063490","child":["http://id.who.int/icd/release/11/2026-01/mms/757332010","http://id.who.int/icd/release/11/2026-01/mms/1876329639","http://id.who.int/icd/release/11/2026-01/mms/1947911830","http://id.who.int/icd/release/11/2026-01/mms/672063490/other","http://id.who.int/icd/release/11/2026-01/mms/672063490/unspecified"],"classKind":"category","code":"MG52.0","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/501791005"],"source":"http://id.who.int/icd/entity/672063490","title":{"@language":"en","@value":"Antibiotic resistant Mycobacterium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672063490/other": {"method":"GET","path":"icd/release/11/2026-01/mms/672063490/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672063490/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672063490/other","classKind":"category","code":"MG52.0Y","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"indexTerm":[{"label":{"@language":"en","@value":"Other specified antibiotic resistant Mycobacterium"}},{"foundationReference":"http://id.who.int/icd/entity/1575262909","label":{"@language":"en","@value":"Antibiotic resistant Mycobacterium leprae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672063490"],"title":{"@language":"en","@value":"Other specified antibiotic resistant Mycobacterium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672063490/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/672063490/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672063490/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672063490/unspecified","classKind":"category","code":"MG52.0Z","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials. \nIn case of multiple resistances, code each one separately if listed below."},"indexTerm":[{"label":{"@language":"en","@value":"Antibiotic resistant Mycobacterium, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/672063490","label":{"@language":"en","@value":"Antibiotic resistant Mycobacterium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672063490"],"title":{"@language":"en","@value":"Antibiotic resistant Mycobacterium, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/746680558": {"method":"GET","path":"icd/release/11/2026-01/mms/746680558","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/746680558","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#746680558","child":["http://id.who.int/icd/release/11/2026-01/mms/271545608","http://id.who.int/icd/release/11/2026-01/mms/1074723013","http://id.who.int/icd/release/11/2026-01/mms/883140666","http://id.who.int/icd/release/11/2026-01/mms/807058764","http://id.who.int/icd/release/11/2026-01/mms/1459473353","http://id.who.int/icd/release/11/2026-01/mms/1196243886","http://id.who.int/icd/release/11/2026-01/mms/870345553","http://id.who.int/icd/release/11/2026-01/mms/1873777499","http://id.who.int/icd/release/11/2026-01/mms/625292625","http://id.who.int/icd/release/11/2026-01/mms/746680558/other"],"classKind":"category","code":"1B12","indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of other systems or organs"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2072728114"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/746680558/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"source":"http://id.who.int/icd/entity/746680558","title":{"@language":"en","@value":"Tuberculosis of other systems or organs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/746680558/other": {"method":"GET","path":"icd/release/11/2026-01/mms/746680558/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/746680558/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#746680558/other","classKind":"category","code":"1B12.Y","indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of other specified organ or site"}},{"foundationReference":"http://id.who.int/icd/entity/1199493788","label":{"@language":"en","@value":"Tuberculosis of thymus gland"}},{"foundationReference":"http://id.who.int/icd/entity/1553604014","label":{"@language":"en","@value":"Tuberculosis of adenoids, with bacteriological and histological confirmation"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/746680558/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"title":{"@language":"en","@value":"Tuberculosis of other specified organ or site"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/757332010": {"method":"GET","path":"icd/release/11/2026-01/mms/757332010","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/757332010","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#757332010","classKind":"category","code":"MG52.00","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"definition":{"@language":"en","@value":"Multidrug-resistant Mycobacterium tuberculosis is a strain of Mycobacterium tuberculosis complex that is resistant to rifampicin and isoniazid. This pathogen causes a form of TB disease called multi-drug resistant tuberculosis (MDR-TB)."},"indexTerm":[{"label":{"@language":"en","@value":"Multi-drug resistant Mycobacterium tuberculosis"}},{"label":{"@language":"en","@value":"MDR MTB - [multidrug-resistant Mycobacterium tuberculosis]"}},{"label":{"@language":"en","@value":"Multidrug-resistant Mycobacterium tuberculosis"}},{"label":{"@language":"en","@value":"multi-drug resistant tuberculous Mycobacterium"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/672063490"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/757332010/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/882244568","http://id.who.int/icd/release/11/2026-01/mms/729372485","http://id.who.int/icd/release/11/2026-01/mms/746680558","http://id.who.int/icd/release/11/2026-01/mms/861638547","http://id.who.int/icd/release/11/2026-01/mms/454434138","http://id.who.int/icd/release/11/2026-01/mms/2072728114/other","http://id.who.int/icd/release/11/2026-01/mms/2072728114/unspecified"]}],"source":"http://id.who.int/icd/entity/757332010","title":{"@language":"en","@value":"Multi-drug resistant Mycobacterium tuberculosis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/807058764": {"method":"GET","path":"icd/release/11/2026-01/mms/807058764","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/807058764","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#807058764","classKind":"category","code":"1B12.3","definition":{"@language":"en","@value":"Infection of endocrine glands by Mycobacterium tuberculosis with resultant endocrine disturbances including adrenal or pituitary failure."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/53170779","label":{"@language":"en","@value":"Tuberculous Addison disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/807058764"}],"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/1374184880","label":{"@language":"en","@value":"Tuberculosis of adrenal glands"}},{"foundationReference":"http://id.who.int/icd/entity/735238230","label":{"@language":"en","@value":"Tuberculosis of thyroid gland"}},{"foundationReference":"http://id.who.int/icd/entity/620884884","label":{"@language":"en","@value":"Tuberculosis of pituitary gland"}}],"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of endocrine glands"}},{"foundationReference":"http://id.who.int/icd/entity/1374184880","label":{"@language":"en","@value":"Tuberculosis of adrenal glands"}},{"foundationReference":"http://id.who.int/icd/entity/1374184880","label":{"@language":"en","@value":"adrenal gland tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/1374184880","label":{"@language":"en","@value":"tuberculosis of adrenal glands, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/53170779","label":{"@language":"en","@value":"Tuberculous Addison disease"}},{"foundationReference":"http://id.who.int/icd/entity/53170779","label":{"@language":"en","@value":"Addison disease due to tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/735238230","label":{"@language":"en","@value":"Tuberculosis of thyroid gland"}},{"foundationReference":"http://id.who.int/icd/entity/620884884","label":{"@language":"en","@value":"Tuberculosis of pituitary gland"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/807058764/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/294069435","http://id.who.int/icd/release/11/2026-01/mms/485621173","http://id.who.int/icd/release/11/2026-01/mms/72373228"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/807058764/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1920929898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/807058764/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/807058764","title":{"@language":"en","@value":"Tuberculosis of endocrine glands"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/870345553": {"method":"GET","path":"icd/release/11/2026-01/mms/870345553","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/870345553","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#870345553","classKind":"category","code":"1B12.6","definition":{"@language":"en","@value":"A disease of the peripheral lymph nodes, caused by an infection with the bacteria Mycobacterium tuberculosis. This disease is characterised by inflammation of the peripheral lymph nodes, typically the cervical lymph nodes. Transmission is through haematogenous spread to the peripheral lymph nodes after inhalation of infected respiratory secretions. Confirmation is by identification of Mycobacterium tuberculosis from lymph node biopsies."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1992199762","label":{"@language":"en","@value":"Tuberculosis of intrathoracic lymph nodes, confirmed bacteriologically or histologically"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/983550510"},{"foundationReference":"http://id.who.int/icd/entity/81247738","label":{"@language":"en","@value":"Tuberculosis of intrathoracic lymph nodes, without mention of bacteriological or histological confirmation"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified"}],"inclusion":[{"label":{"@language":"en","@value":"Tuberculous adenitis"}}],"indexTerm":[{"label":{"@language":"en","@value":"Tuberculous peripheral lymphadenopathy"}},{"label":{"@language":"en","@value":"TB adenitis"}},{"label":{"@language":"en","@value":"TB lymphadenitis"}},{"label":{"@language":"en","@value":"Tuberculous adenitis"}},{"label":{"@language":"en","@value":"tubercular lymphadenitis"}},{"label":{"@language":"en","@value":"tuberculosis of lymph node"}},{"label":{"@language":"en","@value":"tuberculous adenopathy"}},{"label":{"@language":"en","@value":"tuberculous lymph node"}},{"label":{"@language":"en","@value":"tuberculous lymphadenitis"}},{"label":{"@language":"en","@value":"tuberculous lymphadenopathy"}},{"label":{"@language":"en","@value":"tuberculous lymphangitis"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"Tuberculosis of cervical lymph nodes"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"scrofula"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"scrofulous abscess"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"scrofulous adenitis"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"scrofulous bubo"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"scrofulous tuberculous abscess"}},{"foundationReference":"http://id.who.int/icd/entity/13955071","label":{"@language":"en","@value":"tuberculous cervical lymphadenitis"}},{"foundationReference":"http://id.who.int/icd/entity/1661742695","label":{"@language":"en","@value":"Tuberculosis of axillary lymph nodes"}},{"foundationReference":"http://id.who.int/icd/entity/1661742695","label":{"@language":"en","@value":"TB - [tuberculosis] axillary gland"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/870345553/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/870345553","title":{"@language":"en","@value":"Tuberculous peripheral lymphadenopathy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/876572005": {"method":"GET","path":"icd/release/11/2026-01/mms/876572005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/876572005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#876572005","classKind":"category","code":"XK9K","indexTerm":[{"label":{"@language":"en","@value":"Right"}},{"label":{"@language":"en","@value":"unilateral, right"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/876572005","title":{"@language":"en","@value":"Right"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/883140666": {"method":"GET","path":"icd/release/11/2026-01/mms/883140666","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/883140666","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#883140666","classKind":"category","code":"1B12.2","definition":{"@language":"en","@value":"This is a common, and in many cases lethal, infectious disease caused by various strains of mycobacteria, usually Mycobacterium tuberculosis. This diagnosis is of the ear."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1753457875","label":{"@language":"en","@value":"Tuberculous mastoiditis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/570881596"},{"foundationReference":"http://id.who.int/icd/entity/625292625","label":{"@language":"en","@value":"tuberculosis of skin of external ear"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/625292625"}],"inclusion":[{"foundationReference":"http://id.who.int/icd/entity/999303331","label":{"@language":"en","@value":"Tuberculous otitis media"}}],"indexTerm":[{"label":{"@language":"en","@value":"Tuberculosis of ear"}},{"label":{"@language":"en","@value":"tuberculous ear"}},{"foundationReference":"http://id.who.int/icd/entity/999303331","label":{"@language":"en","@value":"Tuberculous otitis media"}},{"foundationReference":"http://id.who.int/icd/entity/999303331","label":{"@language":"en","@value":"otitis media in tuberculosis"}},{"foundationReference":"http://id.who.int/icd/entity/999303331","label":{"@language":"en","@value":"tuberculosis of middle ear"}},{"foundationReference":"http://id.who.int/icd/entity/1831890690","label":{"@language":"en","@value":"Tuberculosis of inner ear"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/746680558"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/883140666/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/883140666/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1393618433","http://id.who.int/icd/release/11/2026-01/mms/1902897114"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/883140666/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/672063490"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240824451"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/576751653"],"source":"http://id.who.int/icd/entity/883140666","title":{"@language":"en","@value":"Tuberculosis of ear"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/979278646": {"method":"GET","path":"icd/release/11/2026-01/mms/979278646","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/979278646","blockId":"BlockL1-1B1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#979278646","child":["http://id.who.int/icd/release/11/2026-01/mms/2072728114","http://id.who.int/icd/release/11/2026-01/mms/149072669","http://id.who.int/icd/release/11/2026-01/mms/1839818377","http://id.who.int/icd/release/11/2026-01/mms/979278646/other","http://id.who.int/icd/release/11/2026-01/mms/979278646/unspecified"],"classKind":"block","code":"","codeRange":"1B10-1B2Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/1435254666"],"source":"http://id.who.int/icd/entity/979278646","title":{"@language":"en","@value":"Mycobacterial diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1B12.2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1B12.2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1B12.2","code":"1B12.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/883140666"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74","code":"1B12.2&XA0G74","specificAnatomy":["XA0G74"],"stemCode":"1B12.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/883140666"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74%26XK8G","code":"1B12.2&XA0G74&XK8G","laterality":["XK8G"],"specificAnatomy":["XA0G74"],"stemCode":"1B12.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/883140666"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1B12.2%2fMG52.0","associatedWith":["MG52.0"],"code":"1B12.2/MG52.0","stemCode":"1B12.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/883140666"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/MG52.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/MG52.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/MG52.0","code":"MG52.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/672063490"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XA0G74": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XA0G74","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XA0G74","code":"XA0G74","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1902897114"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XK8G": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XK8G","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XK8G","code":"XK8G","stemId":"http://id.who.int/icd/release/11/2026-01/mms/271422288"},"request_body":null,"status":200}
+ }
+}

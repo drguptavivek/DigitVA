@@ -1,0 +1,98 @@
+{
+ "id": "s047-convulsions",
+ "input": {
+  "id": "s047-convulsions",
+  "kind": "lay",
+  "query": "convulsions",
+  "source": "VAs-08.01; scripts/icd11-parity/queries.json",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #9a6e308775"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 14,
+     "items": [
+      {
+       "code": "8A68.Z",
+       "has_coding_note": false,
+       "matching_text": "Type of seizure, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Type of seizure, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/539646260/unspecified"
+      },
+      {
+       "code": "MB46.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified abnormal involuntary movements",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified abnormal involuntary movements",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/682424259/other"
+      },
+      {
+       "code": "KB06",
+       "has_coding_note": false,
+       "matching_text": "Neonatal seizures",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Neonatal seizures",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2083324835"
+      },
+      {
+       "code": "8A63.0Z",
+       "has_coding_note": false,
+       "matching_text": "Febrile seizures, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Febrile seizures, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1766832202/unspecified"
+      },
+      {
+       "code": "8A66.0",
+       "has_coding_note": false,
+       "matching_text": "Convulsive status epilepticus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Convulsive status epilepticus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/338178896"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "convulsions",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #9a6e308775": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/539646260/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":true,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"convulsion disorder","propertyId":"Synonym","propertyValueType":1,"score":-1.7464929676494698},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"convulsive disorder","propertyId":"Synonym","propertyValueType":1,"score":-1.7464929676494698},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"generalised <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-2.0309051524327737},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"convulsive state","propertyId":"Synonym","propertyValueType":1,"score":-2.152321264501256},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"convulsive seizure","propertyId":"Synonym","propertyValueType":1,"score":-3.496979406953929},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"convulsive seizure disorder","propertyId":"Synonym","propertyValueType":1,"score":-3.7760945862118946},{"foundationUri":"http://id.who.int/icd/entity/1889822561","important":false,"label":"anoxic cerebral <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-6.024896405318286}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/539646260/unspecified","theCode":"8A68.Z","title":"Type of seizure, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/682424259/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1126446478","important":false,"label":"Reflex <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.278960629064968}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.278960629064968,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/682424259/other","theCode":"MB46.Y","title":"Other specified abnormal involuntary movements","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2083324835","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2083324835","important":false,"label":"neonatal <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.528326886091317},{"foundationUri":"http://id.who.int/icd/entity/2083324835","important":false,"label":"<em class='found'>convulsions</em><em class='nonwbe'></em> in newborn","propertyId":"Synonym","propertyValueType":0,"score":-3.5192206085629465}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.528326886091317,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2083324835","theCode":"KB06","title":"Neonatal seizures","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1766832202/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1766832202","important":false,"label":"pyrexial convulsion","propertyId":"Synonym","propertyValueType":0,"score":-2.8267139583992034},{"foundationUri":"http://id.who.int/icd/entity/1766832202","important":false,"label":"febrile convulsion NOS","propertyId":"Synonym","propertyValueType":0,"score":-4.2496620723149405}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.8267139583992034,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1766832202/unspecified","theCode":"8A63.0Z","title":"Febrile seizures, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/338178896","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.2319999875817214,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/338178896","theCode":"8A66.0","title":"Convulsive status epilepticus","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1397288146/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1397288146","important":false,"label":"epileptic <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.521075285345445}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.521075285345445,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1397288146/unspecified","theCode":"8A6Z","title":"Epilepsy or seizures, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/36262213/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/36262213","important":false,"label":"Non-convulsive status epilepticus","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-3.766806684624857}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.766806684624857,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/36262213/unspecified","theCode":"8A66.1Z","title":"Non-convulsive status epilepticus, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/36262213/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.0849054430080916,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/36262213/other","theCode":"8A66.1Y","title":"Other specified non-convulsive status epilepticus","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/250375350","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/250375350","important":false,"label":"toxaemia with <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.529867473001274},{"foundationUri":"http://id.who.int/icd/entity/2143063924","important":false,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em> following unspecified maternal hypertension","propertyId":"Title","propertyValueType":1,"score":-4.745032375494397},{"foundationUri":"http://id.who.int/icd/entity/1979552354","important":false,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em> following gestational [pregnancy-induced] hypertension with significant proteinuria","propertyId":"Title","propertyValueType":1,"score":-9.204857877940718},{"foundationUri":"http://id.who.int/icd/entity/718945235","important":false,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em> following gestational [pregnancy-induced] hypertension without significant proteinuria","propertyId":"Title","propertyValueType":1,"score":-9.646373620907891},{"foundationUri":"http://id.who.int/icd/entity/1893793650","important":false,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em> following pre-existing hypertension complicating pregnancy, childbirth and the puerperium","propertyId":"Title","propertyValueType":1,"score":-10.478940498202041},{"foundationUri":"http://id.who.int/icd/entity/890149511","important":false,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em> following gestational [pregnancy-induced] oedema and proteinuria without hypertension","propertyId":"Title","propertyValueType":1,"score":-10.921008846995118},{"foundationUri":"http://id.who.int/icd/entity/826685717","important":false,"label":"<em class='found'>Convulsions</em><em class='nonwbe'></em> following pre-existing hypertensive disorder with superimposed proteinuria","propertyId":"Title","propertyValueType":1,"score":-11.295693948875169}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.529867473001274,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/250375350","theCode":"JA25.3","title":"Eclampsia, time period unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1091709256","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1091709256","important":false,"label":"grand mal convulsion","propertyId":"Synonym","propertyValueType":0,"score":-4.56998461276369}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.56998461276369,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1091709256","theCode":"8A68.4","title":"Generalised tonic-clonic seizure","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1219013782","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1219013782","important":false,"label":"simple febrile <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.915688407217948},{"foundationUri":"http://id.who.int/icd/entity/1219013782","important":false,"label":"simple febrile <em class='found'>convulsions</em><em class='nonwbe'></em>, unspecified","propertyId":"Synonym","propertyValueType":0,"score":-4.915688407217948}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.915688407217948,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1219013782","theCode":"8A63.00","title":"Simple febrile seizures","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/572171732","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1435437842","important":false,"label":"ECT - [electroconvulsive therapy]","propertyId":"Synonym","propertyValueType":1,"score":-5.684503951574847},{"foundationUri":"http://id.who.int/icd/entity/1435437842","important":false,"label":"electroconvulsive therapy associated with injury or harm in therapeutic use","propertyId":"Synonym","propertyValueType":1,"score":-7.221652600154769}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.684503951574847,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/572171732","theCode":"PK81.D","title":"Other specified medical procedure associated with injury or harm in therapeutic use","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"06","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1620688958","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1620688958","important":false,"label":"dissociative disorder of movement, sensation, or cognition, with seizures or <em class='found'>convulsions</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-6.606930990957924}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-6.606930990957924,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1620688958","theCode":"6B60.4","title":"Dissociative neurological symptom disorder, with non-epileptic seizures","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1944845279","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1514333880","important":false,"label":"Infantile <em class='found'>convulsions</em><em class='nonwbe'></em> or choreoathetosis","propertyId":"Title","propertyValueType":1,"score":-8.18056595180183},{"foundationUri":"http://id.who.int/icd/entity/1514333880","important":false,"label":"Infantile <em class='found'>convulsions</em><em class='nonwbe'></em> and paroxysmal choreoathetosis","propertyId":"Synonym","propertyValueType":1,"score":-9.007067137179366},{"foundationUri":"http://id.who.int/icd/entity/1514333880","important":false,"label":"ICCA - [Infantile <em class='found'>convulsions</em><em class='nonwbe'></em> and choreoathetosis] syndrome","propertyId":"Synonym","propertyValueType":1,"score":-9.813078624427607}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.18056595180183,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1944845279","theCode":"8A61.10","title":"Benign familial infantile epilepsy","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=convulsions%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

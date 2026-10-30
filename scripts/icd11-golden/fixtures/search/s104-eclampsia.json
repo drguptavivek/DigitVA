@@ -1,0 +1,98 @@
+{
+ "id": "s104-eclampsia",
+ "input": {
+  "id": "s104-eclampsia",
+  "kind": "maternal",
+  "query": "eclampsia",
+  "source": "VAs-09.03; scripts/icd11-parity/queries.json",
+  "why": "maternal death cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #f81f617810"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 10,
+     "items": [
+      {
+       "code": "JA25.3",
+       "has_coding_note": false,
+       "matching_text": "Eclampsia, time period unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Eclampsia, time period unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/250375350"
+      },
+      {
+       "code": "JA25",
+       "has_coding_note": false,
+       "matching_text": "Eclampsia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Eclampsia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+      },
+      {
+       "code": "JA25.0",
+       "has_coding_note": false,
+       "matching_text": "Eclampsia in pregnancy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Eclampsia in pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1696606198"
+      },
+      {
+       "code": "JA25.1",
+       "has_coding_note": false,
+       "matching_text": "Eclampsia in labour",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Eclampsia in labour",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/7072356"
+      },
+      {
+       "code": "JA25.2",
+       "has_coding_note": false,
+       "matching_text": "Eclampsia in the puerperium",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Eclampsia in the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1959180957"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "eclampsia",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #f81f617810": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/250375350","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/250375350","important":true,"label":"<em class='found'>Eclampsia</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/250375350","important":false,"label":"eclamptic coma","propertyId":"Synonym","propertyValueType":0,"score":-3.9997509002319784},{"foundationUri":"http://id.who.int/icd/entity/250375350","important":false,"label":"eclamptic toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-4.760306492966586},{"foundationUri":"http://id.who.int/icd/entity/17700269","important":false,"label":"<em class='found'>Eclampsia</em><em class='nonwbe'></em> with pregnancy-induced or pre-existing hypertension","propertyId":"Title","propertyValueType":1,"score":-7.2595921248945565}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/250375350","theCode":"JA25.3","title":"<em class='found'>Eclampsia</em><em class='nonwbe'></em>, time period unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1759760659","important":false,"isLeaf":false,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1759760659","theCode":"JA25","title":"<em class='found'>Eclampsia</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1696606198","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.233881521507681,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1696606198","theCode":"JA25.0","title":"<em class='found'>Eclampsia</em><em class='nonwbe'></em> in pregnancy","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/7072356","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.3301381528582086,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/7072356","theCode":"JA25.1","title":"<em class='found'>Eclampsia</em><em class='nonwbe'></em> in labour","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1959180957","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1959180957","important":false,"label":"puerperal <em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.3358527081148157},{"foundationUri":"http://id.who.int/icd/entity/1959180957","important":false,"label":"postpartum <em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-5.594890713247243}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.3358527081148157,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1959180957","theCode":"JA25.2","title":"<em class='found'>Eclampsia</em><em class='nonwbe'></em> in the puerperium","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-3.3664994344153936},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":-3.3664994344153936},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-eclamptic NOS","propertyId":"Synonym","propertyValueType":0,"score":-3.3664994344153936},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pregnancy pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.9025641475662587},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"puerperal pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.004535334173394},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"PE - [pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":-4.343301755086648},{"foundationUri":"http://id.who.int/icd/entity/671439872","important":false,"label":"Pre-eclamptic proteinuria","propertyId":"Title","propertyValueType":1,"score":-6.023536250306881},{"foundationUri":"http://id.who.int/icd/entity/1775787351","important":false,"label":"Pre-eclamptic albuminuria","propertyId":"Title","propertyValueType":1,"score":-6.340343327251077},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-6.428989119025164},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-eclamptic toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-6.428989119025164},{"foundationUri":"http://id.who.int/icd/entity/533119804","important":false,"label":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> resulting in multiple delivery with caesarean","propertyId":"Title","propertyValueType":1,"score":-6.852038344605294},{"foundationUri":"http://id.who.int/icd/entity/153323284","important":false,"label":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> resulting in single caesarean delivery","propertyId":"Title","propertyValueType":1,"score":-7.031286118593494},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"PET - [pre-eclamptic toxaemia]","propertyId":"Synonym","propertyValueType":0,"score":-7.488588379933066}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.3664994344153936,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified","theCode":"JA24.Z","title":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/479404771","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/479404771","important":false,"label":"severe puerperal pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.489248202592333},{"foundationUri":"http://id.who.int/icd/entity/1570413213","important":false,"label":"Severe pre-eclamptic albuminuria","propertyId":"Title","propertyValueType":1,"score":-6.825056195670016},{"foundationUri":"http://id.who.int/icd/entity/479404771","important":false,"label":"severe pre-eclamptic toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-6.913701987444103},{"foundationUri":"http://id.who.int/icd/entity/479404771","important":false,"label":"severe PET - [pre-eclamptic toxaemia]","propertyId":"Synonym","propertyValueType":0,"score":-7.973301248352005}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.851212302834333,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/479404771","theCode":"JA24.1","title":"Severe pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2044260215","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1019144696","important":false,"label":"Moderate pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.000068294261377},{"foundationUri":"http://id.who.int/icd/entity/690705840","important":false,"label":"Mild pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.006367827724729}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.000068294261377,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2044260215","theCode":"JA24.0","title":"Mild to moderate pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Superimposed pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-5.1890992872727875},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> or <em class='found'>eclampsia</em><em class='nonwbe'></em> with pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-6.218050521066764},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"puerperal pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> with pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-6.856086420824764},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> added to pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-7.139066953909467},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> superimposed on hypertension NOS","propertyId":"Synonym","propertyValueType":0,"score":-7.7200317042414675},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> superimposed on pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-8.467761341944183},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"superimposed PET - [pre-eclamptic toxaemia]","propertyId":"Synonym","propertyValueType":0,"score":-9.31118823279046},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Pre-existing hypertension complicating pregnancy, childbirth and the puerperium complicated by pre-<em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-10.160048918400484}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.1890992872727875,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","theCode":"JA21","title":"Pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> superimposed on chronic hypertension","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/691510326","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1763497791","important":false,"label":"Fetus or newborn affected by maternal <em class='found'>eclampsia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-5.6395699352041095},{"foundationUri":"http://id.who.int/icd/entity/1763497791","important":false,"label":"pre-<em class='found'>eclampsia</em><em class='nonwbe'></em> affecting fetus or newborn","propertyId":"Synonym","propertyValueType":1,"score":-6.683750022875318},{"foundationUri":"http://id.who.int/icd/entity/1189826781","important":false,"label":"Pre-eclamptic proteinuria affecting fetus or newborn","propertyId":"Title","propertyValueType":1,"score":-9.340786838766805},{"foundationUri":"http://id.who.int/icd/entity/1236738271","important":false,"label":"Pre-eclamptic albuminuria affecting fetus or newborn","propertyId":"Title","propertyValueType":1,"score":-9.657593915711},{"foundationUri":"http://id.who.int/icd/entity/1236738271","important":false,"label":"severe pre-eclamptic albuminuria affecting fetus or newborn","propertyId":"Synonym","propertyValueType":1,"score":-10.142306784129941}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-5.6395699352041095,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/691510326","theCode":"KA00.0","title":"Fetus or newborn affected by maternal hypertensive disorders","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=eclampsia%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "id": "bad-code-without-uri",
+ "input": {
+  "certificate": {
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BA41.Z",
+       "Text": "MI"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "invalid",
+  "id": "bad-code-without-uri",
+  "source": "app/services/doris_certificate.py",
+  "why": "A code without its URI"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "Code and LinearizationURI must be supplied together.",
+        "path": "certificate.Part1[0].Conditions[0]"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BA41.Z",
+         "Text": "MI"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+
+ }
+}

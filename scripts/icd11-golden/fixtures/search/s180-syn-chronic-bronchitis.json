@@ -1,0 +1,99 @@
+{
+ "id": "s180-syn-chronic-bronchitis",
+ "input": {
+  "concept": "COPD",
+  "id": "s180-syn-chronic-bronchitis",
+  "kind": "synonym",
+  "query": "chronic bronchitis",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for COPD (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #490f2becff"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 7,
+     "items": [
+      {
+       "code": "CA20.1Z",
+       "has_coding_note": false,
+       "matching_text": "Chronic bronchitis, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic bronchitis, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/290835130/unspecified"
+      },
+      {
+       "code": "CA20.1Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified chronic bronchitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified chronic bronchitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/290835130/other"
+      },
+      {
+       "code": "CA22.1",
+       "has_coding_note": true,
+       "matching_text": "Certain specified chronic obstructive pulmonary disease",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Certain specified chronic obstructive pulmonary disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/143605159"
+      },
+      {
+       "code": "CA20.10",
+       "has_coding_note": false,
+       "matching_text": "Simple chronic bronchitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Simple chronic bronchitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/537830030"
+      },
+      {
+       "code": "CA81.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified respiratory conditions due to inhalation of chemicals, gases, fumes or vapours",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified respiratory conditions due to inhalation of chemicals, gases, fumes or vapours",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1581366987/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "chronic bronchitis",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #490f2becff": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/290835130/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/290835130","important":false,"label":"<em class='found'>Chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/290835130","important":false,"label":"<em class='found'>Chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1710791237","important":false,"label":"Simple or mucopurulent <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.2925209031044083}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/290835130/unspecified","theCode":"CA20.1Z","title":"<em class='found'>Chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/290835130/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1933733055","important":false,"label":"<em class='found'>Chronic</em> emphysematous <em class='found'>bronchitis</em><em class='nonwbe'></em>, not otherwise specified","propertyId":"Title","propertyValueType":1,"score":-2.2394515358556357},{"foundationUri":"http://id.who.int/icd/entity/555750069","important":false,"label":"<em class='found'>Chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em> with emphysema","propertyId":"Title","propertyValueType":1,"score":-2.3551512846538674},{"foundationUri":"http://id.who.int/icd/entity/1216686786","important":false,"label":"<em class='found'>Chronic</em> tracheobronchitis","propertyId":"Title","propertyValueType":1,"score":-2.423435545760627},{"foundationUri":"http://id.who.int/icd/entity/1818227042","important":false,"label":"<em class='found'>Chronic</em> laryngotracheobronchitis","propertyId":"Title","propertyValueType":1,"score":-4.310970094300925}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8764827267363763,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/290835130/other","theCode":"CA20.1Y","title":"Other specified <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/143605159","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/686887390","important":false,"label":"<em class='found'>chronic</em> obstructive <em class='found'>bronchitis</em><em class='nonwbe'></em>, NOS","propertyId":"Synonym","propertyValueType":1,"score":-1.0253671057649525},{"foundationUri":"http://id.who.int/icd/entity/686887390","important":false,"label":"<em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em> obliterans","propertyId":"Synonym","propertyValueType":1,"score":-1.406644050447771},{"foundationUri":"http://id.who.int/icd/entity/686887390","important":false,"label":"<em class='found'>Bronchitis</em><em class='nonwbe'></em> with <em class='found'>chronic</em> obstructive pulmonary disease","propertyId":"Title","propertyValueType":1,"score":-1.7200103118134324},{"foundationUri":"http://id.who.int/icd/entity/686887390","important":false,"label":"<em class='found'>bronchitis</em><em class='nonwbe'></em> with <em class='found'>chronic</em> airway obstruction","propertyId":"Synonym","propertyValueType":1,"score":-1.9422554538930181},{"foundationUri":"http://id.who.int/icd/entity/1751716661","important":false,"label":"<em class='found'>chronic</em> asthmatic <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-2.33582199777598},{"foundationUri":"http://id.who.int/icd/entity/78579607","important":false,"label":"<em class='found'>Chronic</em> obstructive tracheobronchitis","propertyId":"Title","propertyValueType":1,"score":-2.796159138368425},{"foundationUri":"http://id.who.int/icd/entity/1751716661","important":false,"label":"<em class='found'>Chronic</em> asthmatic and obstructive <em class='found'>bronchitis</em><em class='nonwbe'></em>, not otherwise specified","propertyId":"Title","propertyValueType":1,"score":-3.5352844769331067},{"foundationUri":"http://id.who.int/icd/entity/222055454","important":false,"label":"Asthmatic dyspnoea with <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.13548206431554}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0253671057649525,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/143605159","theCode":"CA22.1","title":"Certain specified <em class='found'>chronic</em> obstructive pulmonary disease","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/537830030","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/537830030","important":false,"label":"<em class='found'>chronic</em> catarrhal <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.6247439886958115}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.121311834232872,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/537830030","theCode":"CA20.10","title":"Simple <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1581366987/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1876943302","important":false,"label":"<em class='found'>Chronic</em> chemical <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.1409680955077268}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.1409680955077268,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1581366987/other","theCode":"CA81.Y","title":"Other specified respiratory conditions due to inhalation of chemicals, gases, fumes or vapours","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1162178332","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1162178332","important":false,"label":"<em class='found'>chronic</em> suppurative <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.220146103656059},{"foundationUri":"http://id.who.int/icd/entity/1162178332","important":false,"label":"purulent <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.2244728674696757},{"foundationUri":"http://id.who.int/icd/entity/1162178332","important":false,"label":"fetid <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.503277762558835}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.220146103656059,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1162178332","theCode":"CA20.11","title":"Mucopurulent <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/780739672","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.742782446659402,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/780739672","theCode":"CA20.12","title":"Mixed simple and mucopurulent <em class='found'>chronic</em> <em class='found'>bronchitis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=chronic+bronchitis%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

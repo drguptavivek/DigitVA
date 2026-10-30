@@ -1,0 +1,99 @@
+{
+ "id": "s215-syn-burn-injury",
+ "input": {
+  "concept": "burns",
+  "id": "s215-syn-burn-injury",
+  "kind": "synonym",
+  "query": "burn injury",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for burns (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #412798a764"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 5,
+     "items": [
+      {
+       "code": "NE2Z",
+       "has_coding_note": true,
+       "matching_text": "Burns, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Burns, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified"
+      },
+      {
+       "code": "KC5Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified postnatal iatrogenic skin injury",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified postnatal iatrogenic skin injury",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381784196/other"
+      },
+      {
+       "code": "PL11.1",
+       "has_coding_note": true,
+       "matching_text": "Burn arising during procedure, as mode of injury or harm",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Burn arising during procedure, as mode of injury or harm",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/387174738"
+      },
+      {
+       "code": "ND99.1",
+       "has_coding_note": false,
+       "matching_text": "Chemical burn due to skin contact with corrosive substance",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Chemical burn due to skin contact with corrosive substance",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/179051153"
+      },
+      {
+       "code": "MG30.20",
+       "has_coding_note": true,
+       "matching_text": "Chronic post traumatic pain",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Chronic post traumatic pain",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1034914433"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "burn injury",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #412798a764": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/163532889","important":true,"label":"<em class='found'>burns</em> <em class='found'>injury</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified","theCode":"NE2Z","title":"<em class='found'>Burns</em>, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/381784196/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/409898767","important":false,"label":"Neonatal <em class='found'>scald</em> <em class='found'>injury</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.2731879719108301}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.2731879719108301,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/381784196/other","theCode":"KC5Y","title":"Other specified postnatal iatrogenic skin <em class='found'>injury</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/387174738","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.29973913856042944,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/387174738","theCode":"PL11.1","title":"<em class='found'>Burn</em> arising during procedure, as mode of <em class='found'>injury</em><em class='nonwbe'></em> or harm","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/179051153","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1785957240","important":false,"label":"Chemical <em class='found'>burn</em> of skin categorized by depth of <em class='found'>injury</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.5323418836354397}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5323418836354397,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/179051153","theCode":"ND99.1","title":"Chemical <em class='found'>burn</em> due to skin contact with corrosive substance","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1034914433","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/883268554","important":false,"label":"Chronic pain after <em class='found'>burns</em> <em class='found'>injury</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.5724646020398}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-0.5724646020398,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1034914433","theCode":"MG30.20","title":"Chronic post traumatic pain","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=burn+injury%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

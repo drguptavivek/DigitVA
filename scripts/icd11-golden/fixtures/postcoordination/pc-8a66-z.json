@@ -1,0 +1,311 @@
+{
+ "built": [],
+ "id": "pc-8a66-z",
+ "input": {
+  "category": "plain",
+  "id": "pc-8a66-z",
+  "source": "VAs-08.01",
+  "stem": "8A66.Z",
+  "why": "Status epilepticus (VA cause 08.01): no axes, maternal and perinatal links"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "8A66.Z",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "8A66.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "8A66.Z",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": true,
+      "related_perinatal": true,
+      "release": "2026-01",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "8A66.Z",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "8A66.Z",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "8A66.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified",
+    "GET icd/release/11/2026-01/mms/906174792",
+    "GET icd/release/11/2026-01/mms/1397288146",
+    "GET icd/release/11/2026-01/mms/1296093776",
+    "GET icd/release/11/2026-01/mms/906174792",
+    "GET icd/entity/564191997",
+    "GET icd/entity/2083324835",
+    "GET icd/release/11/2026-01/mms/338178896",
+    "GET icd/release/11/2026-01/mms/36262213",
+    "GET icd/release/11/2026-01/mms/906174792/other"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "08",
+       "title": "Diseases of the nervous system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1296093776"
+      },
+      {
+       "code": "",
+       "title": "Epilepsy or seizures",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1397288146"
+      },
+      {
+       "code": "8A66",
+       "title": "Status epilepticus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Status epilepticus, unspecified",
+      "Status epilepticus",
+      "epilepsy with status epilepticus"
+     ],
+     "related_maternal": [
+      {
+       "code": "",
+       "title": "Diseases of the nervous system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/entity/564191997"
+      }
+     ],
+     "related_perinatal": [
+      {
+       "code": "",
+       "title": "Neonatal seizures",
+       "uri": "http://id.who.int/icd/entity/2083324835"
+      }
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "8A66.Z",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "8A66.0",
+       "has_children": false,
+       "title": "Convulsive status epilepticus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/338178896"
+      },
+      {
+       "code": "8A66.1",
+       "has_children": true,
+       "title": "Non-convulsive status epilepticus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/36262213"
+      },
+      {
+       "code": "8A66.Y",
+       "has_children": false,
+       "title": "Other specified status epilepticus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/other"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "8A66.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified",
+    "GET icd/release/11/2026-01/mms/564191997"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": {
+      "code": "JB64.3/8A66.Z",
+      "title": "Diseases of the nervous system complicating pregnancy, childbirth or the puerperium / Status epilepticus, unspecified",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "8A66.Z",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "terms": [
+      {
+       "code": "JB64.3",
+       "requires_postcoordination": false,
+       "title": "Diseases of the nervous system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/564191997"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "8A66.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified",
+    "GET icd/release/11/2026-01/mms/2083324835"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": {
+      "code": "KB06/8A66.Z",
+      "title": "Neonatal seizures / Status epilepticus, unspecified",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "8A66.Z",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "terms": [
+      {
+       "code": "KB06",
+       "requires_postcoordination": false,
+       "title": "Neonatal seizures",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2083324835"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "8A66.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z",
+    "GET icd/release/11/2026-01/mms/906174792/unspecified"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "8A66.Z",
+      "title": "Status epilepticus, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "8A66.Z"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/2083324835": {"method":"GET","path":"icd/entity/2083324835","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/2083324835","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#2083324835","definition":{"@language":"en","@value":"A paediatric condition characterised by rapid and repeated muscle contraction and relaxation, resulting in an uncontrolled shaking of the body of a newborn."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1948859880","label":{"@language":"en","@value":"Benign familial neonatal epilepsy"}},{"foundationReference":"http://id.who.int/icd/entity/179860715","label":{"@language":"en","@value":"Epilepsy due to prenatal or perinatal vascular insults"}}],"parent":["http://id.who.int/icd/entity/1397288146","http://id.who.int/icd/entity/426167863"],"synonym":[{"label":{"@language":"en","@value":"Fifth day fits"}},{"label":{"@language":"en","@value":"convulsions in newborn"}},{"label":{"@language":"en","@value":"fits in newborn"}},{"label":{"@language":"en","@value":"neonatal convulsions"}},{"label":{"@language":"en","@value":"perinatal seizures"}},{"label":{"@language":"en","@value":"seizures in newborn"}}],"title":{"@language":"en","@value":"Neonatal seizures"}},"request_body":null,"status":200},
+  "GET icd/entity/564191997": {"method":"GET","path":"icd/entity/564191997","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/564191997","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#564191997","definition":{"@language":"en","@value":"Any disorder or disease of the nervous system affecting pregnant females leading to complications during pregnancy, childbirth, or puerperium."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"}}],"parent":["http://id.who.int/icd/entity/1296093776","http://id.who.int/icd/entity/1298211163"],"synonym":[{"label":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth and the puerperium"}},{"label":{"@language":"en","@value":"pregnancy management affected by diseases of the nervous system"}}],"title":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1296093776": {"method":"GET","path":"icd/release/11/2026-01/mms/1296093776","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1296093776","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1296093776","child":["http://id.who.int/icd/release/11/2026-01/mms/384289569","http://id.who.int/icd/release/11/2026-01/mms/1719545571","http://id.who.int/icd/release/11/2026-01/mms/724748131","http://id.who.int/icd/release/11/2026-01/mms/1397288146","http://id.who.int/icd/release/11/2026-01/mms/28995849","http://id.who.int/icd/release/11/2026-01/mms/843843448","http://id.who.int/icd/release/11/2026-01/mms/2021326314","http://id.who.int/icd/release/11/2026-01/mms/1861279867","http://id.who.int/icd/release/11/2026-01/mms/1730644960","http://id.who.int/icd/release/11/2026-01/mms/1297080916","http://id.who.int/icd/release/11/2026-01/mms/76906748","http://id.who.int/icd/release/11/2026-01/mms/1119245712","http://id.who.int/icd/release/11/2026-01/mms/23958598","http://id.who.int/icd/release/11/2026-01/mms/1397803237","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/81068077","http://id.who.int/icd/release/11/2026-01/mms/988657115","http://id.who.int/icd/release/11/2026-01/mms/1510094736","http://id.who.int/icd/release/11/2026-01/mms/1743839677","http://id.who.int/icd/release/11/2026-01/mms/1125774661","http://id.who.int/icd/release/11/2026-01/mms/1296093776/other","http://id.who.int/icd/release/11/2026-01/mms/1296093776/unspecified"],"classKind":"chapter","code":"08","definition":{"@language":"en","@value":"This is a group of conditions characterised as being in or associated with the nervous system."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1306203631","label":{"@language":"en","@value":"Certain conditions originating in the perinatal period"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1306203631"},{"foundationReference":"http://id.who.int/icd/entity/714000734","label":{"@language":"en","@value":"Complications of pregnancy, childbirth and the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/714000734"},{"foundationReference":"http://id.who.int/icd/entity/21500692","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/21500692"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/215057274","label":{"@language":"en","@value":"Structural developmental anomalies of the nervous system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/215057274"},{"foundationReference":"http://id.who.int/icd/entity/1800958996","label":{"@language":"en","@value":"Syndromes with central nervous system anomalies as a major feature"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1800958996"},{"foundationReference":"http://id.who.int/icd/entity/1585949804","label":{"@language":"en","@value":"Non-viral or unspecified infections of the central nervous system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1585949804"},{"foundationReference":"http://id.who.int/icd/entity/1088544686","label":{"@language":"en","@value":"Symptoms, signs or clinical findings of the nervous system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1088544686"},{"foundationReference":"http://id.who.int/icd/entity/1882771459","label":{"@language":"en","@value":"Paralytic symptoms"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1882771459"},{"foundationReference":"http://id.who.int/icd/entity/1069443471","label":{"@language":"en","@value":"Dissociative neurological symptom disorder"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1069443471"},{"foundationReference":"http://id.who.int/icd/entity/564191997","label":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/564191997"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1296093776","title":{"@language":"en","@value":"Diseases of the nervous system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1397288146": {"method":"GET","path":"icd/release/11/2026-01/mms/1397288146","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1397288146","blockId":"BlockL1-8A6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1397288146","child":["http://id.who.int/icd/release/11/2026-01/mms/2073711696","http://id.who.int/icd/release/11/2026-01/mms/517052870","http://id.who.int/icd/release/11/2026-01/mms/1786562875","http://id.who.int/icd/release/11/2026-01/mms/1376414432","http://id.who.int/icd/release/11/2026-01/mms/2006527791","http://id.who.int/icd/release/11/2026-01/mms/429021871","http://id.who.int/icd/release/11/2026-01/mms/906174792","http://id.who.int/icd/release/11/2026-01/mms/1988362682","http://id.who.int/icd/release/11/2026-01/mms/539646260","http://id.who.int/icd/release/11/2026-01/mms/1397288146/other","http://id.who.int/icd/release/11/2026-01/mms/1397288146/unspecified"],"classKind":"block","code":"","codeRange":"8A60-8A6Z","codingNote":{"@language":"en","@value":"Use additional code, if desired, to identify the type of seizure."},"definition":{"@language":"en","@value":"At least 2 unprovoked (or reflex) seizures occurring more than 24 hours apart."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1418136013","label":{"@language":"en","@value":"Syncope"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1418136013"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1370023741","label":{"@language":"en","@value":"Sudden unexpected death in epilepsy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1370023741"},{"foundationReference":"http://id.who.int/icd/entity/2083324835","label":{"@language":"en","@value":"Neonatal seizures"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2083324835"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1296093776"],"source":"http://id.who.int/icd/entity/1397288146","title":{"@language":"en","@value":"Epilepsy or seizures"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2083324835": {"method":"GET","path":"icd/release/11/2026-01/mms/2083324835","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2083324835","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2083324835","classKind":"category","code":"KB06","definition":{"@language":"en","@value":"A paediatric condition characterised by rapid and repeated muscle contraction and relaxation, resulting in an uncontrolled shaking of the body of a newborn."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1948859880","label":{"@language":"en","@value":"Benign familial neonatal epilepsy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1136270486/other"},{"foundationReference":"http://id.who.int/icd/entity/179860715","label":{"@language":"en","@value":"Epilepsy due to prenatal or perinatal vascular insults"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/179860715"}],"indexTerm":[{"label":{"@language":"en","@value":"Neonatal seizures"}},{"label":{"@language":"en","@value":"Fifth day fits"}},{"label":{"@language":"en","@value":"convulsions in newborn"}},{"label":{"@language":"en","@value":"fits in newborn"}},{"label":{"@language":"en","@value":"neonatal convulsions"}},{"label":{"@language":"en","@value":"perinatal seizures"}},{"label":{"@language":"en","@value":"seizures in newborn"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426167863"],"source":"http://id.who.int/icd/entity/2083324835","title":{"@language":"en","@value":"Neonatal seizures"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/338178896": {"method":"GET","path":"icd/release/11/2026-01/mms/338178896","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/338178896","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#338178896","classKind":"category","code":"8A66.0","definition":{"@language":"en","@value":"Convulsive status epilepticus is defined as 5 min or more of (i) continuous clinical convulsive seizure activity or (ii) recurrent seizure activity without recovery (returning to baseline) between seizures."},"indexTerm":[{"label":{"@language":"en","@value":"Convulsive status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/1734515921","label":{"@language":"en","@value":"Tonic-clonic status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/1734515921","label":{"@language":"en","@value":"Grand mal status, epileptic"}},{"foundationReference":"http://id.who.int/icd/entity/1734515921","label":{"@language":"en","@value":"grand mal status"}},{"foundationReference":"http://id.who.int/icd/entity/1734515921","label":{"@language":"en","@value":"grand mal status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/917233973","label":{"@language":"en","@value":"Tonic status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/20496459","label":{"@language":"en","@value":"Clonic status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/1055206712","label":{"@language":"en","@value":"Myoclonic status epilepticus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/906174792"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/564191997"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/2083324835"],"source":"http://id.who.int/icd/entity/338178896","title":{"@language":"en","@value":"Convulsive status epilepticus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/36262213": {"method":"GET","path":"icd/release/11/2026-01/mms/36262213","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/36262213","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#36262213","child":["http://id.who.int/icd/release/11/2026-01/mms/854964357","http://id.who.int/icd/release/11/2026-01/mms/36262213/other","http://id.who.int/icd/release/11/2026-01/mms/36262213/unspecified"],"classKind":"category","code":"8A66.1","definition":{"@language":"en","@value":"Non-convulsive status epilepticus is defined as 5 min or more of (i) continuous clinical and/or electrographic seizure activity or (ii) recurrent seizure activity without recovery (returning to baseline) between seizures."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/906174792"],"source":"http://id.who.int/icd/entity/36262213","title":{"@language":"en","@value":"Non-convulsive status epilepticus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/564191997": {"method":"GET","path":"icd/release/11/2026-01/mms/564191997","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/564191997","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#564191997","classKind":"category","code":"JB64.3","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"definition":{"@language":"en","@value":"Any disorder or disease of the nervous system affecting pregnant females leading to complications during pregnancy, childbirth, or puerperium."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth or the puerperium"}},{"label":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth and the puerperium"}},{"label":{"@language":"en","@value":"pregnancy management affected by diseases of the nervous system"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/564191997/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/384289569","http://id.who.int/icd/release/11/2026-01/mms/1719545571","http://id.who.int/icd/release/11/2026-01/mms/724748131","http://id.who.int/icd/release/11/2026-01/mms/1397288146","http://id.who.int/icd/release/11/2026-01/mms/28995849","http://id.who.int/icd/release/11/2026-01/mms/843843448","http://id.who.int/icd/release/11/2026-01/mms/2021326314","http://id.who.int/icd/release/11/2026-01/mms/1861279867","http://id.who.int/icd/release/11/2026-01/mms/1730644960","http://id.who.int/icd/release/11/2026-01/mms/1297080916","http://id.who.int/icd/release/11/2026-01/mms/76906748","http://id.who.int/icd/release/11/2026-01/mms/1119245712","http://id.who.int/icd/release/11/2026-01/mms/23958598","http://id.who.int/icd/release/11/2026-01/mms/1397803237","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/81068077","http://id.who.int/icd/release/11/2026-01/mms/988657115","http://id.who.int/icd/release/11/2026-01/mms/1510094736","http://id.who.int/icd/release/11/2026-01/mms/1743839677","http://id.who.int/icd/release/11/2026-01/mms/1125774661","http://id.who.int/icd/release/11/2026-01/mms/1296093776/other","http://id.who.int/icd/release/11/2026-01/mms/1296093776/unspecified"]}],"source":"http://id.who.int/icd/entity/564191997","title":{"@language":"en","@value":"Diseases of the nervous system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/906174792": {"method":"GET","path":"icd/release/11/2026-01/mms/906174792","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/906174792","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#906174792","child":["http://id.who.int/icd/release/11/2026-01/mms/338178896","http://id.who.int/icd/release/11/2026-01/mms/36262213","http://id.who.int/icd/release/11/2026-01/mms/906174792/other","http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"],"classKind":"category","code":"8A66","definition":{"@language":"en","@value":"Status epilepticus is defined as 5 min or more of (i) continuous clinical and/or electrographic seizure activity or (ii) recurrent seizure activity without recovery (returning to baseline) between seizures."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/1397288146"],"source":"http://id.who.int/icd/entity/906174792","title":{"@language":"en","@value":"Status epilepticus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/906174792/other": {"method":"GET","path":"icd/release/11/2026-01/mms/906174792/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/906174792/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#906174792/other","classKind":"category","code":"8A66.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/669338526","label":{"@language":"en","@value":"Epilepsia partialis continua"}},{"foundationReference":"http://id.who.int/icd/entity/669338526","label":{"@language":"en","@value":"Kozhevnikov syndrome"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/906174792"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/564191997"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/2083324835"],"title":{"@language":"en","@value":"Other specified status epilepticus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/906174792/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/906174792/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#906174792/unspecified","classKind":"category","code":"8A66.Z","indexTerm":[{"label":{"@language":"en","@value":"Status epilepticus, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/906174792","label":{"@language":"en","@value":"Status epilepticus"}},{"foundationReference":"http://id.who.int/icd/entity/906174792","label":{"@language":"en","@value":"epilepsy with status epilepticus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/906174792"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/564191997"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/2083324835"],"title":{"@language":"en","@value":"Status epilepticus, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/8A66.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/8A66.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/8A66.Z","code":"8A66.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"},"request_body":null,"status":200}
+ }
+}

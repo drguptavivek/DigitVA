@@ -1,0 +1,74 @@
+{
+ "id": "s064-copd",
+ "input": {
+  "id": "s064-copd",
+  "kind": "abbreviation",
+  "query": "COPD",
+  "source": "VAs-05.01; scripts/icd11-parity/queries.json",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #dd024d8d81"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "CA22.Z",
+       "has_coding_note": false,
+       "matching_text": "Chronic obstructive pulmonary disease, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic obstructive pulmonary disease, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified"
+      },
+      {
+       "code": "CA22.0",
+       "has_coding_note": false,
+       "matching_text": "Chronic obstructive pulmonary disease with acute exacerbation, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic obstructive pulmonary disease with acute exacerbation, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1665365733"
+      },
+      {
+       "code": "CA22.1",
+       "has_coding_note": true,
+       "matching_text": "Certain specified chronic obstructive pulmonary disease",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Certain specified chronic obstructive pulmonary disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/143605159"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "COPD",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #dd024d8d81": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/133207228","important":true,"label":"<em class='found'>COPD</em><em class='nonwbe'></em> - [chronic obstructive pulmonary disease]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified","theCode":"CA22.Z","title":"Chronic obstructive pulmonary disease, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1665365733","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1665365733","important":false,"label":"exacerbation <em class='found'>COPD</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":-0.8726426211179303},{"foundationUri":"http://id.who.int/icd/entity/1665365733","important":false,"label":"acute exacerbation <em class='found'>COPD</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.2861899142790723}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8726426211179303,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1665365733","theCode":"CA22.0","title":"Chronic obstructive pulmonary disease with acute exacerbation, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/143605159","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/101235569","important":false,"label":"<em class='found'>COPD</em><em class='nonwbe'></em> - [chronic obstructive pulmonary disease] with respiratory infection","propertyId":"Synonym","propertyValueType":1,"score":-1.7663169401824441}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.7663169401824441,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/143605159","theCode":"CA22.1","title":"Certain specified chronic obstructive pulmonary disease","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=COPD%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

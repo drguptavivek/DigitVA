@@ -1,0 +1,158 @@
+{
+ "id": "p2-stroke-hypertension",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P71Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "8B11.5Z",
+       "Interval": "P1D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified",
+       "Text": "Stroke"
+      }
+     ]
+    }
+   ],
+   "Part2": {
+    "Conditions": [
+     {
+      "Code": "BA00.Z",
+      "Interval": "P20Y",
+      "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+      "Text": "Hypertension"
+     }
+    ]
+   }
+  },
+  "group": "adult",
+  "id": "p2-stroke-hypertension",
+  "source": "VA cause VAs-04.02 Stroke",
+  "why": "Part II: hypertension contributing to stroke"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/8B11.5Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z",
+    "POST icd/release/11/2026-01/doris #435e43c14b",
+    "POST icd/release/11/2026-01/codedit #435e43c14b"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P71Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "8B11.5Z",
+          "Interval": "P1D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified",
+          "Text": "Stroke"
+         }
+        ]
+       }
+      ],
+      "Part2": {
+       "Conditions": [
+        {
+         "Code": "BA00.Z",
+         "Interval": "P20Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+         "Text": "Hypertension"
+        }
+       ]
+      }
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "8B11.5Z",
+       "error": null,
+       "reject": false,
+       "report": "SP2: 8B11.5Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: 8B11.5Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 8B11.5Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 8B11.5Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "8B11.5Z",
+       "stemURI": "http://id.who.int/icd/entity/1614716959/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;8B11.5Z;8B11.5Z;;;0;SP2: 8B11.5Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;8B11.5Z;;;;;0;SP6: is not applicable with the current TSP 8B11.5Z.;;;;BER\nSP7;False;8B11.5Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;8B11.5Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;8B11.5Z;;;;;0;M1: There is no special instruction applicable with TUC 8B11.5Z.;;;;BER\nM2;False;8B11.5Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;8B11.5Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1614716959/unspecified",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "8B11.5Z",
+       "role": "stem",
+       "title": "Stroke",
+       "uri": "http://id.who.int/icd/release/11/mms/1614716959/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P71Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "8B11.5Z",
+         "Interval": "P1D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified",
+         "Text": "Stroke"
+        }
+       ]
+      }
+     ],
+     "Part2": {
+      "Conditions": [
+       {
+        "Code": "BA00.Z",
+        "Interval": "P20Y",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+        "Text": "Hypertension"
+       }
+      ]
+     }
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/8B11.5Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/8B11.5Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/8B11.5Z","code":"8B11.5Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA00.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA00.Z","code":"BA00.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #435e43c14b": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P71Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"8B11.5Z\",\"Interval\":\"P1D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified\",\"Text\":\"Stroke\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"BA00.Z\",\"Interval\":\"P20Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"Hypertension\"}]}}","status":200},
+  "POST icd/release/11/2026-01/doris #435e43c14b": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"8B11.5Z","error":null,"reject":false,"report":"SP2: 8B11.5Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: 8B11.5Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 8B11.5Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 8B11.5Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"8B11.5Z","stemURI":"http://id.who.int/icd/entity/1614716959/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;8B11.5Z;8B11.5Z;;;0;SP2: 8B11.5Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;8B11.5Z;;;;;0;SP6: is not applicable with the current TSP 8B11.5Z.;;;;BER\nSP7;False;8B11.5Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;8B11.5Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;8B11.5Z;;;;;0;M1: There is no special instruction applicable with TUC 8B11.5Z.;;;;BER\nM2;False;8B11.5Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;8B11.5Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1614716959/unspecified","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P71Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"8B11.5Z\",\"Interval\":\"P1D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified\",\"Text\":\"Stroke\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"BA00.Z\",\"Interval\":\"P20Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"Hypertension\"}]}}","status":200}
+ }
+}

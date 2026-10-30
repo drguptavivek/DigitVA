@@ -1,0 +1,99 @@
+{
+ "id": "s219-syn-pre-eclampsia",
+ "input": {
+  "concept": "eclampsia",
+  "id": "s219-syn-pre-eclampsia",
+  "kind": "synonym",
+  "query": "pre-eclampsia",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for eclampsia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #1aab8e8266"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 6,
+     "items": [
+      {
+       "code": "JA24.Z",
+       "has_coding_note": false,
+       "matching_text": "Pre-eclampsia, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Pre-eclampsia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified"
+      },
+      {
+       "code": "JA24.1",
+       "has_coding_note": false,
+       "matching_text": "Severe pre-eclampsia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Severe pre-eclampsia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/479404771"
+      },
+      {
+       "code": "JA24.0",
+       "has_coding_note": false,
+       "matching_text": "Mild to moderate pre-eclampsia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Mild to moderate pre-eclampsia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2044260215"
+      },
+      {
+       "code": "JA21",
+       "has_coding_note": false,
+       "matching_text": "Pre-eclampsia superimposed on chronic hypertension",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Pre-eclampsia superimposed on chronic hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1872761464"
+      },
+      {
+       "code": "KA00.0",
+       "has_coding_note": false,
+       "matching_text": "Fetus or newborn affected by maternal hypertensive disorders",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Fetus or newborn affected by maternal hypertensive disorders",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/691510326"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "pre-eclampsia",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #1aab8e8266": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"Pre-eclampsia","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-eclampsia NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-eclamptic NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pregnancy pre-eclampsia","propertyId":"Synonym","propertyValueType":0,"score":-3.9025641475662587},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"puerperal pre-eclampsia","propertyId":"Synonym","propertyValueType":0,"score":-4.004535334173394},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"PE - [pre-eclampsia]","propertyId":"Synonym","propertyValueType":0,"score":-4.343301755086648},{"foundationUri":"http://id.who.int/icd/entity/671439872","important":false,"label":"Pre-eclamptic proteinuria","propertyId":"Title","propertyValueType":1,"score":-6.023536250306881},{"foundationUri":"http://id.who.int/icd/entity/1775787351","important":false,"label":"Pre-eclamptic albuminuria","propertyId":"Title","propertyValueType":1,"score":-6.340343327251077},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-eclampsia toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-6.428989119025164},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"pre-eclamptic toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-6.428989119025164},{"foundationUri":"http://id.who.int/icd/entity/533119804","important":false,"label":"Pre-eclampsia resulting in multiple delivery with caesarean","propertyId":"Title","propertyValueType":1,"score":-6.852038344605294},{"foundationUri":"http://id.who.int/icd/entity/153323284","important":false,"label":"Pre-eclampsia resulting in single caesarean delivery","propertyId":"Title","propertyValueType":1,"score":-7.031286118593494},{"foundationUri":"http://id.who.int/icd/entity/229121159","important":false,"label":"PET - [pre-eclamptic toxaemia]","propertyId":"Synonym","propertyValueType":0,"score":-7.488588379933066}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/229121159/unspecified","theCode":"JA24.Z","title":"Pre-eclampsia, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/479404771","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/479404771","important":false,"label":"severe puerperal pre-eclampsia","propertyId":"Synonym","propertyValueType":0,"score":-4.489248202592333},{"foundationUri":"http://id.who.int/icd/entity/1570413213","important":false,"label":"Severe pre-eclamptic albuminuria","propertyId":"Title","propertyValueType":1,"score":-6.825056195670016},{"foundationUri":"http://id.who.int/icd/entity/479404771","important":false,"label":"severe pre-eclamptic toxaemia","propertyId":"Synonym","propertyValueType":0,"score":-6.913701987444103},{"foundationUri":"http://id.who.int/icd/entity/479404771","important":false,"label":"severe PET - [pre-eclamptic toxaemia]","propertyId":"Synonym","propertyValueType":0,"score":-7.973301248352005}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.851212302834333,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/479404771","theCode":"JA24.1","title":"Severe pre-eclampsia","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2044260215","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1019144696","important":false,"label":"Moderate pre-eclampsia","propertyId":"Title","propertyValueType":1,"score":-4.000068294261377},{"foundationUri":"http://id.who.int/icd/entity/690705840","important":false,"label":"Mild pre-eclampsia","propertyId":"Title","propertyValueType":1,"score":-4.006367827724729}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.000068294261377,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2044260215","theCode":"JA24.0","title":"Mild to moderate pre-eclampsia","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Superimposed pre-eclampsia","propertyId":"Synonym","propertyValueType":0,"score":-5.1890992872727875},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"pre-eclampsia or eclampsia with pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-6.218050521066764},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"puerperal pre-eclampsia with pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-6.856086420824764},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"pre-eclampsia added to pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-7.139066953909467},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Pre-eclampsia superimposed on hypertension NOS","propertyId":"Synonym","propertyValueType":0,"score":-7.7200317042414675},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Pre-eclampsia superimposed on pre-existing hypertension","propertyId":"Synonym","propertyValueType":0,"score":-8.467761341944183},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"superimposed PET - [pre-eclamptic toxaemia]","propertyId":"Synonym","propertyValueType":0,"score":-9.31118823279046},{"foundationUri":"http://id.who.int/icd/entity/1872761464","important":false,"label":"Pre-existing hypertension complicating pregnancy, childbirth and the puerperium complicated by pre-eclampsia","propertyId":"Synonym","propertyValueType":0,"score":-10.160048918400484}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.1890992872727875,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1872761464","theCode":"JA21","title":"Pre-eclampsia superimposed on chronic hypertension","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/691510326","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1763497791","important":false,"label":"pre-eclampsia affecting fetus or newborn","propertyId":"Synonym","propertyValueType":1,"score":-6.683750022875318},{"foundationUri":"http://id.who.int/icd/entity/1189826781","important":false,"label":"Pre-eclamptic proteinuria affecting fetus or newborn","propertyId":"Title","propertyValueType":1,"score":-9.340786838766805},{"foundationUri":"http://id.who.int/icd/entity/1236738271","important":false,"label":"Pre-eclamptic albuminuria affecting fetus or newborn","propertyId":"Title","propertyValueType":1,"score":-9.657593915711},{"foundationUri":"http://id.who.int/icd/entity/1236738271","important":false,"label":"severe pre-eclamptic albuminuria affecting fetus or newborn","propertyId":"Synonym","propertyValueType":1,"score":-10.142306784129941}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-6.683750022875318,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/691510326","theCode":"KA00.0","title":"Fetus or newborn affected by maternal hypertensive disorders","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/250375350","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/17700269","important":false,"label":"Eclampsia with pregnancy-induced or pre-existing hypertension","propertyId":"Title","propertyValueType":1,"score":-7.2595921248945565}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-7.2595921248945565,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/250375350","theCode":"JA25.3","title":"Eclampsia, time period unspecified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=pre-eclampsia%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

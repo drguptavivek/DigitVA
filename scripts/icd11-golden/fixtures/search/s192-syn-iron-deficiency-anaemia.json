@@ -1,0 +1,99 @@
+{
+ "id": "s192-syn-iron-deficiency-anaemia",
+ "input": {
+  "concept": "anaemia",
+  "id": "s192-syn-iron-deficiency-anaemia",
+  "kind": "synonym",
+  "query": "iron deficiency anaemia",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for anaemia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #c03a432154"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "3A00.Z",
+       "has_coding_note": false,
+       "matching_text": "Iron deficiency anaemia, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Iron deficiency anaemia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1577750667/unspecified"
+      },
+      {
+       "code": "3A00.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified iron deficiency anaemia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified iron deficiency anaemia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1577750667/other"
+      },
+      {
+       "code": "3A00.1",
+       "has_coding_note": false,
+       "matching_text": "Acquired iron deficiency anaemia due to low intake",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Acquired iron deficiency anaemia due to low intake",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1809391766"
+      },
+      {
+       "code": "3A00.2",
+       "has_coding_note": false,
+       "matching_text": "Acquired iron deficiency anaemia due to decreased absorption",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Acquired iron deficiency anaemia due to decreased absorption",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1767374177"
+      },
+      {
+       "code": "3A00.01",
+       "has_coding_note": false,
+       "matching_text": "Chronic posthaemorrhagic anaemia",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Chronic posthaemorrhagic anaemia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1028330801"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "iron deficiency anaemia",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #c03a432154": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1577750667/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1577750667","important":false,"label":"<em class='found'>Iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/84542709","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.055473518298746805},{"foundationUri":"http://id.who.int/icd/entity/1577750667","important":false,"label":"Fe - [<em class='found'>iron</em>] <em class='found'>deficiency</em> anemia NOS","propertyId":"Synonym","propertyValueType":0,"score":-0.3164169709581491},{"foundationUri":"http://id.who.int/icd/entity/1577750667","important":false,"label":"IDA - [<em class='found'>iron</em> <em class='found'>deficiency</em> anemia]","propertyId":"Synonym","propertyValueType":0,"score":-0.40267668125644696}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1577750667/unspecified","theCode":"3A00.Z","title":"<em class='found'>Iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1577750667/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2024754844","important":false,"label":"Congenital <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.0015968858756852339},{"foundationUri":"http://id.who.int/icd/entity/1814903040","important":false,"label":"Hereditary <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.0938289399044178},{"foundationUri":"http://id.who.int/icd/entity/1814903040","important":false,"label":"Hereditary <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":1,"score":-0.0938289399044178},{"foundationUri":"http://id.who.int/icd/entity/1337663861","important":false,"label":"<em class='found'>Iron</em>-refractory <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.22583973351918363},{"foundationUri":"http://id.who.int/icd/entity/1337663861","important":false,"label":"IRIDA - [<em class='found'>iron</em> refractory <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>] syndrome","propertyId":"Synonym","propertyValueType":1,"score":-0.9876415278544594}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.0352954777897085,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1577750667/other","theCode":"3A00.Y","title":"Other specified <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1809391766","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1809391766","important":false,"label":"Dietary <em class='found'>Iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.23381139953737526},{"foundationUri":"http://id.who.int/icd/entity/1809391766","important":false,"label":"<em class='found'>Iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to malnutrition","propertyId":"Synonym","propertyValueType":0,"score":-0.91366732676237},{"foundationUri":"http://id.who.int/icd/entity/1809391766","important":false,"label":"Acquired <em class='found'>anaemia</em><em class='nonwbe'></em> due to <em class='found'>iron</em> <em class='found'>deficiency</em> secondary to dietary <em class='found'>deficiency</em>","propertyId":"Synonym","propertyValueType":0,"score":-1.1795940557823852}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.23381139953737526,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1809391766","theCode":"3A00.1","title":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to low intake","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1767374177","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1272219828","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to gastrectomy","propertyId":"Title","propertyValueType":1,"score":-0.5950479742200717},{"foundationUri":"http://id.who.int/icd/entity/1664293527","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to coeliac disease","propertyId":"Title","propertyValueType":1,"score":-0.6087961630629463},{"foundationUri":"http://id.who.int/icd/entity/1767374177","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to decreased absorption, not otherwise specified","propertyId":"Synonym","propertyValueType":0,"score":-1.2270943188353896}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.5950479742200717,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1767374177","theCode":"3A00.2","title":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to decreased absorption","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1028330801","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1028330801","important":false,"label":"<em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to chronic blood loss","propertyId":"Synonym","propertyValueType":0,"score":-0.6225176660910928},{"foundationUri":"http://id.who.int/icd/entity/1028330801","important":false,"label":"chronic <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> secondary to blood loss","propertyId":"Synonym","propertyValueType":0,"score":-1.331586141228861},{"foundationUri":"http://id.who.int/icd/entity/1028330801","important":false,"label":"Chronic posthaemorrhagic <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.476196267380726}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.6225176660910928,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1028330801","theCode":"3A00.01","title":"Chronic posthaemorrhagic <em class='found'>anaemia</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1539184766","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1327486841","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to increased requirement in pregnancy","propertyId":"Title","propertyValueType":1,"score":-0.8685494251219816},{"foundationUri":"http://id.who.int/icd/entity/1362808466","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to increased requirement in infancy","propertyId":"Title","propertyValueType":1,"score":-0.9185212414308168},{"foundationUri":"http://id.who.int/icd/entity/1838941470","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to increased requirement in adolescence","propertyId":"Title","propertyValueType":1,"score":-0.9933096237907},{"foundationUri":"http://id.who.int/icd/entity/1539184766","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to increased requirement, not otherwise specified","propertyId":"Synonym","propertyValueType":0,"score":-1.1616416561327318}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.6226004495884465,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1539184766","theCode":"3A00.3","title":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to increased requirement","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/942744561/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/942744561","important":false,"label":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to blood loss","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-0.6660274687431651},{"foundationUri":"http://id.who.int/icd/entity/942744561","important":false,"label":"acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> secondary to blood loss","propertyId":"Synonym","propertyValueType":0,"score":-1.3750959438809331}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.6660274687431651,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/942744561/unspecified","theCode":"3A00.0Z","title":"Acquired <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em> due to blood loss, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/324845131","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/324845131","important":false,"label":"acute posthaemorrhagic <em class='found'>iron</em> <em class='found'>deficiency</em> <em class='found'>anaemia</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.472729304189867}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.472729304189867,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/324845131","theCode":"3A94","title":"Acute posthaemorrhagic <em class='found'>anaemia</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=iron+deficiency+anaemia%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

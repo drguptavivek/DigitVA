@@ -1,0 +1,123 @@
+{
+ "id": "va-06-02",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P50Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "DB94.3",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/474954105",
+       "Text": "Alcoholic cirrhosis"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-06-02",
+  "source": "VA cause VAs-06.02 Liver cirrhosis",
+  "why": "Liver cirrhosis: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/DB94.3",
+    "POST icd/release/11/2026-01/doris #af5fa0faf7",
+    "POST icd/release/11/2026-01/codedit #af5fa0faf7"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P50Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "DB94.3",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/474954105",
+          "Text": "Alcoholic cirrhosis"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "DB94.3",
+       "error": null,
+       "reject": false,
+       "report": "SP1: DB94.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: DB94.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP DB94.3.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC DB94.3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "DB94.3",
+       "stemURI": "http://id.who.int/icd/entity/474954105",
+       "tabularReport": "SP1;True;;DB94.3;DB94.3;;;0;SP1: DB94.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;DB94.3;;;;;0;SP6: is not applicable with the current TSP DB94.3.;;;;BER\nSP7;False;DB94.3;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;DB94.3;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;DB94.3;;;;;0;M1: There is no special instruction applicable with TUC DB94.3.;;;;BER\nM2;False;DB94.3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;DB94.3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/474954105",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "DB94.3",
+       "role": "stem",
+       "title": "Alcoholic cirrhosis",
+       "uri": "http://id.who.int/icd/release/11/mms/474954105"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P50Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "DB94.3",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/474954105",
+         "Text": "Alcoholic cirrhosis"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/DB94.3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/DB94.3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/DB94.3","code":"DB94.3","stemId":"http://id.who.int/icd/release/11/2026-01/mms/474954105"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #af5fa0faf7": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P50Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"DB94.3\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/474954105\",\"Text\":\"Alcoholic cirrhosis\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #af5fa0faf7": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"DB94.3","error":null,"reject":false,"report":"SP1: DB94.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: DB94.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP DB94.3.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC DB94.3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"DB94.3","stemURI":"http://id.who.int/icd/entity/474954105","tabularReport":"SP1;True;;DB94.3;DB94.3;;;0;SP1: DB94.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;DB94.3;;;;;0;SP6: is not applicable with the current TSP DB94.3.;;;;BER\nSP7;False;DB94.3;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;DB94.3;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;DB94.3;;;;;0;M1: There is no special instruction applicable with TUC DB94.3.;;;;BER\nM2;False;DB94.3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;DB94.3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/474954105","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P50Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"DB94.3\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/474954105\",\"Text\":\"Alcoholic cirrhosis\"}]}]}","status":200}
+ }
+}

@@ -1,0 +1,5280 @@
+{
+ "status": "draft",
+ "kind": "doris",
+ "release": "2026-01",
+ "description": "Certificates sent through DigitVA's process_certificate (normalise, verify codes against codeinfo, WHO DORIS, WHO CoDEdit, ucod_parts, who_notes). Each item's 'certificate' is the process payload's certificate.",
+ "items": [
+  {
+   "id": "va-01-01",
+   "group": "adult",
+   "why": "Sepsis: single coded condition",
+   "source": "VA cause VAs-01.01 Sepsis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P46Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis",
+        "Code": "1G40",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-02",
+   "group": "child",
+   "why": "Acute respiratory infection, including pneumonia: single coded condition",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P2Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-03",
+   "group": "adult",
+   "why": "HIV/AIDS related death: single coded condition",
+   "source": "VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P38Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "AIDS stage 4",
+        "Code": "1C62.3Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-04",
+   "group": "child",
+   "why": "Diarrhoeal diseases: single coded condition",
+   "source": "VA cause VAs-01.04 Diarrhoeal diseases",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P8M"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Acute watery diarrhoea",
+        "Code": "1A40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-05",
+   "group": "adult",
+   "why": "Malaria: single coded condition",
+   "source": "VA cause VAs-01.05 Malaria",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P29Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Falciparum malaria",
+        "Code": "1F40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-06",
+   "group": "child",
+   "why": "Measles: single coded condition",
+   "source": "VA cause VAs-01.06 Measles",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P2Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Measles",
+        "Code": "1F03.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1503293914"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-07",
+   "group": "adult",
+   "why": "Meningitis and encephalitis: single coded condition",
+   "source": "VA cause VAs-01.07 Meningitis and encephalitis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P33Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bacterial meningitis",
+        "Code": "1D01.0Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/684930313/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-08",
+   "group": "adult",
+   "why": "Tetanus: single coded condition",
+   "source": "VA cause VAs-01.08 Tetanus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P51Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Tetanus",
+        "Code": "1C13",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1793762788"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-09",
+   "group": "adult",
+   "why": "Pulmonary tuberculosis: single coded condition",
+   "source": "VA cause VAs-01.09 Pulmonary tuberculosis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P55Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pulmonary tuberculosis",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-10",
+   "group": "child",
+   "why": "Pertussis: single coded condition",
+   "source": "VA cause VAs-01.10 Pertussis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P5M"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Whooping cough",
+        "Code": "1C12.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2064398473/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-11",
+   "group": "adult",
+   "why": "Haemorrhagic fever: single coded condition",
+   "source": "VA cause VAs-01.11 Haemorrhagic fever",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P27Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Ebola virus disease",
+        "Code": "1D60.01",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/792755706"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-12",
+   "group": "adult",
+   "why": "Dengue fever: single coded condition",
+   "source": "VA cause VAs-01.12 Dengue fever",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P19Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Severe dengue",
+        "Code": "1D22",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/56575149"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-13",
+   "group": "adult",
+   "why": "COVID-19: single coded condition",
+   "source": "VA cause VAs-01.13 COVID-19",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P71Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "COVID-19",
+        "Code": "RA01.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1790791774"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-01-99",
+   "group": "adult",
+   "why": "Unspecified infectious disease: single coded condition",
+   "source": "VA cause VAs-01.99 Unspecified infectious disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P24Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Typhoid fever",
+        "Code": "1A07",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1528414070"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-01",
+   "group": "adult",
+   "why": "Oral neoplasms: single coded condition",
+   "source": "VA cause VAs-02.01 Oral neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P60Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Tongue cancer",
+        "Code": "2B61.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2003184099/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-02",
+   "group": "adult",
+   "why": "Digestive neoplasms: single coded condition",
+   "source": "VA cause VAs-02.02 Digestive neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P63Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Stomach cancer",
+        "Code": "2B72.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1397617262/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-03",
+   "group": "adult",
+   "why": "Respiratory neoplasms: single coded condition",
+   "source": "VA cause VAs-02.03 Respiratory neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P66Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Lung cancer",
+        "Code": "2C25.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/316539081/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-04",
+   "group": "adult",
+   "why": "Breast neoplasms: single coded condition",
+   "source": "VA cause VAs-02.04 Breast neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P49Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Carcinoma of breast",
+        "Code": "2C60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/457240160"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-05",
+   "group": "adult",
+   "why": "Female reproductive neoplasms: single coded condition",
+   "source": "VA cause VAs-02.05 Female reproductive neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P52Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Cancer of cervix",
+        "Code": "2C77.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1256072522/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-06",
+   "group": "adult",
+   "why": "Male reproductive neoplasms: single coded condition",
+   "source": "VA cause VAs-02.06 Male reproductive neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P74Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Prostate cancer",
+        "Code": "2C82.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1510677183"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-02-99",
+   "group": "adult",
+   "why": "Other and unspecified neoplasms: single coded condition",
+   "source": "VA cause VAs-02.99 Other and unspecified neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P41Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Leukaemia",
+        "Code": "2B33.4",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1385484871"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-03-01",
+   "group": "adult",
+   "why": "Severe anaemia: single coded condition",
+   "source": "VA cause VAs-03.01 Severe anaemia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P35Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Severe iron deficiency anaemia",
+        "Code": "3A00.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1577750667/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-03-02",
+   "group": "child",
+   "why": "Severe malnutrition: single coded condition",
+   "source": "VA cause VAs-03.02 Severe malnutrition",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P20M"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Severe wasting",
+        "Code": "5B51",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133673893"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-03-03",
+   "group": "adult",
+   "why": "Diabetes mellitus: single coded condition",
+   "source": "VA cause VAs-03.03 Diabetes mellitus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P58Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-04-01",
+   "group": "adult",
+   "why": "Acute cardiac disease: single coded condition",
+   "source": "VA cause VAs-04.01 Acute cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P62Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart attack",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-04-02",
+   "group": "adult",
+   "why": "Stroke: single coded condition",
+   "source": "VA cause VAs-04.02 Stroke",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P69Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Stroke",
+        "Code": "8B11.5Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-04-03",
+   "group": "child",
+   "why": "Sickle cell with crisis: single coded condition",
+   "source": "VA cause VAs-04.03 Sickle cell with crisis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P9Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sickle cell crisis",
+        "Code": "3A51.2",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/55071409"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-04-99",
+   "group": "adult",
+   "why": "Other and unspecified cardiac disease: single coded condition",
+   "source": "VA cause VAs-04.99 Other and unspecified cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P57Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "High blood pressure",
+        "Code": "BA00.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-05-01",
+   "group": "adult",
+   "why": "Chronic obstructive pulmonary disease (COPD): single coded condition",
+   "source": "VA cause VAs-05.01 Chronic obstructive pulmonary disease (COPD)",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P67Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "COPD",
+        "Code": "CA22.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-05-02",
+   "group": "adult",
+   "why": "Asthma: single coded condition",
+   "source": "VA cause VAs-05.02 Asthma",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P44Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Asthma",
+        "Code": "CA23.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1870104478"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-06-01",
+   "group": "adult",
+   "why": "Acute abdomen: single coded condition",
+   "source": "VA cause VAs-06.01 Acute abdomen",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P37Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Acute abdomen",
+        "Code": "MD81.3",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/245796173"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-06-02",
+   "group": "adult",
+   "why": "Liver cirrhosis: single coded condition",
+   "source": "VA cause VAs-06.02 Liver cirrhosis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P50Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Alcoholic cirrhosis",
+        "Code": "DB94.3",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/474954105"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-07-01",
+   "group": "adult",
+   "why": "Renal failure: single coded condition",
+   "source": "VA cause VAs-07.01 Renal failure",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P64Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "End stage kidney disease",
+        "Code": "GB61.5",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/820638928"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-08-01",
+   "group": "adult",
+   "why": "Epilepsy: single coded condition",
+   "source": "VA cause VAs-08.01 Epilepsy",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P22Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Status epilepticus",
+        "Code": "8A66.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/906174792/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-09-01",
+   "group": "adult",
+   "why": "Ectopic pregnancy: single coded condition",
+   "source": "VA cause VAs-09.01 Ectopic pregnancy",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P26Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Ruptured ectopic pregnancy",
+        "Code": "JA01.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1563334645/unspecified"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-02",
+   "group": "adult",
+   "why": "Abortion-related death: single coded condition",
+   "source": "VA cause VAs-09.02 Abortion-related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P20Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after abortion",
+        "Code": "JA00.06",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1142874888"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-03",
+   "group": "adult",
+   "why": "Pregnancy-induced hypertension: single coded condition",
+   "source": "VA cause VAs-09.03 Pregnancy-induced hypertension",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P23Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Eclampsia",
+        "Code": "JA25",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-04",
+   "group": "adult",
+   "why": "Obstetric haemorrhage: single coded condition",
+   "source": "VA cause VAs-09.04 Obstetric haemorrhage",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P30Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 1,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-05",
+   "group": "adult",
+   "why": "Obstructed labour: single coded condition",
+   "source": "VA cause VAs-09.05 Obstructed labour",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P19Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Obstructed labour",
+        "Code": "JB04.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-06",
+   "group": "adult",
+   "why": "Pregnancy-related sepsis: single coded condition",
+   "source": "VA cause VAs-09.06 Pregnancy-related sepsis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Puerperal sepsis",
+        "Code": "JB40.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 2,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-07",
+   "group": "adult",
+   "why": "Anaemia of pregnancy: single coded condition",
+   "source": "VA cause VAs-09.07 Anaemia of pregnancy",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P25Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Severe anaemia in pregnancy",
+        "Code": "JB64.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1426960900"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-09-08",
+   "group": "adult",
+   "why": "Ruptured uterus: single coded condition",
+   "source": "VA cause VAs-09.08 Ruptured uterus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P32Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Ruptured uterus",
+        "Code": "JB0A.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1065499694"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "va-10-01",
+   "group": "neonatal",
+   "why": "Prematurity or low birth weight: single coded condition",
+   "source": "VA cause VAs-10.01 Prematurity or low birth weight",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P2D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Premature baby",
+        "Code": "KA21.4Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "BirthWeight": 1600,
+     "PregnancyWeeks": 31,
+     "DeathWithin24h": 20
+    }
+   }
+  },
+  {
+   "id": "va-10-02",
+   "group": "neonatal",
+   "why": "Birth asphyxia: single coded condition",
+   "source": "VA cause VAs-10.02 Birth asphyxia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "PT10H"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Birth asphyxia",
+        "Code": "KB21.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "BirthWeight": 2900,
+     "PregnancyWeeks": 39,
+     "DeathWithin24h": 10
+    }
+   }
+  },
+  {
+   "id": "va-10-03",
+   "group": "neonatal",
+   "why": "Neonatal pneumonia: single coded condition",
+   "source": "VA cause VAs-10.03 Neonatal pneumonia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P5D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia in newborn",
+        "Code": "KB24",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/594985340"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-10-04",
+   "group": "neonatal",
+   "why": "Neonatal sepsis: single coded condition",
+   "source": "VA cause VAs-10.04 Neonatal sepsis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P6D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis of newborn",
+        "Code": "KA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-10-05",
+   "group": "neonatal",
+   "why": "Neonatal tetanus: single coded condition",
+   "source": "VA cause VAs-10.05 Neonatal tetanus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P9D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Neonatal tetanus",
+        "Code": "1C15",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2085616610"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-10-06",
+   "group": "neonatal",
+   "why": "Congenital malformation: single coded condition",
+   "source": "VA cause VAs-10.06 Congenital malformation",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P1D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Spina bifida",
+        "Code": "LA02.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-10-99",
+   "group": "neonatal",
+   "why": "Other and unspecified perinatal cause of death: single coded condition",
+   "source": "VA cause VAs-10.99 Other and unspecified perinatal cause of death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P3D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Brain bleed in newborn",
+        "Code": "KA82.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/974582504/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "va-11-01",
+   "group": "stillbirth",
+   "why": "Fresh stillbirth: single coded condition",
+   "source": "VA cause VAs-11.01 Fresh stillbirth",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fresh stillbirth",
+        "Code": "KD3B.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "Stillborn": 1,
+     "BirthWeight": 2800,
+     "PregnancyWeeks": 38
+    }
+   }
+  },
+  {
+   "id": "va-11-02",
+   "group": "stillbirth",
+   "why": "Macerated stillbirth: single coded condition",
+   "source": "VA cause VAs-11.02 Macerated stillbirth",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Macerated stillbirth",
+        "Code": "KD3B.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1947342847"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "Stillborn": 1,
+     "BirthWeight": 2100,
+     "PregnancyWeeks": 34
+    }
+   }
+  },
+  {
+   "id": "va-12-01",
+   "group": "adult",
+   "why": "Road traffic accident: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.01 Road traffic accident",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Head injury",
+        "Code": "NA02.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Motorcycle rider hit by a truck",
+        "Code": "PA01",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1460349350"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1,
+     "DateOfExternalCauseOrPoisoning": "2026-03-02",
+     "DescriptionExternalCause": "Motorcycle collision on the highway",
+     "PlaceOfOccuranceExternalCause": 5
+    }
+   }
+  },
+  {
+   "id": "va-12-02",
+   "group": "adult",
+   "why": "Other transport accident: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.02 Other transport accident",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P35Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Multiple injuries",
+        "Code": "ND37",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1321122981"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Pedestrian hit on a village track",
+        "Code": "PA10",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1595005935"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-12-03",
+   "group": "adult",
+   "why": "Accidental fall: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.03 Accidental fall",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P72Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Broken thigh bone",
+        "Code": "NC72.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Fell from a roof",
+        "Code": "PA61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1,
+     "PlaceOfOccuranceExternalCause": 0
+    }
+   }
+  },
+  {
+   "id": "va-12-04",
+   "group": "child",
+   "why": "Accidental drowning and submersion: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.04 Accidental drowning and submersion",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P4Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Drowned in a pond",
+        "Code": "NF08.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1369717987"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Drowning in a pond",
+        "Code": "PA90",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1117679527"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-12-05",
+   "group": "adult",
+   "why": "Accidental exposure to smoke, fire and flames: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.05 Accidental exposure to smoke, fire and flames",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P31Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Burns",
+        "Code": "NE2Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Kitchen fire",
+        "Code": "PB10",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2096449099"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-12-06",
+   "group": "adult",
+   "why": "Contact with venomous animals and plants: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.06 Contact with venomous animals and plants",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P40Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Snake bite poisoning",
+        "Code": "NE61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Snake bite",
+        "Code": "PA78",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-12-07",
+   "group": "adult",
+   "why": "Accidental poisoning and exposure to noxious substances: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.07 Accidental poisoning and exposure to noxious substances",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Poisoning",
+        "Code": "NE61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Accidental pesticide poisoning",
+        "Code": "PB28",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/799356470"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-12-08",
+   "group": "adult",
+   "why": "Intentional self-harm: injury above its external cause, manner 2",
+   "source": "VA cause VAs-12.08 Intentional self-harm",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P21Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Asphyxia by hanging",
+        "Code": "NF05",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/607132843"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Hanged herself",
+        "Code": "PC71",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/807340493"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 2
+    }
+   }
+  },
+  {
+   "id": "va-12-09",
+   "group": "adult",
+   "why": "Assault: injury above its external cause, manner 3",
+   "source": "VA cause VAs-12.09 Assault",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P33Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Gunshot wound",
+        "Code": "ND56.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/754990790"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Assault",
+        "Code": "PD50",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 3
+    }
+   }
+  },
+  {
+   "id": "va-12-10",
+   "group": "adult",
+   "why": "Exposure to force of nature: injury above its external cause, manner 1",
+   "source": "VA cause VAs-12.10 Exposure to force of nature",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P48Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Electric shock",
+        "Code": "NF08.4",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/866923038"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Struck by lightning",
+        "Code": "PJ00",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1295772309"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-12-99",
+   "group": "adult",
+   "why": "Other and unspecified external cause of death: single coded condition",
+   "source": "VA cause VAs-12.99 Other and unspecified external cause of death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P45Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fracture of femur",
+        "Code": "NC72.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "va-99",
+   "group": "adult",
+   "why": "Cause of death unknown: single coded condition",
+   "source": "VA cause VAs-99 Cause of death unknown",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P91Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Old age",
+        "Code": "MG2A",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/835503193"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-pneumonia-hiv",
+   "group": "adult",
+   "why": "Two lines: pneumonia due to HIV",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P10D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV disease",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-tb-hiv",
+   "group": "adult",
+   "why": "Two lines: tuberculosis due to HIV (HIV/TB code interplay)",
+   "source": "VA cause VAs-01.09 Pulmonary tuberculosis; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P34Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pulmonary tuberculosis",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+        "Interval": "P6M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "P4Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-mi-diabetes",
+   "group": "adult",
+   "why": "Three lines: MI due to coronary atherosclerosis due to diabetes",
+   "source": "VA cause VAs-04.01 Acute cardiac disease; VA cause VAs-03.03 Diabetes mellitus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P66Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart attack",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT3H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Blocked coronary arteries",
+        "Code": "BA52.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+        "Interval": "P5Y"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Interval": "P12Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-stroke-hypertension",
+   "group": "adult",
+   "why": "Two lines: intracerebral haemorrhage due to hypertension",
+   "source": "VA cause VAs-04.02 Stroke; VA cause VAs-04.99 Other and unspecified cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P68Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Brain haemorrhage",
+        "Code": "8B00.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/873092535/unspecified",
+        "Interval": "P2D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "High blood pressure",
+        "Code": "BA00.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+        "Interval": "P15Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-sepsis-pneumonia",
+   "group": "adult",
+   "why": "Two lines: sepsis due to pneumonia",
+   "source": "VA cause VAs-01.01 Sepsis; VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P59Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis",
+        "Code": "1G40",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+        "Interval": "P3D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P7D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-renal-diabetes",
+   "group": "adult",
+   "why": "Two lines: chronic kidney disease due to diabetes",
+   "source": "VA cause VAs-07.01 Renal failure; VA cause VAs-03.03 Diabetes mellitus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P61Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Kidney failure",
+        "Code": "GB61.5",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/820638928",
+        "Interval": "P2Y"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Interval": "P14Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-cirrhosis-hepatic-failure",
+   "group": "adult",
+   "why": "Two lines: hepatic failure due to alcoholic cirrhosis",
+   "source": "VA cause VAs-06.02 Liver cirrhosis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P47Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Liver failure",
+        "Code": "DB99.7",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/508643963",
+        "Interval": "P1M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Alcoholic cirrhosis",
+        "Code": "DB94.3",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/474954105",
+        "Interval": "P6Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-cancer-metastasis",
+   "group": "adult",
+   "why": "Two lines: lung metastasis due to breast cancer",
+   "source": "VA cause VAs-02.04 Breast neoplasms; VA cause VAs-02.99 Other and unspecified neoplasms",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P55Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Lung metastases",
+        "Code": "2D70",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1976635094",
+        "Interval": "P4M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Breast cancer",
+        "Code": "2C60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/457240160",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-heart-failure-hypertension",
+   "group": "adult",
+   "why": "Two lines: congestive heart failure due to hypertensive heart disease",
+   "source": "VA cause VAs-04.01 Acute cardiac disease; VA cause VAs-04.99 Other and unspecified cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P73Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart failure",
+        "Code": "BD10",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+        "Interval": "P6M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Hypertensive heart disease",
+        "Code": "BA01",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1210166201",
+        "Interval": "P10Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-copd-pneumonia",
+   "group": "adult",
+   "why": "Two lines: pneumonia due to COPD",
+   "source": "VA cause VAs-05.01 Chronic obstructive pulmonary disease (COPD); VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P70Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P5D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "COPD",
+        "Code": "CA22.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified",
+        "Interval": "P8Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-malaria-anaemia",
+   "group": "adult",
+   "why": "Two lines: severe anaemia due to falciparum malaria",
+   "source": "VA cause VAs-03.01 Severe anaemia; VA cause VAs-01.05 Malaria",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P27Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Severe anaemia",
+        "Code": "3A9Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified",
+        "Interval": "P4D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Malaria",
+        "Code": "1F40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified",
+        "Interval": "P10D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-diarrhoea-dehydration",
+   "group": "child",
+   "why": "Two lines: dehydration due to acute diarrhoea in a child",
+   "source": "VA cause VAs-01.04 Diarrhoeal diseases",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P14M"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Dehydration",
+        "Code": "5C70.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/578744597",
+        "Interval": "P1D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Diarrhoea",
+        "Code": "1A40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified",
+        "Interval": "P3D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-measles-pneumonia",
+   "group": "child",
+   "why": "Two lines: pneumonia due to measles",
+   "source": "VA cause VAs-01.06 Measles; VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P3Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P6D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Measles",
+        "Code": "1F03.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1503293914",
+        "Interval": "P12D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-neonatal-sepsis-preterm",
+   "group": "neonatal",
+   "why": "Two lines: neonatal sepsis due to prematurity",
+   "source": "VA cause VAs-10.04 Neonatal sepsis; VA cause VAs-10.01 Prematurity or low birth weight",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P4D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis of newborn",
+        "Code": "KA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+        "Interval": "P2D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Prematurity",
+        "Code": "KA21.4Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified",
+        "Interval": "P4D"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "BirthWeight": 1400,
+     "PregnancyWeeks": 30
+    }
+   }
+  },
+  {
+   "id": "chain-asphyxia-rds",
+   "group": "neonatal",
+   "why": "Two lines: respiratory distress syndrome due to birth asphyxia",
+   "source": "VA cause VAs-10.02 Birth asphyxia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "PT20H"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Respiratory distress syndrome",
+        "Code": "KB23.0Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified",
+        "Interval": "PT18H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Birth asphyxia",
+        "Code": "KB21.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified",
+        "Interval": "PT20H"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "BirthWeight": 3000,
+     "PregnancyWeeks": 39,
+     "DeathWithin24h": 20
+    }
+   }
+  },
+  {
+   "id": "chain-pph-atony",
+   "group": "maternal",
+   "why": "Two lines: haemorrhage after delivery due to uterine inertia",
+   "source": "VA cause VAs-09.04 Obstetric haemorrhage",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P29Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT4H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Uterine atony",
+        "Code": "JB02.2",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1073291850",
+        "Interval": "PT6H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 1,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "chain-sepsis-obstructed-labour",
+   "group": "maternal",
+   "why": "Two lines: puerperal sepsis due to obstructed labour",
+   "source": "VA cause VAs-09.06 Pregnancy-related sepsis; VA cause VAs-09.05 Obstructed labour",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P21Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Puerperal sepsis",
+        "Code": "JB40.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/325070079",
+        "Interval": "P6D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Obstructed labour",
+        "Code": "JB04.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1904468617/unspecified",
+        "Interval": "P9D"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 2,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "chain-eclampsia-preeclampsia",
+   "group": "maternal",
+   "why": "Two lines: eclampsia due to severe pre-eclampsia",
+   "source": "VA cause VAs-09.03 Pregnancy-induced hypertension",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P24Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fits in pregnancy",
+        "Code": "JA25",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1759760659",
+        "Interval": "PT5H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Severe pre-eclampsia",
+        "Code": "JA24.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/479404771",
+        "Interval": "P3D"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "chain-4lines",
+   "group": "adult",
+   "why": "Four lines: shock, sepsis, peritonitis, appendicitis",
+   "source": "VA cause VAs-06.01 Acute abdomen; VA cause VAs-01.01 Sepsis",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P39Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Shock",
+        "Code": "MG40.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/284999005",
+        "Interval": "PT6H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis",
+        "Code": "1G40",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+        "Interval": "P2D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Peritonitis",
+        "Code": "DC50.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/775356003/unspecified",
+        "Interval": "P4D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Burst appendix",
+        "Code": "DB10.01",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2049027138",
+        "Interval": "P6D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "chain-5lines-max",
+   "group": "adult",
+   "why": "Five lines (the server maximum): respiratory failure down to diabetes",
+   "source": "VA cause VAs-03.03 Diabetes mellitus; VA cause VAs-01.02 Acute respiratory infection, including pneumonia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P65Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Respiratory failure",
+        "Code": "CB41.0Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/875272781/unspecified",
+        "Interval": "PT5H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P4D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Ketoacidosis",
+        "Code": "5A22.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/540530695",
+        "Interval": "P6D"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Interval": "P9Y"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Hypertension",
+        "Code": "BA00.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+        "Interval": "P12Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "p2-mi-diabetes",
+   "group": "adult",
+   "why": "Part II: diabetes contributing to MI",
+   "source": "VA cause VAs-04.01 Acute cardiac disease; VA cause VAs-03.03 Diabetes mellitus",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P63Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart attack",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT2H"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "Diabetes",
+       "Code": "5A11",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Interval": "P8Y"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "p2-stroke-hypertension",
+   "group": "adult",
+   "why": "Part II: hypertension contributing to stroke",
+   "source": "VA cause VAs-04.02 Stroke",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P71Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Stroke",
+        "Code": "8B11.5Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1614716959/unspecified",
+        "Interval": "P1D"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "Hypertension",
+       "Code": "BA00.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+       "Interval": "P20Y"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "p2-tb-hiv",
+   "group": "adult",
+   "why": "Part II: HIV contributing to tuberculosis",
+   "source": "VA cause VAs-01.09 Pulmonary tuberculosis; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P40Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "TB",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+        "Interval": "P5M"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "HIV",
+       "Code": "1C62.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+       "Interval": "P2Y"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "p2-two-conditions",
+   "group": "adult",
+   "why": "Part II with two conditions: diabetes and hypertension",
+   "source": "VA cause VAs-04.01 Acute cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P67Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "Diabetes",
+       "Code": "5A11",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Interval": "P10Y"
+      },
+      {
+       "Text": "Hypertension",
+       "Code": "BA00.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+       "Interval": "P10Y"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "p2-pneumonia-copd",
+   "group": "adult",
+   "why": "Part II: COPD contributing to pneumonia",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-05.01 Chronic obstructive pulmonary disease (COPD)",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P69Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P6D"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "COPD",
+       "Code": "CA22.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified",
+       "Interval": "P9Y"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "p2-maternal-anaemia",
+   "group": "maternal",
+   "why": "Part II: anaemia contributing to maternal haemorrhage",
+   "source": "VA cause VAs-09.04 Obstetric haemorrhage; VA cause VAs-09.07 Anaemia of pregnancy",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P26Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT3H"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "Anaemia in pregnancy",
+       "Code": "JB64.0",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1426960900",
+       "Interval": "P6M"
+      }
+     ]
+    },
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 1,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "p2-neonatal-lbw",
+   "group": "neonatal",
+   "why": "Part II: low birth weight contributing to neonatal sepsis",
+   "source": "VA cause VAs-10.04 Neonatal sepsis; VA cause VAs-10.01 Prematurity or low birth weight",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P5D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis of newborn",
+        "Code": "KA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700",
+        "Interval": "P3D"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "Low birth weight",
+       "Code": "KA21.2Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2041060050/unspecified",
+       "Interval": "P5D"
+      }
+     ]
+    },
+    "FetalOrInfantDeath": {
+     "BirthWeight": 2000,
+     "PregnancyWeeks": 36
+    }
+   }
+  },
+  {
+   "id": "p2-only-coded-in-part2",
+   "group": "adult",
+   "why": "Part I uncoded, Part II coded",
+   "source": "DORIS contract: uncoded text may be entered",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P60Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart problem"
+       }
+      ]
+     }
+    ],
+    "Part2": {
+     "Conditions": [
+      {
+       "Text": "Diabetes",
+       "Code": "5A11",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "line-two-conditions",
+   "group": "adult",
+   "why": "Two coded conditions on one Part I line",
+   "source": "docs/kb/doris-icd-api-and-va.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P56Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "TB",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+        "Interval": "P2M"
+       },
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P2M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "line-three-conditions",
+   "group": "adult",
+   "why": "Three conditions on the last line",
+   "source": "docs/kb/doris-icd-api-and-va.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P62Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart failure",
+        "Code": "BD10",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+        "Interval": "P3M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Hypertensive heart",
+        "Code": "BA01",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1210166201",
+        "Interval": "P9Y"
+       },
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Interval": "P9Y"
+       },
+       {
+        "Text": "CKD",
+        "Code": "GB61.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified",
+        "Interval": "P9Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "line-coded-and-uncoded",
+   "group": "adult",
+   "why": "A coded and an uncoded condition on one line",
+   "source": "DORIS contract: uncoded text",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P66Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "P2D"
+       },
+       {
+        "Text": "Chest infection",
+        "Interval": "P2D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-tb-otitis-ext",
+   "group": "adult",
+   "why": "Stem + extension on one line (the KB example 1B12.2&XA0G74)",
+   "source": "docs/kb/doris-certificate-ui-contract.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P44Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Tuberculous otitis media",
+        "Code": "1B12.2&XA0G74",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114",
+        "Interval": "P14D"
+       },
+       {
+        "Text": "TB of lungs",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+        "Interval": "P14D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-slash-pneumonia-listeria",
+   "group": "adult",
+   "why": "Slash cluster CA40.0Z/1C1A.1 from WHO search",
+   "source": "scripts/icd11-parity/queries.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P50Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Listerial pneumonia",
+        "Code": "CA40.0Z/1C1A.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified / http://id.who.int/icd/release/11/2026-01/mms/268154767",
+        "Interval": "P4D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-slash-hiv-pneumonia",
+   "group": "adult",
+   "why": "Slash cluster with the stem first (GB61.Z/5A11 order bug, KB doris-picker-who-behaviour-rules 'To report to WHO')",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P61Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetic kidney failure",
+        "Code": "GB61.Z/5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Interval": "P6Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-ext-in-line-chain",
+   "group": "adult",
+   "why": "Cluster on the upper line, plain stem below",
+   "source": "docs/kb/doris-certificate-ui-contract.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P53Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Tuberculous otitis media",
+        "Code": "1B12.2&XA0G74",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114",
+        "Interval": "P2M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Respiratory tuberculosis",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+        "Interval": "P6M"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-cholera-ext",
+   "group": "child",
+   "why": "Cholera with a causing-organism extension",
+   "source": "scripts/icd11-parity/queries.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P6Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Cholera O1 classical",
+        "Code": "1A00&XN8P1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911",
+        "Interval": "P2D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-motor-ext",
+   "group": "adult",
+   "why": "External cause with extension codes (PA03&XE7ZZ)",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P24Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fractured thigh bone",
+        "Code": "NC72.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Motorbike rider injured",
+        "Code": "PA03&XE7ZZ",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/324760454 & http://id.who.int/icd/release/11/2026-01/mms/1206757646"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "cluster-diabetic-foot-gangrene",
+   "group": "adult",
+   "why": "Diabetic foot ulcer with gangrene (mandatory-axis stem, composite)",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P68Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetic foot with gangrene",
+        "Code": "BD54/MC85",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827",
+        "Interval": "P3M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Interval": "P15Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-maternal-composite",
+   "group": "maternal",
+   "why": "Maternal composite JB64.4/BD54 (WHO related maternal chapter)",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P33Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart failure in pregnancy",
+        "Code": "JB64.4/BD54",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "cluster-ca-pertussis-pneumonia",
+   "group": "child",
+   "why": "Whooping cough with pneumonia cluster 1C12.0/CA40.0Y",
+   "source": "scripts/icd11-parity/queries.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P7M"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Whooping cough with pneumonia",
+        "Code": "1C12.0/CA40.0Y",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other",
+        "Interval": "P10D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-cancer-ext-site",
+   "group": "adult",
+   "why": "Cancer with site extension (2B90.0Z&XA95L3)",
+   "source": "scripts/icd11-parity/queries.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P70Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Cancer of colon, hepatic flexure",
+        "Code": "2B90.0Z&XA95L3",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified & http://id.who.int/icd/release/11/2026-01/mms/328294343",
+        "Interval": "P1Y"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "cluster-sepsis-viral",
+   "group": "adult",
+   "why": "WHO search returns 1E1Y/1G40&XN3BH but codeinfo does not resolve it, so the server refuses it (expected INVALID_INPUT, code and URI mismatch)",
+   "source": "scripts/icd11-parity/queries.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P38Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Viral sepsis",
+        "Code": "1E1Y/1G40&XN3BH",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1136802325/other / http://id.who.int/icd/release/11/2026-01/mms/622600769 & http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+        "Interval": "P5D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-uncoded-only",
+   "group": "adult",
+   "why": "Only an uncoded text condition: DORIS cannot assign a cause",
+   "source": "DORIS contract: uncoded text",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P40Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Heart problem"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-uncoded-two-lines",
+   "group": "adult",
+   "why": "Two uncoded lines",
+   "source": "DORIS contract: uncoded text",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P55Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Stopped breathing"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Long illness"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-symptom-fever",
+   "group": "adult",
+   "why": "Symptom code only (MG26 fever): ill-defined cause kept by DORIS",
+   "source": "VA cause VAs-01.99 Unspecified infectious disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P40Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fever",
+        "Code": "MG26",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/915343154"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-coded-below-uncoded",
+   "group": "adult",
+   "why": "Uncoded top line, coded line below",
+   "source": "DORIS contract: uncoded text",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P62Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Collapsed"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-sudden-death",
+   "group": "adult",
+   "why": "Sudden death, cause unknown (MH12.Y)",
+   "source": "VA cause VAs-99 Cause of death unknown",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P35Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sudden death",
+        "Code": "MH12.Y",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2012689694/other"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-shock-only",
+   "group": "adult",
+   "why": "Shock alone (MG40.Z): a mode of dying, not a cause",
+   "source": "VA cause VAs-99 Cause of death unknown",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P77Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Shock",
+        "Code": "MG40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1164022950/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-cardiac-arrest-only",
+   "group": "adult",
+   "why": "Cardiac arrest alone",
+   "source": "VA cause VAs-04.01 Acute cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P66Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Cardiac arrest",
+        "Code": "MC82.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/395422191/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-old-age-and-disease",
+   "group": "adult",
+   "why": "Old age above a specific disease",
+   "source": "VA cause VAs-99 Cause of death unknown; VA cause VAs-04.01 Acute cardiac disease",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P92Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Old age",
+        "Code": "MG2A",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/835503193"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "rej-sids",
+   "group": "child",
+   "why": "Sudden infant death syndrome",
+   "source": "VA cause VAs-10.99 Other and unspecified perinatal cause of death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P3M"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Cot death",
+        "Code": "MH11.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/56255971/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iv-unknown-empty",
+   "group": "adult",
+   "why": "Pneumonia due to HIV, interval unknown interval as \"\"",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": ""
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": ""
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iv-unknown-p",
+   "group": "adult",
+   "why": "Pneumonia due to HIV, interval unknown interval as \"P\"",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "P"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iv-unknown-pt",
+   "group": "adult",
+   "why": "Pneumonia due to HIV, interval unknown interval as \"PT\"",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "PT"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "PT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iv-weeks",
+   "group": "adult",
+   "why": "Pneumonia due to HIV, interval weeks",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P2W"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "P6W"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iv-years-months",
+   "group": "adult",
+   "why": "Pneumonia due to HIV, interval years and months combined",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P1Y6M"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified",
+        "Interval": "P8Y2M"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "iv-omitted",
+   "group": "adult",
+   "why": "Pneumonia due to HIV, interval no Interval key at all",
+   "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-01.03 HIV/AIDS related death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P36Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "HIV",
+        "Code": "1C62.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "manner-accident-full",
+   "group": "adult",
+   "why": "Accident with date, description and place",
+   "source": "VA cause VAs-12.01 Road traffic accident",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P30Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Skull fracture",
+        "Code": "NA02.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/399491868/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Rider hit by lorry",
+        "Code": "PA01",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1460349350"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1,
+     "DateOfExternalCauseOrPoisoning": "2026-02-11",
+     "DescriptionExternalCause": "Hit by a lorry at a junction",
+     "PlaceOfOccuranceExternalCause": 5
+    }
+   }
+  },
+  {
+   "id": "manner-self-harm",
+   "group": "adult",
+   "why": "Intentional self-harm",
+   "source": "VA cause VAs-12.08 Intentional self-harm",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P26Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Asphyxia",
+        "Code": "NF05",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/607132843"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Hanging",
+        "Code": "PC71",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/807340493"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 2,
+     "DescriptionExternalCause": "Found hanging",
+     "PlaceOfOccuranceExternalCause": 0
+    }
+   }
+  },
+  {
+   "id": "manner-assault",
+   "group": "adult",
+   "why": "Assault (firearm)",
+   "source": "VA cause VAs-12.09 Assault",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P31Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Gunshot wound",
+        "Code": "ND56.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/754990790"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Shot by another person",
+        "Code": "PD50",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 3,
+     "PlaceOfOccuranceExternalCause": 9
+    }
+   }
+  },
+  {
+   "id": "manner-legal-intervention",
+   "group": "adult",
+   "why": "Legal intervention",
+   "source": "WHO DORIS manner enum",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P29Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Gunshot wound",
+        "Code": "ND56.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/754990790"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Shot during arrest",
+        "Code": "PD50",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1901159735"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 4
+    }
+   }
+  },
+  {
+   "id": "manner-war",
+   "group": "adult",
+   "why": "War",
+   "source": "WHO DORIS manner enum",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P27Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Multiple injuries",
+        "Code": "ND37",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1321122981"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Explosion in war",
+        "Code": "PK02",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1398529558"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 5
+    }
+   }
+  },
+  {
+   "id": "manner-undetermined",
+   "group": "adult",
+   "why": "Could not be determined",
+   "source": "WHO DORIS manner enum",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P34Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Drowned",
+        "Code": "NF08.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1369717987"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Drowning",
+        "Code": "PA90",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1117679527"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 6
+    }
+   }
+  },
+  {
+   "id": "manner-pending",
+   "group": "adult",
+   "why": "Pending investigation",
+   "source": "WHO DORIS manner enum",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P33Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Poisoning",
+        "Code": "NE61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Poisoning by an unknown substance",
+        "Code": "PB28",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/799356470"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 7
+    }
+   }
+  },
+  {
+   "id": "manner-disease",
+   "group": "adult",
+   "why": "Manner is disease (external cause fields are dropped)",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P55Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 0,
+     "DescriptionExternalCause": "None"
+    }
+   }
+  },
+  {
+   "id": "manner-unknown",
+   "group": "adult",
+   "why": "Manner unknown (9)",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P45Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fever",
+        "Code": "MG26",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/915343154"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 9
+    }
+   }
+  },
+  {
+   "id": "manner-inconsistent",
+   "group": "adult",
+   "why": "External cause with manner disease (DORIS inconsistency warning)",
+   "source": "tests/fixtures/doris_warning_cases.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P50Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fractured femur",
+        "Code": "NC72.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Fall",
+        "Code": "PA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 0
+    }
+   }
+  },
+  {
+   "id": "manner-external-no-injury",
+   "group": "adult",
+   "why": "External cause only: 'No injury found to postcoordinate' warning",
+   "source": "tests/fixtures/doris_warning_cases.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P40Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Fell from roof",
+        "Code": "PA61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "manner-poisoning-intent",
+   "group": "adult",
+   "why": "Self-poisoning with pesticide",
+   "source": "VA cause VAs-12.07 Accidental poisoning and exposure to noxious substances; VA cause VAs-12.08 Intentional self-harm",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P19Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Pesticide poisoning",
+        "Code": "NE61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Swallowed pesticide on purpose",
+        "Code": "PD03",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1463446644"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 2
+    }
+   }
+  },
+  {
+   "id": "manner-snakebite",
+   "group": "adult",
+   "why": "Snake bite with extension (PA78&XE9H6)",
+   "source": "tests/fixtures/doris_warning_cases.json",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P38Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Envenomation",
+        "Code": "NE61",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Venomous snake bite",
+        "Code": "PA78&XE9H6",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148"
+       }
+      ]
+     }
+    ],
+    "MannerOfDeath": {
+     "MannerOfDeath": 1
+    }
+   }
+  },
+  {
+   "id": "surgery-yes-date-reason",
+   "group": "adult",
+   "why": "Surgery performed with date and reason",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P61Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT3H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Coronary disease",
+        "Code": "BA52.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ],
+    "Surgery": {
+     "WasPerformed": 1,
+     "Date": "2026-04-01",
+     "Reason": "Bypass surgery"
+    }
+   }
+  },
+  {
+   "id": "surgery-no",
+   "group": "adult",
+   "why": "Surgery not performed (Date/Reason dropped)",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P61Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT3H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Coronary disease",
+        "Code": "BA52.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ],
+    "Surgery": {
+     "WasPerformed": 0,
+     "Date": "2026-04-01",
+     "Reason": "None"
+    }
+   }
+  },
+  {
+   "id": "autopsy-requested-findings-yes",
+   "group": "adult",
+   "why": "Autopsy requested, findings used",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P52Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT3H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Coronary disease",
+        "Code": "BA52.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ],
+    "Autopsy": {
+     "WasRequested": 1,
+     "Findings": 1
+    }
+   }
+  },
+  {
+   "id": "autopsy-requested-findings-no",
+   "group": "adult",
+   "why": "Autopsy requested, findings not used",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P52Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT3H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Coronary disease",
+        "Code": "BA52.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ],
+    "Autopsy": {
+     "WasRequested": 1,
+     "Findings": 0
+    }
+   }
+  },
+  {
+   "id": "autopsy-not-requested",
+   "group": "adult",
+   "why": "Autopsy not requested (Findings dropped)",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P52Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "PT3H"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Coronary disease",
+        "Code": "BA52.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+        "Interval": "P3Y"
+       }
+      ]
+     }
+    ],
+    "Autopsy": {
+     "WasRequested": 0,
+     "Findings": 1
+    }
+   }
+  },
+  {
+   "id": "surgery-autopsy-manner-all",
+   "group": "adult",
+   "why": "Surgery, autopsy and manner blocks together",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P45Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Head injury",
+        "Code": "NA07.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/277610609/unspecified"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Fall",
+        "Code": "PA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995"
+       }
+      ]
+     }
+    ],
+    "Surgery": {
+     "WasPerformed": 1,
+     "Date": "2026-06-01",
+     "Reason": "Craniotomy"
+    },
+    "Autopsy": {
+     "WasRequested": 1,
+     "Findings": 1
+    },
+    "MannerOfDeath": {
+     "MannerOfDeath": 1,
+     "DateOfExternalCauseOrPoisoning": "2026-05-30",
+     "PlaceOfOccuranceExternalCause": 2,
+     "DescriptionExternalCause": "Fell from a ladder"
+    }
+   }
+  },
+  {
+   "id": "maternal-block-1",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 1, timing 0, contribution 1",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "maternal-block-2",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 1, timing 0, contribution 0",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0,
+     "PregnancyContribute": 0
+    }
+   }
+  },
+  {
+   "id": "maternal-block-3",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 0, timing 1, contribution 1",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 1,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "maternal-block-4",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 0, timing 2, contribution 1",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 2,
+     "PregnancyContribute": 1
+    }
+   }
+  },
+  {
+   "id": "maternal-block-5",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 0, timing 3, contribution 0",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 3,
+     "PregnancyContribute": 0
+    }
+   }
+  },
+  {
+   "id": "maternal-block-6",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 0, timing 9, contribution 9",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 0,
+     "TimeFromPregnancy": 9,
+     "PregnancyContribute": 9
+    }
+   }
+  },
+  {
+   "id": "maternal-block-7",
+   "group": "maternal",
+   "why": "Maternal block: pregnant 9, timing 9, contribution 9",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P28Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Bleeding after delivery",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+        "Interval": "PT5H"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 9,
+     "TimeFromPregnancy": 9,
+     "PregnancyContribute": 9
+    }
+   }
+  },
+  {
+   "id": "maternal-male-dropped",
+   "group": "adult",
+   "why": "Male with a maternal block (block dropped by the server)",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P40Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ],
+    "MaternalDeath": {
+     "WasPregnant": 1,
+     "TimeFromPregnancy": 0
+    }
+   }
+  },
+  {
+   "id": "fetal-stillborn",
+   "group": "stillbirth",
+   "why": "Stillborn with weight, weeks, mother's age",
+   "source": "VA cause VAs-11.01 Fresh stillbirth",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Stillbirth",
+        "Code": "KD3B.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "Stillborn": 1,
+     "MultiplePregnancy": 0,
+     "BirthWeight": 3100,
+     "PregnancyWeeks": 40,
+     "AgeMother": 24
+    }
+   }
+  },
+  {
+   "id": "fetal-stillborn-cause-known",
+   "group": "stillbirth",
+   "why": "Stillbirth with a known cause (placental)",
+   "source": "VA cause VAs-11.02 Macerated stillbirth",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Stillbirth",
+        "Code": "KD3B.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1947342847"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Placental problem",
+        "Code": "KA02.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/877196425"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "Stillborn": 1,
+     "BirthWeight": 2000,
+     "PregnancyWeeks": 34
+    }
+   }
+  },
+  {
+   "id": "fetal-multiple-pregnancy",
+   "group": "neonatal",
+   "why": "Twin neonate, death within 24 h",
+   "source": "VA cause VAs-10.01 Prematurity or low birth weight",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "PT15H"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Premature",
+        "Code": "KA21.4Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1726201225/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "MultiplePregnancy": 1,
+     "DeathWithin24h": 15,
+     "BirthWeight": 1500,
+     "PregnancyWeeks": 32,
+     "AgeMother": 30
+    }
+   }
+  },
+  {
+   "id": "fetal-perinatal-description",
+   "group": "neonatal",
+   "why": "Neonate with a free-text perinatal description",
+   "source": "VA cause VAs-10.99 Other and unspecified perinatal cause of death",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P2D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Necrotising enterocolitis",
+        "Code": "KB88.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/141267925/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "BirthWeight": 1900,
+     "PregnancyWeeks": 33,
+     "PerinatalDescription": "Fed on day two, abdomen distended"
+    }
+   }
+  },
+  {
+   "id": "fetal-minimal-neonate",
+   "group": "neonatal",
+   "why": "Neonate with no fetal block (CoDEdit asks for birth weight)",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "EstimatedAge": "P2D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "RDS of newborn",
+        "Code": "KB23.0Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "fetal-adult-dropped",
+   "group": "adult",
+   "why": "Adult with a fetal block (dropped by the server)",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P44Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "Stillborn": 0,
+     "BirthWeight": 3000
+    }
+   }
+  },
+  {
+   "id": "fetal-week-old-drops-24h",
+   "group": "neonatal",
+   "why": "Neonate at 8 days: DeathWithin24h dropped",
+   "source": "docs/policy/doris-certificate-rules.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P8D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis of newborn",
+        "Code": "KA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "DeathWithin24h": 5,
+     "BirthWeight": 2700,
+     "PregnancyWeeks": 38
+    }
+   }
+  },
+  {
+   "id": "fetal-unknown-measures",
+   "group": "neonatal",
+   "why": "Unknown measurements sent as empty",
+   "source": "app/services/doris_certificate.py unknown fetal measurements",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P3D"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Brain bleed",
+        "Code": "KA82.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/974582504/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "BirthWeight": "",
+     "PregnancyWeeks": null,
+     "MultiplePregnancy": 9
+    }
+   }
+  },
+  {
+   "id": "date-full-dates",
+   "group": "adult",
+   "why": "Birth and death as full dates",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "DateBirth": "1962-03-14",
+     "DateDeath": "2026-02-08"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "date-year-only-birth",
+   "group": "adult",
+   "why": "Year-only birth date with a full death date: left out of the WHO request, who_notes",
+   "source": "app/services/doris_certificate.py who_safe_certificate",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "DateBirth": "1962",
+     "DateDeath": "2026-02-08"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "date-year-only-both",
+   "group": "adult",
+   "why": "Year-only birth and death: both left out",
+   "source": "app/services/doris_certificate.py who_safe_certificate",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "DateBirth": "1950",
+     "DateDeath": "2026"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "COPD",
+        "Code": "CA22.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "date-month-precision",
+   "group": "adult",
+   "why": "Month-precision dates are accepted by WHO",
+   "source": "app/services/doris_certificate.py who_safe_certificate",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "DateBirth": "1950-06",
+     "DateDeath": "2026-03"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Diabetes",
+        "Code": "5A11",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "date-neonate-hours",
+   "group": "neonatal",
+   "why": "Newborn by dates, same day death",
+   "source": "VA cause VAs-10.02 Birth asphyxia",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 2,
+     "DateBirth": "2026-03-01",
+     "DateDeath": "2026-03-01"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Birth asphyxia",
+        "Code": "KB21.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified"
+       }
+      ]
+     }
+    ],
+    "FetalOrInfantDeath": {
+     "DeathWithin24h": 6,
+     "BirthWeight": 3000,
+     "PregnancyWeeks": 39
+    }
+   }
+  },
+  {
+   "id": "date-datetime",
+   "group": "neonatal",
+   "why": "Birth and death with time of day",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "DateBirth": "2026-04-01T06:30:00",
+     "DateDeath": "2026-04-03T09:00:00"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Sepsis of newborn",
+        "Code": "KA60",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sex-unknown",
+   "group": "adult",
+   "why": "Sex unknown (9)",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 9,
+     "EstimatedAge": "P50Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "TB",
+        "Code": "1B10.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "sex-male-pregnancy-code",
+   "group": "adult",
+   "why": "Male with a pregnancy code (WHO sex-consistency)",
+   "source": "WHO DORIS sex check",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P27Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "PPH",
+        "Code": "JA43.1",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "age-child-vs-adult-cause",
+   "group": "child",
+   "why": "Child with an adult-only cause (age check)",
+   "source": "WHO DORIS age check",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P3Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Prostate cancer",
+        "Code": "2C82.0",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1510677183"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "age-none",
+   "group": "adult",
+   "why": "No age or date at all",
+   "source": "WHO DORIS certificate format",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-code-uri-mismatch",
+   "group": "invalid",
+   "why": "Code and URI that do not agree (rejected before WHO)",
+   "source": "docs/kb/doris-certificate-ui-contract.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P50Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-unknown-code",
+   "group": "invalid",
+   "why": "A code WHO does not know",
+   "source": "docs/kb/doris-certificate-ui-contract.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "Sex": 1,
+     "EstimatedAge": "P50Y"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "ZZ99.9",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-mixed-intervals",
+   "group": "invalid",
+   "why": "Two conditions on a line with different intervals",
+   "source": "docs/kb/doris-certificate-ui-contract.md",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+        "Interval": "P1D"
+       },
+       {
+        "Text": "Pneumonia",
+        "Code": "CA40.Z",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+        "Interval": "P2D"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-six-lines",
+   "group": "invalid",
+   "why": "Six Part I lines (maximum five)",
+   "source": "app/services/doris_certificate.py",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "Line 0"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Line 1"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Line 2"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Line 3"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Line 4"
+       }
+      ]
+     },
+     {
+      "Conditions": [
+       {
+        "Text": "Line 5"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-code-without-uri",
+   "group": "invalid",
+   "why": "A code without its URI",
+   "source": "app/services/doris_certificate.py",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Code": "BA41.Z"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-unsupported-field",
+   "group": "invalid",
+   "why": "Unsupported certificate field",
+   "source": "app/services/doris_certificate.py",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI"
+       }
+      ]
+     }
+    ],
+    "Notes": "x"
+   }
+  },
+  {
+   "id": "bad-interval-format",
+   "group": "invalid",
+   "why": "Interval that is not ISO 8601",
+   "source": "app/services/doris_certificate.py",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI",
+        "Interval": "3 days"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "bad-date",
+   "group": "invalid",
+   "why": "Impossible date",
+   "source": "app/services/doris_certificate.py",
+   "certificate": {
+    "ICDVersion": "ICD11",
+    "AdministrativeData": {
+     "DateBirth": "2026-02-30"
+    },
+    "Part1": [
+     {
+      "Conditions": [
+       {
+        "Text": "MI"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

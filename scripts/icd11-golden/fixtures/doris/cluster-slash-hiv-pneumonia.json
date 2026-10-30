@@ -1,0 +1,142 @@
+{
+ "id": "cluster-slash-hiv-pneumonia",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P61Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "GB61.Z/5A11",
+       "Interval": "P6Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetic kidney failure"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "cluster-slash-hiv-pneumonia",
+  "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+  "why": "Slash cluster with the stem first (GB61.Z/5A11 order bug, KB doris-picker-who-behaviour-rules 'To report to WHO')"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z%2F5A11",
+    "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "POST icd/release/11/2026-01/doris #dbbddeb786",
+    "POST icd/release/11/2026-01/codedit #dbbddeb786",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "GET icd/release/11/2026-01/mms/119724091",
+    "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z",
+    "GET icd/release/11/2026-01/mms/412389819/unspecified"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P61Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "GB61.Z/5A11",
+          "Interval": "P6Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetic kidney failure"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "BER-CE-9",
+       "report": "RE_W_IV_CodeURIMismatch",
+       "tabularReport": "0,RE_W_IV_CodeURIMismatch,BER-CE-9;5A11/GB61.Z;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "5A11/GB61.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 5A11/GB61.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 5A11/GB61.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11/GB61.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11/GB61.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "5A11",
+       "stemURI": "http://id.who.int/icd/entity/119724091",
+       "tabularReport": "MCC;True;;;;Substitution:0:GB61.Z/5A11>5A11/GB61.Z;;1;GB61.Z/5A11 was recoded to 5A11 which is not a residual.;;;;BER\nSP1;True;;5A11/GB61.Z;5A11/GB61.Z;;;0;SP1: 5A11/GB61.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11/GB61.Z;;;;;0;SP6: is not applicable with the current TSP 5A11/GB61.Z.;;;;BER\nSP7;False;5A11/GB61.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11/GB61.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11/GB61.Z;;;;;0;M1: There is no special instruction applicable with TUC 5A11/GB61.Z.;;;;BER\nM2;False;5A11/GB61.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11/GB61.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/412389819/unspecified",
+       "warning": "GB61.Z/5A11 was recoded to 5A11 which is not a residual.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "5A11",
+       "role": "stem",
+       "title": "Type 2 diabetes mellitus",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091"
+      },
+      {
+       "code": "GB61.Z",
+       "role": "postcoordinated",
+       "title": "Chronic kidney disease, stage unspecified",
+       "uri": "http://id.who.int/icd/release/11/mms/412389819/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P61Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "GB61.Z/5A11",
+         "Interval": "P6Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetic kidney failure"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/119724091": {"method":"GET","path":"icd/release/11/2026-01/mms/119724091","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/119724091","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#119724091","classKind":"category","code":"5A11","definition":{"@language":"en","@value":"Diabetes mellitus type 2 (formerly noninsulin-dependent diabetes mellitus (NIDDM) or adult-onset diabetes) is a metabolic disorder that is characterised by high blood glucose in the context of insulin resistance and relative insulin deficiency."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/750602160","label":{"@language":"en","@value":"Pre-existing type 2 diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/750602160"}],"inclusion":[{"label":{"@language":"en","@value":"non-insulin-dependent diabetes of the young"}}],"indexTerm":[{"label":{"@language":"en","@value":"Type 2 diabetes mellitus"}},{"label":{"@language":"en","@value":"DM type II"}},{"label":{"@language":"en","@value":"DM2"}},{"label":{"@language":"en","@value":"Diabetic type 2"}},{"label":{"@language":"en","@value":"NIDDM - [non insulin dependent diabetes mellitus]"}},{"label":{"@language":"en","@value":"T2DM - [Type 2 diabetes mellitus]"}},{"label":{"@language":"en","@value":"Type II diabetes mellitus"}},{"label":{"@language":"en","@value":"adult onset diabetes"}},{"label":{"@language":"en","@value":"diabetes due to insulin secretory defect"}},{"label":{"@language":"en","@value":"diabetes mellitus Type 2"}},{"label":{"@language":"en","@value":"diabetes mellitus due to insulin secretory defect"}},{"label":{"@language":"en","@value":"insulin requiring type 2 diabetes"}},{"label":{"@language":"en","@value":"maturity onset diabetes"}},{"label":{"@language":"en","@value":"maturity-onset diabetes mellitus"}},{"label":{"@language":"en","@value":"non-insulin dependent diabetes mellitus"}},{"label":{"@language":"en","@value":"non-insulin-dependent diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"non-insulin-dependent diabetes of the young"}},{"label":{"@language":"en","@value":"noninsulin dependent diabetes"}},{"label":{"@language":"en","@value":"nonketotic diabetes"}},{"label":{"@language":"en","@value":"nonketotic hyperglycaemia"}},{"label":{"@language":"en","@value":"senile diabetes"}},{"label":{"@language":"en","@value":"stable diabetes"}},{"label":{"@language":"en","@value":"type 2 diabetes"}},{"label":{"@language":"en","@value":"type II diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/618467158","label":{"@language":"en","@value":"Ketosis-resistant diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1255683285","label":{"@language":"en","@value":"Insulin resistant diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1255683285","label":{"@language":"en","@value":"insulin resistant diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/119724091/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/750602160"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/119724091","title":{"@language":"en","@value":"Type 2 diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/412389819/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/412389819/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#412389819/unspecified","classKind":"category","code":"GB61.Z","indexTerm":[{"label":{"@language":"en","@value":"Chronic kidney disease, stage unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"Chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"CKD - [chronic kidney disease]"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"CRF - [chronic renal failure]"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"Chronic renal insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic hypoxic kidney failure"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney collapse"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney failure"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney hypofunction"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney impairment"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney shutdown"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic kidney toxaemia"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal disease"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal failure"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal impairment"}},{"foundationReference":"http://id.who.int/icd/entity/412389819","label":{"@language":"en","@value":"chronic renal suppression"}},{"foundationReference":"http://id.who.int/icd/entity/615062102","label":{"@language":"en","@value":"Diabetic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/615062102","label":{"@language":"en","@value":"DKD - [diabetic kidney disease]"}},{"foundationReference":"http://id.who.int/icd/entity/1905915973","label":{"@language":"en","@value":"Diabetic nephropathy"}},{"foundationReference":"http://id.who.int/icd/entity/1905915973","label":{"@language":"en","@value":"diabetic nephrosclerosis"}},{"foundationReference":"http://id.who.int/icd/entity/550552258","label":{"@language":"en","@value":"Glomerular lesion diffuse sclerosing nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/550552258","label":{"@language":"en","@value":"diffuse sclerosing glomerulonephritis"}},{"foundationReference":"http://id.who.int/icd/entity/550552258","label":{"@language":"en","@value":"diffuse sclerosing nephritis"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"Chronic uraemic syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic high blood urea"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemia"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemia disease"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemia syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1008373619","label":{"@language":"en","@value":"chronic uraemic coma"}},{"foundationReference":"http://id.who.int/icd/entity/1017718945","label":{"@language":"en","@value":"Chronic kidney disease with mineral or bone disease"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"Abnormal bone disease in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"ROD - [renal osteodystrophy]"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"pseudorickets"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"renal bone disease"}},{"foundationReference":"http://id.who.int/icd/entity/825500799","label":{"@language":"en","@value":"renal osteodystrophy"}},{"foundationReference":"http://id.who.int/icd/entity/1152718093","label":{"@language":"en","@value":"Abnormal mineralisation of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1292771850","label":{"@language":"en","@value":"Abnormal turnover of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1292771850","label":{"@language":"en","@value":"Abnormal turnover of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/678379417","label":{"@language":"en","@value":"Abnormal volume of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/678379417","label":{"@language":"en","@value":"Abnormal volume of bone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/609156581","label":{"@language":"en","@value":"Suspected renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/609156581","label":{"@language":"en","@value":"Suspected renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/808237921","label":{"@language":"en","@value":"Other renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/808237921","label":{"@language":"en","@value":"Other renal osteodystrophy in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/77618338","label":{"@language":"en","@value":"Azotaemic osteodystrophy"}},{"foundationReference":"http://id.who.int/icd/entity/349009254","label":{"@language":"en","@value":"Phosphate-losing tubular disease"}},{"foundationReference":"http://id.who.int/icd/entity/349009254","label":{"@language":"en","@value":"phosphate-losing tubular disorder"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"Renal dwarfism"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal dwarf"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal infantilism"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal rickets"}},{"foundationReference":"http://id.who.int/icd/entity/1995351226","label":{"@language":"en","@value":"renal short stature"}},{"foundationReference":"http://id.who.int/icd/entity/243524493","label":{"@language":"en","@value":"Biochemical abnormalities in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/417567446","label":{"@language":"en","@value":"Hypercalcaemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/201759431","label":{"@language":"en","@value":"Hypocalcaemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1748381154","label":{"@language":"en","@value":"Hyperphosphatemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1679290270","label":{"@language":"en","@value":"Hypophosphatemia in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1886759194","label":{"@language":"en","@value":"High intact parathyroid hormone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1886759194","label":{"@language":"en","@value":"High iTPH - [intact parathyroid hormone] in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/2085907302","label":{"@language":"en","@value":"Low intact parathyroid hormone in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/2085907302","label":{"@language":"en","@value":"Low iTPH - [intact parathyroid hormone] in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1488004114","label":{"@language":"en","@value":"Low vitamin D in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1418782318","label":{"@language":"en","@value":"High alkaline phosphatase in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1089642730","label":{"@language":"en","@value":"Low alkaline phosphatase in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/44179953","label":{"@language":"en","@value":"Calcification abnormalities in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/2056232143","label":{"@language":"en","@value":"Calcification of the vasculature"}},{"foundationReference":"http://id.who.int/icd/entity/2056232143","label":{"@language":"en","@value":"Calcification of the vasculature in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1991138995","label":{"@language":"en","@value":"Calcification of the valves"}},{"foundationReference":"http://id.who.int/icd/entity/1991138995","label":{"@language":"en","@value":"Calcification of the valves in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/773537073","label":{"@language":"en","@value":"Calcification of the soft tissue"}},{"foundationReference":"http://id.who.int/icd/entity/773537073","label":{"@language":"en","@value":"Calcification of the soft tissue in chronic kidney disease"}},{"foundationReference":"http://id.who.int/icd/entity/1197204188","label":{"@language":"en","@value":"Other calcification"}},{"foundationReference":"http://id.who.int/icd/entity/1197204188","label":{"@language":"en","@value":"Other calcification in chronic kidney disease"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/412389819"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2080031371","http://id.who.int/icd/release/11/2026-01/mms/393562786","http://id.who.int/icd/release/11/2026-01/mms/885246206","http://id.who.int/icd/release/11/2026-01/mms/108919913","http://id.who.int/icd/release/11/2026-01/mms/1523445293","http://id.who.int/icd/release/11/2026-01/mms/1140842756","http://id.who.int/icd/release/11/2026-01/mms/1932345217/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1518538819"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/924915526"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/562199727"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1635967154"],"title":{"@language":"en","@value":"Chronic kidney disease, stage unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/GB61.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.Z","code":"GB61.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z%2F5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/GB61.Z%2F5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/GB61.Z%2f5A11","code":"GB61.Z/5A11","hasCausingCondition":["5A11"],"stemCode":"GB61.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #dbbddeb786": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"BER-CE-9","report":"RE_W_IV_CodeURIMismatch","tabularReport":"0,RE_W_IV_CodeURIMismatch,BER-CE-9;5A11/GB61.Z;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P61Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"GB61.Z/5A11\",\"Interval\":\"P6Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetic kidney failure\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #dbbddeb786": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"5A11/GB61.Z","error":null,"reject":false,"report":"SP1: 5A11/GB61.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 5A11/GB61.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11/GB61.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11/GB61.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"5A11","stemURI":"http://id.who.int/icd/entity/119724091","tabularReport":"MCC;True;;;;Substitution:0:GB61.Z/5A11>5A11/GB61.Z;;1;GB61.Z/5A11 was recoded to 5A11 which is not a residual.;;;;BER\nSP1;True;;5A11/GB61.Z;5A11/GB61.Z;;;0;SP1: 5A11/GB61.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11/GB61.Z;;;;;0;SP6: is not applicable with the current TSP 5A11/GB61.Z.;;;;BER\nSP7;False;5A11/GB61.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11/GB61.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11/GB61.Z;;;;;0;M1: There is no special instruction applicable with TUC 5A11/GB61.Z.;;;;BER\nM2;False;5A11/GB61.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11/GB61.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/412389819/unspecified","warning":"GB61.Z/5A11 was recoded to 5A11 which is not a residual.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P61Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"GB61.Z/5A11\",\"Interval\":\"P6Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetic kidney failure\"}]}]}","status":200}
+ }
+}

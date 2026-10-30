@@ -1,0 +1,98 @@
+{
+ "id": "s067-aids",
+ "input": {
+  "id": "s067-aids",
+  "kind": "abbreviation",
+  "query": "AIDS",
+  "source": "VAs-01.03; scripts/icd11-parity/queries.json",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #6babc0175a"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 15,
+     "items": [
+      {
+       "code": "1C62.3Z",
+       "has_coding_note": false,
+       "matching_text": "HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified"
+      },
+      {
+       "code": "KA62.6",
+       "has_coding_note": false,
+       "matching_text": "Congenital human immunodeficiency virus infection",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Congenital human immunodeficiency virus infection",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/453730080"
+      },
+      {
+       "code": "1C62.2",
+       "has_coding_note": false,
+       "matching_text": "HIV disease clinical stage 3 without mention of tuberculosis or malaria",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "HIV disease clinical stage 3 without mention of tuberculosis or malaria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1294771889"
+      },
+      {
+       "code": "1C62.Z",
+       "has_coding_note": false,
+       "matching_text": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified"
+      },
+      {
+       "code": "QC90.6",
+       "has_coding_note": false,
+       "matching_text": "Contact with or exposure to human immunodeficiency virus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Contact with or exposure to human immunodeficiency virus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1088648116"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "AIDS",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #6babc0175a": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1871736427","important":true,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em> - [acquired immunodeficiency syndrome]","propertyId":"Synonym","propertyValueType":1,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1871736427","important":false,"label":"HIV/<em class='found'>AIDS</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-2.778116584338378}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/unspecified","theCode":"1C62.3Z","title":"HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/453730080","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/453730080","important":false,"label":"congenital <em class='found'>AIDS</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.24467037334623565}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.24467037334623565,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/453730080","theCode":"KA62.6","title":"Congenital human immunodeficiency virus infection","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1294771889","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/386699845","important":false,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em> - [acquired immunodeficiency syndrome] enteropathy","propertyId":"Synonym","propertyValueType":1,"score":-0.7598946895338186}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.7598946895338186,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1294771889","theCode":"1C62.2","title":"HIV disease clinical stage 3 without mention of tuberculosis or malaria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1508081745","important":false,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em>-like syndrome","propertyId":"Synonym","propertyValueType":0,"score":-0.8358204848689357},{"foundationUri":"http://id.who.int/icd/entity/1508081745","important":false,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em>-related complex NOS","propertyId":"Synonym","propertyValueType":0,"score":-0.9767942743358495},{"foundationUri":"http://id.who.int/icd/entity/1508081745","important":false,"label":"ARC - [<em class='found'>aids</em><em class='nonwbe'></em>-related complex]","propertyId":"Synonym","propertyValueType":0,"score":-2.0363935352437528}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8358204848689357,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified","theCode":"1C62.Z","title":"Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1088648116","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1088648116","important":false,"label":"contact with <em class='found'>AIDS</em><em class='nonwbe'></em> - [acquired immunodeficiency syndrome] virus","propertyId":"Synonym","propertyValueType":0,"score":-0.8400858886481872}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.8400858886481872,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1088648116","theCode":"QC90.6","title":"Contact with or exposure to human immunodeficiency virus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1959826241","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1959826241","important":false,"label":"management of hearing aid","propertyId":"Synonym","propertyValueType":0,"score":-1.347392182084881},{"foundationUri":"http://id.who.int/icd/entity/1959826241","important":false,"label":"fitting of hearing aid","propertyId":"Synonym","propertyValueType":0,"score":-3.041041001783279}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.347392182084881,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1959826241","theCode":"QB31.4","title":"Fitting or adjustment of hearing aid","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/628890812","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/628890812","important":false,"label":"presence of hearing-aid or device","propertyId":"Synonym","propertyValueType":0,"score":-2.572749139062866}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.791612045362501,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/628890812","theCode":"QB51.B","title":"Presence of external hearing-aid","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/790727229","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/790727229","important":false,"label":"presence of hearing-aid implant","propertyId":"Synonym","propertyValueType":0,"score":-1.8588286799482403}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.8588286799482403,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/790727229","theCode":"QB51.3","title":"Presence of otological or audiological implants","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/689638842","important":false,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em> encephalopathy","propertyId":"Synonym","propertyValueType":1,"score":-1.9651880235075216},{"foundationUri":"http://id.who.int/icd/entity/956141777","important":false,"label":"cachexia associated with <em class='found'>AIDS</em><em class='nonwbe'></em> - [acquired immunodeficiency syndrome]","propertyId":"Synonym","propertyValueType":1,"score":-3.223865392620839}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.9651880235075216,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1858812010/other","theCode":"1C62.3Y","title":"Other specified HIV disease clinical stage 4 without mention of tuberculosis or malaria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"06","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1173624218","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1173624218","important":false,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em> related dementia","propertyId":"Synonym","propertyValueType":0,"score":-2.2917584901438683},{"foundationUri":"http://id.who.int/icd/entity/1173624218","important":false,"label":"<em class='found'>AIDS</em><em class='nonwbe'></em> - [acquired immunodeficiency syndrome] dementia complex","propertyId":"Synonym","propertyValueType":0,"score":-2.4408628726333035}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-2.2917584901438683,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1173624218","theCode":"6D85.3","title":"Dementia due to human immunodeficiency virus","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/965417291","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.523552379464985,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/965417291","theCode":"PK9A.23","title":"Mobility <em class='found'>aids</em><em class='nonwbe'></em> associated with adverse incidents","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"04","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/769068598","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/603312357","important":false,"label":"Hyper-IgM syndrome due to AID deficiency","propertyId":"Synonym","propertyValueType":1,"score":-2.971670180296255}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.971670180296255,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/769068598","theCode":"4A01.05","title":"Immunodeficiencies with severe reduction in serum IgG or IgA with normal or elevated IgM and normal numbers of B-cells","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1044381913","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1044381913","important":false,"label":"Kaposi sarcoma associated with <em class='found'>AIDS</em><em class='nonwbe'></em> - [acquired immunodeficiency syndrome]","propertyId":"Synonym","propertyValueType":0,"score":-3.0357272651095233}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.0357272651095233,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1044381913","theCode":"1C62.30","title":"Kaposi sarcoma associated with human immunodeficiency virus disease without mention of tuberculosis or malaria","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/565740065/other / http://id.who.int/icd/release/11/2026-01/mms/1508081745/unspecified","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-6.534513427432833,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/565740065/other","theCode":"8A45.0Y/1C62.Z","title":"HIV or <em class='found'>AIDS</em><em class='nonwbe'></em> vacuolar myelopathy","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/766604284","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1454575644","important":false,"label":"Otorhinolaryngological devices associated with injury or harm, hearing aid","propertyId":"Title","propertyValueType":1,"score":-8.207266543659504}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.207266543659504,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/766604284","theCode":"PK92.1","title":"Otorhinolaryngological devices associated with injury or harm, therapeutic, nonsurgical or rehabilitative devices","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=AIDS%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

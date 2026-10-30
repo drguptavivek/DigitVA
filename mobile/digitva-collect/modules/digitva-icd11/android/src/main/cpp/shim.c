@@ -1,9 +1,11 @@
 /*
- * JNI shim over the NativeAOT ICD-API engine (libdigitva_icd11.so, private/icd11-offline-spike). Adapted from the
- * spike's apptest/jni/shim.c. The engine exports a C ABI:
+ * JNI shim over the NativeAOT ICD-API engine (libdigitva_icd11.so, engine-src/Bridge.cs). The engine exports a C ABI:
  *   char *digitva_icd11_init(const char *bundleDir, const char *dataDir)   NULL on success, else an error text
- *   char *digitva_icd11_{search,codeinfo,doris,codedit}(const char *json, int *status)
+ *   char *digitva_icd11_call(const char *op, const char *json, int *status)   the one call: an op name and a JSON object of arguments
  *   void  digitva_icd11_free(char *)
+ * load() requires all three: a library without digitva_icd11_call (an engine archive from before 2026.10.29) is refused with 3,
+ * so the app reports the engine unavailable instead of running it half-way. The APK always ships this shim, the Kotlin and the
+ * JS built in the same CI run as the staged engine, so a mismatch can only come from a stale pin.
  * Calls are serialized by the Kotlin side (one worker thread); nothing here is thread-safe on its own.
  * Engine error text can hold stack traces and certificate content: it is never logged or returned from here.
  */
@@ -13,16 +15,13 @@
 #include <stdlib.h>
 
 typedef char *(*init_t)(const char *, const char *);
-typedef char *(*call_t)(const char *, int *);
+typedef char *(*callop_t)(const char *, const char *, int *);
 typedef void (*free_t)(char *);
 
 static void *engine;
 static init_t p_init;
-static call_t p_calls[4]; /* index = op: 0 search, 1 codeinfo, 2 doris, 3 codedit */
+static callop_t p_callop;
 static free_t p_free;
-
-static const char *const CALL_SYMBOLS[4] = {
-    "digitva_icd11_search", "digitva_icd11_codeinfo", "digitva_icd11_doris", "digitva_icd11_codedit"};
 
 /* dlopen the engine by absolute path. Returns 0 on success, a small code otherwise (no dlerror text leaves here). */
 JNIEXPORT jint JNICALL Java_expo_modules_digitvaicd11_EngineJni_load(JNIEnv *env, jclass cls, jstring path) {
@@ -34,8 +33,8 @@ JNIEXPORT jint JNICALL Java_expo_modules_digitvaicd11_EngineJni_load(JNIEnv *env
   if (!h) return 2;
   p_init = (init_t)dlsym(h, "digitva_icd11_init");
   p_free = (free_t)dlsym(h, "digitva_icd11_free");
-  for (int i = 0; i < 4; i++) p_calls[i] = (call_t)dlsym(h, CALL_SYMBOLS[i]);
-  if (!p_init || !p_free || !p_calls[0] || !p_calls[1] || !p_calls[2] || !p_calls[3]) return 3;
+  p_callop = (callop_t)dlsym(h, "digitva_icd11_call");
+  if (!p_init || !p_free || !p_callop) return 3;
   engine = h;
   return 0;
 }
@@ -53,20 +52,31 @@ JNIEXPORT jint JNICALL Java_expo_modules_digitvaicd11_EngineJni_initEngine(JNIEn
   return failed;
 }
 
-/* Runs one call. Fills status[0]. Returns the response bytes (UTF-8 JSON), or NULL when the engine is not loaded. */
-JNIEXPORT jbyteArray JNICALL Java_expo_modules_digitvaicd11_EngineJni_call(JNIEnv *env, jclass cls, jint op, jstring input, jintArray status) {
-  if (!engine || op < 0 || op > 3) return NULL;
-  const char *in = (*env)->GetStringUTFChars(env, input, 0);
-  if (!in) return NULL;
-  int st = 0;
-  char *out = p_calls[op](in, &st);
-  (*env)->ReleaseStringUTFChars(env, input, in);
-  jint st_out = st;
-  (*env)->SetIntArrayRegion(env, status, 0, 1, &st_out);
+/* Copies an engine result into a new byte array and frees it. NULL in, NULL out. */
+static jbyteArray take_result(JNIEnv *env, char *out) {
   if (!out) return NULL;
   size_t n = strlen(out);
   jbyteArray arr = (*env)->NewByteArray(env, (jsize)n);
   if (arr) (*env)->SetByteArrayRegion(env, arr, 0, (jsize)n, (const jbyte *)out);
   p_free(out);
   return arr;
+}
+
+/* Runs one call (op name + JSON arguments). Fills status[0]. NULL when the engine is not loaded or returns nothing. */
+JNIEXPORT jbyteArray JNICALL Java_expo_modules_digitvaicd11_EngineJni_callOp(JNIEnv *env, jclass cls, jstring op, jstring json, jintArray status) {
+  if (!engine) return NULL;
+  const char *o = (*env)->GetStringUTFChars(env, op, 0);
+  const char *j = (*env)->GetStringUTFChars(env, json, 0);
+  if (!o || !j) {
+    if (o) (*env)->ReleaseStringUTFChars(env, op, o);
+    if (j) (*env)->ReleaseStringUTFChars(env, json, j);
+    return NULL;
+  }
+  int st = 0;
+  char *out = p_callop(o, j, &st);
+  (*env)->ReleaseStringUTFChars(env, op, o);
+  (*env)->ReleaseStringUTFChars(env, json, j);
+  jint st_out = st;
+  (*env)->SetIntArrayRegion(env, status, 0, 1, &st_out);
+  return take_result(env, out);
 }

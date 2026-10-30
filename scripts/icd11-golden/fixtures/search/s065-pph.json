@@ -1,0 +1,74 @@
+{
+ "id": "s065-pph",
+ "input": {
+  "id": "s065-pph",
+  "kind": "abbreviation",
+  "query": "PPH",
+  "source": "VAs-09.04",
+  "why": "abbreviation common on Indian death certificates"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #a5f73a43aa"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "JA43.1",
+       "has_coding_note": false,
+       "matching_text": "Other immediate postpartum haemorrhage",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other immediate postpartum haemorrhage",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1531859332"
+      },
+      {
+       "code": "KB42",
+       "has_coding_note": false,
+       "matching_text": "Persistent pulmonary hypertension of the newborn",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Persistent pulmonary hypertension of the newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/346808536"
+      },
+      {
+       "code": "5A50.1",
+       "has_coding_note": false,
+       "matching_text": "Pseudohypoparathyroidism",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Pseudohypoparathyroidism",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1225154856"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "PPH",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #a5f73a43aa": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1531859332","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1531859332","important":false,"label":"<em class='found'>PPH</em><em class='nonwbe'></em> - [postpartum haemorrhage]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332","theCode":"JA43.1","title":"Other immediate postpartum haemorrhage","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/346808536","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/346808536","important":false,"label":"<em class='found'>PPH</em><em class='nonwbe'>N</em> - [Persistent pulmonary hypertension of the newborn]","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/346808536","theCode":"KB42","title":"Persistent pulmonary hypertension of the newborn","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1225154856","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/245649135","important":false,"label":"AHO - [Albright hereditary osteodystrophy] <em class='found'>PPH</em><em class='nonwbe'>P</em> - [pseudopseudohypoparathyroidism]","propertyId":"Synonym","propertyValueType":1,"score":-1.5453855448754128}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-1.5453855448754128,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1225154856","theCode":"5A50.1","title":"Pseudohypoparathyroidism","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=PPH%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

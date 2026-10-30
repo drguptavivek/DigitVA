@@ -1,0 +1,167 @@
+{
+ "id": "manner-inconsistent",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P50Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 0
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NC72.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+       "Text": "Fractured femur"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA60",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995",
+       "Text": "Fall"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "manner-inconsistent",
+  "source": "tests/fixtures/doris_warning_cases.json",
+  "why": "External cause with manner disease (DORIS inconsistency warning)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA60",
+    "POST icd/release/11/2026-01/doris #19b86ff633",
+    "POST icd/release/11/2026-01/codedit #19b86ff633"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P50Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 0
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NC72.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+          "Text": "Fractured femur"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA60",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995",
+          "Text": "Fall"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA60/NC72.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA60.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA60.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.\n",
+       "stemCode": "PA60",
+       "stemURI": "http://id.who.int/icd/entity/415990995",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA60;PA60;;;0;SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA60;;;;;0;SP6: is not applicable with the current TSP PA60.;;;;BER\nSP7;False;PA60;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA60;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA60;;;;;0;M1: There is no special instruction applicable with TUC PA60.;;;;BER\nM2;False;PA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA60;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA60/NC72.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/415990995 / http://id.who.int/icd/release/11/mms/1810119958/unspecified",
+       "warning": "The selected underlying cause of death - PA60 - is inconsistent with the reported manner of death - Disease\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA60",
+       "role": "stem",
+       "title": "Fall",
+       "uri": "http://id.who.int/icd/release/11/mms/415990995"
+      },
+      {
+       "code": "NC72.Z",
+       "role": "postcoordinated",
+       "title": "Fractured femur",
+       "uri": "http://id.who.int/icd/release/11/mms/1810119958/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P50Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 0
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NC72.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+         "Text": "Fractured femur"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA60",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/415990995",
+         "Text": "Fall"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NC72.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NC72.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NC72.Z","code":"NC72.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA60": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA60","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA60","code":"PA60","stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #19b86ff633": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P50Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":0},\"Part1\":[{\"Conditions\":[{\"Code\":\"NC72.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified\",\"Text\":\"Fractured femur\"}]},{\"Conditions\":[{\"Code\":\"PA60\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/415990995\",\"Text\":\"Fall\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #19b86ff633": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA60/NC72.Z","error":null,"reject":false,"report":"SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA60.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA60.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.\n","stemCode":"PA60","stemURI":"http://id.who.int/icd/entity/415990995","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA60;PA60;;;0;SP3: PA60 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA60;;;;;0;SP6: is not applicable with the current TSP PA60.;;;;BER\nSP7;False;PA60;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA60;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA60;;;;;0;M1: There is no special instruction applicable with TUC PA60.;;;;BER\nM2;False;PA60;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA60;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA60/NC72.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/415990995 / http://id.who.int/icd/release/11/mms/1810119958/unspecified","warning":"The selected underlying cause of death - PA60 - is inconsistent with the reported manner of death - Disease\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P50Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":0},\"Part1\":[{\"Conditions\":[{\"Code\":\"NC72.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified\",\"Text\":\"Fractured femur\"}]},{\"Conditions\":[{\"Code\":\"PA60\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/415990995\",\"Text\":\"Fall\"}]}]}","status":200}
+ }
+}

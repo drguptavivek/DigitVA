@@ -1,0 +1,81 @@
+{
+ "id": "bad-mixed-intervals",
+ "input": {
+  "certificate": {
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BA41.Z",
+       "Interval": "P1D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+       "Text": "MI"
+      },
+      {
+       "Code": "CA40.Z",
+       "Interval": "P2D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+       "Text": "Pneumonia"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "invalid",
+  "id": "bad-mixed-intervals",
+  "source": "docs/kb/doris-certificate-ui-contract.md",
+  "why": "Two conditions on a line with different intervals"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "All conditions on a line must use the same interval.",
+        "path": "certificate.Part1[0].Conditions"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BA41.Z",
+         "Interval": "P1D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+         "Text": "MI"
+        },
+        {
+         "Code": "CA40.Z",
+         "Interval": "P2D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+         "Text": "Pneumonia"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+
+ }
+}

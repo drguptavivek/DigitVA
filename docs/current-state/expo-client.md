@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-30
 ---
 
 # Expo Client Hosting And Access
@@ -668,11 +668,45 @@ the device while unenrolled.
   after adoption (device-collection-api.md "Standalone push"). Engine error payloads never surface
   or log (status `unavailable`). Screens are platform-split (`​.native`/`.web`
   twins) so the web export never pulls expo-sqlite.
-- Limits, accepted: subtree-scoped term search answers the flat MMS list (the
-  engine search cannot filter subtrees); local digests are integrity markers,
-  not WHO canonical digests; the certificate seed from the interview is
+- **Try DORIS demo (WP6, 2026-10-30).** Collect Plus on Android only
+  (`canTryDorisDemo()` in `src/dorisDemoAccess.ts`; plain Collect and the web
+  never show it): Help > "Try DORIS (offline demo)" opens route `/doris-demo`
+  (`app/doris-demo.tsx`, screen `src/nativeRoutes/dorisDemo.native.tsx`, `.web`
+  twin redirects home). It needs no account: the header keeps its Help button on
+  the sign-in, lock, enrolment and PIN screens in Plus, and the accounts list has
+  it already. Offline only: `src/workspace/dorisDemo.ts` builds a
+  `WorkspaceApi` over the same `createOfflineDorisEditor` and
+  `createGuidanceRequester` as offline coding, answering only terms, codeinfo,
+  selection check and process; saves say the demo saves nothing and every
+  case, queue or server call refuses, and the editor's store refuses, so no
+  SQLite write, draft, queue entry or request exists. It loads WHO's six
+  synthetic certificates (`assets/doris-help-examples.json`, a copy of
+  `resource/doris_help_examples.json` kept equal by a test; Metro does not watch
+  outside the app root) or a blank one and processes what is on screen; WHO's
+  recorded `observed` results are dropped when the file is read. The
+  device-wide ICD-11 / DORIS switch is respected (off: a message and a link to
+  Settings; turned on from there: wait for Continue). Engine start shows the
+  engine's progress. No "Try on web" button yet (comes with WP7).
+- **React ICD-11 picker (digitva-9cll.2, 2026-10-29).** In the Collect Plus
+  build only (`isPlusVariant()`), `IcdPickerModal` renders
+  `src/workspace/doris/picker/IcdPicker.tsx` instead of `IcdPickerFrame`, for
+  online and offline coding. No WebView, iframe or Bootstrap; it uses the DORIS
+  kit and `theme.ts` tokens (light/dark). It speaks the web page's message
+  protocol to `pickerBridge.ts`, so `WorkspaceApi` and the guidance routes are
+  the only data path and the verification rule is unchanged. Plain Collect and
+  the Expo web build keep the shared web page. Details:
+  [DORIS COD Workflow](doris-cod-workflow.md).
+- Offline replies (digitva-9cll.3, 2026-10-30): terms, codeinfo, selection-check
+  and process are the server's replies, built by TypeScript ports of the
+  server's rules over the on-phone engine (`whoEngineApi.ts`,
+  `dorisTerminology.ts`, `dorisCertificate.ts`, `dorisProcessing.ts`) and
+  replayed against the recorded golden sets in jest; errors are `ApiError`s
+  with the server's codes. Limits, accepted: `certificate_digest` is the
+  server's but `result_digest` binds the engine release, not a WHO image digest;
+  the process token is `local-<uuid>`; the certificate seed from the interview is
   minimum-viable (sex, death/birth dates, estimated age) with provenance
-  badges.
+  badges. Details: [Android Engine Interface](icd11-android-engine-interface.md),
+  layer 6.
 
 ### Profiling
 
@@ -693,9 +727,9 @@ the device while unenrolled.
   work during the recording (for example the engine check). Open the pulled
   `.perfetto-trace` at https://ui.perfetto.dev.
 - Trace sections (`android.os.Trace`, fixed names, always ended in `finally`):
-  `icd11.init` (whole init), `icd11.copy` (data copy into `filesDir`), and per
-  call `icd11.search`, `icd11.codeinfo`, `icd11.doris`, `icd11.codedit`. Names
-  never carry user input or certificate text.
+  `icd11.init` (whole init), `icd11.copy` (data copy into `filesDir`), and
+  `icd11.call` for every engine call (one fixed name; the op is not in it).
+  Names never carry user input or certificate text.
 
 
 ## Unified phone coding access (`digitva-6rxf`)

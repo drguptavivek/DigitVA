@@ -352,7 +352,7 @@ export function WorkspaceLayout({
   </View>;
 
   return <View style={webStyles.safe}>
-    <ScrollView {...scrollMemory} style={webStyles.scroller} contentContainerStyle={[webStyles.page, phone && webStyles.pagePhone, phone && notes ? webStyles.pageWithNotesPill : null]}>
+    <ScrollView keyboardDismissMode="on-drag" {...scrollMemory} style={webStyles.scroller} contentContainerStyle={[webStyles.page, phone && webStyles.pagePhone, phone && notes ? webStyles.pageWithNotesPill : null]}>
       <View style={webStyles.content}>
         {phone ? <View style={[webStyles.sectionBar, categoriesOpen && webStyles.sectionBarBehind]}>
           <Pressable
@@ -433,7 +433,7 @@ export function WorkspaceLayout({
           <FaIcon name="fa-times" color={w.onBar} />
         </Pressable>
       </View>
-      <ScrollView style={webStyles.infoPanelScroll} contentContainerStyle={webStyles.infoPanelContent}>
+      <ScrollView keyboardDismissMode="on-drag" style={webStyles.infoPanelScroll} contentContainerStyle={webStyles.infoPanelContent}>
         <View style={webStyles.mobileCaseHeader}>
           {workspace.case.deceased_name ? <Text style={webStyles.mobileCaseId}>{workspace.case.deceased_name}</Text> : null}
           <Text style={workspace.case.deceased_name ? webStyles.mobileCaseMetaText : webStyles.mobileCaseId}>{workspace.case.instance_name}</Text>

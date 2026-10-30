@@ -1,0 +1,98 @@
+{
+ "id": "s093-road-traffic-accident",
+ "input": {
+  "id": "s093-road-traffic-accident",
+  "kind": "injury",
+  "query": "road traffic accident",
+  "source": "VAs-12.01; scripts/icd11-parity/queries.json",
+  "why": "injury or external-cause wording"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #5fbb9e3c58"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 5,
+     "items": [
+      {
+       "code": "PA0Z",
+       "has_coding_note": false,
+       "matching_text": "Unintentional land transport traffic event injuring a user of unspecified land transport",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional land transport traffic event injuring a user of unspecified land transport",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1710329660/unspecified"
+      },
+      {
+       "code": "PA0D",
+       "has_coding_note": false,
+       "matching_text": "Unintentional land transport traffic event injuring a user of an all-terrain vehicle",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional land transport traffic event injuring a user of an all-terrain vehicle",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/449621115"
+      },
+      {
+       "code": "PA0D&XE9EE&XE1LZ",
+       "has_coding_note": false,
+       "matching_text": "Passenger of all-terrain or other off-road motor vehicle injured in traffic accident",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Passenger of all-terrain or other off-road motor vehicle injured in traffic accident",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/449621115 & http://id.who.int/icd/release/11/2026-01/mms/1857275174 & http://id.who.int/icd/release/11/2026-01/mms/1210553509"
+      },
+      {
+       "code": "PA0D&XE9EE&XE42A",
+       "has_coding_note": false,
+       "matching_text": "Driver of all-terrain or other off-road motor vehicle injured in traffic accident",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Driver of all-terrain or other off-road motor vehicle injured in traffic accident",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/449621115 & http://id.who.int/icd/release/11/2026-01/mms/1857275174 & http://id.who.int/icd/release/11/2026-01/mms/1594880101"
+      },
+      {
+       "code": "PA0D&XE9EE&XE166",
+       "has_coding_note": false,
+       "matching_text": "Person on outside of all-terrain or other off-road motor vehicle injured in traffic accident",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Person on outside of all-terrain or other off-road motor vehicle injured in traffic accident",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/449621115 & http://id.who.int/icd/release/11/2026-01/mms/1857275174 & http://id.who.int/icd/release/11/2026-01/mms/987156005"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "road traffic accident",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #5fbb9e3c58": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1710329660/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1710329660","important":true,"label":"<em class='found'>road</em> <em class='found'>traffic</em> <em class='found'>accident</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1710329660","important":false,"label":"RTA - [<em class='found'>road</em> <em class='found'>traffic</em> <em class='found'>accident</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.2760623987834001}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1710329660/unspecified","theCode":"PA0Z","title":"Unintentional land transport <em class='found'>traffic</em> event injuring a user of unspecified land transport","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/449621115","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2032548893","important":false,"label":"Unspecified occupant of all-terrain or other off-<em class='found'>road</em> motor vehicle injured in <em class='found'>traffic</em> <em class='found'>accident</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-1.269641521908083}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.269641521908083,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/449621115","theCode":"PA0D","title":"Unintentional land transport <em class='found'>traffic</em> event injuring a user of an all-terrain vehicle","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/449621115 & http://id.who.int/icd/release/11/2026-01/mms/1857275174 & http://id.who.int/icd/release/11/2026-01/mms/1210553509","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.3303169992346142,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/449621115","theCode":"PA0D&XE9EE&XE1LZ","title":"Passenger of all-terrain or other off-<em class='found'>road</em> motor vehicle injured in <em class='found'>traffic</em> <em class='found'>accident</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/449621115 & http://id.who.int/icd/release/11/2026-01/mms/1857275174 & http://id.who.int/icd/release/11/2026-01/mms/1594880101","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.3401560136750013,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/449621115","theCode":"PA0D&XE9EE&XE42A","title":"Driver of all-terrain or other off-<em class='found'>road</em> motor vehicle injured in <em class='found'>traffic</em> <em class='found'>accident</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/449621115 & http://id.who.int/icd/release/11/2026-01/mms/1857275174 & http://id.who.int/icd/release/11/2026-01/mms/987156005","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.7053362437499686,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/449621115","theCode":"PA0D&XE9EE&XE166","title":"Person on outside of all-terrain or other off-<em class='found'>road</em> motor vehicle injured in <em class='found'>traffic</em> <em class='found'>accident</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=road+traffic+accident%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

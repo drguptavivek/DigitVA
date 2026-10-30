@@ -3,6 +3,41 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-30
+
+- **Collect Plus codes completely offline, the way the web does** (epic
+  `digitva-9cll`; design `.tasks/2026-10-29-android-offline-doris-parity.md`,
+  as-built interface `docs/current-state/icd11-android-engine-interface.md`).
+  The engine exposes one generic call (`digitva_icd11_call(op, json)`: search,
+  codeinfo, entity, foundation entity, DORIS, CoDEdit) returning WHO REST JSON
+  with bounded replies; the old fallback exports are gone (WP1, WP1b). The app
+  ports the server's DORIS rules to TypeScript (`whoEngineApi`, `dorisTerminology`,
+  `dorisCertificate`, `dorisProcessing`, `piiBoundary`) and routes every guidance
+  call offline (`dorisGuidance`) (WP2, WP3). Collect Plus gets a React ICD-11
+  picker (WP4; the website keeps its JS picker): flat result rows with J/K and
+  postcoordination badges, Build with mandatory axes, details, hierarchy,
+  related terms, a one-row footer and two panes on tablets. Golden sets recorded
+  from `whoicd/icd-api:2.6.0` (456 fixtures, owner approval of the lists pending)
+  replay exactly: search 238, codeinfo/selection 182, DORIS 173, guidance 485.
+  On the emulator a postcoordinated `CA40.1Z/1D82` gives DORIS and CoDEdit
+  results equal to the WHO container.
+- **Try DORIS in Help** (WP6, `digitva-9cll.8`): Collect Plus on Android, also
+  before sign-in, offline, nothing saved; WHO's six synthetic certificates or a
+  blank one. Help before the PIN now offers nothing that needs an unlocked
+  account (review finding: it could reach Sign out of a locked account).
+- **Layout:** phones locked to portrait (`expo-screen-orientation`), tablets
+  rotate; dragging any scroll view closes the keyboard (app and VA form); the
+  certificate form's administrative fields no longer stretch or overlap,
+  Estimated age follows the two dates, codes on a line and the Step 1 ⓘ sit
+  inline.
+- **Engine build on CI** (WP8, `digitva-9cll.10`): `build.sh` and
+  `Bridge.csproj` build on Mac or Linux (the Mac rebuild reproduces library
+  `8bfdc258…` and archive `d3fe3c3a…` byte for byte); the manual
+  `icd11-engine-build.yml` workflow builds from WHO's image by digest, fails on
+  `rd_gen.xml` drift, checks exports and 16 KB alignment, and uploads an
+  artifact only. Not yet run on GitHub; engine release 2026.10.29.1 is pinned
+  but not published (owner step).
+
 ## 2026-10-29
 
 - **Collect and Collect Plus 0.3.15** published from `d8a3a9149` and pinned in

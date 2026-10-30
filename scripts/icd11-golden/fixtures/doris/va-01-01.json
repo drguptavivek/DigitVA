@@ -1,0 +1,123 @@
+{
+ "id": "va-01-01",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P46Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1G40",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+       "Text": "Sepsis"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-01-01",
+  "source": "VA cause VAs-01.01 Sepsis",
+  "why": "Sepsis: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1G40",
+    "POST icd/release/11/2026-01/doris #32534013cc",
+    "POST icd/release/11/2026-01/codedit #32534013cc"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P46Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1G40",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+          "Text": "Sepsis"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1G40",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 1G40 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1G40 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1G40.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1G40.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1G40",
+       "stemURI": "http://id.who.int/icd/entity/622600769",
+       "tabularReport": "SP1;True;;1G40;1G40;;;0;SP1: 1G40 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1G40;;;;;0;SP6: is not applicable with the current TSP 1G40.;;;;BER\nSP7;False;1G40;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1G40;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1G40;;;;;0;M1: There is no special instruction applicable with TUC 1G40.;;;;BER\nM2;False;1G40;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1G40;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/622600769",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1G40",
+       "role": "stem",
+       "title": "Sepsis",
+       "uri": "http://id.who.int/icd/release/11/mms/622600769"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P46Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1G40",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+         "Text": "Sepsis"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1G40": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1G40","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1G40","code":"1G40","stemId":"http://id.who.int/icd/release/11/2026-01/mms/622600769"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #32534013cc": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P46Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1G40\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/622600769\",\"Text\":\"Sepsis\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #32534013cc": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1G40","error":null,"reject":false,"report":"SP1: 1G40 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1G40 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1G40.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1G40.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1G40","stemURI":"http://id.who.int/icd/entity/622600769","tabularReport":"SP1;True;;1G40;1G40;;;0;SP1: 1G40 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1G40;;;;;0;SP6: is not applicable with the current TSP 1G40.;;;;BER\nSP7;False;1G40;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1G40;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1G40;;;;;0;M1: There is no special instruction applicable with TUC 1G40.;;;;BER\nM2;False;1G40;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1G40;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/622600769","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P46Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1G40\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/622600769\",\"Text\":\"Sepsis\"}]}]}","status":200}
+ }
+}

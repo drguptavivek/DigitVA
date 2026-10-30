@@ -1,0 +1,123 @@
+{
+ "id": "va-10-06",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P1D",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "LA02.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified",
+       "Text": "Spina bifida"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "neonatal",
+  "id": "va-10-06",
+  "source": "VA cause VAs-10.06 Congenital malformation",
+  "why": "Congenital malformation: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/LA02.Z",
+    "POST icd/release/11/2026-01/doris #95025a71d5",
+    "POST icd/release/11/2026-01/codedit #95025a71d5"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P1D",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "LA02.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified",
+          "Text": "Spina bifida"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-934",
+       "report": "This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.",
+       "tabularReport": "0,\"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.\",FER-CE-934;;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "LA02.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: LA02.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: LA02.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP LA02.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC LA02.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "LA02.Z",
+       "stemURI": "http://id.who.int/icd/entity/2036217905/mms/unspecified",
+       "tabularReport": "MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;True;;LA02.Z;LA02.Z;;;0;SP1: LA02.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;LA02.Z;;;;;0;SP6: is not applicable with the current TSP LA02.Z.;;;;BER\nSP7;False;LA02.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;LA02.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;LA02.Z;;;;;0;M1: There is no special instruction applicable with TUC LA02.Z.;;;;BER\nM2;False;LA02.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;LA02.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/2036217905/unspecified",
+       "warning": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "LA02.Z",
+       "role": "stem",
+       "title": "Spina bifida",
+       "uri": "http://id.who.int/icd/release/11/mms/2036217905/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P1D",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "LA02.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified",
+         "Text": "Spina bifida"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/LA02.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/LA02.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/LA02.Z","code":"LA02.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #95025a71d5": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-934","report":"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.","tabularReport":"0,\"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.\",FER-CE-934;;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P1D\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"LA02.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified\",\"Text\":\"Spina bifida\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #95025a71d5": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"LA02.Z","error":null,"reject":false,"report":"SP1: LA02.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: LA02.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP LA02.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC LA02.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"LA02.Z","stemURI":"http://id.who.int/icd/entity/2036217905/mms/unspecified","tabularReport":"MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;True;;LA02.Z;LA02.Z;;;0;SP1: LA02.Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;LA02.Z;;;;;0;SP6: is not applicable with the current TSP LA02.Z.;;;;BER\nSP7;False;LA02.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;LA02.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;LA02.Z;;;;;0;M1: There is no special instruction applicable with TUC LA02.Z.;;;;BER\nM2;False;LA02.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;LA02.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/2036217905/unspecified","warning":"The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P1D\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"LA02.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2036217905/unspecified\",\"Text\":\"Spina bifida\"}]}]}","status":200}
+ }
+}

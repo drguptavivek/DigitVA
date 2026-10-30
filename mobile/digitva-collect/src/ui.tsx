@@ -71,7 +71,7 @@ export function Screen({
       {sidebar}
       <View style={screenStyles.mainColumn}>
         {lead && scroll ? (
-          <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll}>
+          <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll}>
             {lead}
             {titleNode}
             <View style={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>{children}</View>
@@ -80,7 +80,7 @@ export function Screen({
           <>
             {titleNode}
             {scroll ? (
-              <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll} contentContainerStyle={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>
+              <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll} contentContainerStyle={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>
                 {children}
               </ScrollView>
             ) : (
@@ -93,7 +93,7 @@ export function Screen({
       </View>
     </View>
   ) : scroll ? (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>
+    <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>
       {children}
     </ScrollView>
   ) : (

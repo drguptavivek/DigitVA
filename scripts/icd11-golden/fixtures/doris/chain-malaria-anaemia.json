@@ -1,0 +1,158 @@
+{
+ "id": "chain-malaria-anaemia",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P27Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "3A9Z",
+       "Interval": "P4D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified",
+       "Text": "Severe anaemia"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "1F40.Z",
+       "Interval": "P10D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified",
+       "Text": "Malaria"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-malaria-anaemia",
+  "source": "VA cause VAs-03.01 Severe anaemia; VA cause VAs-01.05 Malaria",
+  "why": "Two lines: severe anaemia due to falciparum malaria"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/3A9Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/1F40.Z",
+    "POST icd/release/11/2026-01/doris #955e245621",
+    "POST icd/release/11/2026-01/codedit #955e245621"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P27Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "3A9Z",
+          "Interval": "P4D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified",
+          "Text": "Severe anaemia"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "1F40.Z",
+          "Interval": "P10D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified",
+          "Text": "Malaria"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1F40.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: 1F40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 1F40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1F40.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1F40.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1F40.Z",
+       "stemURI": "http://id.who.int/icd/entity/579583286/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;1F40.Z;1F40.Z;;;0;SP3: 1F40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1F40.Z;;;;;0;SP6: is not applicable with the current TSP 1F40.Z.;;;;BER\nSP7;False;1F40.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1F40.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1F40.Z;;;;;0;M1: There is no special instruction applicable with TUC 1F40.Z.;;;;BER\nM2;False;1F40.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1F40.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;1F40.Z;;1F40.Z;;;;;;Age;1,Plausibility between the age and UCOD (1F40.Z) should be checked.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/579583286/unspecified",
+       "warning": "Plausibility between the age and UCOD (1F40.Z) should be checked.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1F40.Z",
+       "role": "stem",
+       "title": "Malaria",
+       "uri": "http://id.who.int/icd/release/11/mms/579583286/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P27Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "3A9Z",
+         "Interval": "P4D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified",
+         "Text": "Severe anaemia"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "1F40.Z",
+         "Interval": "P10D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified",
+         "Text": "Malaria"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1F40.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1F40.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1F40.Z","code":"1F40.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/3A9Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/3A9Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/3A9Z","code":"3A9Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #955e245621": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"3A9Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified\",\"Text\":\"Severe anaemia\"}]},{\"Conditions\":[{\"Code\":\"1F40.Z\",\"Interval\":\"P10D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified\",\"Text\":\"Malaria\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #955e245621": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1F40.Z","error":null,"reject":false,"report":"SP3: 1F40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 1F40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1F40.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1F40.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1F40.Z","stemURI":"http://id.who.int/icd/entity/579583286/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;1F40.Z;1F40.Z;;;0;SP3: 1F40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1F40.Z;;;;;0;SP6: is not applicable with the current TSP 1F40.Z.;;;;BER\nSP7;False;1F40.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1F40.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1F40.Z;;;;;0;M1: There is no special instruction applicable with TUC 1F40.Z.;;;;BER\nM2;False;1F40.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1F40.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;1F40.Z;;1F40.Z;;;;;;Age;1,Plausibility between the age and UCOD (1F40.Z) should be checked.,;BER","uri":"http://id.who.int/icd/release/11/mms/579583286/unspecified","warning":"Plausibility between the age and UCOD (1F40.Z) should be checked.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"3A9Z\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/224336967/unspecified\",\"Text\":\"Severe anaemia\"}]},{\"Conditions\":[{\"Code\":\"1F40.Z\",\"Interval\":\"P10D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified\",\"Text\":\"Malaria\"}]}]}","status":200}
+ }
+}

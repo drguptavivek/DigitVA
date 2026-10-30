@@ -1,0 +1,171 @@
+{
+ "id": "p2-maternal-anaemia",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P26Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MaternalDeath": {
+    "PregnancyContribute": 1,
+    "TimeFromPregnancy": 1,
+    "WasPregnant": 0
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "JA43.1",
+       "Interval": "PT3H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+       "Text": "Bleeding after delivery"
+      }
+     ]
+    }
+   ],
+   "Part2": {
+    "Conditions": [
+     {
+      "Code": "JB64.0",
+      "Interval": "P6M",
+      "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1426960900",
+      "Text": "Anaemia in pregnancy"
+     }
+    ]
+   }
+  },
+  "group": "maternal",
+  "id": "p2-maternal-anaemia",
+  "source": "VA cause VAs-09.04 Obstetric haemorrhage; VA cause VAs-09.07 Anaemia of pregnancy",
+  "why": "Part II: anaemia contributing to maternal haemorrhage"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.0",
+    "POST icd/release/11/2026-01/doris #33d3bfe211",
+    "POST icd/release/11/2026-01/codedit #33d3bfe211"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P26Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MaternalDeath": {
+       "WasPregnant": 0
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "JA43.1",
+          "Interval": "PT3H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+          "Text": "Bleeding after delivery"
+         }
+        ]
+       }
+      ],
+      "Part2": {
+       "Conditions": [
+        {
+         "Code": "JB64.0",
+         "Interval": "P6M",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1426960900",
+         "Text": "Anaemia in pregnancy"
+        }
+       ]
+      }
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "JA43.1",
+       "error": null,
+       "reject": false,
+       "report": "SP2: JA43.1 is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n\n\nFull report:\nSP1: is not applicable.\nSP2: JA43.1 is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA43.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA43.1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n",
+       "stemCode": "JA43.1",
+       "stemURI": "http://id.who.int/icd/entity/1531859332",
+       "tabularReport": "MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;JA43.1;JA43.1;;;0;SP2: JA43.1 is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA43.1;;;;;0;SP6: is not applicable with the current TSP JA43.1.;;;;BER\nSP7;False;JA43.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA43.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA43.1;;;;;0;M1: There is no special instruction applicable with TUC JA43.1.;;;;BER\nM2;False;JA43.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA43.1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA43.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA43.1;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1531859332",
+       "warning": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "JA43.1",
+       "role": "stem",
+       "title": "Bleeding after delivery",
+       "uri": "http://id.who.int/icd/release/11/mms/1531859332"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P26Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MaternalDeath": {
+      "PregnancyContribute": 1,
+      "TimeFromPregnancy": 1,
+      "WasPregnant": 0
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "JA43.1",
+         "Interval": "PT3H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+         "Text": "Bleeding after delivery"
+        }
+       ]
+      }
+     ],
+     "Part2": {
+      "Conditions": [
+       {
+        "Code": "JB64.0",
+        "Interval": "P6M",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1426960900",
+        "Text": "Anaemia in pregnancy"
+       }
+      ]
+     }
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/JA43.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA43.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA43.1","code":"JA43.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB64.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB64.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB64.0","code":"JB64.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1426960900"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #33d3bfe211": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P26Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"WasPregnant\":0},\"Part1\":[{\"Conditions\":[{\"Code\":\"JA43.1\",\"Interval\":\"PT3H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1531859332\",\"Text\":\"Bleeding after delivery\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"JB64.0\",\"Interval\":\"P6M\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1426960900\",\"Text\":\"Anaemia in pregnancy\"}]}}","status":200},
+  "POST icd/release/11/2026-01/doris #33d3bfe211": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"JA43.1","error":null,"reject":false,"report":"SP2: JA43.1 is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n\n\nFull report:\nSP1: is not applicable.\nSP2: JA43.1 is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA43.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA43.1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n","stemCode":"JA43.1","stemURI":"http://id.who.int/icd/entity/1531859332","tabularReport":"MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;JA43.1;JA43.1;;;0;SP2: JA43.1 is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA43.1;;;;;0;SP6: is not applicable with the current TSP JA43.1.;;;;BER\nSP7;False;JA43.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA43.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA43.1;;;;;0;M1: There is no special instruction applicable with TUC JA43.1.;;;;BER\nM2;False;JA43.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA43.1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA43.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA43.1;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1531859332","warning":"Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P26Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"WasPregnant\":0},\"Part1\":[{\"Conditions\":[{\"Code\":\"JA43.1\",\"Interval\":\"PT3H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1531859332\",\"Text\":\"Bleeding after delivery\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"JB64.0\",\"Interval\":\"P6M\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1426960900\",\"Text\":\"Anaemia in pregnancy\"}]}}","status":200}
+ }
+}

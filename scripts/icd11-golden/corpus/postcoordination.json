@@ -1,0 +1,562 @@
+{
+ "status": "draft",
+ "kind": "postcoordination",
+ "release": "2026-01",
+ "description": "Stems recorded through the seven guidance replies (codeinfo, selection-check, postcoordination, postcoordination-options for the first expandable root of each axis, hierarchy, related maternal and perinatal, details), plus each 'built' expression through codeinfo, selection-check, hierarchy, details and related.",
+ "items": [
+  {
+   "id": "pc-bd54",
+   "stem": "BD54",
+   "category": "mandatory",
+   "why": "Diabetic foot ulcer: required 'Has causing condition' axis plus laterality, anatomy, manifestation; maternal link; coding note",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md rules 2-3, 10",
+   "built": [
+    {
+     "expression": "BD54/5A11",
+     "why": "causing condition chosen (type 2 diabetes)"
+    },
+    {
+     "expression": "BD54&XK9J/5A11",
+     "why": "X extension (bilateral) before the / stem, WHO canonical order"
+    },
+    {
+     "expression": "BD54&XK9J&XA47V8/5A11",
+     "why": "two X extensions, then the causing condition"
+    },
+    {
+     "expression": "BD54/5A11/MC85",
+     "why": "causing condition and the gangrene manifestation as / stems"
+    },
+    {
+     "expression": "BD54",
+     "why": "stem alone: 'causing condition not known' (digitva-xmpx)"
+    },
+    {
+     "expression": "BD54&XK9J",
+     "why": "extension only, required axis missing"
+    },
+    {
+     "expression": "BD54/MC85",
+     "why": "manifestation only (search composite 'Diabetic foot ulcer with gangrene')"
+    },
+    {
+     "expression": "BD54&XS5W",
+     "why": "WHO refuses this extension for the stem (KB rule 6)"
+    },
+    {
+     "expression": "BD54&XS5W/5A11",
+     "why": "refused extension inside a longer expression"
+    }
+   ],
+   "options": [
+    {
+     "axis_id": "hasCausingCondition",
+     "parent": "XK9J",
+     "why": "parent outside the axis (laterality root): INVALID_PARENT"
+    },
+    {
+     "axis_id": "noSuchAxis",
+     "parent": "XK9J",
+     "why": "unknown axis: INVALID_AXIS"
+    }
+   ]
+  },
+  {
+   "id": "pc-1g40",
+   "stem": "1G40",
+   "category": "mandatory",
+   "why": "Sepsis without septic shock (VA cause 01.01): required causing condition with 50 roots, cut to 12 (truncated axis)",
+   "source": "VAs-01.01; docs/kb/doris-picker-who-behaviour-rules.md",
+   "built": [
+    {
+     "expression": "1G40/CA40.0Z",
+     "why": "sepsis due to bacterial pneumonia"
+    },
+    {
+     "expression": "1G40/1A40.Z",
+     "why": "sepsis due to gastroenteritis"
+    },
+    {
+     "expression": "1G40",
+     "why": "sepsis alone, causing condition unknown"
+    }
+   ]
+  },
+  {
+   "id": "pc-db93-1",
+   "stem": "DB93.1",
+   "category": "mandatory",
+   "why": "Hepatic cirrhosis (VA cause 06.02): required causing condition, 25 manifestation roots",
+   "source": "VAs-06.02",
+   "built": [
+    {
+     "expression": "DB93.1/1E51",
+     "why": "cirrhosis due to chronic viral hepatitis"
+    },
+    {
+     "expression": "DB93.1",
+     "why": "stem alone"
+    }
+   ]
+  },
+  {
+   "id": "pc-ja43-1",
+   "stem": "JA43.1",
+   "category": "mandatory",
+   "why": "Postpartum haemorrhage (VA cause 09.04): required causing condition, obstetric roots",
+   "source": "VAs-09.04",
+   "built": [
+    {
+     "expression": "JA43.1/JB02.2",
+     "why": "haemorrhage due to uterine atony"
+    },
+    {
+     "expression": "JA43.1/JB09.0",
+     "why": "haemorrhage due to perineal laceration"
+    }
+   ]
+  },
+  {
+   "id": "pc-jb40-0",
+   "stem": "JB40.0",
+   "category": "mandatory",
+   "why": "Puerperal sepsis (VA cause 09.06): required causing condition and an infectious-agent axis",
+   "source": "VAs-09.06",
+   "built": [
+    {
+     "expression": "JB40.0&XN74M/JB40.2",
+     "why": "bacteria extension, then genital tract infection"
+    },
+    {
+     "expression": "JB40.0/JB40.3",
+     "why": "urinary tract infection"
+    }
+   ]
+  },
+  {
+   "id": "pc-ca40-0z",
+   "stem": "CA40.0Z",
+   "category": "mandatory",
+   "why": "Bacterial pneumonia (VA cause 01.02): five axes, one required, mixed NotAllowed and AllowAlways",
+   "source": "VAs-01.02",
+   "built": [
+    {
+     "expression": "CA40.0Z/1G40",
+     "why": "pneumonia with sepsis"
+    },
+    {
+     "expression": "CA40.0Z&XK9J",
+     "why": "laterality extension only"
+    },
+    {
+     "expression": "CA40.0Z&XB25/1A07",
+     "why": "nosocomial extension and typhoid cause"
+    }
+   ]
+  },
+  {
+   "id": "pc-gb61-z",
+   "stem": "GB61.Z",
+   "category": "mandatory",
+   "why": "Chronic kidney disease (VA cause 07.01): required causing condition whose roots are uncoded groups (expand to pick)",
+   "source": "VAs-07.01; docs/kb/doris-picker-who-behaviour-rules.md rule 17",
+   "built": [
+    {
+     "expression": "GB61.Z/5A11",
+     "why": "kidney disease due to type 2 diabetes (order that triggered the CoDEdit BER-CE-9 report)"
+    },
+    {
+     "expression": "GB61.Z/BA00.Z",
+     "why": "kidney disease due to hypertension"
+    }
+   ]
+  },
+  {
+   "id": "pc-3a71-2",
+   "stem": "3A71.2",
+   "category": "mandatory",
+   "why": "Anaemia in chronic kidney disease: single required axis with a single root",
+   "source": "VAs-03.01",
+   "built": [
+    {
+     "expression": "3A71.2/GB61.5",
+     "why": "anaemia with stage 5 kidney disease"
+    }
+   ]
+  },
+  {
+   "id": "pc-9b71-00",
+   "stem": "9B71.00",
+   "category": "mandatory",
+   "why": "Non-proliferative diabetic retinopathy: severity, laterality and required causing condition",
+   "source": "docs/kb/doris-icd-api-and-va.md",
+   "built": [
+    {
+     "expression": "9B71.00&XS25&XK9J/5A11",
+     "why": "severe, bilateral, type 2 diabetes"
+    }
+   ]
+  },
+  {
+   "id": "pc-1d01-0z",
+   "stem": "1D01.0Z",
+   "category": "mandatory",
+   "why": "Bacterial meningitis (VA cause 01.07): required axis with 25 roots",
+   "source": "VAs-01.07"
+  },
+  {
+   "id": "pc-nc72-7",
+   "stem": "NC72.7",
+   "category": "injury",
+   "why": "Multiple fractures of femur: five optional axes (fracture subtype has 26 roots), coding note",
+   "source": "owner list 2026-10-29; docs/kb/doris-picker-who-behaviour-rules.md rule 2",
+   "built": [
+    {
+     "expression": "NC72.7&XK8G&XJ44E",
+     "why": "left, closed"
+    },
+    {
+     "expression": "NC72.7&XJ7YM&XK9K",
+     "why": "open, right"
+    },
+    {
+     "expression": "NC72.7&XK8G",
+     "why": "left only"
+    }
+   ]
+  },
+  {
+   "id": "pc-nc71-z",
+   "stem": "NC71.Z",
+   "category": "injury",
+   "why": "Open wound of hip or thigh: laterality, anatomy and associated-with (external causes chapter)",
+   "source": "owner list 2026-10-29",
+   "built": [
+    {
+     "expression": "NC71.Z&XK8G&XA5S78",
+     "why": "left thigh"
+    }
+   ]
+  },
+  {
+   "id": "pc-nc72-z",
+   "stem": "NC72.Z",
+   "category": "injury",
+   "why": "Fracture of femur, unspecified (VA cause 12.99): five axes, associated-with 2",
+   "source": "VAs-12.99"
+  },
+  {
+   "id": "pc-nc72",
+   "stem": "NC72",
+   "category": "injury",
+   "why": "Fracture of femur (parent category): 11 children shown in hierarchy",
+   "source": "owner list 2026-10-29"
+  },
+  {
+   "id": "pc-na02-z",
+   "stem": "NA02.Z",
+   "category": "injury",
+   "why": "Skull fracture: fracture subtype, open/closed, anatomy, perinatal links",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md rule 17"
+  },
+  {
+   "id": "pc-ne61",
+   "stem": "NE61",
+   "category": "injury",
+   "why": "Noxious substances (poisoning): chemical agent root with 50 children, coding note, exclusions",
+   "source": "VAs-12.07",
+   "built": [
+    {
+     "expression": "NE61&XM0231",
+     "why": "poisoning with a specific chemical agent"
+    }
+   ]
+  },
+  {
+   "id": "pc-pa61",
+   "stem": "PA61",
+   "category": "injury",
+   "why": "Fall from a height (VA cause 12.03): five external-cause axes, roots over 12 (truncated)",
+   "source": "VAs-12.03",
+   "built": [
+    {
+     "expression": "PA61&XE545&XE266",
+     "why": "paid work at home"
+    }
+   ]
+  },
+  {
+   "id": "pc-pa03",
+   "stem": "PA03",
+   "category": "injury",
+   "why": "Motorcycle traffic event (VA cause 12.01): built from the WHO search result PA03&XE7ZZ",
+   "source": "VAs-12.01; scripts/icd11-parity/queries.json",
+   "built": [
+    {
+     "expression": "PA03&XE7ZZ",
+     "why": "motorcycle rider injured (WHO search result)"
+    }
+   ]
+  },
+  {
+   "id": "pc-pc71",
+   "stem": "PC71",
+   "category": "injury",
+   "why": "Self-harm by threat to breathing (VA cause 12.08): self-harm aspects axis",
+   "source": "VAs-12.08"
+  },
+  {
+   "id": "pc-pd50",
+   "stem": "PD50",
+   "category": "injury",
+   "why": "Assault by road traffic (VA cause 12.09): six axes with a long transport-event root list",
+   "source": "VAs-12.09"
+  },
+  {
+   "id": "pc-pa50-z",
+   "stem": "PA50.Z",
+   "category": "injury",
+   "why": "Stem whose postcoordination read needs 46 of the 48 WHO calls the guidance budget allows (closest to the cap found)",
+   "source": "app/services/icd11_postcoordination.py _MAX_CALLS"
+  },
+  {
+   "id": "pc-pa78",
+   "stem": "PA78",
+   "category": "injury",
+   "why": "Venomous animal (VA cause 12.06): snake bite extension PA78&XE9H6 from the DORIS warning cases",
+   "source": "VAs-12.06; tests/fixtures/doris_warning_cases.json",
+   "built": [
+    {
+     "expression": "PA78&XE9H6",
+     "why": "venomous snake"
+    }
+   ]
+  },
+  {
+   "id": "pc-2a01-0y",
+   "stem": "2A01.0Y",
+   "category": "optional",
+   "why": "Other specified meningiomas: all axes optional, uncoded histopathology roots",
+   "source": "owner list 2026-10-29",
+   "built": [
+    {
+     "expression": "2A01.0Y&XA6HA2",
+     "why": "cerebral meninges"
+    },
+    {
+     "expression": "2A01.0Y&XA6HA2/MG30.10",
+     "why": "cerebral meninges with cancer pain"
+    }
+   ]
+  },
+  {
+   "id": "pc-2a01",
+   "stem": "2A01",
+   "category": "optional",
+   "why": "Primary neoplasms of meninges: histopathology axis with 50 roots (truncated), three children",
+   "source": "owner list 2026-10-29"
+  },
+  {
+   "id": "pc-2c25-z",
+   "stem": "2C25.Z",
+   "category": "optional",
+   "why": "Lung cancer (VA cause 02.03): severity and alternative severity axes",
+   "source": "VAs-02.03"
+  },
+  {
+   "id": "pc-1b12-2",
+   "stem": "1B12.2",
+   "category": "optional",
+   "why": "Tuberculosis of ear: stem of the KB cluster example 1B12.2&XA0G74; maternal and perinatal links, exclusions, inclusion",
+   "source": "docs/kb/doris-certificate-ui-contract.md; docs/kb/doris-icd-api-and-va.md",
+   "built": [
+    {
+     "expression": "1B12.2&XA0G74",
+     "why": "middle ear (the KB cluster)"
+    },
+    {
+     "expression": "1B12.2&XA0G74&XK8G",
+     "why": "middle ear, left"
+    },
+    {
+     "expression": "1B12.2/MG52.0",
+     "why": "antibiotic resistant organism"
+    }
+   ]
+  },
+  {
+   "id": "pc-1a00",
+   "stem": "1A00",
+   "category": "optional",
+   "why": "Cholera (VA cause 01.04): infectious agent axis",
+   "source": "VAs-01.04; owner list 2026-10-29",
+   "built": [
+    {
+     "expression": "1A00&XN8P1",
+     "why": "Vibrio cholerae O1 biovar cholerae"
+    },
+    {
+     "expression": "1A00/5A11",
+     "why": "owner's example '1A00/5A11': WHO does not resolve it (expected not found)"
+    }
+   ]
+  },
+  {
+   "id": "pc-5a11",
+   "stem": "5A11",
+   "category": "optional",
+   "why": "Type 2 diabetes mellitus (VA cause 03.03): hasManifestation with 16 roots (truncated), maternal and perinatal links, exclusions",
+   "source": "VAs-03.03",
+   "built": [
+    {
+     "expression": "5A11/8C03.0",
+     "why": "diabetes with polyneuropathy"
+    },
+    {
+     "expression": "5A24/5A11",
+     "why": "WHO cluster for uncontrolled diabetes (search composite)"
+    }
+   ]
+  },
+  {
+   "id": "pc-ba41-z",
+   "stem": "BA41.Z",
+   "category": "optional",
+   "why": "Acute myocardial infarction (VA cause 04.01): anatomy, manifestation (7) and associated-with",
+   "source": "VAs-04.01",
+   "built": [
+    {
+     "expression": "BA41.Z/BD10",
+     "why": "infarction with congestive heart failure"
+    },
+    {
+     "expression": "BA41.Z&XA0F62/BD10",
+     "why": "left main coronary artery, with heart failure"
+    }
+   ]
+  },
+  {
+   "id": "pc-1c62-z",
+   "stem": "1C62.Z",
+   "category": "optional",
+   "why": "HIV disease (VA cause 01.03): associated-with with 15 roots (truncated)",
+   "source": "VAs-01.03"
+  },
+  {
+   "id": "pc-ka60",
+   "stem": "KA60",
+   "category": "optional",
+   "why": "Sepsis of newborn (VA cause 10.04): infectious agent and associated-with",
+   "source": "VAs-10.04",
+   "built": [
+    {
+     "expression": "KA60&XN74M",
+     "why": "bacterial neonatal sepsis"
+    }
+   ]
+  },
+  {
+   "id": "pc-1a07",
+   "stem": "1A07",
+   "category": "optional",
+   "why": "Typhoid fever: hasManifestation with 9 roots, three children (expandable)",
+   "source": "VAs-01.99"
+  },
+  {
+   "id": "pc-1c12-0",
+   "stem": "1C12.0",
+   "category": "optional",
+   "why": "Whooping cough: stem of the WHO search cluster 1C12.0/CA40.0Y",
+   "source": "scripts/icd11-parity/queries.json",
+   "built": [
+    {
+     "expression": "1C12.0/CA40.0Y",
+     "why": "whooping cough with pneumonia"
+    }
+   ]
+  },
+  {
+   "id": "pc-5a24",
+   "stem": "5A24",
+   "category": "optional",
+   "why": "Uncontrolled diabetes: stem of the WHO search cluster 5A24/5A11",
+   "source": "WHO search 'diabetes'"
+  },
+  {
+   "id": "pc-jb64-4",
+   "stem": "JB64.4",
+   "category": "optional",
+   "why": "Maternal-chapter stem of the composite JB64.4/BD54 (KB rule 10)",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md rule 10",
+   "built": [
+    {
+     "expression": "JB64.4/BD54",
+     "why": "maternal composite: related category joined with the stem"
+    }
+   ]
+  },
+  {
+   "id": "pc-ja25",
+   "stem": "JA25",
+   "category": "plain",
+   "why": "Eclampsia (VA cause 09.03): no axes, four children",
+   "source": "VAs-09.03"
+  },
+  {
+   "id": "pc-kd3b-1",
+   "stem": "KD3B.1",
+   "category": "plain",
+   "why": "Intrapartum fetal death (VA cause 11.01): no axes, coding note, two inclusion terms",
+   "source": "VAs-11.01"
+  },
+  {
+   "id": "pc-8a66-z",
+   "stem": "8A66.Z",
+   "category": "plain",
+   "why": "Status epilepticus (VA cause 08.01): no axes, maternal and perinatal links",
+   "source": "VAs-08.01"
+  },
+  {
+   "id": "pc-1f03-0",
+   "stem": "1F03.0",
+   "category": "plain",
+   "why": "Measles (VA cause 01.06): no axes, perinatal link",
+   "source": "VAs-01.06"
+  },
+  {
+   "id": "pc-xk9j",
+   "stem": "XK9J",
+   "category": "plain",
+   "why": "An extension code used as a stem: other_postcoordination must be null (stem starts with X)",
+   "source": "docs/kb/doris-picker-who-behaviour-rules.md rule 6"
+  },
+  {
+   "id": "pc-err-unknown",
+   "stem": "ZZ99",
+   "category": "error",
+   "why": "A code WHO does not know: CODE_NOT_FOUND on every operation",
+   "source": "docs/kb/doris-certificate-ui-contract.md"
+  },
+  {
+   "id": "pc-err-lowercase",
+   "stem": "bd54",
+   "category": "error",
+   "why": "Lower-case code: WHO's codeinfo accepts it but DigitVA requires the exact code (CODE_NOT_FOUND / INVALID_INPUT)",
+   "source": "app/services/icd11_postcoordination.py _CODE_RE"
+  },
+  {
+   "id": "pc-err-expression-as-stem",
+   "stem": "BD54&XK9J",
+   "category": "error",
+   "why": "An expression passed where a stem is required",
+   "source": "app/services/icd11_postcoordination.py _stem"
+  },
+  {
+   "id": "pc-err-chapter-x",
+   "stem": "X",
+   "category": "error",
+   "why": "The extension chapter itself: not a code",
+   "source": "KB rule 6"
+  }
+ ]
+}

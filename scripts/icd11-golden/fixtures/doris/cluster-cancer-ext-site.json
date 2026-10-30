@@ -1,0 +1,142 @@
+{
+ "id": "cluster-cancer-ext-site",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P70Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "2B90.0Z&XA95L3",
+       "Interval": "P1Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified & http://id.who.int/icd/release/11/2026-01/mms/328294343",
+       "Text": "Cancer of colon, hepatic flexure"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "cluster-cancer-ext-site",
+  "source": "scripts/icd11-parity/queries.json",
+  "why": "Cancer with site extension (2B90.0Z&XA95L3)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/2B90.0Z%26XA95L3",
+    "GET icd/release/11/2026-01/mms/codeinfo/2B90.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/XA95L3",
+    "POST icd/release/11/2026-01/doris #270f6bb428",
+    "POST icd/release/11/2026-01/codedit #270f6bb428",
+    "GET icd/release/11/2026-01/mms/codeinfo/2B90.0Z",
+    "GET icd/release/11/2026-01/mms/758254866/unspecified",
+    "GET icd/release/11/2026-01/mms/codeinfo/XA95L3",
+    "GET icd/release/11/2026-01/mms/328294343"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P70Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "2B90.0Z&XA95L3",
+          "Interval": "P1Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified & http://id.who.int/icd/release/11/2026-01/mms/328294343",
+          "Text": "Cancer of colon, hepatic flexure"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "2B90.0Z&XA95L3",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 2B90.0Z&XA95L3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 2B90.0Z&XA95L3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 2B90.0Z&XA95L3.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 2B90.0Z&XA95L3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "2B90.0Z",
+       "stemURI": "http://id.who.int/icd/entity/758254866/mms/unspecified",
+       "tabularReport": "SP1;True;;2B90.0Z&XA95L3;2B90.0Z&XA95L3;;;0;SP1: 2B90.0Z&XA95L3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;2B90.0Z&XA95L3;;;;;0;SP6: is not applicable with the current TSP 2B90.0Z&XA95L3.;;;;BER\nSP7;False;2B90.0Z&XA95L3;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;2B90.0Z&XA95L3;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;2B90.0Z&XA95L3;;;;;0;M1: There is no special instruction applicable with TUC 2B90.0Z&XA95L3.;;;;BER\nM2;False;2B90.0Z&XA95L3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;2B90.0Z&XA95L3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/758254866/unspecified & http://id.who.int/icd/release/11/mms/328294343",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "2B90.0Z",
+       "role": "stem",
+       "title": "Malignant neoplasm of ascending colon or right flexure of colon, unspecified",
+       "uri": "http://id.who.int/icd/release/11/mms/758254866/unspecified"
+      },
+      {
+       "code": "XA95L3",
+       "role": "extension",
+       "title": "Hepatic flexure of colon",
+       "uri": "http://id.who.int/icd/release/11/mms/328294343"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P70Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "2B90.0Z&XA95L3",
+         "Interval": "P1Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified & http://id.who.int/icd/release/11/2026-01/mms/328294343",
+         "Text": "Cancer of colon, hepatic flexure"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/328294343": {"method":"GET","path":"icd/release/11/2026-01/mms/328294343","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/328294343","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#328294343","classKind":"category","code":"XA95L3","indexTerm":[{"label":{"@language":"en","@value":"Hepatic flexure of colon"}},{"label":{"@language":"en","@value":"Hepatic flexure"}},{"label":{"@language":"en","@value":"Right colic flexure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/578694909"],"source":"http://id.who.int/icd/entity/328294343","title":{"@language":"en","@value":"Hepatic flexure of colon"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/758254866/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/758254866/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#758254866/unspecified","classKind":"category","code":"2B90.0Z","indexTerm":[{"label":{"@language":"en","@value":"Malignant neoplasm of ascending colon or right flexure of colon, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/758254866","label":{"@language":"en","@value":"Malignant neoplasm of ascending colon or right flexure of colon"}},{"foundationReference":"http://id.who.int/icd/entity/758254866","label":{"@language":"en","@value":"Malignant neoplasm of ascending colon and hepatic flexure of colon"}},{"foundationReference":"http://id.who.int/icd/entity/361612400","label":{"@language":"en","@value":"Malignant neoplasm of caecum"}},{"foundationReference":"http://id.who.int/icd/entity/361612400","label":{"@language":"en","@value":"cecum cancer"}},{"foundationReference":"http://id.who.int/icd/entity/361612400","label":{"@language":"en","@value":"ileocecal junction cancer"}},{"foundationReference":"http://id.who.int/icd/entity/361612400","label":{"@language":"en","@value":"ileocecal valve cancer"}},{"foundationReference":"http://id.who.int/icd/entity/361612400","label":{"@language":"en","@value":"malignant tumour of cecum"}},{"foundationReference":"http://id.who.int/icd/entity/361612400","label":{"@language":"en","@value":"primary malignant neoplasm of cecum"}},{"foundationReference":"http://id.who.int/icd/entity/74144027","label":{"@language":"en","@value":"Malignant neoplasm of ascending colon"}},{"foundationReference":"http://id.who.int/icd/entity/1629525135","label":{"@language":"en","@value":"Malignant neoplasm of hepatic flexure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/758254866"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/326645548","http://id.who.int/icd/release/11/2026-01/mms/1777850685","http://id.who.int/icd/release/11/2026-01/mms/328294343"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/322466810"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1409966790","http://id.who.int/icd/release/11/2026-01/mms/896293199","http://id.who.int/icd/release/11/2026-01/mms/1094217460","http://id.who.int/icd/release/11/2026-01/mms/238069351"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified/postcoordinationScale/hasAlternativeSeverity2","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasAlternativeSeverity2","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1863636238","http://id.who.int/icd/release/11/2026-01/mms/885826145","http://id.who.int/icd/release/11/2026-01/mms/1746207012","http://id.who.int/icd/release/11/2026-01/mms/303697349"]}],"title":{"@language":"en","@value":"Malignant neoplasm of ascending colon or right flexure of colon, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2B90.0Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2B90.0Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2B90.0Z","code":"2B90.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/2B90.0Z%26XA95L3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/2B90.0Z%26XA95L3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/2B90.0Z%26XA95L3","code":"2B90.0Z&XA95L3","specificAnatomy":["XA95L3"],"stemCode":"2B90.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XA95L3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XA95L3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XA95L3","code":"XA95L3","stemId":"http://id.who.int/icd/release/11/2026-01/mms/328294343"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #270f6bb428": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P70Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"2B90.0Z&XA95L3\",\"Interval\":\"P1Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified & http://id.who.int/icd/release/11/2026-01/mms/328294343\",\"Text\":\"Cancer of colon, hepatic flexure\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #270f6bb428": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"2B90.0Z&XA95L3","error":null,"reject":false,"report":"SP1: 2B90.0Z&XA95L3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 2B90.0Z&XA95L3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 2B90.0Z&XA95L3.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 2B90.0Z&XA95L3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"2B90.0Z","stemURI":"http://id.who.int/icd/entity/758254866/mms/unspecified","tabularReport":"SP1;True;;2B90.0Z&XA95L3;2B90.0Z&XA95L3;;;0;SP1: 2B90.0Z&XA95L3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;2B90.0Z&XA95L3;;;;;0;SP6: is not applicable with the current TSP 2B90.0Z&XA95L3.;;;;BER\nSP7;False;2B90.0Z&XA95L3;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;2B90.0Z&XA95L3;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;2B90.0Z&XA95L3;;;;;0;M1: There is no special instruction applicable with TUC 2B90.0Z&XA95L3.;;;;BER\nM2;False;2B90.0Z&XA95L3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;2B90.0Z&XA95L3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/758254866/unspecified & http://id.who.int/icd/release/11/mms/328294343","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P70Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"2B90.0Z&XA95L3\",\"Interval\":\"P1Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/758254866/unspecified & http://id.who.int/icd/release/11/2026-01/mms/328294343\",\"Text\":\"Cancer of colon, hepatic flexure\"}]}]}","status":200}
+ }
+}

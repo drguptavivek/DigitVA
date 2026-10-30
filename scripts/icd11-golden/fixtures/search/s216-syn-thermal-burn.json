@@ -1,0 +1,87 @@
+{
+ "id": "s216-syn-thermal-burn",
+ "input": {
+  "concept": "burns",
+  "id": "s216-syn-thermal-burn",
+  "kind": "synonym",
+  "query": "thermal burn",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for burns (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #af7dd82cac"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "NE2Z",
+       "has_coding_note": true,
+       "matching_text": "Burns, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Burns, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified"
+      },
+      {
+       "code": "NE00",
+       "has_coding_note": false,
+       "matching_text": "Burn of eye or ocular adnexa",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Burn of eye or ocular adnexa",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2071994109"
+      },
+      {
+       "code": "NE02",
+       "has_coding_note": false,
+       "matching_text": "Burn of other internal organs",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Burn of other internal organs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1671611947"
+      },
+      {
+       "code": "EM0Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified diseases of the skin",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified diseases of the skin",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1639304259/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "thermal burn",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #af7dd82cac": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/163532889","important":true,"label":"<em class='found'>thermal</em> <em class='found'>burn</em><em class='nonwbe'>s</em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/163532889/unspecified","theCode":"NE2Z","title":"<em class='found'>Burn</em><em class='nonwbe'>s</em>, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2071994109","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1594763385","important":false,"label":"<em class='found'>thermal</em> conjunctival <em class='found'>burn</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.4068900133194481},{"foundationUri":"http://id.who.int/icd/entity/464766032","important":false,"label":"<em class='found'>Thermal</em> <em class='found'>burn</em><em class='nonwbe'></em> of eyelid","propertyId":"Title","propertyValueType":1,"score":-0.8860582726487546}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.4068900133194481,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2071994109","theCode":"NE00","title":"<em class='found'>Burn</em><em class='nonwbe'></em> of eye or ocular adnexa","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1671611947","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/860092671","important":false,"label":"<em class='found'>thermal</em> <em class='found'>burn</em><em class='nonwbe'></em> of oesophagus","propertyId":"Synonym","propertyValueType":1,"score":-0.42342615598269595}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.42342615598269595,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1671611947","theCode":"NE02","title":"<em class='found'>Burn</em><em class='nonwbe'></em> of other internal organs","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"14","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1639304259/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/68573879","important":false,"label":"<em class='found'>Thermal</em> <em class='found'>burn</em><em class='nonwbe'>s</em> resulting from cutaneous laser surgery","propertyId":"Title","propertyValueType":1,"score":-1.5534369672256623}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.5534369672256623,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1639304259/other","theCode":"EM0Y","title":"Other specified diseases of the skin","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=thermal+burn%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

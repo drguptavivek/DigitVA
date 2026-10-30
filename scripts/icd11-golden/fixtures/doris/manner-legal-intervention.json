@@ -1,0 +1,167 @@
+{
+ "id": "manner-legal-intervention",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P29Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 4
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "ND56.1",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/754990790",
+       "Text": "Gunshot wound"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PD50",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1901159735",
+       "Text": "Shot during arrest"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "manner-legal-intervention",
+  "source": "WHO DORIS manner enum",
+  "why": "Legal intervention"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ND56.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/PD50",
+    "POST icd/release/11/2026-01/doris #da4b361fde",
+    "POST icd/release/11/2026-01/codedit #da4b361fde"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P29Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 4
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "ND56.1",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/754990790",
+          "Text": "Gunshot wound"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PD50",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1901159735",
+          "Text": "Shot during arrest"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PD50/ND56.1",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PD50 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - ND56.1 - as postcoordination for the current TUC - PD50.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PD50 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PD50.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PD50.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - ND56.1 - as postcoordination for the current TUC - PD50.\n",
+       "stemCode": "PD50",
+       "stemURI": "http://id.who.int/icd/entity/1901159735",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PD50;PD50;;;0;SP3: PD50 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PD50;;;;;0;SP6: is not applicable with the current TSP PD50.;;;;BER\nSP7;False;PD50;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PD50;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PD50;;;;;0;M1: There is no special instruction applicable with TUC PD50.;;;;BER\nM2;False;PD50;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PD50;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PD50/ND56.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1901159735 / http://id.who.int/icd/release/11/mms/754990790",
+       "warning": "The selected underlying cause of death - PD50 - is inconsistent with the reported manner of death - Legal intervention\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PD50",
+       "role": "stem",
+       "title": "Shot during arrest",
+       "uri": "http://id.who.int/icd/release/11/mms/1901159735"
+      },
+      {
+       "code": "ND56.1",
+       "role": "postcoordinated",
+       "title": "Gunshot wound",
+       "uri": "http://id.who.int/icd/release/11/mms/754990790"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P29Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 4
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "ND56.1",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/754990790",
+         "Text": "Gunshot wound"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PD50",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1901159735",
+         "Text": "Shot during arrest"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/ND56.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/ND56.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/ND56.1","code":"ND56.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/754990790"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PD50": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PD50","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PD50","code":"PD50","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1901159735"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #da4b361fde": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P29Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":4},\"Part1\":[{\"Conditions\":[{\"Code\":\"ND56.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/754990790\",\"Text\":\"Gunshot wound\"}]},{\"Conditions\":[{\"Code\":\"PD50\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1901159735\",\"Text\":\"Shot during arrest\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #da4b361fde": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PD50/ND56.1","error":null,"reject":false,"report":"SP3: PD50 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - ND56.1 - as postcoordination for the current TUC - PD50.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PD50 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PD50.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PD50.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - ND56.1 - as postcoordination for the current TUC - PD50.\n","stemCode":"PD50","stemURI":"http://id.who.int/icd/entity/1901159735","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PD50;PD50;;;0;SP3: PD50 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PD50;;;;;0;SP6: is not applicable with the current TSP PD50.;;;;BER\nSP7;False;PD50;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PD50;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PD50;;;;;0;M1: There is no special instruction applicable with TUC PD50.;;;;BER\nM2;False;PD50;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PD50;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PD50/ND56.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1901159735 / http://id.who.int/icd/release/11/mms/754990790","warning":"The selected underlying cause of death - PD50 - is inconsistent with the reported manner of death - Legal intervention\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P29Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":4},\"Part1\":[{\"Conditions\":[{\"Code\":\"ND56.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/754990790\",\"Text\":\"Gunshot wound\"}]},{\"Conditions\":[{\"Code\":\"PD50\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1901159735\",\"Text\":\"Shot during arrest\"}]}]}","status":200}
+ }
+}

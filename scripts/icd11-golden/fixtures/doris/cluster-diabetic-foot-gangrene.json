@@ -1,0 +1,180 @@
+{
+ "id": "cluster-diabetic-foot-gangrene",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P68Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BD54/MC85",
+       "Interval": "P3M",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827",
+       "Text": "Diabetic foot with gangrene"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "5A11",
+       "Interval": "P15Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetes"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "cluster-diabetic-foot-gangrene",
+  "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+  "why": "Diabetic foot ulcer with gangrene (mandatory-axis stem, composite)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BD54%2FMC85",
+    "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+    "GET icd/release/11/2026-01/mms/codeinfo/MC85",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "POST icd/release/11/2026-01/doris #8cc4b8ea7b",
+    "POST icd/release/11/2026-01/codedit #8cc4b8ea7b",
+    "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+    "GET icd/release/11/2026-01/mms/74527684",
+    "GET icd/release/11/2026-01/mms/codeinfo/MC85",
+    "GET icd/release/11/2026-01/mms/188156827"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P68Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "BD54/MC85",
+          "Interval": "P3M",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827",
+          "Text": "Diabetic foot with gangrene"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "5A11",
+          "Interval": "P15Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetes"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "5A11/BD54/MC85",
+       "error": null,
+       "reject": false,
+       "report": "SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nBD54/MC85 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BD54/MC85.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nBD54/MC85 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BD54/MC85.\n",
+       "stemCode": "5A11",
+       "stemURI": "http://id.who.int/icd/entity/119724091",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;5A11;5A11;;;0;SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/BD54/MC85;BD54/MC85;Substitution:1:5A11>5A11/BD54/MC85;;0;BD54/MC85 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BD54/MC85.;;;1,\"The postcoordinations - BD54/MC85 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/74527684 / http://id.who.int/icd/release/11/mms/188156827",
+       "warning": "The postcoordinations - BD54/MC85 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "5A11",
+       "role": "stem",
+       "title": "Diabetes",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091"
+      },
+      {
+       "code": "BD54",
+       "role": "postcoordinated",
+       "title": "Diabetic foot ulcer",
+       "uri": "http://id.who.int/icd/release/11/mms/74527684"
+      },
+      {
+       "code": "MC85",
+       "role": "postcoordinated",
+       "title": "Gangrene",
+       "uri": "http://id.who.int/icd/release/11/mms/188156827"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P68Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BD54/MC85",
+         "Interval": "P3M",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827",
+         "Text": "Diabetic foot with gangrene"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "5A11",
+         "Interval": "P15Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/188156827": {"method":"GET","path":"icd/release/11/2026-01/mms/188156827","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/188156827","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#188156827","classKind":"category","code":"MC85","definition":{"@language":"en","@value":"Gangrene, not elsewhere classified is the death of tissues in the body which happens when a part of the body loses its blood supply."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/270802913","label":{"@language":"en","@value":"Polymicrobial necrotising fasciitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/270802913"},{"foundationReference":"http://id.who.int/icd/entity/1920227791","label":{"@language":"en","@value":"Gas gangrene"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1920227791"},{"foundationReference":"http://id.who.int/icd/entity/2120746218","label":{"@language":"en","@value":"Pyoderma gangrenosum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2120746218"}],"indexTerm":[{"label":{"@language":"en","@value":"Gangrene"}},{"label":{"@language":"en","@value":"body tissue necrosis"}},{"label":{"@language":"en","@value":"cellular necrosis"}},{"label":{"@language":"en","@value":"dry gangrene"}},{"label":{"@language":"en","@value":"gangrene NOS"}},{"label":{"@language":"en","@value":"gangrenous disorder"}},{"label":{"@language":"en","@value":"gangrenous pemphigus"}},{"label":{"@language":"en","@value":"gangrenous ulcer"}},{"label":{"@language":"en","@value":"ischemic necrosis"}},{"label":{"@language":"en","@value":"moist gangrene"}},{"label":{"@language":"en","@value":"multiple sloughing"}},{"label":{"@language":"en","@value":"necrosis"}},{"label":{"@language":"en","@value":"phagedena"}},{"label":{"@language":"en","@value":"sloughing NOS"}},{"label":{"@language":"en","@value":"sphacelus"}},{"label":{"@language":"en","@value":"synergistic gangrene NOS"}},{"label":{"@language":"en","@value":"tissue devitalisation"}},{"label":{"@language":"en","@value":"tissue devitalization"}},{"label":{"@language":"en","@value":"ulcerative gangrene"}},{"label":{"@language":"en","@value":"wet gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/817763182","label":{"@language":"en","@value":"Abdominal gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/817763182","label":{"@language":"en","@value":"abdomen gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/817763182","label":{"@language":"en","@value":"abdominal wall gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/1692396689","label":{"@language":"en","@value":"Connective tissue gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/1692396689","label":{"@language":"en","@value":"spreading cutaneous gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/267962890","label":{"@language":"en","@value":"Gangrene of leg"}},{"foundationReference":"http://id.who.int/icd/entity/267962890","label":{"@language":"en","@value":"lower extremity gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/267962890","label":{"@language":"en","@value":"lower limb gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/1159845363","label":{"@language":"en","@value":"Gangrene of skin"}},{"foundationReference":"http://id.who.int/icd/entity/1159845363","label":{"@language":"en","@value":"cutaneous necrosis"}},{"foundationReference":"http://id.who.int/icd/entity/1159845363","label":{"@language":"en","@value":"gangrenous cellulitis"}},{"foundationReference":"http://id.who.int/icd/entity/1159845363","label":{"@language":"en","@value":"skin necrosis"}},{"foundationReference":"http://id.who.int/icd/entity/1159845363","label":{"@language":"en","@value":"skin ulcer with gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/1159845363","label":{"@language":"en","@value":"sloughing of skin"}},{"foundationReference":"http://id.who.int/icd/entity/424770624","label":{"@language":"en","@value":"Meleney’s gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/263881448","label":{"@language":"en","@value":"Gangrene of umbilicus"}},{"foundationReference":"http://id.who.int/icd/entity/640421277","label":{"@language":"en","@value":"Perineal gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/640421277","label":{"@language":"en","@value":"perineum gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/695238047","label":{"@language":"en","@value":"Spinal gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/695238047","label":{"@language":"en","@value":"spine gangrene"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/757547077"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188156827/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/223243926","http://id.who.int/icd/release/11/2026-01/mms/947150833","http://id.who.int/icd/release/11/2026-01/mms/1810600222"]}],"source":"http://id.who.int/icd/entity/188156827","title":{"@language":"en","@value":"Gangrene"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/74527684": {"method":"GET","path":"icd/release/11/2026-01/mms/74527684","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#74527684","classKind":"category","code":"BD54","codingNote":{"@language":"en","@value":"Always assign an additional code for diabetes mellitus."},"definition":{"@language":"en","@value":"Chronic foot ulcers occur in as many as 15–25% of diabetic patients. The underlying aetiology is a combination of disturbed sensation from diabetic neuropathy and impaired perfusion from diabetic vasculopathy. Poor foot care, abnormal foot structure, or poorly fitting shoes increase the risk of diabetic foot ulcers. The ulcers typically occur in areas of increased plantar pressure, especially beneath the metatarsal heads."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetic foot ulcer"}},{"label":{"@language":"en","@value":"chronic diabetic foot ulcer"}},{"label":{"@language":"en","@value":"diabetic foot"}},{"label":{"@language":"en","@value":"neuropathic and vasculopathic ulceration of foot due to diabetes mellitus"}},{"label":{"@language":"en","@value":"neuropathic ulceration of foot due to diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"Diabetic foot ulcer with gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"diabetic foot ulcer with necrosis"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"gangrenous diabetic foot ulcer"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"necrotic diabetic foot ulcer"}},{"foundationReference":"http://id.who.int/icd/entity/127351659","label":{"@language":"en","@value":"Dry gangrene of diabetic foot"}},{"foundationReference":"http://id.who.int/icd/entity/127351659","label":{"@language":"en","@value":"diabetic foot with dry gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/402264749","label":{"@language":"en","@value":"Wet gangrene of diabetic foot"}},{"foundationReference":"http://id.who.int/icd/entity/402264749","label":{"@language":"en","@value":"diabetic foot with wet gangrene"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1164983645"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1896004518"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/188156827"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"source":"http://id.who.int/icd/entity/74527684","title":{"@language":"en","@value":"Diabetic foot ulcer"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BD54": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BD54","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD54","code":"BD54","stemId":"http://id.who.int/icd/release/11/2026-01/mms/74527684"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BD54%2FMC85": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BD54%2FMC85","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD54%2fMC85","code":"BD54/MC85","hasManifestation":["MC85"],"stemCode":"BD54","stemId":"http://id.who.int/icd/release/11/2026-01/mms/74527684"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/MC85": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/MC85","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/MC85","code":"MC85","stemId":"http://id.who.int/icd/release/11/2026-01/mms/188156827"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #8cc4b8ea7b": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P68Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BD54/MC85\",\"Interval\":\"P3M\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827\",\"Text\":\"Diabetic foot with gangrene\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P15Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #8cc4b8ea7b": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"5A11/BD54/MC85","error":null,"reject":false,"report":"SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nBD54/MC85 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BD54/MC85.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nBD54/MC85 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BD54/MC85.\n","stemCode":"5A11","stemURI":"http://id.who.int/icd/entity/119724091","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;5A11;5A11;;;0;SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/BD54/MC85;BD54/MC85;Substitution:1:5A11>5A11/BD54/MC85;;0;BD54/MC85 are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BD54/MC85.;;;1,\"The postcoordinations - BD54/MC85 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/74527684 / http://id.who.int/icd/release/11/mms/188156827","warning":"The postcoordinations - BD54/MC85 - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P68Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BD54/MC85\",\"Interval\":\"P3M\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827\",\"Text\":\"Diabetic foot with gangrene\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P15Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200}
+ }
+}

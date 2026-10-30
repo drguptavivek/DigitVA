@@ -121,14 +121,17 @@ class DigitvaIcd11Module : Module() {
     appContext.reactContext?.let { EngineData.takeRefresh(it) }
   }
 
-  private fun send(op: Int, input: String, promise: Promise) {
+  private fun send(op: Int, input: String, promise: Promise, name: String? = null) {
     val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
     val id = nextId.getAndIncrement()
     pending[id] = promise
     if (op == Icd11Service.OP_UPDATE) updateIds.add(id)
     val message = Message.obtain(null, op, id, 0).apply {
       replyTo = replies
-      data = Bundle().apply { putString("input", input) }
+      data = Bundle().apply {
+        putString("input", input)
+        if (name != null) putString("op", name)
+      }
     }
     mainHandler.post {
       val bound = service
@@ -164,9 +167,10 @@ class DigitvaIcd11Module : Module() {
     // Explicit "Update WHO files": one init in a new engine process that may fetch WHO files, when online.
     AsyncFunction("updateWhoFiles") { promise: Promise -> send(Icd11Service.OP_UPDATE, "", promise) }
 
+    // `op` is the bridge's op name and `input` the JSON object of its arguments. Only the name's shape is checked here: the bridge
+    // owns the list of ops and answers an unknown one with status 400.
     AsyncFunction("call") { op: String, input: String, promise: Promise ->
-      val code = Icd11Service.OPS[op]
-      if (code == null) promise.reject("ERR_ICD11_OP", "unknown engine op", null) else send(code, input, promise)
+      if (!Icd11Service.OP_NAME.matches(op)) promise.reject("ERR_ICD11_OP", "bad engine op", null) else send(Icd11Service.OP_CALL, input, promise, op)
     }
   }
 }

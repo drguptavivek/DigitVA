@@ -49,7 +49,7 @@ function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
         autoCorrect={false}
         style={{ minHeight: 48, borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, paddingHorizontal: spacing.sm, ...typography.body, color: ui.foreground, backgroundColor: ui.background }}
       />
-      <FlatList
+      <FlatList keyboardDismissMode="on-drag"
         data={entries}
         keyExtractor={(entry) => entry.key}
         keyboardShouldPersistTaps="handled"

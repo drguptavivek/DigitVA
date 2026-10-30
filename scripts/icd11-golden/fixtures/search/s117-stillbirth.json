@@ -1,0 +1,98 @@
+{
+ "id": "s117-stillbirth",
+ "input": {
+  "id": "s117-stillbirth",
+  "kind": "neonatal",
+  "query": "stillbirth",
+  "source": "VAs-11.01; scripts/icd11-parity/queries.json",
+  "why": "neonatal or stillbirth cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #15ea12a344"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 6,
+     "items": [
+      {
+       "code": "KD3B.Z",
+       "has_coding_note": true,
+       "matching_text": "Unspecified time of fetal death, cause not specified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unspecified time of fetal death, cause not specified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/505744734/unspecified"
+      },
+      {
+       "code": "QA46.1",
+       "has_coding_note": false,
+       "matching_text": "Single stillbirth",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Single stillbirth",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/409907799"
+      },
+      {
+       "code": "KD3B.0",
+       "has_coding_note": true,
+       "matching_text": "Antepartum fetal death",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Antepartum fetal death",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1947342847"
+      },
+      {
+       "code": "KD3B.1",
+       "has_coding_note": true,
+       "matching_text": "Intrapartum fetal death",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Intrapartum fetal death",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+      },
+      {
+       "code": "QA46.K",
+       "has_coding_note": false,
+       "matching_text": "Other multiple births, all stillborn",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other multiple births, all stillborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/248245335"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "stillbirth",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #15ea12a344": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/505744734/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/505744734","important":true,"label":"<em class='found'>stillbirth</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/505744734/unspecified","theCode":"KD3B.Z","title":"Unspecified time of fetal death, cause not specified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/409907799","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.739385846108705,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/409907799","theCode":"QA46.1","title":"Single <em class='found'>stillbirth</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1947342847","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1947342847","important":false,"label":"antepartum <em class='found'>stillbirth</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.013238146799181},{"foundationUri":"http://id.who.int/icd/entity/1947342847","important":false,"label":"macerated <em class='found'>stillbirth</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.169117183522479}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.013238146799181,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1947342847","theCode":"KD3B.0","title":"Antepartum fetal death","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2034327580","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2034327580","important":false,"label":"fresh <em class='found'>stillbirth</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.1013266471693086},{"foundationUri":"http://id.who.int/icd/entity/2034327580","important":false,"label":"intrapartum <em class='found'>stillbirth</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.824283787846812}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.1013266471693086,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2034327580","theCode":"KD3B.1","title":"Intrapartum fetal death","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/248245335","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/248245335","important":false,"label":"outcome of delivery of multiple birth all stillborn","propertyId":"Synonym","propertyValueType":0,"score":-6.756138318594583}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.9954919496270582,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/248245335","theCode":"QA46.K","title":"Other multiple births, all stillborn","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1908181527","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1825391305","important":false,"label":"Supervision of pregnancy with history of <em class='found'>stillbirth</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-4.122142344305805}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.122142344305805,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1908181527","theCode":"QA43.2","title":"Supervision of pregnancy with other poor reproductive or obstetric history","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=stillbirth%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

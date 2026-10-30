@@ -1,0 +1,15 @@
+{
+ "failures": [],
+ "release": "2026-01",
+ "sets": {
+  "search": {
+   "bytes": 7024896,
+   "corpus_items": 238,
+   "corpus_status": "draft",
+   "fixtures": 238
+  }
+ },
+ "who_image": "whoicd/icd-api:2.6.0",
+ "who_image_digest": "sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c",
+ "who_image_digest_pinned_in_config": "sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c"
+}

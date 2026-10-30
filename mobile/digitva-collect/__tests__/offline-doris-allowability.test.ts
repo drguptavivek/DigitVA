@@ -19,8 +19,8 @@ jest.mock("expo-crypto", () => ({
 const index = createAllowabilityIndex(pack as AllowabilityPack);
 const ok = (data: unknown): EngineResult => ({ ok: true, data, status: 200, ms: 1, nativeMs: 1 });
 
-/** codeinfo answers per full expression; anything else is unknown to WHO. */
-function engine(codeinfo: Record<string, unknown> = {}): OfflineEngine & { calls: string[] } {
+/** codeinfo answers per full expression; anything else is unknown to WHO (a 404, as the engine answers it). */
+function engine(codeinfo: Record<string, unknown> = {}, failure?: EngineResult | Error): OfflineEngine & { calls: string[] } {
   const init: EngineInit = { ok: true, ms: 0, copyMs: 0, initMs: 0, cached: true };
   const calls: string[] = [];
   return {
@@ -28,8 +28,15 @@ function engine(codeinfo: Record<string, unknown> = {}): OfflineEngine & { calls
     available: async () => true,
     init: async () => init,
     updateWhoFiles: async () => init,
+    call: async () => ok({}),
     search: async () => ok({}),
-    codeinfo: async (code) => { calls.push(code); return ok(codeinfo[code] ?? null); },
+    entity: async () => ok({}),
+    foundationEntity: async () => ok({}),
+    codeinfo: async (code) => {
+      calls.push(code);
+      if (failure instanceof Error) throw failure;
+      return failure ?? (code in codeinfo ? ok(codeinfo[code]) : { ok: false, error: "engine_status", status: 404, ms: 1 });
+    },
     doris: async () => ok({ status: "unavailable", result: null }),
     codedit: async () => ok({ status: "unavailable", result: null }),
     onProgress: () => () => undefined,
@@ -69,6 +76,7 @@ describe("offline save applies the allowability rules", () => {
     const provenance = JSON.parse(row.provenance!);
     expect(provenance.allowability).toEqual({ rules: index.version, release: "2026-01" });
     expect(provenance.antecedent).toEqual({ code: "1A00", primary_stem: "1A00", release: "2026-01" });
+    expect(provenance.packVersions).toEqual({ icd11_engine: "2026.10.29.1", doris_engine: "1.1.176", doris_rules: "1.2.0", icd_release: "2026-01" });
     expect(provenance.codingTimelineV1).toEqual([
       ...codingTimeline,
       { event: "initial_saved", at: row.updated_at },
@@ -134,6 +142,14 @@ describe("offline save applies the allowability rules", () => {
     await expect(save(editor({ ageGroup: null, sex: null }, eng).editor, body("1A00/5A12"))).rejects.toMatchObject({ kind: "blocked", message: "The ICD-11 code expression is not valid." });
   });
 
+  it("reads an engine that cannot answer as icd11_unavailable, without its text, and passes other errors through", async () => {
+    const down = engine({}, { ok: false, error: "SECRET stack", status: 500, ms: 1 });
+    const failure = save(editor({ ageGroup: null, sex: null }, down).editor, body("1A00/GB00"));
+    await expect(failure).rejects.toThrow("icd11_unavailable");
+    await expect(failure).rejects.not.toThrow(/SECRET/);
+    await expect(save(editor({ ageGroup: null, sex: null }, engine({}, new TypeError("bug"))).editor, body("1A00/GB00"))).rejects.toThrow(TypeError);
+  });
+
   it("accepts causing_condition_unknown on a single stem only, and records it", async () => {
     const { editor: e } = editor({ ageGroup: null, sex: null }, engine({ "1A00/5A11": { code: "1A00/5A11", stemCode: "1A00", stemId: "u" } }));
     const row = await save(e, body("1A00", { causing_condition_unknown: true }));
@@ -141,9 +157,9 @@ describe("offline save applies the allowability rules", () => {
     await expect(save(e, body("1A00/5A11", { causing_condition_unknown: true }))).rejects.toMatchObject({ kind: "blocked", message: expect.stringMatching(/single ICD-11 stem/) });
   });
 
-  it("refuses a malformed code and leaves the old behaviour (no provenance) without allowability", async () => {
+  it("refuses a malformed code, and without allowability stores the engine versions only", async () => {
     await expect(save(editor({ ageGroup: null, sex: null }).editor, body("not-a-code"))).rejects.toMatchObject({ kind: "blocked", message: "Select a valid ICD-11 code." });
     const plain = createOfflineDorisEditor(engine(), memoryStore());
-    expect((await save(plain, body("NA07.7"))).provenance).toBeNull();
+    expect(Object.keys(JSON.parse((await save(plain, body("NA07.7"))).provenance!))).toEqual(["packVersions"]);
   });
 });

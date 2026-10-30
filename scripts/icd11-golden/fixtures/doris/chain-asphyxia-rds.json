@@ -1,0 +1,173 @@
+{
+ "id": "chain-asphyxia-rds",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "PT20H",
+    "Sex": 1
+   },
+   "FetalOrInfantDeath": {
+    "BirthWeight": 3000,
+    "DeathWithin24h": 20,
+    "PregnancyWeeks": 39
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "KB23.0Z",
+       "Interval": "PT18H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified",
+       "Text": "Respiratory distress syndrome"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "KB21.Z",
+       "Interval": "PT20H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified",
+       "Text": "Birth asphyxia"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "neonatal",
+  "id": "chain-asphyxia-rds",
+  "source": "VA cause VAs-10.02 Birth asphyxia",
+  "why": "Two lines: respiratory distress syndrome due to birth asphyxia"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KB23.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/KB21.Z",
+    "POST icd/release/11/2026-01/doris #4d36267bd8",
+    "POST icd/release/11/2026-01/codedit #4d36267bd8"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "PT20H",
+       "Sex": 1
+      },
+      "FetalOrInfantDeath": {
+       "BirthWeight": 3000,
+       "DeathWithin24h": 20,
+       "PregnancyWeeks": 39
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "KB23.0Z",
+          "Interval": "PT18H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified",
+          "Text": "Respiratory distress syndrome"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "KB21.Z",
+          "Interval": "PT20H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified",
+          "Text": "Birth asphyxia"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KB21.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: KB21.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: KB21.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KB21.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KB21.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "KB21.Z",
+       "stemURI": "http://id.who.int/icd/entity/848321559/mms/unspecified",
+       "tabularReport": "MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;KB21.Z;KB21.Z;;;0;SP3: KB21.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KB21.Z;;;;;0;SP6: is not applicable with the current TSP KB21.Z.;;;;BER\nSP7;False;KB21.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KB21.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KB21.Z;;;;;0;M1: There is no special instruction applicable with TUC KB21.Z.;;;;BER\nM2;False;KB21.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KB21.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/848321559/unspecified",
+       "warning": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KB21.Z",
+       "role": "stem",
+       "title": "Birth asphyxia",
+       "uri": "http://id.who.int/icd/release/11/mms/848321559/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "PT20H",
+      "Sex": 1
+     },
+     "FetalOrInfantDeath": {
+      "BirthWeight": 3000,
+      "DeathWithin24h": 20,
+      "PregnancyWeeks": 39
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "KB23.0Z",
+         "Interval": "PT18H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified",
+         "Text": "Respiratory distress syndrome"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "KB21.Z",
+         "Interval": "PT20H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified",
+         "Text": "Birth asphyxia"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/KB21.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KB21.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KB21.Z","code":"KB21.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KB23.0Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KB23.0Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KB23.0Z","code":"KB23.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #4d36267bd8": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"PT20H\",\"Sex\":1},\"FetalOrInfantDeath\":{\"BirthWeight\":3000,\"DeathWithin24h\":20,\"PregnancyWeeks\":39},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KB23.0Z\",\"Interval\":\"PT18H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified\",\"Text\":\"Respiratory distress syndrome\"}]},{\"Conditions\":[{\"Code\":\"KB21.Z\",\"Interval\":\"PT20H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified\",\"Text\":\"Birth asphyxia\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #4d36267bd8": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KB21.Z","error":null,"reject":false,"report":"SP3: KB21.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: KB21.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KB21.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KB21.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"KB21.Z","stemURI":"http://id.who.int/icd/entity/848321559/mms/unspecified","tabularReport":"MCC;True;;;;;;1;The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.;;Age;;BER\nSP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;KB21.Z;KB21.Z;;;0;SP3: KB21.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KB21.Z;;;;;0;SP6: is not applicable with the current TSP KB21.Z.;;;;BER\nSP7;False;KB21.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KB21.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;KB21.Z;;;;;0;M1: There is no special instruction applicable with TUC KB21.Z.;;;;BER\nM2;False;KB21.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KB21.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/848321559/unspecified","warning":"The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"PT20H\",\"Sex\":1},\"FetalOrInfantDeath\":{\"BirthWeight\":3000,\"DeathWithin24h\":20,\"PregnancyWeeks\":39},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KB23.0Z\",\"Interval\":\"PT18H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/343716587/unspecified\",\"Text\":\"Respiratory distress syndrome\"}]},{\"Conditions\":[{\"Code\":\"KB21.Z\",\"Interval\":\"PT20H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/848321559/unspecified\",\"Text\":\"Birth asphyxia\"}]}]}","status":200}
+ }
+}

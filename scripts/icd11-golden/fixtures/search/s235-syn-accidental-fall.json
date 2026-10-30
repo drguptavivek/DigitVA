@@ -1,0 +1,99 @@
+{
+ "id": "s235-syn-accidental-fall",
+ "input": {
+  "concept": "fall",
+  "id": "s235-syn-accidental-fall",
+  "kind": "synonym",
+  "query": "accidental fall",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for fall (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #9e621203d4"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 9,
+     "items": [
+      {
+       "code": "PA6Z",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall from unspecified height",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall from unspecified height",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified"
+      },
+      {
+       "code": "PA61&XE9P7",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall from ladder",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall from ladder",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/1615174393"
+      },
+      {
+       "code": "PA61&XE7RK",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall on or from scaffolding",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall on or from scaffolding",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/1021577721"
+      },
+      {
+       "code": "PA60&XE6JS",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall involving playground equipment",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall involving playground equipment",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/415990995 & http://id.who.int/icd/release/11/2026-01/mms/1788929134"
+      },
+      {
+       "code": "PA60&XE8PK",
+       "has_coding_note": false,
+       "matching_text": "Unintentional fall involving bed",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Unintentional fall involving bed",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/415990995 & http://id.who.int/icd/release/11/2026-01/mms/1177430729"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "accidental fall",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #9e621203d4": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/134290789","important":true,"label":"<em class='found'>accidental</em> <em class='found'>fall</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified","theCode":"PA6Z","title":"Unintentional <em class='found'>fall</em><em class='nonwbe'></em> from unspecified height","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/1615174393","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/240716420","important":false,"label":"<em class='found'>accidental</em> <em class='found'>fall</em><em class='nonwbe'></em> from ladder","propertyId":"Synonym","propertyValueType":2,"score":-1.0513097003689582},{"foundationUri":"http://id.who.int/icd/entity/240716420","important":false,"label":"<em class='found'>fall</em><em class='nonwbe'></em> on and from ladder causing <em class='found'>accidental</em> injury","propertyId":"Synonym","propertyValueType":2,"score":-2.165770726374062}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0513097003689582,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1729453916","theCode":"PA61&XE9P7","title":"Unintentional <em class='found'>fall</em><em class='nonwbe'></em> from ladder","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/1021577721","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2062834301","important":false,"label":"<em class='found'>accidental</em> <em class='found'>fall</em><em class='nonwbe'></em> from scaffolding","propertyId":"Synonym","propertyValueType":2,"score":-1.0672663738776698},{"foundationUri":"http://id.who.int/icd/entity/2062834301","important":false,"label":"<em class='found'>fall</em><em class='nonwbe'></em> on and from scaffolding causing <em class='found'>accidental</em> injury","propertyId":"Synonym","propertyValueType":2,"score":-2.181727399882774}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0672663738776698,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1729453916","theCode":"PA61&XE7RK","title":"Unintentional <em class='found'>fall</em><em class='nonwbe'></em> on or from scaffolding","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/415990995 & http://id.who.int/icd/release/11/2026-01/mms/1788929134","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1461437517","important":false,"label":"<em class='found'>fall</em><em class='nonwbe'></em> involving playground equipment causing <em class='found'>accidental</em> injury","propertyId":"Synonym","propertyValueType":2,"score":-2.405957364163754}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.405957364163754,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995","theCode":"PA60&XE6JS","title":"Unintentional <em class='found'>fall</em><em class='nonwbe'></em> involving playground equipment","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/415990995 & http://id.who.int/icd/release/11/2026-01/mms/1177430729","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/712167695","important":false,"label":"<em class='found'>fall</em><em class='nonwbe'></em> involving bed causing <em class='found'>accidental</em> injury","propertyId":"Synonym","propertyValueType":2,"score":-2.8004987909615098}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.8004987909615098,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995","theCode":"PA60&XE8PK","title":"Unintentional <em class='found'>fall</em><em class='nonwbe'></em> involving bed","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/415990995 & http://id.who.int/icd/release/11/2026-01/mms/2136377225","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1329142939","important":false,"label":"<em class='found'>fall</em><em class='nonwbe'></em> involving chair causing <em class='found'>accidental</em> injury","propertyId":"Synonym","propertyValueType":2,"score":-2.919600813770342}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.919600813770342,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995","theCode":"PA60&XE769","title":"Unintentional <em class='found'>fall</em><em class='nonwbe'></em> involving chair","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/415990995 & http://id.who.int/icd/release/11/2026-01/mms/1667682901","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1591706098","important":false,"label":"<em class='found'>fall</em><em class='nonwbe'></em> involving wheelchair causing <em class='found'>accidental</em> injury","propertyId":"Synonym","propertyValueType":2,"score":-3.340051959924343}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.340051959924343,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/415990995","theCode":"PA60&XE293","title":"<em class='found'>Fall</em><em class='nonwbe'></em> involving wheelchair","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1246373641","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1992361486","important":false,"label":"Drowning or submersion as a result of an <em class='found'>accidental</em> <em class='found'>fall</em><em class='nonwbe'></em> overboard","propertyId":"Title","propertyValueType":1,"score":-3.9847207256506922},{"foundationUri":"http://id.who.int/icd/entity/493408779","important":false,"label":"Drowning or submersion as a result of an <em class='found'>accidental</em> <em class='found'>fall</em><em class='nonwbe'></em> from gangplank","propertyId":"Title","propertyValueType":1,"score":-4.296897705392604}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.9847207256506922,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1246373641","theCode":"PA40.0","title":"Unintentional water transport injury event with water vessel not damaged, disabled or destroyed, causing submersion or drowning","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1246373641 & http://id.who.int/icd/release/11/2026-01/mms/1800097958 & http://id.who.int/icd/release/11/2026-01/mms/1557737307 & http://id.who.int/icd/release/11/2026-01/mms/51594849","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.020822492187308,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1246373641","theCode":"PA40.0&XE85L&XE3M5&XE27K","title":"Drowning or submersion as a result of an <em class='found'>accidental</em> <em class='found'>fall</em><em class='nonwbe'></em> from ship","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=accidental+fall%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

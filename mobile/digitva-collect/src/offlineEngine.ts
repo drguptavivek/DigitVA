@@ -17,7 +17,36 @@ import { requireOptionalNativeModule } from "expo";
 import { InteractionManager } from "react-native";
 import { isIcd11DorisEnabled } from "./icd11DorisPreference";
 
-export type EngineOp = "search" | "codeinfo" | "doris" | "codedit";
+/** The ops the engine bridge answers (Bridge.cs `Dispatch` is the only allow-list; the native module passes the name through). */
+export type EngineOp = "search" | "codeinfo" | "entity" | "foundation_entity" | "doris" | "codedit";
+
+/** Optional arguments of `search`; absent ones take WHO's defaults (LinearizationController.SearchLinearization). */
+export interface SearchOptions {
+  subtreesFilter?: string;
+  subtreeFilterUsesFoundationDescendants?: boolean;
+  includeKeywordResult?: boolean;
+  chapterFilter?: string;
+  includePostcoordination?: boolean;
+  useFlexisearch?: boolean;
+  flatResults?: boolean;
+  highlightingEnabled?: boolean;
+  medicalCodingMode?: boolean;
+  propertiesToBeSearched?: string;
+  /** DigitVA addition, not WHO's: keep at most this many `destinationEntities` (integer 1 to 200; others are a 400) and set `resultChopped` when it cut any. */
+  limit?: number;
+}
+
+/** Optional arguments of `codeinfo` (GetCodeInfo). */
+export interface CodeinfoOptions {
+  flexiblemode?: boolean;
+  convertToTerminalCodes?: boolean;
+}
+
+/** Optional arguments of `entity`: `residual` ("unspecified" or "other") reads the residual child; `include` is WHO's (ancestor, diagnosticCriteria); `descendant` is refused (400) because the reply is a whole subtree. */
+export interface EntityOptions {
+  residual?: string;
+  include?: string;
+}
 
 /** What the native module returns (modules/digitva-icd11/android/.../DigitvaIcd11Module.kt). */
 export interface NativeInit {
@@ -36,6 +65,7 @@ export interface NativeEngine {
   init(): Promise<NativeInit>;
   /** Ends the engine process and fetches WHO files in a new one, when online; "no_connection" otherwise. */
   updateWhoFiles(): Promise<NativeInit>;
+  /** `input` is the JSON object of named arguments of `op` (see the bridge's Dispatch); the reply `text` is WHO's REST JSON. */
   call(op: EngineOp, input: string): Promise<{ ok: boolean; error?: string; status: number; text?: string; nativeMs: number }>;
   addListener?(event: "icd11Progress", listener: (progress: { phase: string; percent: number }) => void): { remove(): void };
 }
@@ -83,8 +113,15 @@ export interface OfflineEngine {
   init(): Promise<EngineInit>;
   /** Explicit update of the WHO files (one fetching init in a new engine process). Never throws. */
   updateWhoFiles(): Promise<EngineInit>;
-  search(query: string): Promise<EngineResult>;
-  codeinfo(code: string): Promise<EngineResult>;
+  /** One engine call: `args` is the object of named arguments of `op`; `data` of the result is WHO's REST JSON for that action. */
+  call(op: EngineOp, args: Record<string, unknown>): Promise<EngineResult>;
+  /** Pass the server's `q` ("<text>%") and flags in `options` for the same hits as the server. */
+  search(query: string, options?: SearchOptions): Promise<EngineResult>;
+  codeinfo(code: string, options?: CodeinfoOptions): Promise<EngineResult>;
+  /** A linearization (mms 2026-01) entity by its numeric id. */
+  entity(id: string, options?: EntityOptions): Promise<EngineResult>;
+  /** A foundation entity by its numeric id; only `include` applies. */
+  foundationEntity(id: string, options?: Pick<EntityOptions, "include">): Promise<EngineResult>;
   /** `certificate` is the DORIS certificate JSON object the server's process endpoint takes. */
   doris(certificate: unknown): Promise<EngineResult>;
   codedit(certificate: unknown): Promise<EngineResult>;
@@ -129,7 +166,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
 
   /**
    * Waits for any init or update in progress, then runs one update. Calls made meanwhile wait on the same in-flight
-   * slot (call() awaits it), so they run on the updated engine.
+   * slot (callNative() awaits it), so they run on the updated engine.
    */
   function updateWhoFiles(): Promise<EngineInit> {
     const previous = inflight;
@@ -146,7 +183,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
   }
 
   /** Android can kill the engine process (low memory) while the app lives; its next incarnation needs a new init. */
-  async function call(op: EngineOp, input: string): Promise<Awaited<ReturnType<NativeEngine["call"]>>> {
+  async function callNative(op: EngineOp, input: string): Promise<Awaited<ReturnType<NativeEngine["call"]>>> {
     // A re-init after a lost process may be under way; calling before it lands would hit an uninitialised engine.
     if (inflight) await inflight;
     const wasReady = ready !== undefined;
@@ -162,11 +199,11 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
     return native!.call(op, input);
   }
 
-  async function run(op: EngineOp, input: string): Promise<EngineResult> {
+  async function run(op: EngineOp, args: Record<string, unknown>): Promise<EngineResult> {
     const start = now();
     if (!native) return { ok: false, error: "unavailable", ms: 0 };
     try {
-      const raw = await call(op, input);
+      const raw = await callNative(op, JSON.stringify(args));
       const ms = now() - start;
       if (!raw.ok || raw.text === undefined) return { ok: false, error: raw.error ?? "engine_error", status: raw.status, ms };
       try {
@@ -190,10 +227,13 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
     },
     init,
     updateWhoFiles,
-    search: (query) => run("search", query),
-    codeinfo: (code) => run("codeinfo", code),
-    doris: (certificate) => run("doris", JSON.stringify(certificate)),
-    codedit: (certificate) => run("codedit", JSON.stringify(certificate)),
+    call: run,
+    search: (q, options) => run("search", { q, ...options }),
+    codeinfo: (code, options) => run("codeinfo", { code, ...options }),
+    entity: (id, options) => run("entity", { id, ...options }),
+    foundationEntity: (id, options) => run("foundation_entity", { id, ...options }),
+    doris: (certificate) => run("doris", { certificate }),
+    codedit: (certificate) => run("codedit", { certificate }),
     onProgress(listener) {
       progressListeners.add(listener);
       return () => {
@@ -211,14 +251,19 @@ export function offlineEngine(): OfflineEngine {
     const disabledInit: EngineInit = { ok: false, error: "icd11_doris_disabled", ms: 0 };
     const disabledResult: EngineResult = { ok: false, error: "icd11_doris_disabled", ms: 0 };
     const enabled = () => isIcd11DorisEnabled();
+    /** The same call, answered as disabled while the preference is off. */
+    const gated = <A extends unknown[]>(f: (...args: A) => Promise<EngineResult>) => async (...args: A) => (await enabled() ? f(...args) : disabledResult);
     shared = {
       ...engine,
       async init() { return await enabled() ? engine.init() : disabledInit; },
       async updateWhoFiles() { return await enabled() ? engine.updateWhoFiles() : disabledInit; },
-      async search(query) { return await enabled() ? engine.search(query) : disabledResult; },
-      async codeinfo(code) { return await enabled() ? engine.codeinfo(code) : disabledResult; },
-      async doris(certificate) { return await enabled() ? engine.doris(certificate) : disabledResult; },
-      async codedit(certificate) { return await enabled() ? engine.codedit(certificate) : disabledResult; },
+      call: gated(engine.call),
+      search: gated(engine.search),
+      codeinfo: gated(engine.codeinfo),
+      entity: gated(engine.entity),
+      foundationEntity: gated(engine.foundationEntity),
+      doris: gated(engine.doris),
+      codedit: gated(engine.codedit),
     };
   }
   return shared;

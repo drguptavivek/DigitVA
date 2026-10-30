@@ -1,0 +1,167 @@
+{
+ "id": "manner-war",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P27Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 5
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "ND37",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1321122981",
+       "Text": "Multiple injuries"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PK02",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1398529558",
+       "Text": "Explosion in war"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "manner-war",
+  "source": "WHO DORIS manner enum",
+  "why": "War"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/ND37",
+    "GET icd/release/11/2026-01/mms/codeinfo/PK02",
+    "POST icd/release/11/2026-01/doris #27ce60d014",
+    "POST icd/release/11/2026-01/codedit #27ce60d014"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P27Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 5
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "ND37",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1321122981",
+          "Text": "Multiple injuries"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PK02",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1398529558",
+          "Text": "Explosion in war"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PK02/ND37",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PK02 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - ND37 - as postcoordination for the current TUC - PK02.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PK02 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PK02.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PK02.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - ND37 - as postcoordination for the current TUC - PK02.\n",
+       "stemCode": "PK02",
+       "stemURI": "http://id.who.int/icd/entity/1398529558",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PK02;PK02;;;0;SP3: PK02 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PK02;;;;;0;SP6: is not applicable with the current TSP PK02.;;;;BER\nSP7;False;PK02;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PK02;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PK02;;;;;0;M1: There is no special instruction applicable with TUC PK02.;;;;BER\nM2;False;PK02;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PK02;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PK02/ND37;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1398529558 / http://id.who.int/icd/release/11/mms/1321122981",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PK02",
+       "role": "stem",
+       "title": "Explosion in war",
+       "uri": "http://id.who.int/icd/release/11/mms/1398529558"
+      },
+      {
+       "code": "ND37",
+       "role": "postcoordinated",
+       "title": "Multiple injuries",
+       "uri": "http://id.who.int/icd/release/11/mms/1321122981"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P27Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 5
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "ND37",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1321122981",
+         "Text": "Multiple injuries"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PK02",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1398529558",
+         "Text": "Explosion in war"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/ND37": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/ND37","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/ND37","code":"ND37","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1321122981"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PK02": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PK02","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PK02","code":"PK02","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1398529558"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #27ce60d014": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":5},\"Part1\":[{\"Conditions\":[{\"Code\":\"ND37\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1321122981\",\"Text\":\"Multiple injuries\"}]},{\"Conditions\":[{\"Code\":\"PK02\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1398529558\",\"Text\":\"Explosion in war\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #27ce60d014": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PK02/ND37","error":null,"reject":false,"report":"SP3: PK02 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - ND37 - as postcoordination for the current TUC - PK02.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PK02 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PK02.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PK02.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - ND37 - as postcoordination for the current TUC - PK02.\n","stemCode":"PK02","stemURI":"http://id.who.int/icd/entity/1398529558","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PK02;PK02;;;0;SP3: PK02 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PK02;;;;;0;SP6: is not applicable with the current TSP PK02.;;;;BER\nSP7;False;PK02;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PK02;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PK02;;;;;0;M1: There is no special instruction applicable with TUC PK02.;;;;BER\nM2;False;PK02;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PK02;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PK02/ND37;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1398529558 / http://id.who.int/icd/release/11/mms/1321122981","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":5},\"Part1\":[{\"Conditions\":[{\"Code\":\"ND37\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1321122981\",\"Text\":\"Multiple injuries\"}]},{\"Conditions\":[{\"Code\":\"PK02\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1398529558\",\"Text\":\"Explosion in war\"}]}]}","status":200}
+ }
+}

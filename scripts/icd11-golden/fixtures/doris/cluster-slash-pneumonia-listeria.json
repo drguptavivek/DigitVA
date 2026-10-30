@@ -1,0 +1,142 @@
+{
+ "id": "cluster-slash-pneumonia-listeria",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P50Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "CA40.0Z/1C1A.1",
+       "Interval": "P4D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified / http://id.who.int/icd/release/11/2026-01/mms/268154767",
+       "Text": "Listerial pneumonia"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "cluster-slash-pneumonia-listeria",
+  "source": "scripts/icd11-parity/queries.json",
+  "why": "Slash cluster CA40.0Z/1C1A.1 from WHO search"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z%2F1C1A.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C1A.1",
+    "POST icd/release/11/2026-01/doris #d7bdacc763",
+    "POST icd/release/11/2026-01/codedit #d7bdacc763",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C1A.1",
+    "GET icd/release/11/2026-01/mms/268154767",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z",
+    "GET icd/release/11/2026-01/mms/1323682030/unspecified"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P50Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "CA40.0Z/1C1A.1",
+          "Interval": "P4D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified / http://id.who.int/icd/release/11/2026-01/mms/268154767",
+          "Text": "Listerial pneumonia"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "BER-CE-9",
+       "report": "RE_W_IV_CodeURIMismatch",
+       "tabularReport": "0,RE_W_IV_CodeURIMismatch,BER-CE-9;1C1A.1/CA40.0Z;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1C1A.1/CA40.0Z",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 1C1A.1/CA40.0Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1C1A.1/CA40.0Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1C1A.1/CA40.0Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1C1A.1/CA40.0Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1C1A.1",
+       "stemURI": "http://id.who.int/icd/entity/268154767",
+       "tabularReport": "MCC;True;;;;Substitution:0:CA40.0Z/1C1A.1>1C1A.1/CA40.0Z;;1;CA40.0Z/1C1A.1 was recoded to 1C1A.1 which is not a residual.;;;;BER\nSP1;True;;1C1A.1/CA40.0Z;1C1A.1/CA40.0Z;;;0;SP1: 1C1A.1/CA40.0Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1C1A.1/CA40.0Z;;;;;0;SP6: is not applicable with the current TSP 1C1A.1/CA40.0Z.;;;;BER\nSP7;False;1C1A.1/CA40.0Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1C1A.1/CA40.0Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1C1A.1/CA40.0Z;;;;;0;M1: There is no special instruction applicable with TUC 1C1A.1/CA40.0Z.;;;;BER\nM2;False;1C1A.1/CA40.0Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1C1A.1/CA40.0Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/268154767 / http://id.who.int/icd/release/11/mms/1323682030/unspecified",
+       "warning": "CA40.0Z/1C1A.1 was recoded to 1C1A.1 which is not a residual.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1C1A.1",
+       "role": "stem",
+       "title": "Listerial meningitis or meningoencephalitis",
+       "uri": "http://id.who.int/icd/release/11/mms/268154767"
+      },
+      {
+       "code": "CA40.0Z",
+       "role": "postcoordinated",
+       "title": "Bacterial pneumonia, unspecified",
+       "uri": "http://id.who.int/icd/release/11/mms/1323682030/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P50Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "CA40.0Z/1C1A.1",
+         "Interval": "P4D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified / http://id.who.int/icd/release/11/2026-01/mms/268154767",
+         "Text": "Listerial pneumonia"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1323682030/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1323682030/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1323682030/unspecified","classKind":"category","code":"CA40.0Z","indexTerm":[{"label":{"@language":"en","@value":"Bacterial pneumonia, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"Bacterial pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"acute bacillus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"acute bacterial pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacillus double pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacillus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacteria pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacterial double pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacterial lobar pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bacterial purulent pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bronchopneumonia due to bacteria other than S. pneumoniae and H. influenzae"}},{"foundationReference":"http://id.who.int/icd/entity/1323682030","label":{"@language":"en","@value":"bronchopneumonia due to bacteria other than Streptococcus pneumoniae and Haemophilus influenzae"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/833290117"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/840155638","http://id.who.int/icd/release/11/2026-01/mms/2058300982","http://id.who.int/icd/release/11/2026-01/mms/980168338","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/1937339080","http://id.who.int/icd/release/11/2026-01/mms/2113860626"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"title":{"@language":"en","@value":"Bacterial pneumonia, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/268154767": {"method":"GET","path":"icd/release/11/2026-01/mms/268154767","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/268154767","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#268154767","classKind":"category","code":"1C1A.1","definition":{"@language":"en","@value":"A disease of the meninges or brain, caused by an infection with the gram-positive bacteria Listeria. This disease is characterised by fever, headache, or neurological deficits. Transmission is through haematogenous spread to the meninges from ingestion of contaminated food. Confirmation is by identification of Listeria from cerebrospinal fluid."},"indexTerm":[{"label":{"@language":"en","@value":"Listerial meningitis or meningoencephalitis"}},{"label":{"@language":"en","@value":"Listerial meningitis"}},{"label":{"@language":"en","@value":"listeria meningitis"}},{"label":{"@language":"en","@value":"listeria monocytogenes meningitis"}},{"label":{"@language":"en","@value":"listeria monocytogenes spinal meningitis"}},{"label":{"@language":"en","@value":"meningitis due to listeriosis"}},{"foundationReference":"http://id.who.int/icd/entity/1226870901","label":{"@language":"en","@value":"Encephalitis due to Listeria monocytogenes"}},{"foundationReference":"http://id.who.int/icd/entity/1226870901","label":{"@language":"en","@value":"encephalitis in listeriosis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/419706488"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/268154767/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1205515271","http://id.who.int/icd/release/11/2026-01/mms/581347778"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/268154767/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1656157931","http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/268154767/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/864425294"],"source":"http://id.who.int/icd/entity/268154767","title":{"@language":"en","@value":"Listerial meningitis or meningoencephalitis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1C1A.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1C1A.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1C1A.1","code":"1C1A.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/268154767"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.0Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.0Z","code":"CA40.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z%2F1C1A.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.0Z%2F1C1A.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.0Z%2f1C1A.1","code":"CA40.0Z/1C1A.1","hasCausingCondition":["1C1A.1"],"stemCode":"CA40.0Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #d7bdacc763": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"BER-CE-9","report":"RE_W_IV_CodeURIMismatch","tabularReport":"0,RE_W_IV_CodeURIMismatch,BER-CE-9;1C1A.1/CA40.0Z;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P50Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CA40.0Z/1C1A.1\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified / http://id.who.int/icd/release/11/2026-01/mms/268154767\",\"Text\":\"Listerial pneumonia\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #d7bdacc763": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1C1A.1/CA40.0Z","error":null,"reject":false,"report":"SP1: 1C1A.1/CA40.0Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1C1A.1/CA40.0Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1C1A.1/CA40.0Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1C1A.1/CA40.0Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1C1A.1","stemURI":"http://id.who.int/icd/entity/268154767","tabularReport":"MCC;True;;;;Substitution:0:CA40.0Z/1C1A.1>1C1A.1/CA40.0Z;;1;CA40.0Z/1C1A.1 was recoded to 1C1A.1 which is not a residual.;;;;BER\nSP1;True;;1C1A.1/CA40.0Z;1C1A.1/CA40.0Z;;;0;SP1: 1C1A.1/CA40.0Z is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1C1A.1/CA40.0Z;;;;;0;SP6: is not applicable with the current TSP 1C1A.1/CA40.0Z.;;;;BER\nSP7;False;1C1A.1/CA40.0Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1C1A.1/CA40.0Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1C1A.1/CA40.0Z;;;;;0;M1: There is no special instruction applicable with TUC 1C1A.1/CA40.0Z.;;;;BER\nM2;False;1C1A.1/CA40.0Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1C1A.1/CA40.0Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/268154767 / http://id.who.int/icd/release/11/mms/1323682030/unspecified","warning":"CA40.0Z/1C1A.1 was recoded to 1C1A.1 which is not a residual.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P50Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CA40.0Z/1C1A.1\",\"Interval\":\"P4D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified / http://id.who.int/icd/release/11/2026-01/mms/268154767\",\"Text\":\"Listerial pneumonia\"}]}]}","status":200}
+ }
+}

@@ -2,10 +2,12 @@
   <PropertyGroup>
     <OutputType>Library</OutputType><NativeLib>Shared</NativeLib><AllowUnsafeBlocks>true</AllowUnsafeBlocks><AssemblyName>digitva_icd11</AssemblyName><TargetFramework>net10.0</TargetFramework><Nullable>disable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization><PublishAot>true</PublishAot><JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault><TrimmerSingleWarn>false</TrimmerSingleWarn>
-    <B>/tmp/icdapi_portable</B>
+    <!-- build.sh passes both; these are the values it uses on the Mac. IcdApiDir: WHO's assemblies; AspNetDir: the SDK's ASP.NET Core shared framework. -->
+    <IcdApiDir>/tmp/icdapi_portable</IcdApiDir><AspNetDir>/usr/local/share/dotnet/shared/Microsoft.AspNetCore.App/10.0.13</AspNetDir>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="/usr/local/share/dotnet/shared/Microsoft.AspNetCore.App/10.0.13/*.dll" Private="true" />
-    <Reference Include="$(B)/*.dll" Exclude="$(B)/DigitvaIcd11Bridge.dll;$(B)/Microsoft.Extensions.Hosting.Systemd.dll;$(B)/Microsoft.Extensions.Hosting.WindowsServices.dll;$(B)/Microsoft.Win32.SystemEvents.dll;$(B)/System.Drawing.Common.dll;$(B)/System.ServiceProcess.ServiceController.dll" Private="true" />
+    <Compile Remove="gen_rd.cs" />
+    <Reference Include="$(AspNetDir)/*.dll" Private="true" />
+    <Reference Include="$(IcdApiDir)/*.dll" Exclude="$(IcdApiDir)/DigitvaIcd11Bridge.dll;$(IcdApiDir)/Microsoft.Extensions.Hosting.Systemd.dll;$(IcdApiDir)/Microsoft.Extensions.Hosting.WindowsServices.dll;$(IcdApiDir)/Microsoft.Win32.SystemEvents.dll;$(IcdApiDir)/System.Drawing.Common.dll;$(IcdApiDir)/System.ServiceProcess.ServiceController.dll" Private="true" />
   </ItemGroup>
 <ItemGroup><TrimmerRootAssembly Include="ICD-API" /><TrimmerRootAssembly Include="Microsoft.CSharp" /><TrimmerRootAssembly Include="System.Linq.Expressions" /><TrimmerRootAssembly Include="OCT" /><TrimmerRootAssembly Include="DorisRuleEngine" /><TrimmerRootAssembly Include="ICDTextAnalyzers" /><TrimmerRootAssembly Include="Expressions" /><TrimmerRootAssembly Include="NCalc" /><TrimmerRootAssembly Include="protobuf-net" /><TrimmerRootAssembly Include="Newtonsoft.Json" /><TrimmerRootAssembly Include="CsvHelper" /><TrimmerRootAssembly Include="J2N" /><TrimmerRootAssembly Include="ICU4N" /><TrimmerRootAssembly Include="Lucene.Net" /><TrimmerRootAssembly Include="Lucene.Net.Analysis.Common" /><TrimmerRootAssembly Include="Lucene.Net.ICU" /><TrimmerRootAssembly Include="JiebaNet.Segmenter" /><TrimmerRootAssembly Include="MiniExcel" /><TrimmerRootAssembly Include="CSharpFastPFOR" /><TrimmerRootAssembly Include="Antlr4.Runtime.Standard" /></ItemGroup><ItemGroup><RdXmlFile Include="rd.xml" /><RdXmlFile Include="rd_gen.xml" /></ItemGroup></Project>

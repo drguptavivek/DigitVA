@@ -1,0 +1,123 @@
+{
+ "id": "va-01-11",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P27Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1D60.01",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/792755706",
+       "Text": "Ebola virus disease"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-01-11",
+  "source": "VA cause VAs-01.11 Haemorrhagic fever",
+  "why": "Haemorrhagic fever: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1D60.01",
+    "POST icd/release/11/2026-01/doris #1455c3bdc7",
+    "POST icd/release/11/2026-01/codedit #1455c3bdc7"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P27Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1D60.01",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/792755706",
+          "Text": "Ebola virus disease"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-994",
+       "report": "The following condition (1D60.01) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.",
+       "tabularReport": "0,\"The following condition (1D60.01) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.\",FER-CE-994;1D60.01;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1D60.01",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 1D60.01 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1D60.01 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1D60.01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1D60.01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1D60.01",
+       "stemURI": "http://id.who.int/icd/entity/792755706",
+       "tabularReport": "SP1;True;;1D60.01;1D60.01;;;0;SP1: 1D60.01 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1D60.01;;;;;0;SP6: is not applicable with the current TSP 1D60.01.;;;;BER\nSP7;False;1D60.01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1D60.01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1D60.01;;;;;0;M1: There is no special instruction applicable with TUC 1D60.01.;;;;BER\nM2;False;1D60.01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1D60.01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/792755706",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1D60.01",
+       "role": "stem",
+       "title": "Ebola virus disease",
+       "uri": "http://id.who.int/icd/release/11/mms/792755706"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P27Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1D60.01",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/792755706",
+         "Text": "Ebola virus disease"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1D60.01": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1D60.01","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1D60.01","code":"1D60.01","stemId":"http://id.who.int/icd/release/11/2026-01/mms/792755706"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #1455c3bdc7": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-994","report":"The following condition (1D60.01) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.","tabularReport":"0,\"The following condition (1D60.01) which has the potential to cause serious public health impact and to spread rapidly internationally, as specified in the International Health Regulations (IHR) Annex 2 Decision Instrument, has been reported on the MCCD. Please verify the accuracy of the information.\",FER-CE-994;1D60.01;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1D60.01\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/792755706\",\"Text\":\"Ebola virus disease\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #1455c3bdc7": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1D60.01","error":null,"reject":false,"report":"SP1: 1D60.01 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1D60.01 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1D60.01.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1D60.01.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1D60.01","stemURI":"http://id.who.int/icd/entity/792755706","tabularReport":"SP1;True;;1D60.01;1D60.01;;;0;SP1: 1D60.01 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1D60.01;;;;;0;SP6: is not applicable with the current TSP 1D60.01.;;;;BER\nSP7;False;1D60.01;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1D60.01;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1D60.01;;;;;0;M1: There is no special instruction applicable with TUC 1D60.01.;;;;BER\nM2;False;1D60.01;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1D60.01;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/792755706","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1D60.01\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/792755706\",\"Text\":\"Ebola virus disease\"}]}]}","status":200}
+ }
+}

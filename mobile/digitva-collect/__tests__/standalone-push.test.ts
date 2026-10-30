@@ -358,6 +358,22 @@ describe("stale coding", () => {
     expect(offlineCodingBody(row, hash, "99999999-9999-4999-8999-999999999999")).toBeNull();
   });
 
+  it("sends the engine versions as pack_versions, never inside provenance, and nothing without allowability provenance", async () => {
+    const db = await standaloneStore();
+    const row = (await getOfflineCoding(db, DRAFT))!;
+    const hash = (await draftAnswersSha256(db, DRAFT))!;
+    const engine = { icd11_engine: "2026.10.29.1", doris_engine: "1.1.176", doris_rules: "1.2.0", icd_release: "2026-01" };
+    const body = offlineCodingBody({ ...row, provenance: JSON.stringify({ ...PROVENANCE, packVersions: { ...engine, odd: 5 } }) }, hash, DEVICE_UUID)!;
+    expect(body.provenance).toEqual(PROVENANCE);
+    expect(body.pack_versions).toEqual({ ...engine, allowability: "icd11-allowability-2026-01" });
+    for (const packVersions of [null, ["a"], "text"]) {
+      expect(offlineCodingBody({ ...row, provenance: JSON.stringify({ ...PROVENANCE, packVersions }) }, hash, DEVICE_UUID)!.pack_versions).toEqual({ allowability: "icd11-allowability-2026-01" });
+    }
+    expect(offlineCodingBody({ ...row, provenance: JSON.stringify({ packVersions: engine }) }, hash, DEVICE_UUID)).toBeNull();
+    const noRules = offlineCodingBody({ ...row, provenance: JSON.stringify({ ...PROVENANCE, allowability: {}, packVersions: engine }) }, hash, DEVICE_UUID)!;
+    expect(noRules.pack_versions).toEqual(engine);
+  });
+
   it("does not send a coding whose answers changed afterwards, sends the interview, and says why", async () => {
     const db = await standaloneStore();
     // Reopened and edited after coding.

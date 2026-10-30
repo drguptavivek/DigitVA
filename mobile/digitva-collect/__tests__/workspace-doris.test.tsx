@@ -133,9 +133,9 @@ async function pickViaPicker(code: string, uri = "https://who.int/Y55") {
   return reply;
 }
 
-function renderPanel(workspace: WorkspacePayload, api: WorkspaceApi, onDone = jest.fn(), request: JsonRequester = jest.fn(async () => ({}))) {
+function renderPanel(workspace: WorkspacePayload, api: WorkspaceApi, onDone = jest.fn(), request: JsonRequester = jest.fn(async () => ({})), demo = false) {
   let tree!: ReactTestRenderer;
-  act(() => { tree = create(<DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} />); });
+  act(() => { tree = create(<DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} demo={demo} />); });
   return { tree, onDone, request };
 }
 
@@ -387,9 +387,9 @@ it("adds uncoded text from the picker to a line and removes a condition chip", a
   await act(async () => byLabel(tree, "Open search Part I line 1").props.onPress());
   expect(mockFrame.props.init).toMatchObject({ title: "Immediate cause", allowUncoded: true });
   await act(async () => mockFrame.props.onMessage({ t: "uncoded", text: "Fever" }, jest.fn()));
-  expect(JSON.stringify(tree.toJSON())).toContain("Fever ×");
-  await act(async () => byLabel(tree, "Remove condition 2").props.onPress());
-  expect(JSON.stringify(tree.toJSON())).not.toContain("Fever ×");
+  expect(JSON.stringify(tree.toJSON())).toContain("Fever");
+  await act(async () => byLabel(tree, "Remove Fever").props.onPress());
+  expect(JSON.stringify(tree.toJSON())).not.toContain("Fever");
   await act(async () => tree.unmount());
 });
 
@@ -399,7 +399,8 @@ it("adds a picker-verified code to the searched line with the line interval", as
   await act(async () => byLabel(tree, "Open search Part I line 2").props.onPress());
   expect(mockFrame.props.init).toMatchObject({ title: "Due to", accent: "#B45309" });
   await pickViaPicker("Y55");
-  expect(JSON.stringify(tree.toJSON())).toContain("Y55 — Selected cause ×");
+  expect(JSON.stringify(tree.toJSON())).toContain("Y55 — Selected cause");
+  expect(byLabel(tree, "Remove Y55")).toBeDefined();
   await act(async () => tree.unmount());
 });
 
@@ -1448,7 +1449,9 @@ describe("DORIS parity with the public demo: reopened titles and notes, Part 2, 
 
   it("labels Sex code 9 Unknown, not Undetermined", () => {
     const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, AdministrativeData: { Sex: 1 } } }), apiFor());
-    expect(allText(tree)).toContain("Sex|Not stated|Male|Female|Unknown|Estimated age");
+    expect(allText(tree)).toContain("Sex|Not stated|Male|Female|Unknown|Date of birth");
+    // Estimated age follows the two dates it is derived from.
+    expect(allText(tree)).toMatch(/Date of birth\|.*Date of death\|.*Estimated age\|/);
     expect(allText(tree)).not.toContain("Undetermined");
   });
 
@@ -1652,6 +1655,137 @@ describe("web reload recovery", () => {
     expect(readPendingNote(draftContext(workspace, identity))).toBe("Keep pending note");
     expect(readCodDraft(draftContext(workspace, identity), "final")?.certificate.Part1).toEqual([{ Conditions: [] }, { Conditions: [] }, { Conditions: [] }]);
     expect(workspace.smartva).toEqual({ cause: "Server SmartVA" });
+    await act(async () => tree.unmount());
+  });
+});
+
+/** Merged style of a host node (arrays flattened). */
+function flatStyle(node: ReactTestInstance): Record<string, any> {
+  const raw = node.props.style;
+  return Object.assign({}, ...[typeof raw === "function" ? raw({ pressed: false }) : raw].flat(3).filter(Boolean));
+}
+const hostAncestors = (node: ReactTestInstance) => { const out: ReactTestInstance[] = []; for (let n = node.parent; n; n = n.parent) if (typeof n.type === "string") out.push(n); return out; };
+const hostText = (node: ReactTestInstance): string => node.findAll((n) => typeof n.type === "string").flatMap((n) => n.children.filter((c): c is string => typeof c === "string")).join("");
+
+describe("form layout stays in flow (digitva-4x2y)", () => {
+  const prefilled: JsonObject = { ...certificate, AdministrativeData: { Sex: 2, EstimatedAge: "P62Y", DateBirth: "1964-05-06", DateDeath: "2026-10-01" } };
+  const provenance: JsonObject = { "AdministrativeData.EstimatedAge": { sources: ["Id10019"] }, "AdministrativeData.DateDeath": { sources: ["Id10023"] } };
+
+  it("keeps every administrative field inside its card: nothing in a column cell grows or has a flex-basis (a height there)", async () => {
+    const { tree } = renderPanel(makeWorkspace({ seed: prefilled, prefill: provenance }), apiFor());
+    const title = tree.root.findAll((n) => typeof n.type === "string" && n.children.includes("Administrative Data"))[0];
+    const card = hostAncestors(title).find((n) => flatStyle(n).borderWidth === 1)!;
+    for (const label of ["Estimated age", "Estimated age unit", "Date of birth precision", "Date of birth", "Date of death", "Clear Date of death"]) {
+      expect(card.findAll((n) => typeof n.type === "string" && n.props.accessibilityLabel === label).length).toBeGreaterThan(0);
+    }
+    // Root cause of the controls drawn far below their labels: RN's Yoga (legacy stretch errata) fills the height a column offers
+    // to a child with flexGrow/flex, and reads flexBasis as a height. So such a child must sit in a row (where both are widths).
+    let grown = 0;
+    for (const node of card.findAll((n) => typeof n.type === "string")) {
+      const style = flatStyle(node);
+      if (!(style.flexGrow > 0 || style.flex > 0 || style.flexBasis !== undefined)) continue;
+      grown += 1;
+      expect(flatStyle(hostAncestors(node)[0]).flexDirection).toBe("row");
+    }
+    expect(grown).toBeGreaterThan(0);
+    // Absolute positions and transforms never carry a field.
+    for (const node of card.findAll((n) => typeof n.type === "string")) {
+      expect(flatStyle(node).position).toBeUndefined();
+      expect(flatStyle(node).transform).toBeUndefined();
+    }
+    // The date of death is a plain date: its field sits in a row beside nothing, not bare in the column cell.
+    const dateButton = card.findAll((n) => typeof n.type === "string" && n.props.accessibilityLabel === "Date of death")[0];
+    const sized = hostAncestors(dateButton).find((n) => flatStyle(n).flexBasis === 150)!;
+    expect(flatStyle(hostAncestors(sized)[0]).flexDirection).toBe("row");
+    await act(async () => tree.unmount());
+  });
+
+  it("puts the chip's remove × in the chip's own row, with a 44px reach and a labelled button", async () => {
+    const { tree } = renderPanel(makeWorkspace({ seed: { ICDVersion: "ICD11", Part1: [{ Conditions: [{ Text: "Pneumonia, organism unspecified", Code: "CA40.Z", LinearizationURI: "https://who.int/CA40.Z" }] }] } }), apiFor());
+    const chip = hostNodesWithTestId(tree, "condition-chip")[0];
+    expect(flatStyle(chip)).toMatchObject({ flexDirection: "row" });
+    expect(flatStyle(chip).flexWrap).toBeUndefined();
+    expect(hostText(chip)).toContain("CA40.Z — Pneumonia, organism unspecified");
+    const remove = chip.findAll((n) => n.props.accessibilityLabel === "Remove CA40.Z" && typeof n.type === "string")[0];
+    expect(remove.parent && remove.parent.parent === chip || hostAncestors(remove)[0] === chip).toBe(true);
+    const w = flatStyle(remove);
+    const slop = remove.props.hitSlop;
+    expect(w.width + 2 * slop).toBeGreaterThanOrEqual(44);
+    expect(w.height + 2 * slop).toBeGreaterThanOrEqual(44);
+    await act(async () => tree.unmount());
+  });
+
+  it("shows the ⓘ on the same row as the DORIS result choice", async () => {
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), apiFor());
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    const row = hostNodesWithTestId(tree, "quick-choice-row")[0];
+    expect(flatStyle(row)).toMatchObject({ flexDirection: "row" });
+    expect(flatStyle(row).flexWrap).toBeUndefined();
+    expect(row.findAll((n) => typeof n.props.label === "string" && n.props.label.startsWith("Use DORIS result")).length).toBeGreaterThan(0);
+    expect(row.findAll((n) => n.props.accessibilityLabel === "Details for CA40").length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("does not truncate the line title and keeps the move and remove controls", async () => {
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), apiFor());
+    const titles = tree.root.findAll((n) => typeof n.type === "string" && n.children.includes("Immediate cause"));
+    expect(titles.length).toBeGreaterThan(0);
+    for (const t of titles) expect(t.props.numberOfLines).toBeUndefined();
+    const header = hostAncestors(titles[0]).find((n) => flatStyle(n).justifyContent === "space-between")!;
+    for (const label of ["Move Part I line 1 down", "Remove Part I line 1"]) {
+      const button = header.findAll((n) => typeof n.type === "string" && n.props.accessibilityLabel === label)[0];
+      expect(flatStyle(button).minWidth + 2 * button.props.hitSlop).toBeGreaterThanOrEqual(44);
+      expect(flatStyle(button).minHeight + 2 * button.props.hitSlop).toBeGreaterThanOrEqual(44);
+    }
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("demo mode (Collect Plus Try DORIS)", () => {
+  const rendered = (demo: boolean, seed: JsonObject = certificate) => renderPanel(makeWorkspace({ seed }), apiFor(), jest.fn(), jest.fn(async () => ({})), demo);
+  const hasLabel = (tree: ReactTestRenderer, label: string) => tree.root.findAllByProps({ accessibilityLabel: label }).length > 0;
+
+  it("hides Save Step 1 and Report not codeable, and words Reset as a return to the loaded example", async () => {
+    const { tree } = rendered(true);
+    // The panel is there and live (Process is offered) before the absences are asserted.
+    expect(hasLabel(tree, "Process current certificate")).toBe(true);
+    expect(hasLabel(tree, "Reset to the loaded example")).toBe(true);
+    for (const label of ["Save Step 1", "Submit not-codeable report", "Reset DORIS from interview"]) expect(hasLabel(tree, label)).toBe(false);
+    expect(allText(tree)).not.toContain("Report not codeable");
+    await act(async () => tree.unmount());
+  });
+
+  it("leaves offline coding and the web as they were: the same panel without the prop keeps all three", async () => {
+    const { tree } = rendered(false);
+    expect(hasLabel(tree, "Process current certificate")).toBe(true);
+    for (const label of ["Save Step 1", "Submit not-codeable report", "Reset DORIS from interview"]) expect(hasLabel(tree, label)).toBe(true);
+    expect(allText(tree)).toContain("Report not codeable");
+    expect(hasLabel(tree, "Reset to the loaded example")).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  it("offers the administrative fields on a blank certificate, and they reach the processed certificate", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ICDVersion: "ICD11", Part1: certificate.Part1 } }), api, jest.fn(), jest.fn(async () => ({})), true);
+    // No AdministrativeData in the seed (like the blank demo certificate); demo mode still offers the card.
+    expect(allText(tree)).not.toContain("Administrative data was not supplied");
+    await act(async () => tree.root.findAllByProps({ testID: "question-doris_sex-choice-2" }).find((node) => node.props.accessibilityRole === "radio")!.props.onPress());
+    await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
+    await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+    await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
+    // The native date fields open the system picker, so the test checks they are offered rather than typing into them.
+    for (const label of ["Date of birth", "Date of death"]) expect(tree.root.findAllByProps({ accessibilityLabel: label }).length).toBeGreaterThan(0);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect((api.processDoris as jest.Mock).mock.calls[0][3].AdministrativeData).toEqual({ Sex: 2, EstimatedAge: "P76Y" });
+    await act(async () => tree.unmount());
+  });
+
+  it("Reset restores the whole loaded example, causes included", async () => {
+    const { tree } = rendered(true);
+    await act(async () => byLabel(tree, "Part I line 1 interval").props.onChangeText("3"));
+    await act(async () => byLabel(tree, "Reset to the loaded example").props.onPress());
+    expect(allText(tree)).toContain("Pneumonia");
+    expect(allText(tree)).toContain("Certificate reset to the loaded example.");
     await act(async () => tree.unmount());
   });
 });

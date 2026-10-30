@@ -152,7 +152,7 @@ export function FilterSheet({ filters, options, wide, onChange, onClear, onClose
             <Text style={s.title} accessibilityRole="header">{t("usersFiltersTitle")}</Text>
             <Button kind="secondary" size="sm" label={t("usersFiltersDone")} onPress={onClose} />
           </View>
-          <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+          <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
             {options.projects.length > 1 ? (
               <Group label={t("usersFilterProject")}>
                 <ChipGroup

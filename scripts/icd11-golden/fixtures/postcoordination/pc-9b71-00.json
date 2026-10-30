@@ -1,0 +1,837 @@
+{
+ "built": [
+  {
+   "expression": "9B71.00&XS25&XK9J/5A11",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/codeinfo/XS25",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/417759842"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "9B71.00&XS25&XK9J/5A11",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Nonproliferative diabetic retinopathy",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842 & http://id.who.int/icd/release/11/2026-01/mms/1201187093 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "9B71.00&XS25&XK9J/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/codeinfo/XS25",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/codeinfo/XS25",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/417759842"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "9B71.00&XS25&XK9J/5A11",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Nonproliferative diabetic retinopathy",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842 & http://id.who.int/icd/release/11/2026-01/mms/1201187093 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "9B71.00&XS25&XK9J/5A11",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842 & http://id.who.int/icd/release/11/2026-01/mms/1201187093 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/417759842",
+      "GET icd/release/11/2026-01/mms/1006882070",
+      "GET icd/release/11/2026-01/mms/2000854880",
+      "GET icd/release/11/2026-01/mms/77208243",
+      "GET icd/release/11/2026-01/mms/2000687626",
+      "GET icd/release/11/2026-01/mms/868865918",
+      "GET icd/release/11/2026-01/mms/1006882070",
+      "GET icd/release/11/2026-01/mms/348602398",
+      "GET icd/release/11/2026-01/mms/1006882070/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "09",
+         "title": "Diseases of the visual system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/868865918"
+        },
+        {
+         "code": "",
+         "title": "Disorders of the eyeball - posterior segment",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2000687626"
+        },
+        {
+         "code": "",
+         "title": "Disorders of the retina",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/77208243"
+        },
+        {
+         "code": "9B71",
+         "title": "Retinopathy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2000854880"
+        },
+        {
+         "code": "9B71.0",
+         "title": "Diabetic retinopathy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1006882070"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Nonproliferative diabetic retinopathy",
+        "Mild nonproliferative diabetic retinopathy",
+        "Moderate nonproliferative diabetic retinopathy",
+        "Severe nonproliferative diabetic retinopathy",
+        "Preproliferative diabetic retinopathy",
+        "Diabetes mellitus, independent of type with preproliferative retinopathy",
+        "Type 2 diabetes mellitus with preproliferative retinopathy",
+        "Nonproliferative diabetic macular oedema",
+        "Nonproliferative diabetic retinopathy, macular oedema apparently absent",
+        "Mild nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus",
+        "nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus",
+        "Mild nonproliferative diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "9B71.00",
+        "title": "Nonproliferative diabetic retinopathy",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+       },
+       "selected_expression": {
+        "code": "9B71.00&XS25&XK9J/5A11",
+        "stem_code": "9B71.00"
+       },
+       "siblings": [
+        {
+         "code": "9B71.01",
+         "has_children": false,
+         "title": "Proliferative diabetic retinopathy",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/348602398"
+        },
+        {
+         "code": "9B71.0Z",
+         "has_children": false,
+         "title": "Diabetic retinopathy, unspecified whether nonproliferative or proliferative",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "9B71.00&XS25&XK9J/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/417759842"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "9B71.00",
+        "title": "Nonproliferative diabetic retinopathy",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "9B71.00&XS25&XK9J/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/417759842"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "9B71.00",
+        "title": "Nonproliferative diabetic retinopathy",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "9B71.00&XS25&XK9J/5A11"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/417759842"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "Always assign an additional code for the type of diabetes mellitus.",
+       "definition": "This is nonproliferative retinopathy (damage to the retina) caused by complications of diabetes, which can eventually lead to blindness. It is an ocular manifestation of diabetes, a systemic disease, which affects up to 80 percent of all patients who have had diabetes for 10 years or more.",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "9B71.00",
+        "title": "Nonproliferative diabetic retinopathy",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "9B71.00&XS25&XK9J/5A11"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842 & http://id.who.int/icd/release/11/2026-01/mms/1201187093 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091",
+   "why": "severe, bilateral, type 2 diabetes"
+  }
+ ],
+ "id": "pc-9b71-00",
+ "input": {
+  "built": [
+   {
+    "expression": "9B71.00&XS25&XK9J/5A11",
+    "why": "severe, bilateral, type 2 diabetes"
+   }
+  ],
+  "category": "mandatory",
+  "id": "pc-9b71-00",
+  "source": "docs/kb/doris-icd-api-and-va.md",
+  "stem": "9B71.00",
+  "why": "Non-proliferative diabetic retinopathy: severity, laterality and required causing condition"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "9B71.00",
+      "has_coding_note": true,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "9B71.00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "9B71.00",
+      "has_coding_note": true,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "9B71.00",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842",
+    "GET icd/release/11/2026-01/mms/627678743",
+    "GET icd/release/11/2026-01/mms/271422288",
+    "GET icd/release/11/2026-01/mms/876572005",
+    "GET icd/release/11/2026-01/mms/1038788978",
+    "GET icd/release/11/2026-01/mms/816212034",
+    "GET icd/release/11/2026-01/mms/562478860",
+    "GET icd/release/11/2026-01/mms/1663264387",
+    "GET icd/release/11/2026-01/mms/1201187093",
+    "GET icd/release/11/2026-01/mms/1651053999",
+    "GET icd/release/11/2026-01/mms/119724091",
+    "GET icd/release/11/2026-01/mms/1150913605",
+    "GET icd/release/11/2026-01/mms/381961554",
+    "GET icd/release/11/2026-01/mms/1697306310"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "laterality",
+       "instruction": "use additional code, if desired",
+       "label": "Laterality",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+         "code": "XK9J",
+         "has_children": false,
+         "title": "Bilateral",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+         "code": "XK8G",
+         "has_children": false,
+         "title": "Left",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+         "code": "XK9K",
+         "has_children": false,
+         "title": "Right",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978",
+         "code": "XK70",
+         "has_children": false,
+         "title": "Unilateral, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+        "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+        "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+        "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/816212034",
+         "code": "9B78.7",
+         "has_children": false,
+         "title": "Retinal oedema",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/816212034"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/816212034"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "hasSeverity",
+       "instruction": "use additional code, if desired",
+       "label": "Has severity",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/562478860",
+         "code": "XS5W",
+         "has_children": false,
+         "title": "Mild",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/562478860"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1663264387",
+         "code": "XS0T",
+         "has_children": false,
+         "title": "Moderate",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1663264387"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1201187093",
+         "code": "XS25",
+         "has_children": false,
+         "title": "Severe",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1201187093"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/562478860",
+        "http://id.who.int/icd/release/11/2026-01/mms/1663264387",
+        "http://id.who.int/icd/release/11/2026-01/mms/1201187093"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasCausingCondition",
+       "instruction": "code also",
+       "label": "Has causing condition",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1651053999",
+         "code": "5A10",
+         "has_children": false,
+         "title": "Type 1 diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1651053999"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "code": "5A11",
+         "has_children": false,
+         "title": "Type 2 diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/119724091"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1150913605",
+         "code": "5A12",
+         "has_children": false,
+         "title": "Malnutrition-related diabetes mellitus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1150913605"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+         "code": "5A13",
+         "has_children": true,
+         "title": "Diabetes mellitus, other specified type",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1697306310",
+         "code": "5A14",
+         "has_children": false,
+         "title": "Diabetes mellitus, type unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1697306310"
+        }
+       ],
+       "required": true,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1651053999",
+        "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "http://id.who.int/icd/release/11/2026-01/mms/1150913605",
+        "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+        "http://id.who.int/icd/release/11/2026-01/mms/1697306310"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "9B71.00",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "9B71.00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842",
+    "GET icd/release/11/2026-01/mms/381961554",
+    "GET icd/release/11/2026-01/mms/1484144649",
+    "GET icd/release/11/2026-01/mms/133436462",
+    "GET icd/release/11/2026-01/mms/1050647875",
+    "GET icd/release/11/2026-01/mms/1736581746",
+    "GET icd/release/11/2026-01/mms/388963453",
+    "GET icd/release/11/2026-01/mms/1418416880",
+    "GET icd/release/11/2026-01/mms/1730828870",
+    "GET icd/release/11/2026-01/mms/891371477",
+    "GET icd/release/11/2026-01/mms/381961554/other"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasCausingCondition",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.0",
+       "has_children": false,
+       "title": "Diabetes mellitus due to genetic defects of beta cell function",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1484144649"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.1",
+       "has_children": false,
+       "title": "Diabetes mellitus due to genetic defects in insulin action",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/133436462"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.2",
+       "has_children": false,
+       "title": "Diabetes mellitus due to diseases of the exocrine pancreas",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1050647875"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.3",
+       "has_children": false,
+       "title": "Diabetes mellitus due to endocrinopathies",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1736581746"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.4",
+       "has_children": false,
+       "title": "Diabetes mellitus due to drug or chemical",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/388963453"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.5",
+       "has_children": false,
+       "title": "Diabetes mellitus due to uncommon forms of immune-mediated diabetes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1418416880"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.6",
+       "has_children": false,
+       "title": "Diabetes mellitus due to other genetic syndromes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730828870"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.7",
+       "has_children": false,
+       "title": "Diabetes mellitus due to clinically defined subtypes or syndromes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/891371477"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+       "code": "5A13.Y",
+       "has_children": false,
+       "title": "Diabetes mellitus due to other specified cause",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554/other"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "9B71.00",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasCausingCondition",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/381961554",
+    "stem_code": "9B71.00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842",
+    "GET icd/release/11/2026-01/mms/1006882070",
+    "GET icd/release/11/2026-01/mms/2000854880",
+    "GET icd/release/11/2026-01/mms/77208243",
+    "GET icd/release/11/2026-01/mms/2000687626",
+    "GET icd/release/11/2026-01/mms/868865918",
+    "GET icd/release/11/2026-01/mms/1006882070",
+    "GET icd/release/11/2026-01/mms/348602398",
+    "GET icd/release/11/2026-01/mms/1006882070/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "09",
+       "title": "Diseases of the visual system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/868865918"
+      },
+      {
+       "code": "",
+       "title": "Disorders of the eyeball - posterior segment",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2000687626"
+      },
+      {
+       "code": "",
+       "title": "Disorders of the retina",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/77208243"
+      },
+      {
+       "code": "9B71",
+       "title": "Retinopathy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2000854880"
+      },
+      {
+       "code": "9B71.0",
+       "title": "Diabetic retinopathy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1006882070"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Nonproliferative diabetic retinopathy",
+      "Mild nonproliferative diabetic retinopathy",
+      "Moderate nonproliferative diabetic retinopathy",
+      "Severe nonproliferative diabetic retinopathy",
+      "Preproliferative diabetic retinopathy",
+      "Diabetes mellitus, independent of type with preproliferative retinopathy",
+      "Type 2 diabetes mellitus with preproliferative retinopathy",
+      "Nonproliferative diabetic macular oedema",
+      "Nonproliferative diabetic retinopathy, macular oedema apparently absent",
+      "Mild nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus",
+      "nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus",
+      "Mild nonproliferative diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "9B71.00",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "9B71.01",
+       "has_children": false,
+       "title": "Proliferative diabetic retinopathy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/348602398"
+      },
+      {
+       "code": "9B71.0Z",
+       "has_children": false,
+       "title": "Diabetic retinopathy, unspecified whether nonproliferative or proliferative",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "9B71.00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "9B71.00",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "9B71.00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "9B71.00",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "9B71.00"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+    "GET icd/release/11/2026-01/mms/417759842"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "Always assign an additional code for the type of diabetes mellitus.",
+     "definition": "This is nonproliferative retinopathy (damage to the retina) caused by complications of diabetes, which can eventually lead to blindness. It is an ocular manifestation of diabetes, a systemic disease, which affects up to 80 percent of all patients who have had diabetes for 10 years or more.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "9B71.00",
+      "title": "Nonproliferative diabetic retinopathy",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "9B71.00"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1006882070": {"method":"GET","path":"icd/release/11/2026-01/mms/1006882070","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1006882070","child":["http://id.who.int/icd/release/11/2026-01/mms/417759842","http://id.who.int/icd/release/11/2026-01/mms/348602398","http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified"],"classKind":"category","code":"9B71.0","codingNote":{"@language":"en","@value":"Always assign an additional code for diabetes mellitus."},"definition":{"@language":"en","@value":"A condition characterised as a disease of the retina (retinopathy) involving damage to the small blood vessels in the retina which is due to chronically high blood glucose levels in people with diabetes."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/2000854880"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/816212034"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/562478860","http://id.who.int/icd/release/11/2026-01/mms/1663264387","http://id.who.int/icd/release/11/2026-01/mms/1201187093"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"source":"http://id.who.int/icd/entity/1006882070","title":{"@language":"en","@value":"Diabetic retinopathy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1006882070/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1006882070/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1006882070/unspecified","classKind":"category","code":"9B71.0Z","codingNote":{"@language":"en","@value":"Always assign an additional code for diabetes mellitus."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetic retinopathy, unspecified whether nonproliferative or proliferative"}},{"foundationReference":"http://id.who.int/icd/entity/1006882070","label":{"@language":"en","@value":"Diabetic retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1116345240","label":{"@language":"en","@value":"Diabetic macular oedema"}},{"foundationReference":"http://id.who.int/icd/entity/1116345240","label":{"@language":"en","@value":"diabetic macular oedema apparently present"}},{"foundationReference":"http://id.who.int/icd/entity/1001632806","label":{"@language":"en","@value":"Mild diabetic macular oedema, Some retinal thickening or hard exudates in posterior pole but distant from the centre of the macula"}},{"foundationReference":"http://id.who.int/icd/entity/301589723","label":{"@language":"en","@value":"Moderate diabetic macular oedema, Retinal thickening or hard exudates approaching the centre of the macula but not involving the centre"}},{"foundationReference":"http://id.who.int/icd/entity/407032800","label":{"@language":"en","@value":"Severe diabetic macular oedema, Retinal thickening or hard exudates involving the centre of the macula"}},{"foundationReference":"http://id.who.int/icd/entity/684055088","label":{"@language":"en","@value":"Diabetic retinopathy, macular oedema apparently absent"}},{"foundationReference":"http://id.who.int/icd/entity/684055088","label":{"@language":"en","@value":"diabetic macular oedema apparently absent"}},{"foundationReference":"http://id.who.int/icd/entity/1950211450","label":{"@language":"en","@value":"Ophthalmic complications due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1850238680","label":{"@language":"en","@value":"Unspecified diabetic retinopathy due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1753990909","label":{"@language":"en","@value":"diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1712078891","label":{"@language":"en","@value":"diabetic retinopathy without macular oedema due to drug or chemical induced diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1006882070"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/816212034"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/562478860","http://id.who.int/icd/release/11/2026-01/mms/1663264387","http://id.who.int/icd/release/11/2026-01/mms/1201187093"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1006882070/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"title":{"@language":"en","@value":"Diabetic retinopathy, unspecified whether nonproliferative or proliferative"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1038788978": {"method":"GET","path":"icd/release/11/2026-01/mms/1038788978","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1038788978","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1038788978","classKind":"category","code":"XK70","indexTerm":[{"label":{"@language":"en","@value":"Unilateral, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/1038788978","title":{"@language":"en","@value":"Unilateral, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1050647875": {"method":"GET","path":"icd/release/11/2026-01/mms/1050647875","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1050647875","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1050647875","classKind":"category","code":"5A13.2","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to diseases of the exocrine pancreas is a form of diabetes which is caused by any process that diffusely injures the pancreas. Acquired processes include pancreatitis, trauma, infection, pancreatectomy, and pancreatic carcinoma. With the exception of that caused by cancer, damage to the pancreas must be extensive for diabetes to occur."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to diseases of the exocrine pancreas"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1050647875/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1050647875","title":{"@language":"en","@value":"Diabetes mellitus due to diseases of the exocrine pancreas"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1150913605": {"method":"GET","path":"icd/release/11/2026-01/mms/1150913605","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1150913605","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1150913605","classKind":"category","code":"5A12","indexTerm":[{"label":{"@language":"en","@value":"Malnutrition-related diabetes mellitus"}},{"label":{"@language":"en","@value":"MRDM - [malnutrition-related diabetes mellitus]"}},{"label":{"@language":"en","@value":"malnutrition-related diabetes"}},{"label":{"@language":"en","@value":"malnutrition-related diabetes mellitus without complications"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1150913605/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1150913605","title":{"@language":"en","@value":"Malnutrition-related diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/119724091": {"method":"GET","path":"icd/release/11/2026-01/mms/119724091","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/119724091","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#119724091","classKind":"category","code":"5A11","definition":{"@language":"en","@value":"Diabetes mellitus type 2 (formerly noninsulin-dependent diabetes mellitus (NIDDM) or adult-onset diabetes) is a metabolic disorder that is characterised by high blood glucose in the context of insulin resistance and relative insulin deficiency."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/750602160","label":{"@language":"en","@value":"Pre-existing type 2 diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/750602160"}],"inclusion":[{"label":{"@language":"en","@value":"non-insulin-dependent diabetes of the young"}}],"indexTerm":[{"label":{"@language":"en","@value":"Type 2 diabetes mellitus"}},{"label":{"@language":"en","@value":"DM type II"}},{"label":{"@language":"en","@value":"DM2"}},{"label":{"@language":"en","@value":"Diabetic type 2"}},{"label":{"@language":"en","@value":"NIDDM - [non insulin dependent diabetes mellitus]"}},{"label":{"@language":"en","@value":"T2DM - [Type 2 diabetes mellitus]"}},{"label":{"@language":"en","@value":"Type II diabetes mellitus"}},{"label":{"@language":"en","@value":"adult onset diabetes"}},{"label":{"@language":"en","@value":"diabetes due to insulin secretory defect"}},{"label":{"@language":"en","@value":"diabetes mellitus Type 2"}},{"label":{"@language":"en","@value":"diabetes mellitus due to insulin secretory defect"}},{"label":{"@language":"en","@value":"insulin requiring type 2 diabetes"}},{"label":{"@language":"en","@value":"maturity onset diabetes"}},{"label":{"@language":"en","@value":"maturity-onset diabetes mellitus"}},{"label":{"@language":"en","@value":"non-insulin dependent diabetes mellitus"}},{"label":{"@language":"en","@value":"non-insulin-dependent diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"non-insulin-dependent diabetes of the young"}},{"label":{"@language":"en","@value":"noninsulin dependent diabetes"}},{"label":{"@language":"en","@value":"nonketotic diabetes"}},{"label":{"@language":"en","@value":"nonketotic hyperglycaemia"}},{"label":{"@language":"en","@value":"senile diabetes"}},{"label":{"@language":"en","@value":"stable diabetes"}},{"label":{"@language":"en","@value":"type 2 diabetes"}},{"label":{"@language":"en","@value":"type II diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/618467158","label":{"@language":"en","@value":"Ketosis-resistant diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1255683285","label":{"@language":"en","@value":"Insulin resistant diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1255683285","label":{"@language":"en","@value":"insulin resistant diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/119724091/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/750602160"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/119724091","title":{"@language":"en","@value":"Type 2 diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1201187093": {"method":"GET","path":"icd/release/11/2026-01/mms/1201187093","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1201187093","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1201187093","classKind":"category","code":"XS25","indexTerm":[{"label":{"@language":"en","@value":"Severe"}},{"label":{"@language":"en","@value":"grave"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1726150948"],"source":"http://id.who.int/icd/entity/1201187093","title":{"@language":"en","@value":"Severe"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/133436462": {"method":"GET","path":"icd/release/11/2026-01/mms/133436462","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/133436462","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#133436462","classKind":"category","code":"5A13.1","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to genetic defects in insulin action is a form of diabetes, which results from genetically determined abnormalities of insulin action. The metabolic abnormalities associated with mutations of the insulin receptor may range from hyperinsulinemia and modest hyperglycaemia to severe diabetes."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to genetic defects in insulin action"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/133436462/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/133436462","title":{"@language":"en","@value":"Diabetes mellitus due to genetic defects in insulin action"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1418416880": {"method":"GET","path":"icd/release/11/2026-01/mms/1418416880","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1418416880","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1418416880","classKind":"category","code":"5A13.5","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to uncommon forms of immune-mediated diabetes is a form of diabetes, which is caused by two known conditions. The stiff-man syndrome is an autoimmune disorder of the central nervous system characterised by stiffness of the axial muscles with painful spasms. Patients usually have high titres of the GAD autoantibodies, and approximately one-third will develop diabetes."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to uncommon forms of immune-mediated diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1418416880/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1418416880","title":{"@language":"en","@value":"Diabetes mellitus due to uncommon forms of immune-mediated diabetes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1484144649": {"method":"GET","path":"icd/release/11/2026-01/mms/1484144649","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1484144649","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1484144649","classKind":"category","code":"5A13.0","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to genetic defects of beta cell function is a form of diabetes, which is associated with monogenetic defects in beta-cell function."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to genetic defects of beta cell function"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1484144649/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1484144649","title":{"@language":"en","@value":"Diabetes mellitus due to genetic defects of beta cell function"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1651053999": {"method":"GET","path":"icd/release/11/2026-01/mms/1651053999","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1651053999","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1651053999","classKind":"category","code":"5A10","definition":{"@language":"en","@value":"Diabetes mellitus type 1 (type 1 diabetes, T1DM, formerly insulin dependent or juvenile diabetes) is a form of diabetes mellitus that results from destruction of insulin-producing beta cells, mostly by autoimmune mechanisms. The subsequent lack of insulin leads to increased blood and urine glucose."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/119724091","label":{"@language":"en","@value":"Type 2 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1240893990","label":{"@language":"en","@value":"Pre-existing type 1 diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1240893990"}],"indexTerm":[{"label":{"@language":"en","@value":"Type 1 diabetes mellitus"}},{"label":{"@language":"en","@value":"IDDM - [insulin dependent diabetes mellitus]"}},{"label":{"@language":"en","@value":"T1DM - [type 1 diabetes mellitus]"}},{"label":{"@language":"en","@value":"idiopathic insulin-dependent diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"juvenile diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"juvenile-onset diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"juvenile-onset-type diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"ketosis-prone diabetes mellitus without complications"}},{"label":{"@language":"en","@value":"type 1 IDDM"}},{"label":{"@language":"en","@value":"type 1 diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1237768242","label":{"@language":"en","@value":"Fulminant type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1727622794","label":{"@language":"en","@value":"Immune-related Type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1727622794","label":{"@language":"en","@value":"Immune-mediated Type 1 diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1727622794","label":{"@language":"en","@value":"Juvenile onset diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"Latent autoimmune diabetes in adults"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"LADA - [Latent autoimmune diabetes in adults]"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"SPIDDM - [Slowly progressive insulin-dependent diabetes mellitus]"}},{"foundationReference":"http://id.who.int/icd/entity/1918279014","label":{"@language":"en","@value":"slowly progressive insulin-dependent diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1651053999/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1240893990"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1651053999","title":{"@language":"en","@value":"Type 1 diabetes mellitus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1663264387": {"method":"GET","path":"icd/release/11/2026-01/mms/1663264387","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1663264387","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1663264387","classKind":"category","code":"XS0T","indexTerm":[{"label":{"@language":"en","@value":"Moderate"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1726150948"],"source":"http://id.who.int/icd/entity/1663264387","title":{"@language":"en","@value":"Moderate"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1697306310": {"method":"GET","path":"icd/release/11/2026-01/mms/1697306310","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1697306310","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1697306310","classKind":"category","code":"5A14","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"},{"foundationReference":"http://id.who.int/icd/entity/119724091","label":{"@language":"en","@value":"Type 2 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},{"foundationReference":"http://id.who.int/icd/entity/381961554","label":{"@language":"en","@value":"Diabetes mellitus, other specified type"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381961554"},{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"}],"fullySpecifiedName":{"@language":"en","@value":"Diabetes without mention of type of diabetes mellitus"},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus, type unspecified"}},{"label":{"@language":"en","@value":"DM - [diabetes mellitus] NOS"}},{"label":{"@language":"en","@value":"Diabetes mellitus, type unspecified without complications"}},{"label":{"@language":"en","@value":"controlled diabetes"}},{"label":{"@language":"en","@value":"controlled diabetes mellitus"}},{"label":{"@language":"en","@value":"controlled diabetic"}},{"label":{"@language":"en","@value":"diabetes NOS"}},{"label":{"@language":"en","@value":"diabetes mellitus NOS"}},{"label":{"@language":"en","@value":"severe diabetes mellitus"}},{"label":{"@language":"en","@value":"sudden-onset diabetes mellitus"}},{"label":{"@language":"en","@value":"Diabetes without mention of type of diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1697306310/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1697306310","title":{"@language":"en","@value":"Diabetes mellitus, type unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1730828870": {"method":"GET","path":"icd/release/11/2026-01/mms/1730828870","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1730828870","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1730828870","classKind":"category","code":"5A13.6","codingNote":{"@language":"en","@value":"Use additional code, if desired, to identify any associated genetic syndrome"},"definition":{"@language":"en","@value":"Other specified diabetes mellitus due to other genetic syndromes is a form of diabetes, which is associated with genetic syndromes."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/151381747","label":{"@language":"en","@value":"Wolfram syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1009553897"},{"foundationReference":"http://id.who.int/icd/entity/2133824111","label":{"@language":"en","@value":"Maternally inherited diabetes and deafness"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/186534168/other"},{"foundationReference":"http://id.who.int/icd/entity/1165037235","label":{"@language":"en","@value":"Thiamine-responsive megaloblastic anaemia syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1112006621/other"},{"foundationReference":"http://id.who.int/icd/entity/1893572805","label":{"@language":"en","@value":"Woodhouse-Sakati syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/768216194"},{"foundationReference":"http://id.who.int/icd/entity/1930317843","label":{"@language":"en","@value":"Mitochondrial myopathy with diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/601991549/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to other genetic syndromes"}},{"foundationReference":"http://id.who.int/icd/entity/419255568","label":{"@language":"en","@value":"MODY syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/289825291","label":{"@language":"en","@value":"MODY 1 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/289825291","label":{"@language":"en","@value":"maturity onset diabetes of the young type 1"}},{"foundationReference":"http://id.who.int/icd/entity/990655222","label":{"@language":"en","@value":"MODY 2 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/990655222","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 2"}},{"foundationReference":"http://id.who.int/icd/entity/964882179","label":{"@language":"en","@value":"MODY 3 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/964882179","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 3"}},{"foundationReference":"http://id.who.int/icd/entity/679107840","label":{"@language":"en","@value":"MODY 4 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/679107840","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 4"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"MODY 5 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"ADTKD - [Autosomal Dominant Tubulointerstitial Kidney Disease] -HNF1B"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 5"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Microdeletion 17q11.2"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"RCAD - [renal cyst and diabetes syndrome]"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Renal cysts - Maturity-Onset Diabetes of the Young type 5 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Renal diabetes MODY 5 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/566324219","label":{"@language":"en","@value":"Renal dysfunction - early-onset diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/2096037122","label":{"@language":"en","@value":"MODY 6 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/2096037122","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 6"}},{"foundationReference":"http://id.who.int/icd/entity/1745614099","label":{"@language":"en","@value":"MODY 7 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1745614099","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 7"}},{"foundationReference":"http://id.who.int/icd/entity/205210166","label":{"@language":"en","@value":"MODY 8 syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/205210166","label":{"@language":"en","@value":"Maturity Onset Diabetes of the Young type 8"}},{"foundationReference":"http://id.who.int/icd/entity/2096915129","label":{"@language":"en","@value":"Wolcott-Rallison syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/2096915129","label":{"@language":"en","@value":"Multiple epiphyseal dysplasia with early-onset diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1730828870/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1730828870","title":{"@language":"en","@value":"Diabetes mellitus due to other genetic syndromes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1736581746": {"method":"GET","path":"icd/release/11/2026-01/mms/1736581746","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1736581746","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1736581746","classKind":"category","code":"5A13.3","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to endocrinopathies is a form of diabetes caused by several hormones (e.g., growth hormone, cortisol, glucagon, epinephrine), which antagonize insulin action. Excess amounts of these hormones (e.g., acromegaly, Cushing’s syndrome, glucagonoma, pheochromocytoma, respectively) can cause diabetes. This generally occurs in individuals with preexisting defects in insulin secretion, and hyperglycaemia typically resolves when the hormone excess is resolved."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to endocrinopathies"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1736581746/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/1736581746","title":{"@language":"en","@value":"Diabetes mellitus due to endocrinopathies"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2000687626": {"method":"GET","path":"icd/release/11/2026-01/mms/2000687626","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2000687626","blockId":"BlockL1-9B5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2000687626","child":["http://id.who.int/icd/release/11/2026-01/mms/1402642515","http://id.who.int/icd/release/11/2026-01/mms/146528463","http://id.who.int/icd/release/11/2026-01/mms/77208243","http://id.who.int/icd/release/11/2026-01/mms/1767993233","http://id.who.int/icd/release/11/2026-01/mms/2000687626/other","http://id.who.int/icd/release/11/2026-01/mms/2000687626/unspecified"],"classKind":"block","code":"","codeRange":"9B50-9C0Z","definition":{"@language":"en","@value":"This refers to disorders of the back two-thirds of the eye that includes the anterior hyaloid membrane and all of the optical structures behind it: the vitreous humour, retina, choroid, and optic nerve."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/868865918"],"source":"http://id.who.int/icd/entity/2000687626","title":{"@language":"en","@value":"Disorders of the eyeball - posterior segment"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2000854880": {"method":"GET","path":"icd/release/11/2026-01/mms/2000854880","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2000854880","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2000854880","child":["http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/218513628","http://id.who.int/icd/release/11/2026-01/mms/1120360796","http://id.who.int/icd/release/11/2026-01/mms/947283385","http://id.who.int/icd/release/11/2026-01/mms/1216073790","http://id.who.int/icd/release/11/2026-01/mms/1969888129","http://id.who.int/icd/release/11/2026-01/mms/2000854880/other","http://id.who.int/icd/release/11/2026-01/mms/2000854880/unspecified"],"classKind":"category","code":"9B71","parent":["http://id.who.int/icd/release/11/2026-01/mms/77208243"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2000854880/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2000854880/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/879154182","http://id.who.int/icd/release/11/2026-01/mms/2009008947","http://id.who.int/icd/release/11/2026-01/mms/975559344","http://id.who.int/icd/release/11/2026-01/mms/1008515027","http://id.who.int/icd/release/11/2026-01/mms/183978472","http://id.who.int/icd/release/11/2026-01/mms/2115467890","http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1191191920","http://id.who.int/icd/release/11/2026-01/mms/761947693","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1331849426","http://id.who.int/icd/release/11/2026-01/mms/109367356","http://id.who.int/icd/release/11/2026-01/mms/136660883","http://id.who.int/icd/release/11/2026-01/mms/2036682392","http://id.who.int/icd/release/11/2026-01/mms/2083619152","http://id.who.int/icd/release/11/2026-01/mms/1302132158","http://id.who.int/icd/release/11/2026-01/mms/1348791597/other","http://id.who.int/icd/release/11/2026-01/mms/1665234800","http://id.who.int/icd/release/11/2026-01/mms/1423986103"]}],"source":"http://id.who.int/icd/entity/2000854880","title":{"@language":"en","@value":"Retinopathy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271422288": {"method":"GET","path":"icd/release/11/2026-01/mms/271422288","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271422288","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271422288","classKind":"category","code":"XK8G","indexTerm":[{"label":{"@language":"en","@value":"Left"}},{"label":{"@language":"en","@value":"unilateral, left"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/271422288","title":{"@language":"en","@value":"Left"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/348602398": {"method":"GET","path":"icd/release/11/2026-01/mms/348602398","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/348602398","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#348602398","classKind":"category","code":"9B71.01","codingNote":{"@language":"en","@value":"Always assign an additional code for the type of diabetes mellitus."},"definition":{"@language":"en","@value":"This is proliferative retinopathy (damage to the retina) caused by complications of diabetes, which can eventually lead to blindness. It is an ocular manifestation of diabetes, a systemic disease, which affects up to 80 percent of all patients who have had diabetes for 10 years or more."},"indexTerm":[{"label":{"@language":"en","@value":"Proliferative diabetic retinopathy"}},{"label":{"@language":"en","@value":"Diabetes mellitus, independent of type with proliferative retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/869703154","label":{"@language":"en","@value":"Proliferative diabetic retinopathy with vitreous haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/442541415","label":{"@language":"en","@value":"Proliferative diabetic retinopathy with tractional retinal detachment, macula not involved"}},{"foundationReference":"http://id.who.int/icd/entity/677998944","label":{"@language":"en","@value":"Proliferative diabetic retinopathy with tractional retinal detachment, macula involved"}},{"foundationReference":"http://id.who.int/icd/entity/397712403","label":{"@language":"en","@value":"Proliferative diabetic retinopathy with combined rhegmatogenous and tractional retinal detachment"}},{"foundationReference":"http://id.who.int/icd/entity/2033534992","label":{"@language":"en","@value":"Proliferative diabetic macular oedema"}},{"foundationReference":"http://id.who.int/icd/entity/954747225","label":{"@language":"en","@value":"Proliferative diabetic retinopathy, macular oedema apparently absent"}},{"foundationReference":"http://id.who.int/icd/entity/1762371005","label":{"@language":"en","@value":"Proliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/319823656","label":{"@language":"en","@value":"Proliferative diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/496474610","label":{"@language":"en","@value":"Proliferative diabetic retinopathy without macular oedema due to drug or chemical induced diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1006882070"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/348602398/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/348602398/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/816212034"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/348602398/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"source":"http://id.who.int/icd/entity/348602398","title":{"@language":"en","@value":"Proliferative diabetic retinopathy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381961554": {"method":"GET","path":"icd/release/11/2026-01/mms/381961554","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381961554","child":["http://id.who.int/icd/release/11/2026-01/mms/1484144649","http://id.who.int/icd/release/11/2026-01/mms/133436462","http://id.who.int/icd/release/11/2026-01/mms/1050647875","http://id.who.int/icd/release/11/2026-01/mms/1736581746","http://id.who.int/icd/release/11/2026-01/mms/388963453","http://id.who.int/icd/release/11/2026-01/mms/1418416880","http://id.who.int/icd/release/11/2026-01/mms/1730828870","http://id.who.int/icd/release/11/2026-01/mms/891371477","http://id.who.int/icd/release/11/2026-01/mms/381961554/other"],"classKind":"category","code":"5A13","definition":{"@language":"en","@value":"Diabetes mellitus which cannot be classified as either Type 1 or Type 2 diabetes mellitus."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/169360210","label":{"@language":"en","@value":"Diabetes mellitus in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/169360210"},{"foundationReference":"http://id.who.int/icd/entity/119724091","label":{"@language":"en","@value":"Type 2 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},{"foundationReference":"http://id.who.int/icd/entity/702044482","label":{"@language":"en","@value":"Idiopathic Type 1 diabetes mellitus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1651053999"}],"fullySpecifiedName":{"@language":"en","@value":"Other specified Diabetes mellitus, not Type 1 and not Type 2"},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus, other specified type"}},{"label":{"@language":"en","@value":"Other specified Diabetes mellitus, not Type 1 and not Type 2"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/465177735"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"source":"http://id.who.int/icd/entity/381961554","title":{"@language":"en","@value":"Diabetes mellitus, other specified type"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381961554/other": {"method":"GET","path":"icd/release/11/2026-01/mms/381961554/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381961554/other","classKind":"category","code":"5A13.Y","indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to other specified cause"}},{"foundationReference":"http://id.who.int/icd/entity/1823568169","label":{"@language":"en","@value":"Diabetes mellitus due to infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381961554/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/1129679469","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"title":{"@language":"en","@value":"Diabetes mellitus due to other specified cause"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/388963453": {"method":"GET","path":"icd/release/11/2026-01/mms/388963453","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/388963453","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#388963453","classKind":"category","code":"5A13.4","definition":{"@language":"en","@value":"Other specified diabetes mellitus due to drug or chemical is a form of diabetes, which is caused by drug or chemical substance that impairs insulin secretion and insulin action."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to drug or chemical"}},{"label":{"@language":"en","@value":"chemical DM"}},{"label":{"@language":"en","@value":"chemical diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/235906657","label":{"@language":"en","@value":"Steroid-induced diabetes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/388963453/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1304552818","http://id.who.int/icd/release/11/2026-01/mms/1837670870","http://id.who.int/icd/release/11/2026-01/mms/168436253/other","http://id.who.int/icd/release/11/2026-01/mms/340836242","http://id.who.int/icd/release/11/2026-01/mms/1006882070","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/848543944","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/913893315","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/1605714008","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/188156827"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/388963453/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1868408442","http://id.who.int/icd/release/11/2026-01/mms/1583926619","http://id.who.int/icd/release/11/2026-01/mms/1323892810"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/388963453","title":{"@language":"en","@value":"Diabetes mellitus due to drug or chemical"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/417759842": {"method":"GET","path":"icd/release/11/2026-01/mms/417759842","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/417759842","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#417759842","classKind":"category","code":"9B71.00","codingNote":{"@language":"en","@value":"Always assign an additional code for the type of diabetes mellitus."},"definition":{"@language":"en","@value":"This is nonproliferative retinopathy (damage to the retina) caused by complications of diabetes, which can eventually lead to blindness. It is an ocular manifestation of diabetes, a systemic disease, which affects up to 80 percent of all patients who have had diabetes for 10 years or more."},"indexTerm":[{"label":{"@language":"en","@value":"Nonproliferative diabetic retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1232050290","label":{"@language":"en","@value":"Mild nonproliferative diabetic retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1162762766","label":{"@language":"en","@value":"Moderate nonproliferative diabetic retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/561966379","label":{"@language":"en","@value":"Severe nonproliferative diabetic retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/2000323953","label":{"@language":"en","@value":"Preproliferative diabetic retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/2000323953","label":{"@language":"en","@value":"Diabetes mellitus, independent of type with preproliferative retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/2000323953","label":{"@language":"en","@value":"Type 2 diabetes mellitus with preproliferative retinopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1851566947","label":{"@language":"en","@value":"Nonproliferative diabetic macular oedema"}},{"foundationReference":"http://id.who.int/icd/entity/1225171844","label":{"@language":"en","@value":"Nonproliferative diabetic retinopathy, macular oedema apparently absent"}},{"foundationReference":"http://id.who.int/icd/entity/451229225","label":{"@language":"en","@value":"Mild nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/451229225","label":{"@language":"en","@value":"nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1866195242","label":{"@language":"en","@value":"Mild nonproliferative diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1639737344","label":{"@language":"en","@value":"Mild nonproliferative diabetic retinopathy without macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/2142174141","label":{"@language":"en","@value":"Moderate nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/956213553","label":{"@language":"en","@value":"Moderate nonproliferative diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/913911783","label":{"@language":"en","@value":"Moderate nonproliferative diabetic retinopathy without macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/205547561","label":{"@language":"en","@value":"Severe nonproliferative diabetic retinopathy due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1154832191","label":{"@language":"en","@value":"Severe nonproliferative diabetic retinopathy with macular oedema due to drug or chemical induced diabetes mellitus"}},{"foundationReference":"http://id.who.int/icd/entity/1246941673","label":{"@language":"en","@value":"Severe nonproliferative diabetic retinopathy without macular oedema due to drug or chemical induced diabetes mellitus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1006882070"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/417759842/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/417759842/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/816212034"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/417759842/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/562478860","http://id.who.int/icd/release/11/2026-01/mms/1663264387","http://id.who.int/icd/release/11/2026-01/mms/1201187093"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/417759842/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"source":"http://id.who.int/icd/entity/417759842","title":{"@language":"en","@value":"Nonproliferative diabetic retinopathy"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/562478860": {"method":"GET","path":"icd/release/11/2026-01/mms/562478860","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/562478860","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#562478860","classKind":"category","code":"XS5W","indexTerm":[{"label":{"@language":"en","@value":"Mild"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1726150948"],"source":"http://id.who.int/icd/entity/562478860","title":{"@language":"en","@value":"Mild"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/627678743": {"method":"GET","path":"icd/release/11/2026-01/mms/627678743","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/627678743","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#627678743","classKind":"category","code":"XK9J","indexTerm":[{"label":{"@language":"en","@value":"Bilateral"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/627678743","title":{"@language":"en","@value":"Bilateral"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/77208243": {"method":"GET","path":"icd/release/11/2026-01/mms/77208243","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/77208243","blockId":"BlockL2-9B7","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#77208243","child":["http://id.who.int/icd/release/11/2026-01/mms/1060480722","http://id.who.int/icd/release/11/2026-01/mms/2000854880","http://id.who.int/icd/release/11/2026-01/mms/1173139995","http://id.who.int/icd/release/11/2026-01/mms/357208479","http://id.who.int/icd/release/11/2026-01/mms/1722024459","http://id.who.int/icd/release/11/2026-01/mms/733496698","http://id.who.int/icd/release/11/2026-01/mms/543495250","http://id.who.int/icd/release/11/2026-01/mms/945788847","http://id.who.int/icd/release/11/2026-01/mms/1693512470","http://id.who.int/icd/release/11/2026-01/mms/77208243/other","http://id.who.int/icd/release/11/2026-01/mms/77208243/unspecified"],"classKind":"block","code":"","codeRange":"9B70-9B7Z","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1768853109","label":{"@language":"en","@value":"Certain congenital malformations of posterior segment of eye"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1768853109"},{"foundationReference":"http://id.who.int/icd/entity/677851707","label":{"@language":"en","@value":"Neoplasms of retina"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/677851707"},{"foundationReference":"http://id.who.int/icd/entity/1935231429","label":{"@language":"en","@value":"Traumatic injuries of the retina"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935231429"},{"foundationReference":"http://id.who.int/icd/entity/284627949","label":{"@language":"en","@value":"Renal retinitis in chronic kidney disease, stage 5"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/820638928"},{"foundationReference":"http://id.who.int/icd/entity/677481362","label":{"@language":"en","@value":"Presence of retina Implant"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/34248674/other"},{"foundationReference":"http://id.who.int/icd/entity/2032707885","label":{"@language":"en","@value":"Coats disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/620858597/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2000687626"],"source":"http://id.who.int/icd/entity/77208243","title":{"@language":"en","@value":"Disorders of the retina"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/816212034": {"method":"GET","path":"icd/release/11/2026-01/mms/816212034","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/816212034","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#816212034","classKind":"category","code":"9B78.7","indexTerm":[{"label":{"@language":"en","@value":"Retinal oedema"}},{"label":{"@language":"en","@value":"edema of retina"}},{"label":{"@language":"en","@value":"macular edema"}},{"label":{"@language":"en","@value":"macular oedema"}},{"label":{"@language":"en","@value":"macular retinal edema"}},{"label":{"@language":"en","@value":"macular retinal oedema"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1693512470"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/816212034/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/816212034/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1435254666","http://id.who.int/icd/release/11/2026-01/mms/1630407678","http://id.who.int/icd/release/11/2026-01/mms/1766440644","http://id.who.int/icd/release/11/2026-01/mms/1954798891","http://id.who.int/icd/release/11/2026-01/mms/577470983","http://id.who.int/icd/release/11/2026-01/mms/21500692","http://id.who.int/icd/release/11/2026-01/mms/334423054","http://id.who.int/icd/release/11/2026-01/mms/274880002","http://id.who.int/icd/release/11/2026-01/mms/1296093776","http://id.who.int/icd/release/11/2026-01/mms/868865918","http://id.who.int/icd/release/11/2026-01/mms/1218729044","http://id.who.int/icd/release/11/2026-01/mms/426429380","http://id.who.int/icd/release/11/2026-01/mms/197934298","http://id.who.int/icd/release/11/2026-01/mms/1256772020","http://id.who.int/icd/release/11/2026-01/mms/1639304259","http://id.who.int/icd/release/11/2026-01/mms/1473673350","http://id.who.int/icd/release/11/2026-01/mms/30659757","http://id.who.int/icd/release/11/2026-01/mms/714000734","http://id.who.int/icd/release/11/2026-01/mms/1306203631","http://id.who.int/icd/release/11/2026-01/mms/223744320","http://id.who.int/icd/release/11/2026-01/mms/1843895818","http://id.who.int/icd/release/11/2026-01/mms/435227771","http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/1249056269","http://id.who.int/icd/release/11/2026-01/mms/1596590595"]}],"source":"http://id.who.int/icd/entity/816212034","title":{"@language":"en","@value":"Retinal oedema"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/868865918": {"method":"GET","path":"icd/release/11/2026-01/mms/868865918","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/868865918","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#868865918","child":["http://id.who.int/icd/release/11/2026-01/mms/946652467","http://id.who.int/icd/release/11/2026-01/mms/65880823","http://id.who.int/icd/release/11/2026-01/mms/2000687626","http://id.who.int/icd/release/11/2026-01/mms/503601360","http://id.who.int/icd/release/11/2026-01/mms/696932440","http://id.who.int/icd/release/11/2026-01/mms/551713432","http://id.who.int/icd/release/11/2026-01/mms/1060046426","http://id.who.int/icd/release/11/2026-01/mms/1266833063","http://id.who.int/icd/release/11/2026-01/mms/566574133","http://id.who.int/icd/release/11/2026-01/mms/1611601779","http://id.who.int/icd/release/11/2026-01/mms/30317704","http://id.who.int/icd/release/11/2026-01/mms/201567715","http://id.who.int/icd/release/11/2026-01/mms/940938694","http://id.who.int/icd/release/11/2026-01/mms/868865918/other","http://id.who.int/icd/release/11/2026-01/mms/868865918/unspecified"],"classKind":"chapter","code":"09","definition":{"@language":"en","@value":"This refers to any diseases of the visual system, which includes the eyes and adnexa, the visual pathways and brain areas, which initiate and control visual perception and visually guided behaviour."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/377572273","label":{"@language":"en","@value":"Posterior cortical atrophy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/377572273"},{"foundationReference":"http://id.who.int/icd/entity/1306203631","label":{"@language":"en","@value":"Certain conditions originating in the perinatal period"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1306203631"},{"foundationReference":"http://id.who.int/icd/entity/1435254666","label":{"@language":"en","@value":"Certain infectious or parasitic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1435254666"},{"foundationReference":"http://id.who.int/icd/entity/714000734","label":{"@language":"en","@value":"Complications of pregnancy, childbirth and the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/714000734"},{"foundationReference":"http://id.who.int/icd/entity/21500692","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/21500692"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/969612493","label":{"@language":"en","@value":"Contusion of eyeball or orbital tissues"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/969612493"},{"foundationReference":"http://id.who.int/icd/entity/1513405703","label":{"@language":"en","@value":"Foreign body in multiple parts of external eye"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1513405703"},{"foundationReference":"http://id.who.int/icd/entity/1189424097","label":{"@language":"en","@value":"Oculocutaneous albinism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1189424097"},{"foundationReference":"http://id.who.int/icd/entity/1743180897","label":{"@language":"en","@value":"Traumatic injury to eyeball"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1743180897"},{"foundationReference":"http://id.who.int/icd/entity/1804006919","label":{"@language":"en","@value":"Birth injury to eye"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1804006919"},{"foundationReference":"http://id.who.int/icd/entity/1665042685","label":{"@language":"en","@value":"Late congenital syphilitic oculopathy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1665042685"},{"foundationReference":"http://id.who.int/icd/entity/2138796426","label":{"@language":"en","@value":"Symptoms, signs or clinical findings of the visual system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2138796426"},{"foundationReference":"http://id.who.int/icd/entity/750435296","label":{"@language":"en","@value":"Structural developmental anomalies of the eye, eyelid or lacrimal apparatus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/750435296"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/868865918","title":{"@language":"en","@value":"Diseases of the visual system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/876572005": {"method":"GET","path":"icd/release/11/2026-01/mms/876572005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/876572005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#876572005","classKind":"category","code":"XK9K","indexTerm":[{"label":{"@language":"en","@value":"Right"}},{"label":{"@language":"en","@value":"unilateral, right"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/876572005","title":{"@language":"en","@value":"Right"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/891371477": {"method":"GET","path":"icd/release/11/2026-01/mms/891371477","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/891371477","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#891371477","classKind":"category","code":"5A13.7","definition":{"@language":"en","@value":"Diabetes mellitus that has clinically defined subtypes or associated syndromes"},"indexTerm":[{"label":{"@language":"en","@value":"Diabetes mellitus due to clinically defined subtypes or syndromes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/381961554"],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/169360210"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1217915084"],"source":"http://id.who.int/icd/entity/891371477","title":{"@language":"en","@value":"Diabetes mellitus due to clinically defined subtypes or syndromes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/9B71.00": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/9B71.00","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/9B71.00","code":"9B71.00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/417759842"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2F5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/9B71.00%26XS25%26XK9J%2f5A11","code":"9B71.00&XS25&XK9J/5A11","hasCausingCondition":["5A11"],"hasSeverity":["XS25"],"laterality":["XK9J"],"stemCode":"9B71.00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/417759842"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XK9J": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XK9J","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XK9J","code":"XK9J","stemId":"http://id.who.int/icd/release/11/2026-01/mms/627678743"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XS25": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XS25","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XS25","code":"XS25","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1201187093"},"request_body":null,"status":200}
+ }
+}

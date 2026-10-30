@@ -1,0 +1,133 @@
+{
+ "id": "bad-six-lines",
+ "input": {
+  "certificate": {
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Text": "Line 0"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Text": "Line 1"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Text": "Line 2"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Text": "Line 3"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Text": "Line 4"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Text": "Line 5"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "invalid",
+  "id": "bad-six-lines",
+  "source": "app/services/doris_certificate.py",
+  "why": "Six Part I lines (maximum five)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [],
+   "name": "process",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "fields": [
+       {
+        "message": "Part I may contain at most 5 lines.",
+        "path": "certificate.Part1"
+       }
+      ],
+      "message": "The DORIS certificate is invalid."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "certificate": {
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Text": "Line 0"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Text": "Line 1"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Text": "Line 2"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Text": "Line 3"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Text": "Line 4"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Text": "Line 5"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+
+ }
+}

@@ -1,0 +1,264 @@
+{
+ "built": [],
+ "id": "pc-kd3b-1",
+ "input": {
+  "category": "plain",
+  "id": "pc-kd3b-1",
+  "source": "VAs-11.01",
+  "stem": "KD3B.1",
+  "why": "Intrapartum fetal death (VA cause 11.01): no axes, coding note, two inclusion terms"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "KD3B.1",
+      "has_coding_note": true,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KD3B.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "KD3B.1",
+      "has_coding_note": true,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KD3B.1",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "KD3B.1",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KD3B.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580",
+    "GET icd/release/11/2026-01/mms/505744734",
+    "GET icd/release/11/2026-01/mms/861066692",
+    "GET icd/release/11/2026-01/mms/1306203631",
+    "GET icd/release/11/2026-01/mms/505744734",
+    "GET icd/release/11/2026-01/mms/1947342847",
+    "GET icd/release/11/2026-01/mms/505744734/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "19",
+       "title": "Certain conditions originating in the perinatal period",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1306203631"
+      },
+      {
+       "code": "",
+       "title": "Certain disorders originating in the perinatal period",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/861066692"
+      },
+      {
+       "code": "KD3B",
+       "title": "Fetal death, cause not specified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/505744734"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Intrapartum fetal death",
+      "fresh stillbirth",
+      "intrapartum stillbirth"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KD3B.1",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "KD3B.0",
+       "has_children": false,
+       "title": "Antepartum fetal death",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1947342847"
+      },
+      {
+       "code": "KD3B.Z",
+       "has_children": false,
+       "title": "Unspecified time of fetal death, cause not specified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/505744734/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KD3B.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KD3B.1",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "KD3B.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KD3B.1",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "KD3B.1"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "GET icd/release/11/2026-01/mms/2034327580"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "Not to be used for the underlying cause of death of live births.\nNot to be used for the underlying cause of fetal death, if any other cause of fetal mortality is known.",
+     "definition": "Intrapartum fetal death is a fetal death during labour. If vital status of the fetus at the onset of labour is unknown, consider it was intrapartum if there is fresh skin appearance or no signs of maceration at the time of delivery.\n\nIntrapartum stillbirth - is the complete expulsion or extraction from a woman of a fetus following an intrapartum fetal death at 22 or more completed weeks of gestation; or if gestational age is not available with a birthweight of 500 grams or more.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [
+      "fresh stillbirth",
+      "intrapartum stillbirth"
+     ],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KD3B.1",
+      "title": "Intrapartum fetal death",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/2034327580"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KD3B.1"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1306203631": {"method":"GET","path":"icd/release/11/2026-01/mms/1306203631","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1306203631","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1306203631","child":["http://id.who.int/icd/release/11/2026-01/mms/927970860","http://id.who.int/icd/release/11/2026-01/mms/287901798","http://id.who.int/icd/release/11/2026-01/mms/624443803","http://id.who.int/icd/release/11/2026-01/mms/911707612","http://id.who.int/icd/release/11/2026-01/mms/1800910986","http://id.who.int/icd/release/11/2026-01/mms/426167863","http://id.who.int/icd/release/11/2026-01/mms/1858685964","http://id.who.int/icd/release/11/2026-01/mms/1008196289","http://id.who.int/icd/release/11/2026-01/mms/1004987305","http://id.who.int/icd/release/11/2026-01/mms/494951911","http://id.who.int/icd/release/11/2026-01/mms/1024145243","http://id.who.int/icd/release/11/2026-01/mms/680361950","http://id.who.int/icd/release/11/2026-01/mms/1319339568","http://id.who.int/icd/release/11/2026-01/mms/861066692","http://id.who.int/icd/release/11/2026-01/mms/1306203631/unspecified"],"classKind":"chapter","code":"19","codingNote":{"@language":"en","@value":"Conditions arising in the perinatal period, even though death or morbidity occurs later, should, as far as possible, be coded to chapter 19, which takes precedence over chapters containing codes for diseases by their anatomical site.\n\nFor children less than 28 days old, assume that a reported condition developed in the perinatal period, unless the duration is stated and the onset was after the first completed week of life."},"definition":{"@language":"en","@value":"This chapter includes conditions that have their origin in the perinatal period even though death or morbidity occurs later."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"Congenital gonococcal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/609214049"},{"foundationReference":"http://id.who.int/icd/entity/1435254666","label":{"@language":"en","@value":"Certain infectious or parasitic diseases - acquired after birth"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1435254666"},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/588616678"},{"foundationReference":"http://id.who.int/icd/entity/1909380523","label":{"@language":"en","@value":"Hereditary haemolytic anaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1909380523"},{"foundationReference":"http://id.who.int/icd/entity/1686370790","label":{"@language":"en","@value":"Transient hypogammaglobulinaemia of infancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1686370790"},{"foundationReference":"http://id.who.int/icd/entity/1296093776","label":{"@language":"en","@value":"Certain congenital diseases of the nervous system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1296093776"},{"foundationReference":"http://id.who.int/icd/entity/282225286","label":{"@language":"en","@value":"congenital cardiomyopathy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/282225286"},{"foundationReference":"http://id.who.int/icd/entity/1868011045","label":{"@language":"en","@value":"Paralytic ileus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1868011045"},{"foundationReference":"http://id.who.int/icd/entity/1631069488","label":{"@language":"en","@value":"Pemphigus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/918813679/unspecified"},{"foundationReference":"http://id.who.int/icd/entity/1315633810","label":{"@language":"en","@value":"Cradle cap"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1315633810"},{"foundationReference":"http://id.who.int/icd/entity/223744320","label":{"@language":"en","@value":"Congenital malformations, deformations and chromosomal abnormalities"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/223744320"},{"foundationReference":"http://id.who.int/icd/entity/21500692","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/21500692"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/1630407678","label":{"@language":"en","@value":"Neoplasms"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1630407678"},{"foundationReference":"http://id.who.int/icd/entity/947283385","label":{"@language":"en","@value":"Retinopathy of prematurity"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/947283385"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1306203631","title":{"@language":"en","@value":"Certain conditions originating in the perinatal period"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1947342847": {"method":"GET","path":"icd/release/11/2026-01/mms/1947342847","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1947342847","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1947342847","classKind":"category","code":"KD3B.0","codingNote":{"@language":"en","@value":"Not to be used for the underlying cause of death of live births.\nNot to be used for the underlying cause of fetal death, if any other cause of fetal mortality is known."},"definition":{"@language":"en","@value":"Antepartum fetal death is a fetal death before the onset of labour. If vital status of the fetus at the onset of labour is unknown, consider it was antepartum if there is presence of signs of maceration at the time of delivery.\n\nMacerated stillbirth - is the complete expulsion or extraction from a woman of a fetus following a fetal death at 22 or more completed weeks of gestation; or if gestational age is not available with a birthweight of 500g or more with skin showing signs of maceration.\n\nAntepartum stillbirth - is the complete expulsion or extraction from a woman of a fetus following an antepartum fetal death at 22 or more completed weeks of gestation; or if gestational age is not available with a birthweight of 500 grams or more."},"inclusion":[{"label":{"@language":"en","@value":"antepartum stillbirth"}},{"label":{"@language":"en","@value":"macerated stillbirth"}}],"indexTerm":[{"label":{"@language":"en","@value":"Antepartum fetal death"}},{"label":{"@language":"en","@value":"antepartum stillbirth"}},{"label":{"@language":"en","@value":"macerated stillbirth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/505744734"],"source":"http://id.who.int/icd/entity/1947342847","title":{"@language":"en","@value":"Antepartum fetal death"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2034327580": {"method":"GET","path":"icd/release/11/2026-01/mms/2034327580","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2034327580","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2034327580","classKind":"category","code":"KD3B.1","codingNote":{"@language":"en","@value":"Not to be used for the underlying cause of death of live births.\nNot to be used for the underlying cause of fetal death, if any other cause of fetal mortality is known."},"definition":{"@language":"en","@value":"Intrapartum fetal death is a fetal death during labour. If vital status of the fetus at the onset of labour is unknown, consider it was intrapartum if there is fresh skin appearance or no signs of maceration at the time of delivery.\n\nIntrapartum stillbirth - is the complete expulsion or extraction from a woman of a fetus following an intrapartum fetal death at 22 or more completed weeks of gestation; or if gestational age is not available with a birthweight of 500 grams or more."},"inclusion":[{"label":{"@language":"en","@value":"fresh stillbirth"}},{"label":{"@language":"en","@value":"intrapartum stillbirth"}}],"indexTerm":[{"label":{"@language":"en","@value":"Intrapartum fetal death"}},{"label":{"@language":"en","@value":"fresh stillbirth"}},{"label":{"@language":"en","@value":"intrapartum stillbirth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/505744734"],"source":"http://id.who.int/icd/entity/2034327580","title":{"@language":"en","@value":"Intrapartum fetal death"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/505744734": {"method":"GET","path":"icd/release/11/2026-01/mms/505744734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/505744734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#505744734","child":["http://id.who.int/icd/release/11/2026-01/mms/1947342847","http://id.who.int/icd/release/11/2026-01/mms/2034327580","http://id.who.int/icd/release/11/2026-01/mms/505744734/unspecified"],"classKind":"category","code":"KD3B","codingNote":{"@language":"en","@value":"Not to be used for the underlying cause of death of live births.\nNot to be used for the underlying cause of fetal death, if any other cause of fetal mortality is known."},"definition":{"@language":"en","@value":"Fetal death is death of a fetus prior to its complete expulsion or extraction from a woman, irrespective of the duration of pregnancy. Fetal death may be diagnosed in utero by absence of fetal heart sounds, confirmed by imaging techniques where available, or after delivery by absence of signs of life after the complete expulsion or extraction from the woman.\n\nStillbirth is the complete expulsion or extraction from a woman of a fetus, following its death prior to the complete expulsion or extraction, at 22 or more completed weeks of gestation."},"inclusion":[{"label":{"@language":"en","@value":"calcified fetus"}},{"label":{"@language":"en","@value":"fetus maceration"}},{"label":{"@language":"en","@value":"lithopedion fetus"}},{"label":{"@language":"en","@value":"osteopedion fetus"}},{"label":{"@language":"en","@value":"stillbirth NOS"}},{"label":{"@language":"en","@value":"stillborn NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/861066692"],"source":"http://id.who.int/icd/entity/505744734","title":{"@language":"en","@value":"Fetal death, cause not specified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/505744734/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/505744734/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/505744734/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#505744734/unspecified","classKind":"category","code":"KD3B.Z","codingNote":{"@language":"en","@value":"Not to be used for the underlying cause of death of live births.\nNot to be used for the underlying cause of fetal death, if any other cause of fetal mortality is known."},"indexTerm":[{"label":{"@language":"en","@value":"Unspecified time of fetal death, cause not specified"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"Fetal death, cause not specified"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"calcified fetus"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"fetal death"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"fetus death"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"fetus maceration"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"intrauterine fetal death"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"intrauterine fetal demise"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"lithopedion fetus"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"osteopedion fetus"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"stillbirth NOS"}},{"foundationReference":"http://id.who.int/icd/entity/505744734","label":{"@language":"en","@value":"stillborn NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/505744734"],"title":{"@language":"en","@value":"Unspecified time of fetal death, cause not specified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/861066692": {"method":"GET","path":"icd/release/11/2026-01/mms/861066692","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/861066692","blockId":"BlockL1-KD3","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#861066692","child":["http://id.who.int/icd/release/11/2026-01/mms/2077227161","http://id.who.int/icd/release/11/2026-01/mms/355446863","http://id.who.int/icd/release/11/2026-01/mms/1842061002","http://id.who.int/icd/release/11/2026-01/mms/1533469637","http://id.who.int/icd/release/11/2026-01/mms/142627676","http://id.who.int/icd/release/11/2026-01/mms/80293156","http://id.who.int/icd/release/11/2026-01/mms/1885634011","http://id.who.int/icd/release/11/2026-01/mms/1999093424","http://id.who.int/icd/release/11/2026-01/mms/1782373380","http://id.who.int/icd/release/11/2026-01/mms/59436623","http://id.who.int/icd/release/11/2026-01/mms/1723933659","http://id.who.int/icd/release/11/2026-01/mms/505744734","http://id.who.int/icd/release/11/2026-01/mms/1534865872","http://id.who.int/icd/release/11/2026-01/mms/861066692/other"],"classKind":"block","code":"","codeRange":"KD30-KD3Y","definition":{"@language":"en","@value":"A group of any other paediatric conditions that occur during the period of time around childbirth, especially the five months before and one month after birth."},"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/201152505","label":{"@language":"en","@value":"Abnormal findings on neonatal screening"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/201152505"},{"foundationReference":"http://id.who.int/icd/entity/1851132850","label":{"@language":"en","@value":"Excessive crying of infant"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1851132850"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1306203631"],"source":"http://id.who.int/icd/entity/861066692","title":{"@language":"en","@value":"Certain disorders originating in the perinatal period"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KD3B.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KD3B.1","code":"KD3B.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2034327580"},"request_body":null,"status":200}
+ }
+}

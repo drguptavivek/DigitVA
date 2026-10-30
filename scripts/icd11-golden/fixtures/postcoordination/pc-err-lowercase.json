@@ -1,0 +1,144 @@
+{
+ "built": [],
+ "id": "pc-err-lowercase",
+ "input": {
+  "category": "error",
+  "id": "pc-err-lowercase",
+  "source": "app/services/icd11_postcoordination.py _CODE_RE",
+  "stem": "bd54",
+  "why": "Lower-case code: WHO's codeinfo accepts it but DigitVA requires the exact code (CODE_NOT_FOUND / INVALID_INPUT)"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/bd54"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "CODE_NOT_FOUND",
+      "message": "Select a valid ICD-11 code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "bd54"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/bd54",
+    "GET icd/release/11/2026-01/mms/codeinfo/bd54"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "The selected code does not match its WHO URI."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "bd54",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/0"
+   }
+  },
+  {
+   "calls": [],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "message": "Select one valid ICD-11 stem code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "bd54"
+   }
+  },
+  {
+   "calls": [],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "message": "Select one valid ICD-11 stem code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "bd54"
+   }
+  },
+  {
+   "calls": [],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "message": "Select one valid ICD-11 stem code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "bd54"
+   }
+  },
+  {
+   "calls": [],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "message": "Select one valid ICD-11 stem code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "bd54"
+   }
+  },
+  {
+   "calls": [],
+   "name": "details",
+   "reply": {
+    "body": {
+     "error": {
+      "code": "INVALID_INPUT",
+      "message": "Select one valid ICD-11 stem code."
+     },
+     "schema_version": 1
+    },
+    "http_status": 422
+   },
+   "request": {
+    "code": "bd54"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/bd54": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/bd54","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD54","code":"BD54","stemId":"http://id.who.int/icd/release/11/2026-01/mms/74527684"},"request_body":null,"status":200}
+ }
+}

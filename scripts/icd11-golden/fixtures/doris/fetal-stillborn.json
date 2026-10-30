@@ -1,0 +1,141 @@
+{
+ "id": "fetal-stillborn",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1
+   },
+   "FetalOrInfantDeath": {
+    "AgeMother": 24,
+    "BirthWeight": 3100,
+    "MultiplePregnancy": 0,
+    "PregnancyWeeks": 40,
+    "Stillborn": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "KD3B.1",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2034327580",
+       "Text": "Stillbirth"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "stillbirth",
+  "id": "fetal-stillborn",
+  "source": "VA cause VAs-11.01 Fresh stillbirth",
+  "why": "Stillborn with weight, weeks, mother's age"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1",
+    "POST icd/release/11/2026-01/doris #550e4da53e",
+    "POST icd/release/11/2026-01/codedit #550e4da53e"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "Sex": 1
+      },
+      "FetalOrInfantDeath": {
+       "AgeMother": 24,
+       "BirthWeight": 3100,
+       "MultiplePregnancy": 0,
+       "PregnancyWeeks": 40,
+       "Stillborn": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "KD3B.1",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2034327580",
+          "Text": "Stillbirth"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "KD3B.1",
+       "error": null,
+       "reject": false,
+       "report": "SP1: KD3B.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KD3B.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KD3B.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KD3B.1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "KD3B.1",
+       "stemURI": "http://id.who.int/icd/entity/2034327580",
+       "tabularReport": "SP1;True;;KD3B.1;KD3B.1;;;0;SP1: KD3B.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KD3B.1;;;;;0;SP6: is not applicable with the current TSP KD3B.1.;;;;BER\nSP7;False;KD3B.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KD3B.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;KD3B.1;;;;;0;;;;1,M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).,|1,M1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.,;BER\nM1;False;KD3B.1;;;;;0;M1: There is no special instruction applicable with TUC KD3B.1.;;;;BER\nM2;False;KD3B.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KD3B.1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/2034327580",
+       "warning": "M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).\nM1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "KD3B.1",
+       "role": "stem",
+       "title": "Stillbirth",
+       "uri": "http://id.who.int/icd/release/11/mms/2034327580"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "Sex": 1
+     },
+     "FetalOrInfantDeath": {
+      "AgeMother": 24,
+      "BirthWeight": 3100,
+      "MultiplePregnancy": 0,
+      "PregnancyWeeks": 40,
+      "Stillborn": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "KD3B.1",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2034327580",
+         "Text": "Stillbirth"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/KD3B.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KD3B.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KD3B.1","code":"KD3B.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2034327580"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #550e4da53e": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"Sex\":1},\"FetalOrInfantDeath\":{\"AgeMother\":24,\"BirthWeight\":3100,\"MultiplePregnancy\":0,\"PregnancyWeeks\":40,\"Stillborn\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KD3B.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2034327580\",\"Text\":\"Stillbirth\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #550e4da53e": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"KD3B.1","error":null,"reject":false,"report":"SP1: KD3B.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: KD3B.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP KD3B.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC KD3B.1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"KD3B.1","stemURI":"http://id.who.int/icd/entity/2034327580","tabularReport":"SP1;True;;KD3B.1;KD3B.1;;;0;SP1: KD3B.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;KD3B.1;;;;;0;SP6: is not applicable with the current TSP KD3B.1.;;;;BER\nSP7;False;KD3B.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;KD3B.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;KD3B.1;;;;;0;;;;1,M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).,|1,M1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.,;BER\nM1;False;KD3B.1;;;;;0;M1: There is no special instruction applicable with TUC KD3B.1.;;;;BER\nM2;False;KD3B.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;KD3B.1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/2034327580","warning":"M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).\nM1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.\n"},"request_body":"{\"AdministrativeData\":{\"Sex\":1},\"FetalOrInfantDeath\":{\"AgeMother\":24,\"BirthWeight\":3100,\"MultiplePregnancy\":0,\"PregnancyWeeks\":40,\"Stillborn\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"KD3B.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2034327580\",\"Text\":\"Stillbirth\"}]}]}","status":200}
+ }
+}

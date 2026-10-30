@@ -1,0 +1,154 @@
+{
+ "id": "cluster-maternal-composite",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P33Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "MaternalDeath": {
+    "PregnancyContribute": 1,
+    "TimeFromPregnancy": 0,
+    "WasPregnant": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "JB64.4/BD54",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684",
+       "Text": "Heart failure in pregnancy"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "maternal",
+  "id": "cluster-maternal-composite",
+  "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+  "why": "Maternal composite JB64.4/BD54 (WHO related maternal chapter)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+    "POST icd/release/11/2026-01/doris #12af9d46b1",
+    "POST icd/release/11/2026-01/codedit #12af9d46b1",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB64.4",
+    "GET icd/release/11/2026-01/mms/1380872553",
+    "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+    "GET icd/release/11/2026-01/mms/74527684"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P33Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MaternalDeath": {
+       "PregnancyContribute": 1,
+       "TimeFromPregnancy": 0,
+       "WasPregnant": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "JB64.4/BD54",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684",
+          "Text": "Heart failure in pregnancy"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "JB64.4/BD54",
+       "error": null,
+       "reject": false,
+       "report": "SP1: JB64.4/BD54 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB64.4/BD54 - remains the TUC.\n\n\nFull report:\nSP1: JB64.4/BD54 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JB64.4/BD54.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JB64.4/BD54.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB64.4/BD54 - remains the TUC.\n",
+       "stemCode": "JB64.4",
+       "stemURI": "http://id.who.int/icd/entity/1380872553",
+       "tabularReport": "MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JB64.4/BD54;JB64.4/BD54;;;0;SP1: JB64.4/BD54 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JB64.4/BD54;;;;;0;SP6: is not applicable with the current TSP JB64.4/BD54.;;;;BER\nSP7;False;JB64.4/BD54;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JB64.4/BD54;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JB64.4/BD54;;;;;0;M1: There is no special instruction applicable with TUC JB64.4/BD54.;;;;BER\nM2;False;JB64.4/BD54;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JB64.4/BD54;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JB64.4/BD54;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JB64.4/BD54;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB64.4/BD54 - remains the TUC.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1380872553 / http://id.who.int/icd/release/11/mms/74527684",
+       "warning": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "JB64.4",
+       "role": "stem",
+       "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/mms/1380872553"
+      },
+      {
+       "code": "BD54",
+       "role": "postcoordinated",
+       "title": "Diabetic foot ulcer",
+       "uri": "http://id.who.int/icd/release/11/mms/74527684"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P33Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "MaternalDeath": {
+      "PregnancyContribute": 1,
+      "TimeFromPregnancy": 0,
+      "WasPregnant": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "JB64.4/BD54",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684",
+         "Text": "Heart failure in pregnancy"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1380872553": {"method":"GET","path":"icd/release/11/2026-01/mms/1380872553","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1380872553","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1380872553","classKind":"category","code":"JB64.4","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1429154898","label":{"@language":"en","@value":"Other venous complications following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1429154898"},{"foundationReference":"http://id.who.int/icd/entity/1218807936","label":{"@language":"en","@value":"Cardiomyopathy in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1218807936"},{"foundationReference":"http://id.who.int/icd/entity/1042184245","label":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1042184245"},{"foundationReference":"http://id.who.int/icd/entity/2146411734","label":{"@language":"en","@value":"Obstetric embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2146411734"},{"foundationReference":"http://id.who.int/icd/entity/42381716","label":{"@language":"en","@value":"Venous complications in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/42381716"},{"foundationReference":"http://id.who.int/icd/entity/482174292","label":{"@language":"en","@value":"venous complications and cerebrovenous sinus thrombosis in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/482174292"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/204839514","label":{"@language":"en","@value":"Spontaneous coronary artery dissection complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/824741370","label":{"@language":"en","@value":"Cerebrovascular disorder in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/824741370","label":{"@language":"en","@value":"puerperal cerebrovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1686274855","label":{"@language":"en","@value":"Acute puerperal cerebrovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/368203354","label":{"@language":"en","@value":"Puerperal brain haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/77083840","label":{"@language":"en","@value":"Puerperal cerebellar haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/2086366132","label":{"@language":"en","@value":"Puerperal cerebral arterial thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/59093051","label":{"@language":"en","@value":"Stroke in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/59093051","label":{"@language":"en","@value":"Puerperal stroke"}},{"foundationReference":"http://id.who.int/icd/entity/323955085","label":{"@language":"en","@value":"Puerperal ventricular haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/863691215","label":{"@language":"en","@value":"Puerperal cerebral thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/1831930158","label":{"@language":"en","@value":"Puerperal cortical haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1932417368","label":{"@language":"en","@value":"Puerperal cerebral haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1205593054","label":{"@language":"en","@value":"Puerperal extradural haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1460763240","label":{"@language":"en","@value":"Puerperal intracranial haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/684696039","label":{"@language":"en","@value":"Puerperal intrapontine haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/399192161","label":{"@language":"en","@value":"Puerperal subarachnoid haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1968578463","label":{"@language":"en","@value":"Puerperal subdural haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1534764129","label":{"@language":"en","@value":"Puerperal subcortical haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/394885249","label":{"@language":"en","@value":"Puerperal pontine haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/558212158","label":{"@language":"en","@value":"Cardiomyopathy complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/722760722","label":{"@language":"en","@value":"Intracerebral haemorrhage, complicating pregnancy, childbirth or puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1964889107","label":{"@language":"en","@value":"Puerperal bulbar haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/621610924","label":{"@language":"en","@value":"Puerperal apoplexy"}},{"foundationReference":"http://id.who.int/icd/entity/1523833891","label":{"@language":"en","@value":"Puerperal cardiac thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/433210333","label":{"@language":"en","@value":"Puerperal meningeal haemorrhage"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1380872553/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/924915526","http://id.who.int/icd/release/11/2026-01/mms/1663360295","http://id.who.int/icd/release/11/2026-01/mms/1964269418","http://id.who.int/icd/release/11/2026-01/mms/1059873720","http://id.who.int/icd/release/11/2026-01/mms/1703442464","http://id.who.int/icd/release/11/2026-01/mms/1296696944","http://id.who.int/icd/release/11/2026-01/mms/162683166","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/291726710","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/1457291912","http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/1164983645","http://id.who.int/icd/release/11/2026-01/mms/723430526","http://id.who.int/icd/release/11/2026-01/mms/1025888387","http://id.who.int/icd/release/11/2026-01/mms/1925333068","http://id.who.int/icd/release/11/2026-01/mms/185569509","http://id.who.int/icd/release/11/2026-01/mms/267653319","http://id.who.int/icd/release/11/2026-01/mms/539975693","http://id.who.int/icd/release/11/2026-01/mms/966120194","http://id.who.int/icd/release/11/2026-01/mms/1651137927","http://id.who.int/icd/release/11/2026-01/mms/426429380/other","http://id.who.int/icd/release/11/2026-01/mms/426429380/unspecified"]}],"source":"http://id.who.int/icd/entity/1380872553","title":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/74527684": {"method":"GET","path":"icd/release/11/2026-01/mms/74527684","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#74527684","classKind":"category","code":"BD54","codingNote":{"@language":"en","@value":"Always assign an additional code for diabetes mellitus."},"definition":{"@language":"en","@value":"Chronic foot ulcers occur in as many as 15–25% of diabetic patients. The underlying aetiology is a combination of disturbed sensation from diabetic neuropathy and impaired perfusion from diabetic vasculopathy. Poor foot care, abnormal foot structure, or poorly fitting shoes increase the risk of diabetic foot ulcers. The ulcers typically occur in areas of increased plantar pressure, especially beneath the metatarsal heads."},"indexTerm":[{"label":{"@language":"en","@value":"Diabetic foot ulcer"}},{"label":{"@language":"en","@value":"chronic diabetic foot ulcer"}},{"label":{"@language":"en","@value":"diabetic foot"}},{"label":{"@language":"en","@value":"neuropathic and vasculopathic ulceration of foot due to diabetes mellitus"}},{"label":{"@language":"en","@value":"neuropathic ulceration of foot due to diabetes"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"Diabetic foot ulcer with gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"diabetic foot ulcer with necrosis"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"gangrenous diabetic foot ulcer"}},{"foundationReference":"http://id.who.int/icd/entity/311195059","label":{"@language":"en","@value":"necrotic diabetic foot ulcer"}},{"foundationReference":"http://id.who.int/icd/entity/127351659","label":{"@language":"en","@value":"Dry gangrene of diabetic foot"}},{"foundationReference":"http://id.who.int/icd/entity/127351659","label":{"@language":"en","@value":"diabetic foot with dry gangrene"}},{"foundationReference":"http://id.who.int/icd/entity/402264749","label":{"@language":"en","@value":"Wet gangrene of diabetic foot"}},{"foundationReference":"http://id.who.int/icd/entity/402264749","label":{"@language":"en","@value":"diabetic foot with wet gangrene"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1164983645"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1896004518"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/188156827"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/74527684/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"source":"http://id.who.int/icd/entity/74527684","title":{"@language":"en","@value":"Diabetic foot ulcer"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BD54": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BD54","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD54","code":"BD54","stemId":"http://id.who.int/icd/release/11/2026-01/mms/74527684"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB64.4": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB64.4","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB64.4","code":"JB64.4","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1380872553"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB64.4%2FBD54","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB64.4%2fBD54","associatedWith":["BD54"],"code":"JB64.4/BD54","stemCode":"JB64.4","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1380872553"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #12af9d46b1": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P33Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JB64.4/BD54\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684\",\"Text\":\"Heart failure in pregnancy\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #12af9d46b1": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"JB64.4/BD54","error":null,"reject":false,"report":"SP1: JB64.4/BD54 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB64.4/BD54 - remains the TUC.\n\n\nFull report:\nSP1: JB64.4/BD54 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JB64.4/BD54.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JB64.4/BD54.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB64.4/BD54 - remains the TUC.\n","stemCode":"JB64.4","stemURI":"http://id.who.int/icd/entity/1380872553","tabularReport":"MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JB64.4/BD54;JB64.4/BD54;;;0;SP1: JB64.4/BD54 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JB64.4/BD54;;;;;0;SP6: is not applicable with the current TSP JB64.4/BD54.;;;;BER\nSP7;False;JB64.4/BD54;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JB64.4/BD54;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JB64.4/BD54;;;;;0;M1: There is no special instruction applicable with TUC JB64.4/BD54.;;;;BER\nM2;False;JB64.4/BD54;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JB64.4/BD54;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JB64.4/BD54;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JB64.4/BD54;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JB64.4/BD54 - remains the TUC.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1380872553 / http://id.who.int/icd/release/11/mms/74527684","warning":"Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P33Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MaternalDeath\":{\"PregnancyContribute\":1,\"TimeFromPregnancy\":0,\"WasPregnant\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"JB64.4/BD54\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1380872553 / http://id.who.int/icd/release/11/2026-01/mms/74527684\",\"Text\":\"Heart failure in pregnancy\"}]}]}","status":200}
+ }
+}

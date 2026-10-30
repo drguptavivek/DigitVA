@@ -1,0 +1,1117 @@
+{
+ "built": [
+  {
+   "expression": "BA41.Z/BD10",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "BA41.Z/BD10",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified / http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "BA41.Z/BD10",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified / http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z/BD10",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified / http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+      "GET icd/release/11/2026-01/mms/1334938734",
+      "GET icd/release/11/2026-01/mms/1829545371",
+      "GET icd/release/11/2026-01/mms/1964269418",
+      "GET icd/release/11/2026-01/mms/426429380",
+      "GET icd/release/11/2026-01/mms/1334938734",
+      "GET icd/entity/1380872553",
+      "GET icd/release/11/2026-01/mms/391388807",
+      "GET icd/release/11/2026-01/mms/680129526"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "11",
+         "title": "Diseases of the circulatory system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/426429380"
+        },
+        {
+         "code": "",
+         "title": "Ischaemic heart diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1964269418"
+        },
+        {
+         "code": "",
+         "title": "Acute ischaemic heart disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1829545371"
+        },
+        {
+         "code": "BA41",
+         "title": "Acute myocardial infarction",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Acute myocardial infarction, unspecified",
+        "Acute myocardial infarction",
+        "AMI - [acute myocardial infarction]",
+        "MI - [myocardial infarction]",
+        "acute MI - [myocardial infarction]",
+        "acute cardiac infarction",
+        "acute myocardial infarct NOS",
+        "acute myocardial infarction NOS",
+        "cardiac accident",
+        "cardiac attack",
+        "cardiac infarct",
+        "cardiac infarction"
+       ],
+       "related_maternal": [
+        {
+         "code": "",
+         "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/entity/1380872553"
+        }
+       ],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "selected_expression": {
+        "code": "BA41.Z/BD10",
+        "stem_code": "BA41.Z"
+       },
+       "siblings": [
+        {
+         "code": "BA41.0",
+         "has_children": false,
+         "title": "Acute ST elevation myocardial infarction",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/391388807"
+        },
+        {
+         "code": "BA41.1",
+         "has_children": false,
+         "title": "Acute non-ST elevation myocardial infarction",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/680129526"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+      "GET icd/release/11/2026-01/mms/1380872553"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": {
+        "code": "JB64.4/BA41.Z",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium / Acute myocardial infarction, unspecified",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "terms": [
+        {
+         "code": "JB64.4",
+         "requires_postcoordination": false,
+         "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "BA41.Z/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "BA41.Z/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z/BD10"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified / http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+   "why": "infarction with congestive heart failure"
+  },
+  {
+   "expression": "BA41.Z&XA0F62/BD10",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0F62",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "BA41.Z&XA0F62/BD10",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1642334362 / http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z&XA0F62/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0F62",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0F62",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD10",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "BA41.Z&XA0F62/BD10",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1642334362 / http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z&XA0F62/BD10",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1642334362 / http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+      "GET icd/release/11/2026-01/mms/1334938734",
+      "GET icd/release/11/2026-01/mms/1829545371",
+      "GET icd/release/11/2026-01/mms/1964269418",
+      "GET icd/release/11/2026-01/mms/426429380",
+      "GET icd/release/11/2026-01/mms/1334938734",
+      "GET icd/entity/1380872553",
+      "GET icd/release/11/2026-01/mms/391388807",
+      "GET icd/release/11/2026-01/mms/680129526"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "11",
+         "title": "Diseases of the circulatory system",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/426429380"
+        },
+        {
+         "code": "",
+         "title": "Ischaemic heart diseases",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1964269418"
+        },
+        {
+         "code": "",
+         "title": "Acute ischaemic heart disease",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1829545371"
+        },
+        {
+         "code": "BA41",
+         "title": "Acute myocardial infarction",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Acute myocardial infarction, unspecified",
+        "Acute myocardial infarction",
+        "AMI - [acute myocardial infarction]",
+        "MI - [myocardial infarction]",
+        "acute MI - [myocardial infarction]",
+        "acute cardiac infarction",
+        "acute myocardial infarct NOS",
+        "acute myocardial infarction NOS",
+        "cardiac accident",
+        "cardiac attack",
+        "cardiac infarct",
+        "cardiac infarction"
+       ],
+       "related_maternal": [
+        {
+         "code": "",
+         "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/entity/1380872553"
+        }
+       ],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "selected_expression": {
+        "code": "BA41.Z&XA0F62/BD10",
+        "stem_code": "BA41.Z"
+       },
+       "siblings": [
+        {
+         "code": "BA41.0",
+         "has_children": false,
+         "title": "Acute ST elevation myocardial infarction",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/391388807"
+        },
+        {
+         "code": "BA41.1",
+         "has_children": false,
+         "title": "Acute non-ST elevation myocardial infarction",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/680129526"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z&XA0F62/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+      "GET icd/release/11/2026-01/mms/1380872553"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": {
+        "code": "JB64.4/BA41.Z",
+        "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium / Acute myocardial infarction, unspecified",
+        "uri": ""
+       },
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "terms": [
+        {
+         "code": "JB64.4",
+         "requires_postcoordination": false,
+         "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+        }
+       ],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "BA41.Z&XA0F62/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "BA41.Z&XA0F62/BD10"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+      "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "BA41.Z",
+        "title": "Acute myocardial infarction, unspecified",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "BA41.Z&XA0F62/BD10"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1642334362 / http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+   "why": "left main coronary artery, with heart failure"
+  }
+ ],
+ "id": "pc-ba41-z",
+ "input": {
+  "built": [
+   {
+    "expression": "BA41.Z/BD10",
+    "why": "infarction with congestive heart failure"
+   },
+   {
+    "expression": "BA41.Z&XA0F62/BD10",
+    "why": "left main coronary artery, with heart failure"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-ba41-z",
+  "source": "VAs-04.01",
+  "stem": "BA41.Z",
+  "why": "Acute myocardial infarction (VA cause 04.01): anatomy, manifestation (7) and associated-with"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "BA41.Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": true,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "BA41.Z",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": true,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "BA41.Z",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+    "GET icd/release/11/2026-01/mms/1642334362",
+    "GET icd/release/11/2026-01/mms/787267597",
+    "GET icd/release/11/2026-01/mms/1750488832",
+    "GET icd/release/11/2026-01/mms/2136808878",
+    "GET icd/release/11/2026-01/mms/437702716",
+    "GET icd/release/11/2026-01/mms/1754821737",
+    "GET icd/release/11/2026-01/mms/1594578199",
+    "GET icd/release/11/2026-01/mms/1992125824",
+    "GET icd/release/11/2026-01/mms/1458683894/other",
+    "GET icd/release/11/2026-01/mms/1458683894/unspecified",
+    "GET icd/release/11/2026-01/mms/1638970223"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+         "code": "XA0F62",
+         "has_children": true,
+         "title": "Left main coronary artery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/787267597",
+         "code": "XA2QX7",
+         "has_children": true,
+         "title": "Right coronary artery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/787267597"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1750488832",
+         "code": "XA6CK2",
+         "has_children": true,
+         "title": "Heart wall",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1750488832"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+        "http://id.who.int/icd/release/11/2026-01/mms/787267597",
+        "http://id.who.int/icd/release/11/2026-01/mms/1750488832"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasManifestation",
+       "instruction": "use additional code, if desired",
+       "label": "Has manifestation",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+         "code": "BD10",
+         "has_children": false,
+         "title": "Congestive heart failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+         "code": "BD11",
+         "has_children": true,
+         "title": "Left ventricular failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1754821737",
+         "code": "BD12",
+         "has_children": false,
+         "title": "High output syndromes",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1754821737"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1594578199",
+         "code": "BD13",
+         "has_children": false,
+         "title": "Right ventricular failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1594578199"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1992125824",
+         "code": "BD14",
+         "has_children": false,
+         "title": "Biventricular failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1992125824"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/other",
+         "code": "BD1Y",
+         "has_children": false,
+         "title": "Other specified heart failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/other"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified",
+         "code": "BD1Z",
+         "has_children": false,
+         "title": "Heart failure, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/2136808878",
+        "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+        "http://id.who.int/icd/release/11/2026-01/mms/1754821737",
+        "http://id.who.int/icd/release/11/2026-01/mms/1594578199",
+        "http://id.who.int/icd/release/11/2026-01/mms/1992125824",
+        "http://id.who.int/icd/release/11/2026-01/mms/1458683894/other",
+        "http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1638970223",
+         "code": "XY6K",
+         "has_children": false,
+         "title": "Perioperative",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1638970223"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1638970223"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+    "GET icd/release/11/2026-01/mms/1642334362",
+    "GET icd/release/11/2026-01/mms/21611059",
+    "GET icd/release/11/2026-01/mms/732645847",
+    "GET icd/release/11/2026-01/mms/1809854176",
+    "GET icd/release/11/2026-01/mms/1169221472",
+    "GET icd/release/11/2026-01/mms/1625632108"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+       "code": "XA9FX9",
+       "has_children": false,
+       "title": "Left circumflex artery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/21611059"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+       "code": "XA7NQ7",
+       "has_children": true,
+       "title": "Left anterior descending coronary artery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/732645847"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+       "code": "XA1SH6",
+       "has_children": false,
+       "title": "Left obtuse marginal artery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1809854176"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+       "code": "XA3QP2",
+       "has_children": false,
+       "title": "Ramus intermedius artery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1169221472"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+       "code": "XA5LW8",
+       "has_children": false,
+       "title": "Septal artery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1625632108"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1642334362",
+    "stem_code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+    "GET icd/release/11/2026-01/mms/437702716",
+    "GET icd/release/11/2026-01/mms/1428007510",
+    "GET icd/release/11/2026-01/mms/572130061",
+    "GET icd/release/11/2026-01/mms/1653508908",
+    "GET icd/release/11/2026-01/mms/437702716/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasManifestation",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+       "code": "BD11.0",
+       "has_children": false,
+       "title": "Left ventricular failure with preserved ejection fraction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1428007510"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+       "code": "BD11.1",
+       "has_children": false,
+       "title": "Left ventricular failure with mid range ejection fraction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/572130061"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+       "code": "BD11.2",
+       "has_children": false,
+       "title": "Left ventricular failure with reduced ejection fraction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1653508908"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+       "code": "BD11.Z",
+       "has_children": false,
+       "title": "Left ventricular failure, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasManifestation",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716",
+    "stem_code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+    "GET icd/release/11/2026-01/mms/1334938734",
+    "GET icd/release/11/2026-01/mms/1829545371",
+    "GET icd/release/11/2026-01/mms/1964269418",
+    "GET icd/release/11/2026-01/mms/426429380",
+    "GET icd/release/11/2026-01/mms/1334938734",
+    "GET icd/entity/1380872553",
+    "GET icd/release/11/2026-01/mms/391388807",
+    "GET icd/release/11/2026-01/mms/680129526"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "11",
+       "title": "Diseases of the circulatory system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/426429380"
+      },
+      {
+       "code": "",
+       "title": "Ischaemic heart diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1964269418"
+      },
+      {
+       "code": "",
+       "title": "Acute ischaemic heart disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1829545371"
+      },
+      {
+       "code": "BA41",
+       "title": "Acute myocardial infarction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Acute myocardial infarction, unspecified",
+      "Acute myocardial infarction",
+      "AMI - [acute myocardial infarction]",
+      "MI - [myocardial infarction]",
+      "acute MI - [myocardial infarction]",
+      "acute cardiac infarction",
+      "acute myocardial infarct NOS",
+      "acute myocardial infarction NOS",
+      "cardiac accident",
+      "cardiac attack",
+      "cardiac infarct",
+      "cardiac infarction"
+     ],
+     "related_maternal": [
+      {
+       "code": "",
+       "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/entity/1380872553"
+      }
+     ],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "BA41.0",
+       "has_children": false,
+       "title": "Acute ST elevation myocardial infarction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/391388807"
+      },
+      {
+       "code": "BA41.1",
+       "has_children": false,
+       "title": "Acute non-ST elevation myocardial infarction",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/680129526"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified",
+    "GET icd/release/11/2026-01/mms/1380872553"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": {
+      "code": "JB64.4/BA41.Z",
+      "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium / Acute myocardial infarction, unspecified",
+      "uri": ""
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "terms": [
+      {
+       "code": "JB64.4",
+       "requires_postcoordination": false,
+       "title": "Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1380872553"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "BA41.Z"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/1334938734/unspecified"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "BA41.Z",
+      "title": "Acute myocardial infarction, unspecified",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "BA41.Z"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/entity/1380872553": {"method":"GET","path":"icd/entity/1380872553","reply":{"@context":"http://id.who.int/icd/contexts/contextForFoundationEntity.json","@id":"http://id.who.int/icd/entity/1380872553","browserUrl":"https://icd.who.int/browse/2026-01/foundation/en#1380872553","child":["http://id.who.int/icd/entity/204839514","http://id.who.int/icd/entity/824741370","http://id.who.int/icd/entity/558212158","http://id.who.int/icd/entity/722760722","http://id.who.int/icd/entity/1964889107","http://id.who.int/icd/entity/621610924","http://id.who.int/icd/entity/1523833891","http://id.who.int/icd/entity/433210333"],"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1429154898","label":{"@language":"en","@value":"Other venous complications following abortion, ectopic or molar pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1218807936","label":{"@language":"en","@value":"Cardiomyopathy in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1042184245","label":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/2146411734","label":{"@language":"en","@value":"Obstetric embolism"}},{"foundationReference":"http://id.who.int/icd/entity/42381716","label":{"@language":"en","@value":"Venous complications in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/482174292","label":{"@language":"en","@value":"venous complications and cerebrovenous sinus thrombosis in pregnancy"}}],"parent":["http://id.who.int/icd/entity/426429380","http://id.who.int/icd/entity/1298211163"],"title":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1169221472": {"method":"GET","path":"icd/release/11/2026-01/mms/1169221472","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1169221472","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1169221472","classKind":"category","code":"XA3QP2","indexTerm":[{"label":{"@language":"en","@value":"Ramus intermedius artery"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1642334362"],"source":"http://id.who.int/icd/entity/1169221472","title":{"@language":"en","@value":"Ramus intermedius artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1334938734": {"method":"GET","path":"icd/release/11/2026-01/mms/1334938734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1334938734","child":["http://id.who.int/icd/release/11/2026-01/mms/391388807","http://id.who.int/icd/release/11/2026-01/mms/680129526","http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"],"classKind":"category","code":"BA41","definition":{"@language":"en","@value":"The term acute myocardial infarction (MI) should be used when there is evidence of myocardial necrosis in a clinical setting consistent with acute myocardial ischemia. Under these conditions any one of the following criteria meets the diagnosis for MI;\nDetection of a rise and/or fall of cardiac biomarker values with at least one value above the 99th percentile upper reference limit and with at least one of the following;\na. Symptoms of ischaemia.\nb. New or presumed new significant ST-segment-T wave (ST-T) changes or new left bundle branch block (LBBB)in the electrocardiogram (ECG).\nc. Development of pathologic Q waves in the electrocardiogram (ECG).\nd. Imaging evidence of new loss of viable myocardium or new regional wall motion abnormality.\ne. Identification of an intracoronary thrombus by angiography or autopsy.\n\n\nInfarction of any myocardial site, occurring within 4 weeks (28 days) from onset of a previous infarction (WHO)"},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/956002477","label":{"@language":"en","@value":"Old myocardial infarction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/956002477"},{"foundationReference":"http://id.who.int/icd/entity/1584861447","label":{"@language":"en","@value":"Certain current complications following acute myocardial infarction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1584861447"},{"foundationReference":"http://id.who.int/icd/entity/993844371","label":{"@language":"en","@value":"Subsequent myocardial infarction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/993844371"},{"foundationReference":"http://id.who.int/icd/entity/1353640147","label":{"@language":"en","@value":"postmyocardial infarction syndrome"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1353640147"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1829545371"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1642334362","http://id.who.int/icd/release/11/2026-01/mms/787267597","http://id.who.int/icd/release/11/2026-01/mms/1750488832"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2136808878","http://id.who.int/icd/release/11/2026-01/mms/437702716","http://id.who.int/icd/release/11/2026-01/mms/1754821737","http://id.who.int/icd/release/11/2026-01/mms/1594578199","http://id.who.int/icd/release/11/2026-01/mms/1992125824","http://id.who.int/icd/release/11/2026-01/mms/1458683894/other","http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1638970223"]}],"source":"http://id.who.int/icd/entity/1334938734","title":{"@language":"en","@value":"Acute myocardial infarction"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1334938734/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1334938734/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1334938734/unspecified","classKind":"category","code":"BA41.Z","indexTerm":[{"label":{"@language":"en","@value":"Acute myocardial infarction, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"Acute myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"AMI - [acute myocardial infarction]"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"MI - [myocardial infarction]"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"acute MI - [myocardial infarction]"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"acute cardiac infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"acute myocardial infarct NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"acute myocardial infarction NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"cardiac accident"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"cardiac attack"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"cardiac infarct"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"cardiac infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"heart apoplexy"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"heart attack"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"infarction of heart"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"myocardial infarct NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"myocardial infarction, NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"ventricular infarct"}},{"foundationReference":"http://id.who.int/icd/entity/1334938734","label":{"@language":"en","@value":"ventricular infarction"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"Acute myocardial infarction, without specification of ST elevation"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"blood vessel heart rupture"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"cardiac rupture"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"cardiac thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary accident"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial embolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial infarct"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial occlusion"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial rupture"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary arterial vessel thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery embolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery infarct"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery infarction"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery occlusion"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery rupture"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery thromboembolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary artery vessel thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary embolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary occlusion, NOS"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary rupture"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary thromboembolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary thrombus"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary vein embolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary venous embolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"coronary vessel thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"endocardial thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"fatty heart embolism"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"intracardiac thrombus"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"intramural thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"mural thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"mural thrombus"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"myocardial infarction, without specification of S-T elevation"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"myocardial rupture"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"rupture of heart"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"ruptured blood vessel heart"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"ruptured coronary artery"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"ruptured myocardium"}},{"foundationReference":"http://id.who.int/icd/entity/2016376826","label":{"@language":"en","@value":"thrombosis of heart"}},{"foundationReference":"http://id.who.int/icd/entity/623867269","label":{"@language":"en","@value":"Acute myocardial infarction, without specification of ST elevation, anterior wall"}},{"foundationReference":"http://id.who.int/icd/entity/623867269","label":{"@language":"en","@value":"acute anterior infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1082124422","label":{"@language":"en","@value":"Acute myocardial infarction, without specification of ST elevation, anterior wall, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/687792216","label":{"@language":"en","@value":"Anterolateral myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/687792216","label":{"@language":"en","@value":"anterior lateral myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/231270312","label":{"@language":"en","@value":"Acute myocardial infarction, without specification of ST elevation, inferior wall"}},{"foundationReference":"http://id.who.int/icd/entity/1774833681","label":{"@language":"en","@value":"Acute myocardial infarction, without specification of ST elevation, inferior wall, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/1679681893","label":{"@language":"en","@value":"Acute periprocedural myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1679681893","label":{"@language":"en","@value":"Myocardial infarction type 4"}},{"foundationReference":"http://id.who.int/icd/entity/1679681893","label":{"@language":"en","@value":"Myocardial infarction type 5"}},{"foundationReference":"http://id.who.int/icd/entity/233669871","label":{"@language":"en","@value":"Myocardial infarction with nonobstructive coronary arteries"}},{"foundationReference":"http://id.who.int/icd/entity/233669871","label":{"@language":"en","@value":"MINOCA - [myocardial infarction with nonobstructive coronary arteries]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1334938734"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1642334362","http://id.who.int/icd/release/11/2026-01/mms/787267597","http://id.who.int/icd/release/11/2026-01/mms/1750488832"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2136808878","http://id.who.int/icd/release/11/2026-01/mms/437702716","http://id.who.int/icd/release/11/2026-01/mms/1754821737","http://id.who.int/icd/release/11/2026-01/mms/1594578199","http://id.who.int/icd/release/11/2026-01/mms/1992125824","http://id.who.int/icd/release/11/2026-01/mms/1458683894/other","http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1638970223"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"title":{"@language":"en","@value":"Acute myocardial infarction, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1380872553": {"method":"GET","path":"icd/release/11/2026-01/mms/1380872553","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1380872553","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1380872553","classKind":"category","code":"JB64.4","codingNote":{"@language":"en","@value":"This category includes conditions which complicate the pregnant state, are aggravated by the pregnancy or are a main reason for obstetric care but no specific category exists in this chapter."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1429154898","label":{"@language":"en","@value":"Other venous complications following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1429154898"},{"foundationReference":"http://id.who.int/icd/entity/1218807936","label":{"@language":"en","@value":"Cardiomyopathy in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1218807936"},{"foundationReference":"http://id.who.int/icd/entity/1042184245","label":{"@language":"en","@value":"Oedema, proteinuria, or hypertensive disorders in pregnancy, childbirth, or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1042184245"},{"foundationReference":"http://id.who.int/icd/entity/2146411734","label":{"@language":"en","@value":"Obstetric embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2146411734"},{"foundationReference":"http://id.who.int/icd/entity/42381716","label":{"@language":"en","@value":"Venous complications in the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/42381716"},{"foundationReference":"http://id.who.int/icd/entity/482174292","label":{"@language":"en","@value":"venous complications and cerebrovenous sinus thrombosis in pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/482174292"}],"indexTerm":[{"label":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/204839514","label":{"@language":"en","@value":"Spontaneous coronary artery dissection complicating pregnancy, childbirth or the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/824741370","label":{"@language":"en","@value":"Cerebrovascular disorder in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/824741370","label":{"@language":"en","@value":"puerperal cerebrovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1686274855","label":{"@language":"en","@value":"Acute puerperal cerebrovascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/368203354","label":{"@language":"en","@value":"Puerperal brain haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/77083840","label":{"@language":"en","@value":"Puerperal cerebellar haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/2086366132","label":{"@language":"en","@value":"Puerperal cerebral arterial thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/59093051","label":{"@language":"en","@value":"Stroke in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/59093051","label":{"@language":"en","@value":"Puerperal stroke"}},{"foundationReference":"http://id.who.int/icd/entity/323955085","label":{"@language":"en","@value":"Puerperal ventricular haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/863691215","label":{"@language":"en","@value":"Puerperal cerebral thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/1831930158","label":{"@language":"en","@value":"Puerperal cortical haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1932417368","label":{"@language":"en","@value":"Puerperal cerebral haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1205593054","label":{"@language":"en","@value":"Puerperal extradural haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1460763240","label":{"@language":"en","@value":"Puerperal intracranial haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/684696039","label":{"@language":"en","@value":"Puerperal intrapontine haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/399192161","label":{"@language":"en","@value":"Puerperal subarachnoid haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1968578463","label":{"@language":"en","@value":"Puerperal subdural haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/1534764129","label":{"@language":"en","@value":"Puerperal subcortical haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/394885249","label":{"@language":"en","@value":"Puerperal pontine haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/558212158","label":{"@language":"en","@value":"Cardiomyopathy complicating pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/722760722","label":{"@language":"en","@value":"Intracerebral haemorrhage, complicating pregnancy, childbirth or puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1964889107","label":{"@language":"en","@value":"Puerperal bulbar haemorrhage"}},{"foundationReference":"http://id.who.int/icd/entity/621610924","label":{"@language":"en","@value":"Puerperal apoplexy"}},{"foundationReference":"http://id.who.int/icd/entity/1523833891","label":{"@language":"en","@value":"Puerperal cardiac thrombosis"}},{"foundationReference":"http://id.who.int/icd/entity/433210333","label":{"@language":"en","@value":"Puerperal meningeal haemorrhage"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1298211163"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1380872553/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/924915526","http://id.who.int/icd/release/11/2026-01/mms/1663360295","http://id.who.int/icd/release/11/2026-01/mms/1964269418","http://id.who.int/icd/release/11/2026-01/mms/1059873720","http://id.who.int/icd/release/11/2026-01/mms/1703442464","http://id.who.int/icd/release/11/2026-01/mms/1296696944","http://id.who.int/icd/release/11/2026-01/mms/162683166","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/291726710","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/1457291912","http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/1164983645","http://id.who.int/icd/release/11/2026-01/mms/723430526","http://id.who.int/icd/release/11/2026-01/mms/1025888387","http://id.who.int/icd/release/11/2026-01/mms/1925333068","http://id.who.int/icd/release/11/2026-01/mms/185569509","http://id.who.int/icd/release/11/2026-01/mms/267653319","http://id.who.int/icd/release/11/2026-01/mms/539975693","http://id.who.int/icd/release/11/2026-01/mms/966120194","http://id.who.int/icd/release/11/2026-01/mms/1651137927","http://id.who.int/icd/release/11/2026-01/mms/426429380/other","http://id.who.int/icd/release/11/2026-01/mms/426429380/unspecified"]}],"source":"http://id.who.int/icd/entity/1380872553","title":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1428007510": {"method":"GET","path":"icd/release/11/2026-01/mms/1428007510","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1428007510","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1428007510","classKind":"category","code":"BD11.0","definition":{"@language":"en","@value":"A syndrome of left ventricular dysfunction occurring with normal or relatively preserved ejection fraction"},"indexTerm":[{"label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction"}},{"label":{"@language":"en","@value":"HFpEF - [heart failure with preserved ejection fraction]"}},{"label":{"@language":"en","@value":"Left ventricular failure with preserved systolic ejection fraction"}},{"label":{"@language":"en","@value":"diastolic ejection fraction"}},{"foundationReference":"http://id.who.int/icd/entity/1868214878","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction due to cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1868214878","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction secondary to cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1074616655","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction due to coronary artery disease"}},{"foundationReference":"http://id.who.int/icd/entity/1074616655","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction secondary to coronary artery disease"}},{"foundationReference":"http://id.who.int/icd/entity/1203576957","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction due to myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/1203576957","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction secondary to myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/1387123558","label":{"@language":"en","@value":"Secondary left ventricular failure with preserved ejection fraction"}},{"foundationReference":"http://id.who.int/icd/entity/1882063107","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction due to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1882063107","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction secondary to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/979616305","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/993397939","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/529993761","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/2076509268","label":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/1970105132","label":{"@language":"en","@value":"Chronic diastolic congestive heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437702716"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1428007510/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1428007510/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1428007510","title":{"@language":"en","@value":"Left ventricular failure with preserved ejection fraction"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1458683894/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1458683894/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1458683894/other","classKind":"category","code":"BD1Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"title":{"@language":"en","@value":"Other specified heart failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1458683894/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1458683894/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1458683894/unspecified","classKind":"category","code":"BD1Z","indexTerm":[{"label":{"@language":"en","@value":"Heart failure, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"HF- [heart failure]"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"acute cardiac decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"acute myocardial decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac deficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"chronic cardiac decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"chronic myocardial decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart weakness"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial deficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial failure"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial weakness"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"weak heart"}},{"foundationReference":"http://id.who.int/icd/entity/1353864413","label":{"@language":"en","@value":"Acute heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1353864413","label":{"@language":"en","@value":"acute cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/1353864413","label":{"@language":"en","@value":"acute ventricular failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1619115863","label":{"@language":"en","@value":"Chronic heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1619115863","label":{"@language":"en","@value":"CHF - [chronic heart failure]"}},{"foundationReference":"http://id.who.int/icd/entity/1619115863","label":{"@language":"en","@value":"chronic cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"Cardiac asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"cardiovascular asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"heart asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"myocardium asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"Cardiac exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"heart exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"myocardial exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"myocardium exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/997705463","label":{"@language":"en","@value":"Cordis paralysis"}},{"foundationReference":"http://id.who.int/icd/entity/535778743","label":{"@language":"en","@value":"Heart collapse"}},{"foundationReference":"http://id.who.int/icd/entity/99230605","label":{"@language":"en","@value":"Heart failure with decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/99230605","label":{"@language":"en","@value":"decompensated heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1601656670","label":{"@language":"en","@value":"Heart paresis"}},{"foundationReference":"http://id.who.int/icd/entity/266958463","label":{"@language":"en","@value":"Myocardial impairment"}},{"foundationReference":"http://id.who.int/icd/entity/2031753305","label":{"@language":"en","@value":"Myocardial fatigue"}},{"foundationReference":"http://id.who.int/icd/entity/1014665010","label":{"@language":"en","@value":"Sudden heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"title":{"@language":"en","@value":"Heart failure, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1594578199": {"method":"GET","path":"icd/release/11/2026-01/mms/1594578199","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1594578199","classKind":"category","code":"BD13","definition":{"@language":"en","@value":"Heart failure associated with right ventricular dysfunction manifest by distention of the neck veins, enlargement of the liver, and dependent oedema."},"indexTerm":[{"label":{"@language":"en","@value":"Right ventricular failure"}},{"label":{"@language":"en","@value":"right heart failure"}},{"label":{"@language":"en","@value":"right ventricle failure"}},{"label":{"@language":"en","@value":"right ventricle heart failure"}},{"label":{"@language":"en","@value":"right ventricular failure secondary to left heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1152694663","label":{"@language":"en","@value":"Right ventricular failure due to pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/1152694663","label":{"@language":"en","@value":"Right ventricular failure secondary to pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/2070500598","label":{"@language":"en","@value":"Right ventricular failure due to pulmonary vascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/2070500598","label":{"@language":"en","@value":"Right ventricular failure secondary to pulmonary vascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1679681449","label":{"@language":"en","@value":"Right ventricular failure due to right ventricular infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1679681449","label":{"@language":"en","@value":"Right ventricular failure secondary to right ventricular infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1291482508","label":{"@language":"en","@value":"Right ventricular failure due to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1291482508","label":{"@language":"en","@value":"Right ventricular failure secondary to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1494827140","label":{"@language":"en","@value":"Right ventricular failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/104786225","label":{"@language":"en","@value":"Right ventricular failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1399922560","label":{"@language":"en","@value":"Right ventricular failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/2066756090","label":{"@language":"en","@value":"Right ventricular failure NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/223755232","label":{"@language":"en","@value":"Acute right heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/223755232","label":{"@language":"en","@value":"acute right sided heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1456211027","label":{"@language":"en","@value":"Bernheim syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1600081882","label":{"@language":"en","@value":"Right ventricular obstruction - failure syndrome"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1334938734","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/437702716","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1594578199","title":{"@language":"en","@value":"Right ventricular failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1625632108": {"method":"GET","path":"icd/release/11/2026-01/mms/1625632108","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1625632108","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1625632108","classKind":"category","code":"XA5LW8","indexTerm":[{"label":{"@language":"en","@value":"Septal artery"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1642334362"],"source":"http://id.who.int/icd/entity/1625632108","title":{"@language":"en","@value":"Septal artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1638970223": {"method":"GET","path":"icd/release/11/2026-01/mms/1638970223","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1638970223","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1638970223","classKind":"category","code":"XY6K","definition":{"@language":"en","@value":"Relating to, occurring in, or being the period around the time of a surgical operation."},"indexTerm":[{"label":{"@language":"en","@value":"Perioperative"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/206915863"],"source":"http://id.who.int/icd/entity/1638970223","title":{"@language":"en","@value":"Perioperative"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1642334362": {"method":"GET","path":"icd/release/11/2026-01/mms/1642334362","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1642334362","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1642334362","child":["http://id.who.int/icd/release/11/2026-01/mms/21611059","http://id.who.int/icd/release/11/2026-01/mms/732645847","http://id.who.int/icd/release/11/2026-01/mms/1809854176","http://id.who.int/icd/release/11/2026-01/mms/1169221472","http://id.who.int/icd/release/11/2026-01/mms/1625632108"],"classKind":"category","code":"XA0F62","indexTerm":[{"label":{"@language":"en","@value":"Left main coronary artery"}},{"label":{"@language":"en","@value":"LCA - [left coronary artery]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1612889623"],"source":"http://id.who.int/icd/entity/1642334362","title":{"@language":"en","@value":"Left main coronary artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1653508908": {"method":"GET","path":"icd/release/11/2026-01/mms/1653508908","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1653508908","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1653508908","classKind":"category","code":"BD11.2","definition":{"@language":"en","@value":"A syndrome of left ventricular dysfunction associated with reduced ejection fraction."},"indexTerm":[{"label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction"}},{"label":{"@language":"en","@value":"HFrEF - [heart failure with reduced ejection fraction]"}},{"label":{"@language":"en","@value":"Left ventricular failure with reduced systolic ejection fraction"}},{"foundationReference":"http://id.who.int/icd/entity/1225932792","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction due to cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1225932792","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction secondary to cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/1804725651","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction due to coronary artery disease"}},{"foundationReference":"http://id.who.int/icd/entity/1804725651","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction secondary to coronary artery disease"}},{"foundationReference":"http://id.who.int/icd/entity/2122391178","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction due to myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/2122391178","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction secondary to myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/1243325964","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction due to other disorders"}},{"foundationReference":"http://id.who.int/icd/entity/1243325964","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction secondary to other disorders"}},{"foundationReference":"http://id.who.int/icd/entity/1096610811","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction due to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1096610811","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction secondary to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/413390388","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/413390388","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class I - No limitation of physical activity. Ordinary physical activity does not cause undue fatigue, palpitation, dyspnoea (shortness of breath)"}},{"foundationReference":"http://id.who.int/icd/entity/125269858","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/125269858","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class II - slight limitation of physical activity. Comfortable at rest. Ordinary physical activity results in fatigue, palpitation, dyspnoea (shortness of breath)"}},{"foundationReference":"http://id.who.int/icd/entity/1117328023","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/1117328023","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class III - Marked limitation of physical activity. Comfortable at rest. Less than ordinary activity causes fatigue, palpitation or dyspnoea (shortness of breath)"}},{"foundationReference":"http://id.who.int/icd/entity/1304781461","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/1304781461","label":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction NYHA Class IV - unable to carry on any physical activity without discomfort. Symptoms of heart failure at rest. If any physical activity is undertaken, discomfort increases."}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437702716"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1653508908/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1653508908/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1653508908","title":{"@language":"en","@value":"Left ventricular failure with reduced ejection fraction"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1750488832": {"method":"GET","path":"icd/release/11/2026-01/mms/1750488832","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1750488832","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1750488832","child":["http://id.who.int/icd/release/11/2026-01/mms/660512363","http://id.who.int/icd/release/11/2026-01/mms/273808805","http://id.who.int/icd/release/11/2026-01/mms/1495317899","http://id.who.int/icd/release/11/2026-01/mms/1677065059","http://id.who.int/icd/release/11/2026-01/mms/1493826598","http://id.who.int/icd/release/11/2026-01/mms/69661229","http://id.who.int/icd/release/11/2026-01/mms/2127300188","http://id.who.int/icd/release/11/2026-01/mms/1947963948","http://id.who.int/icd/release/11/2026-01/mms/1348433454","http://id.who.int/icd/release/11/2026-01/mms/1535069916","http://id.who.int/icd/release/11/2026-01/mms/343377487","http://id.who.int/icd/release/11/2026-01/mms/505403827","http://id.who.int/icd/release/11/2026-01/mms/1360466216","http://id.who.int/icd/release/11/2026-01/mms/812722861","http://id.who.int/icd/release/11/2026-01/mms/1357213652","http://id.who.int/icd/release/11/2026-01/mms/535668545"],"classKind":"category","code":"XA6CK2","indexTerm":[{"label":{"@language":"en","@value":"Heart wall"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1196650747"],"source":"http://id.who.int/icd/entity/1750488832","title":{"@language":"en","@value":"Heart wall"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1754821737": {"method":"GET","path":"icd/release/11/2026-01/mms/1754821737","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1754821737","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1754821737","classKind":"category","code":"BD12","definition":{"@language":"en","@value":"Increased cardiac output above normal associated with anaemia, arteriovenous fistulas, thyrotoxicosis and other syndromes. May result in heart failure."},"indexTerm":[{"label":{"@language":"en","@value":"High output syndromes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1754821737/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/224336967","http://id.who.int/icd/release/11/2026-01/mms/1470387017"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1754821737/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1754821737","title":{"@language":"en","@value":"High output syndromes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1809854176": {"method":"GET","path":"icd/release/11/2026-01/mms/1809854176","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1809854176","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1809854176","classKind":"category","code":"XA1SH6","indexTerm":[{"label":{"@language":"en","@value":"Left obtuse marginal artery"}},{"label":{"@language":"en","@value":"LMA - [left marginal artery]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1642334362"],"source":"http://id.who.int/icd/entity/1809854176","title":{"@language":"en","@value":"Left obtuse marginal artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1829545371": {"method":"GET","path":"icd/release/11/2026-01/mms/1829545371","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1829545371","blockId":"BlockL2-BA4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1829545371","child":["http://id.who.int/icd/release/11/2026-01/mms/718946808","http://id.who.int/icd/release/11/2026-01/mms/1334938734","http://id.who.int/icd/release/11/2026-01/mms/993844371","http://id.who.int/icd/release/11/2026-01/mms/904209735","http://id.who.int/icd/release/11/2026-01/mms/1829545371/unspecified"],"classKind":"block","code":"","codeRange":"BA40-BA4Z","inclusion":[{"label":{"@language":"en","@value":"acute coronary syndrome"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1964269418"],"source":"http://id.who.int/icd/entity/1829545371","title":{"@language":"en","@value":"Acute ischaemic heart disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1964269418": {"method":"GET","path":"icd/release/11/2026-01/mms/1964269418","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1964269418","blockId":"BlockL1-BA4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1964269418","child":["http://id.who.int/icd/release/11/2026-01/mms/1829545371","http://id.who.int/icd/release/11/2026-01/mms/1221742343","http://id.who.int/icd/release/11/2026-01/mms/1584861447","http://id.who.int/icd/release/11/2026-01/mms/1964269418/unspecified"],"classKind":"block","code":"","codeRange":"BA40-BA6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1964269418","title":{"@language":"en","@value":"Ischaemic heart diseases"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1992125824": {"method":"GET","path":"icd/release/11/2026-01/mms/1992125824","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1992125824","classKind":"category","code":"BD14","indexTerm":[{"label":{"@language":"en","@value":"Biventricular failure"}},{"label":{"@language":"en","@value":"biventricular cardiac failure, NOS"}},{"label":{"@language":"en","@value":"biventricular congestive heart failure"}},{"label":{"@language":"en","@value":"biventricular heart failure, NOS"}},{"foundationReference":"http://id.who.int/icd/entity/894744637","label":{"@language":"en","@value":"Biventricular failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/1273373410","label":{"@language":"en","@value":"Biventricular failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1869511838","label":{"@language":"en","@value":"Biventricular failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/89002329","label":{"@language":"en","@value":"Biventricular failure NYHA Class IV"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/291726710","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1992125824","title":{"@language":"en","@value":"Biventricular failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2136808878": {"method":"GET","path":"icd/release/11/2026-01/mms/2136808878","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2136808878","classKind":"category","code":"BD10","definition":{"@language":"en","@value":"A clinical syndrome characterised by abnormalities of ventricular function and neurohormonal regulation which are accompanied by effort intolerance and fluid retention."},"inclusion":[{"label":{"@language":"en","@value":"Congestive heart disease"}}],"indexTerm":[{"label":{"@language":"en","@value":"Congestive heart failure"}},{"label":{"@language":"en","@value":"CCF - [congestive cardiac failure]"}},{"label":{"@language":"en","@value":"CHF - [congestive heart failure]"}},{"label":{"@language":"en","@value":"Congestive heart disease"}},{"label":{"@language":"en","@value":"cardiac anasarca"}},{"label":{"@language":"en","@value":"cardiac hydrops"}},{"label":{"@language":"en","@value":"cardiac oedema"}},{"label":{"@language":"en","@value":"cardiac stasis"}},{"label":{"@language":"en","@value":"cardiovascular oedema"}},{"label":{"@language":"en","@value":"congested heart failure"}},{"label":{"@language":"en","@value":"congestive cardiac diseases"}},{"label":{"@language":"en","@value":"congestive cardiac failure"}},{"label":{"@language":"en","@value":"congestive failure"}},{"label":{"@language":"en","@value":"heart congestion"}},{"label":{"@language":"en","@value":"heart fluid"}},{"label":{"@language":"en","@value":"oedematous heart"}},{"foundationReference":"http://id.who.int/icd/entity/2011334376","label":{"@language":"en","@value":"Decompensated congestive cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/2011334376","label":{"@language":"en","@value":"Decompensated congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1703792511","label":{"@language":"en","@value":"Congestive heart failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/457135520","label":{"@language":"en","@value":"Congestive heart failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1068960732","label":{"@language":"en","@value":"Congestive heart failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/1068960732","label":{"@language":"en","@value":"congestive heart failure NYHA Class III - Marked limitation of physical activity. Comfortable at rest. Less than ordinary activity causes fatigue, palpitation or dyspnoea."}},{"foundationReference":"http://id.who.int/icd/entity/1435985435","label":{"@language":"en","@value":"Congestive heart failure NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/1981559937","label":{"@language":"en","@value":"Acute congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/58978844","label":{"@language":"en","@value":"Chronic congestive heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/2136808878","title":{"@language":"en","@value":"Congestive heart failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/21611059": {"method":"GET","path":"icd/release/11/2026-01/mms/21611059","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/21611059","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#21611059","classKind":"category","code":"XA9FX9","indexTerm":[{"label":{"@language":"en","@value":"Left circumflex artery"}},{"label":{"@language":"en","@value":"Cx - [circumflex artery]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1642334362"],"source":"http://id.who.int/icd/entity/21611059","title":{"@language":"en","@value":"Left circumflex artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/391388807": {"method":"GET","path":"icd/release/11/2026-01/mms/391388807","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/391388807","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#391388807","classKind":"category","code":"BA41.0","definition":{"@language":"en","@value":"ST elevation myocardial infarction (STEMI) is an acute myocardial infarction with developing ST elevation in two contiguous leads of the electrocardiogram (ECG). The criteria of ST elevation are as follows: New ST elevation at the J point in two contiguous leads where these cut points apply: 0.2 millivolt (mV) in men > 40 years, > 0.25mV in men < 40 years, and > 0.15 mV in women."},"indexTerm":[{"label":{"@language":"en","@value":"Acute ST elevation myocardial infarction"}},{"label":{"@language":"en","@value":"Acute ST segment elevation myocardial infarction"}},{"label":{"@language":"en","@value":"S-T elevated myocardial infarction"}},{"label":{"@language":"en","@value":"ST elevation MI [myocardial infarction]"}},{"label":{"@language":"en","@value":"ST elevation myocardial infarction"}},{"label":{"@language":"en","@value":"STEMI - [ST elevation myocardial infarction]"}},{"foundationReference":"http://id.who.int/icd/entity/521851532","label":{"@language":"en","@value":"Acute ST elevation myocardial infarction, anterior wall"}},{"foundationReference":"http://id.who.int/icd/entity/521851532","label":{"@language":"en","@value":"AWMI - [anterior wall myocardial infarction]"}},{"foundationReference":"http://id.who.int/icd/entity/521851532","label":{"@language":"en","@value":"anterior STEMI"}},{"foundationReference":"http://id.who.int/icd/entity/568601160","label":{"@language":"en","@value":"Acute ST elevation myocardial infarction, anterior wall, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/333659322","label":{"@language":"en","@value":"Acute transmural myocardial infarction of anterior wall"}},{"foundationReference":"http://id.who.int/icd/entity/333659322","label":{"@language":"en","@value":"acute transmural infarction of anterior wall NOS"}},{"foundationReference":"http://id.who.int/icd/entity/333659322","label":{"@language":"en","@value":"anterior transmural myocardium infarction"}},{"foundationReference":"http://id.who.int/icd/entity/333659322","label":{"@language":"en","@value":"transmural anterior myocardial infarct"}},{"foundationReference":"http://id.who.int/icd/entity/333659322","label":{"@language":"en","@value":"transmural anterior myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/333659322","label":{"@language":"en","@value":"transmural anterior myocardium infarct"}},{"foundationReference":"http://id.who.int/icd/entity/1693728718","label":{"@language":"en","@value":"Acute anteroapical transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1420615242","label":{"@language":"en","@value":"Acute anteroseptal transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/2064243830","label":{"@language":"en","@value":"Acute anteroapical transmural infarction"}},{"foundationReference":"http://id.who.int/icd/entity/104049190","label":{"@language":"en","@value":"Acute anterolateral ST elevation myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/104049190","label":{"@language":"en","@value":"anterolateral STEMI"}},{"foundationReference":"http://id.who.int/icd/entity/81232159","label":{"@language":"en","@value":"Acute ST elevation myocardial infarction, inferior wall"}},{"foundationReference":"http://id.who.int/icd/entity/57145389","label":{"@language":"en","@value":"Acute St elevation myocardial infarction, inferior wall, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/1990783276","label":{"@language":"en","@value":"Acute transmural myocardial infarction of inferior wall"}},{"foundationReference":"http://id.who.int/icd/entity/1990783276","label":{"@language":"en","@value":"acute inferior wall transmural infarction NOS"}},{"foundationReference":"http://id.who.int/icd/entity/795353995","label":{"@language":"en","@value":"Acute transmural or STEMI infarction of diaphragmatic wall"}},{"foundationReference":"http://id.who.int/icd/entity/402916378","label":{"@language":"en","@value":"Acute inferolateral transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/391672856","label":{"@language":"en","@value":"Acute inferoposterior transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/920540440","label":{"@language":"en","@value":"Acute ST elevation myocardial infarction, other site"}},{"foundationReference":"http://id.who.int/icd/entity/888461651","label":{"@language":"en","@value":"Acute ST elevation myocardial infarction, other site, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/33923539","label":{"@language":"en","@value":"Acute transmural myocardial infarction of other sites"}},{"foundationReference":"http://id.who.int/icd/entity/2100973887","label":{"@language":"en","@value":"Septal transmural myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/2100973887","label":{"@language":"en","@value":"Acute septal transmural infarction NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1298313403","label":{"@language":"en","@value":"Transmural myocardial infarction of posterior wall"}},{"foundationReference":"http://id.who.int/icd/entity/1298313403","label":{"@language":"en","@value":"acute true posterior transmural infarction"}},{"foundationReference":"http://id.who.int/icd/entity/306518280","label":{"@language":"en","@value":"Acute apical-lateral transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/677176734","label":{"@language":"en","@value":"Acute basal-lateral transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/679514846","label":{"@language":"en","@value":"Acute lateral wall transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/679514846","label":{"@language":"en","@value":"acute high lateral transmural infarction"}},{"foundationReference":"http://id.who.int/icd/entity/679514846","label":{"@language":"en","@value":"transmural infarction of lateral wall NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1931128145","label":{"@language":"en","@value":"Acute posterobasal transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1224954311","label":{"@language":"en","@value":"Acute posterolateral transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1562334273","label":{"@language":"en","@value":"Acute posteroseptal transmural or STEMI infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"Acute transmural myocardial infarction of unspecified site"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"ST elevation myocardial infarction [STEMI] NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"Transmural myocardial infarction NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"transmural myocardial infarct"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"transmural myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"transmural myocardium infarct"}},{"foundationReference":"http://id.who.int/icd/entity/1733192775","label":{"@language":"en","@value":"transmural myocardium infarction"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1334938734"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/391388807/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1642334362","http://id.who.int/icd/release/11/2026-01/mms/787267597","http://id.who.int/icd/release/11/2026-01/mms/1750488832"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/391388807/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1280712786"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"source":"http://id.who.int/icd/entity/391388807","title":{"@language":"en","@value":"Acute ST elevation myocardial infarction"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/426429380": {"method":"GET","path":"icd/release/11/2026-01/mms/426429380","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/426429380","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#426429380","child":["http://id.who.int/icd/release/11/2026-01/mms/924915526","http://id.who.int/icd/release/11/2026-01/mms/1663360295","http://id.who.int/icd/release/11/2026-01/mms/1964269418","http://id.who.int/icd/release/11/2026-01/mms/1059873720","http://id.who.int/icd/release/11/2026-01/mms/1703442464","http://id.who.int/icd/release/11/2026-01/mms/1296696944","http://id.who.int/icd/release/11/2026-01/mms/162683166","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/291726710","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/1457291912","http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/1164983645","http://id.who.int/icd/release/11/2026-01/mms/723430526","http://id.who.int/icd/release/11/2026-01/mms/1025888387","http://id.who.int/icd/release/11/2026-01/mms/1925333068","http://id.who.int/icd/release/11/2026-01/mms/185569509","http://id.who.int/icd/release/11/2026-01/mms/267653319","http://id.who.int/icd/release/11/2026-01/mms/539975693","http://id.who.int/icd/release/11/2026-01/mms/966120194","http://id.who.int/icd/release/11/2026-01/mms/1651137927","http://id.who.int/icd/release/11/2026-01/mms/426429380/other","http://id.who.int/icd/release/11/2026-01/mms/426429380/unspecified"],"classKind":"chapter","code":"11","definition":{"@language":"en","@value":"This refers to diseases of the organ system that passes nutrients (such as amino acids, electrolytes and lymph), gases, hormones, blood cells, etc. to and from cells in the body to help fight diseases, stabilize body temperature and pH, and to maintain homeostasis."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1306203631","label":{"@language":"en","@value":"Certain conditions originating in the perinatal period"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1306203631"},{"foundationReference":"http://id.who.int/icd/entity/1435254666","label":{"@language":"en","@value":"Certain infectious or parasitic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1435254666"},{"foundationReference":"http://id.who.int/icd/entity/714000734","label":{"@language":"en","@value":"Complications of pregnancy, childbirth and the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/714000734"},{"foundationReference":"http://id.who.int/icd/entity/223744320","label":{"@language":"en","@value":"Congenital malformations, deformations and chromosomal abnormalities"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/223744320"},{"foundationReference":"http://id.who.int/icd/entity/21500692","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/21500692"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/796618507","label":{"@language":"en","@value":"Symptoms, signs or clinical findings of the circulatory system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/796618507"},{"foundationReference":"http://id.who.int/icd/entity/843843448","label":{"@language":"en","@value":"Cerebrovascular diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/843843448"},{"foundationReference":"http://id.who.int/icd/entity/588559962","label":{"@language":"en","@value":"Functional vascular disorders of the skin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/588559962"},{"foundationReference":"http://id.who.int/icd/entity/1380872553","label":{"@language":"en","@value":"Diseases of the circulatory system complicating pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1380872553"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/426429380","title":{"@language":"en","@value":"Diseases of the circulatory system"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/437702716": {"method":"GET","path":"icd/release/11/2026-01/mms/437702716","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#437702716","child":["http://id.who.int/icd/release/11/2026-01/mms/1428007510","http://id.who.int/icd/release/11/2026-01/mms/572130061","http://id.who.int/icd/release/11/2026-01/mms/1653508908","http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified"],"classKind":"category","code":"BD11","definition":{"@language":"en","@value":"A clinical syndrome characterised by abnormalities of left ventricular function resulting in pulmonary congestion and fluid retention."},"inclusion":[{"label":{"@language":"en","@value":"Left heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"source":"http://id.who.int/icd/entity/437702716","title":{"@language":"en","@value":"Left ventricular failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/437702716/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/437702716/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#437702716/unspecified","classKind":"category","code":"BD11.Z","indexTerm":[{"label":{"@language":"en","@value":"Left ventricular failure, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"Left ventricular failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"LVF - [left ventricular failure]"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"Left heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"Oedema of lung with mention of heart disease, NOS or heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"Pulmonary oedema with mention of heart disease, NOS or heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"left ventricle failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"left ventricle heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"left ventricular heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/437702716","label":{"@language":"en","@value":"left-sided heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1314513153","label":{"@language":"en","@value":"Left ventricular failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/209712163","label":{"@language":"en","@value":"Left ventricular failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/52659233","label":{"@language":"en","@value":"Left ventricular failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/102214623","label":{"@language":"en","@value":"Left ventricular failure NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/1342390232","label":{"@language":"en","@value":"Acute left ventricular failure"}},{"foundationReference":"http://id.who.int/icd/entity/1342390232","label":{"@language":"en","@value":"acute left heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1342390232","label":{"@language":"en","@value":"acute left-sided heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1342390232","label":{"@language":"en","@value":"acute lung oedema meaning left ventricular failure"}},{"foundationReference":"http://id.who.int/icd/entity/1342390232","label":{"@language":"en","@value":"acute pulmonary oedema with heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1429671974","label":{"@language":"en","@value":"Cardiac asthma"}},{"foundationReference":"http://id.who.int/icd/entity/1429671974","label":{"@language":"en","@value":"Rostan asthma"}},{"foundationReference":"http://id.who.int/icd/entity/1429671974","label":{"@language":"en","@value":"cardiac asthmatic dyspnoea"}},{"foundationReference":"http://id.who.int/icd/entity/1429671974","label":{"@language":"en","@value":"cardiac dyspnoea"}},{"foundationReference":"http://id.who.int/icd/entity/1429671974","label":{"@language":"en","@value":"heart asthma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437702716"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"title":{"@language":"en","@value":"Left ventricular failure, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/572130061": {"method":"GET","path":"icd/release/11/2026-01/mms/572130061","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/572130061","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#572130061","classKind":"category","code":"BD11.1","indexTerm":[{"label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction"}},{"label":{"@language":"en","@value":"HFmEF - [heart failure with mid range ejection fraction]"}},{"foundationReference":"http://id.who.int/icd/entity/151164685","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction due to cardiomyopathy"}},{"foundationReference":"http://id.who.int/icd/entity/751815375","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction due to coronary artery disease"}},{"foundationReference":"http://id.who.int/icd/entity/2004662188","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction due to myocarditis"}},{"foundationReference":"http://id.who.int/icd/entity/1234867684","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction due to other disorders"}},{"foundationReference":"http://id.who.int/icd/entity/1817692200","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction due to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/187475415","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/187475415","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction NYHA Class I - no limitation of physical activity. Ordinary physical activity does not cause undue fatigue, palpitation , dyspnoea (shortness of breath)"}},{"foundationReference":"http://id.who.int/icd/entity/1257350274","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1272950066","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/1199865735","label":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction NYHA Class IV"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437702716"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/572130061/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/572130061/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1651053999","http://id.who.int/icd/release/11/2026-01/mms/119724091","http://id.who.int/icd/release/11/2026-01/mms/1150913605","http://id.who.int/icd/release/11/2026-01/mms/381961554","http://id.who.int/icd/release/11/2026-01/mms/1697306310","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/572130061","title":{"@language":"en","@value":"Left ventricular failure with mid range ejection fraction"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/680129526": {"method":"GET","path":"icd/release/11/2026-01/mms/680129526","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/680129526","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#680129526","classKind":"category","code":"BA41.1","indexTerm":[{"label":{"@language":"en","@value":"Acute non-ST elevation myocardial infarction"}},{"label":{"@language":"en","@value":"Acute non ST segment elevation myocardial infarction"}},{"label":{"@language":"en","@value":"NSTEMI - [non ST elevation myocardial infarction]"}},{"label":{"@language":"en","@value":"non S-T elevated myocardial infarction"}},{"label":{"@language":"en","@value":"non STEMI - [non ST elevation myocardial infarction]"}},{"label":{"@language":"en","@value":"non q wave myocardial infarction"}},{"label":{"@language":"en","@value":"non systolic time elevation myocardial infarction"}},{"foundationReference":"http://id.who.int/icd/entity/526937487","label":{"@language":"en","@value":"Acute non ST elevation myocardial infarction, anterior wall"}},{"foundationReference":"http://id.who.int/icd/entity/187249696","label":{"@language":"en","@value":"Acute non ST elevation myocardial infarction, anterior wall, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/687557873","label":{"@language":"en","@value":"Acute non ST elevation myocardial infarction, inferior wall"}},{"foundationReference":"http://id.who.int/icd/entity/687557873","label":{"@language":"en","@value":"acute inferior infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1433344925","label":{"@language":"en","@value":"Acute non ST elevation myocardial infarction, inferior wall, with right ventricular involvement"}},{"foundationReference":"http://id.who.int/icd/entity/175677076","label":{"@language":"en","@value":"Acute non ST elevation myocardial infarction, other site"}},{"foundationReference":"http://id.who.int/icd/entity/2012006904","label":{"@language":"en","@value":"Acute non ST elevation myocardial infarction, other site, with right ventricular involvement"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1334938734"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680129526/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1642334362","http://id.who.int/icd/release/11/2026-01/mms/787267597","http://id.who.int/icd/release/11/2026-01/mms/1750488832"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/680129526/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1280712786"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"source":"http://id.who.int/icd/entity/680129526","title":{"@language":"en","@value":"Acute non-ST elevation myocardial infarction"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/732645847": {"method":"GET","path":"icd/release/11/2026-01/mms/732645847","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/732645847","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#732645847","child":["http://id.who.int/icd/release/11/2026-01/mms/2144873078"],"classKind":"category","code":"XA7NQ7","indexTerm":[{"label":{"@language":"en","@value":"Left anterior descending coronary artery"}},{"label":{"@language":"en","@value":"LAD - [left anterior descending] artery"}},{"label":{"@language":"en","@value":"left anterior interventricular artery"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1642334362"],"source":"http://id.who.int/icd/entity/732645847","title":{"@language":"en","@value":"Left anterior descending coronary artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/787267597": {"method":"GET","path":"icd/release/11/2026-01/mms/787267597","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/787267597","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#787267597","child":["http://id.who.int/icd/release/11/2026-01/mms/1316124567","http://id.who.int/icd/release/11/2026-01/mms/647915497","http://id.who.int/icd/release/11/2026-01/mms/2093500960","http://id.who.int/icd/release/11/2026-01/mms/1499075415"],"classKind":"category","code":"XA2QX7","indexTerm":[{"label":{"@language":"en","@value":"Right coronary artery"}},{"label":{"@language":"en","@value":"RCA - [right coronary artery]"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1612889623"],"source":"http://id.who.int/icd/entity/787267597","title":{"@language":"en","@value":"Right coronary artery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z","code":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2FBD10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z%26XA0F62%2fBD10","code":"BA41.Z&XA0F62/BD10","hasManifestation":["BD10"],"specificAnatomy":["XA0F62"],"stemCode":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z%2FBD10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z%2fBD10","code":"BA41.Z/BD10","hasManifestation":["BD10"],"stemCode":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BD10": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BD10","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BD10","code":"BD10","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2136808878"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XA0F62": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XA0F62","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XA0F62","code":"XA0F62","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1642334362"},"request_body":null,"status":200}
+ }
+}

@@ -1,0 +1,98 @@
+{
+ "id": "s031-tetanus",
+ "input": {
+  "id": "s031-tetanus",
+  "kind": "disease",
+  "query": "tetanus",
+  "source": "VAs-01.08",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #49e85223b7"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 18,
+     "items": [
+      {
+       "code": "1C13",
+       "has_coding_note": false,
+       "matching_text": "Tetanus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Tetanus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1793762788"
+      },
+      {
+       "code": "1C14",
+       "has_coding_note": false,
+       "matching_text": "Obstetrical tetanus",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Obstetrical tetanus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/262236278"
+      },
+      {
+       "code": "8D83",
+       "has_coding_note": false,
+       "matching_text": "Autonomic nervous system disorder due to infection",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Autonomic nervous system disorder due to infection",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1581548100"
+      },
+      {
+       "code": "1C15",
+       "has_coding_note": false,
+       "matching_text": "Tetanus neonatorum",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Tetanus neonatorum",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2085616610"
+      },
+      {
+       "code": "QC00.5",
+       "has_coding_note": false,
+       "matching_text": "Need for immunization against tetanus alone",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Need for immunization against tetanus alone",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/902398835"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "tetanus",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #49e85223b7": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1793762788","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1816994419","important":false,"label":"Cephalic <em class='found'>tetanus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-3.9012537468105855},{"foundationUri":"http://id.who.int/icd/entity/1793762788","important":false,"label":"<em class='found'>Tetanus</em><em class='nonwbe'></em> other than obstetrical and neonatal","propertyId":"FullySpecifiedName","propertyValueType":0,"score":-4.228381883770383}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1793762788","theCode":"1C13","title":"<em class='found'>Tetanus</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/262236278","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/262236278","important":false,"label":"puerperal <em class='found'>tetanus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.1869678683164535},{"foundationUri":"http://id.who.int/icd/entity/262236278","important":false,"label":"<em class='found'>tetanus</em><em class='nonwbe'></em> in the puerperium","propertyId":"Synonym","propertyValueType":0,"score":-2.1869678683164535},{"foundationUri":"http://id.who.int/icd/entity/1386938427","important":false,"label":"<em class='found'>Tetanus</em><em class='nonwbe'></em> with abortion or ectopic gestation","propertyId":"Title","propertyValueType":1,"score":-5.2145106428384205}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.1869678683164535,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/262236278","theCode":"1C14","title":"Obstetrical <em class='found'>tetanus</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1581548100","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2125159506","important":false,"label":"Autonomic disorder due to <em class='found'>Tetanus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.5261396782144288}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-2.5261396782144288,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1581548100","theCode":"8D83","title":"Autonomic nervous system disorder due to infection","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2085616610","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2003197433","important":false,"label":"<em class='found'>Tetanus</em><em class='nonwbe'></em> omphalitis","propertyId":"Title","propertyValueType":1,"score":-2.6711281404554175}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.531735441628003,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2085616610","theCode":"1C15","title":"<em class='found'>Tetanus</em><em class='nonwbe'></em> neonatorum","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/902398835","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/902398835","important":false,"label":"<em class='found'>tetanus</em><em class='nonwbe'></em> inoculation","propertyId":"Synonym","propertyValueType":0,"score":-2.575444660187971},{"foundationUri":"http://id.who.int/icd/entity/902398835","important":false,"label":"need for prophylactic vaccination against <em class='found'>tetanus</em><em class='nonwbe'></em> toxoid alone","propertyId":"Synonym","propertyValueType":0,"score":-6.474073535951881}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.575444660187971,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/902398835","theCode":"QC00.5","title":"Need for immunization against <em class='found'>tetanus</em><em class='nonwbe'></em> alone","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/311489030","important":false,"label":"Harmful effects of <em class='found'>Tetanus</em><em class='nonwbe'></em> vaccine","propertyId":"Title","propertyValueType":1,"score":-2.9657094230166807}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.9657094230166807,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","theCode":"NE60","title":"Harmful effects of drugs, medicaments or biological substances, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/693926988","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/725388005","important":false,"label":"Tetanic contractions of uterus","propertyId":"Title","propertyValueType":1,"score":-3.0481183082503716}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.0481183082503716,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/693926988","theCode":"JB02.4","title":"Hypertonic, incoordinate, or prolonged uterine contractions","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/539646260/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/566769844","important":false,"label":"Pseudotetanus","propertyId":"Title","propertyValueType":1,"score":-3.5539009308637084}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-3.5539009308637084,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/539646260/other","theCode":"8A68.Y","title":"Other specified type of seizure","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1802902795","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/740352414","important":false,"label":"<em class='found'>Tetanus</em><em class='nonwbe'></em> screening","propertyId":"Title","propertyValueType":1,"score":-3.724532362803}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.724532362803,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1802902795","theCode":"QA08.2","title":"Special screening examination for other bacterial diseases","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"09","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/545773433/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2073255301","important":false,"label":"Tetanic cataract","propertyId":"Title","propertyValueType":1,"score":-3.737272441549755}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":-3.737272441549755,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/545773433/other","theCode":"9B10.2Y","title":"Other specified cataracts","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/799356470 & http://id.who.int/icd/release/11/2026-01/mms/1063237844","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.879123584517446,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/799356470","theCode":"PB28&XM5L44","title":"Unintentional exposure to or harmful effects of <em class='found'>tetanus</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1593715151 & http://id.who.int/icd/release/11/2026-01/mms/1063237844","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.330826027740045,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1593715151","theCode":"PC98&XM5L44","title":"Intentional self-harm by exposure to or harmful effects of <em class='found'>tetanus</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/638046280 & http://id.who.int/icd/release/11/2026-01/mms/1063237844","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.3760251435490405,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/638046280","theCode":"PH48&XM5L44","title":"Exposure to or harmful effects of undetermined intent of <em class='found'>tetanus</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1408645785 & http://id.who.int/icd/release/11/2026-01/mms/1063237844","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.665469284168964,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1408645785","theCode":"PE88&XM5L44","title":"Assault by or harmful exposure to <em class='found'>tetanus</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1158914813","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/118485284","important":false,"label":"Drugs medicaments or biological substances associated with injury or harm in therapeutic use, Bacterial vaccines, <em class='found'>Tetanus</em><em class='nonwbe'></em> vaccine","propertyId":"Title","propertyValueType":1,"score":-7.9393183691683475}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-7.9393183691683475,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1158914813","theCode":"PL00","title":"Drugs, medicaments or biological substances associated with injury or harm in therapeutic use","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/141857126","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/141857126","important":false,"label":"prophylactic vaccination against diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis combined","propertyId":"Synonym","propertyValueType":0,"score":-9.56969046576373},{"foundationUri":"http://id.who.int/icd/entity/141857126","important":false,"label":"DTP - [diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis] immunisation","propertyId":"Synonym","propertyValueType":0,"score":-10.175584296432483}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-9.56969046576373,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/141857126","theCode":"QC03.1","title":"Need for immunization against diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis, combined","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2094645657","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2094645657","important":false,"label":"prophylactic vaccination against diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis combined with typhoid-paratyphoid","propertyId":"Synonym","propertyValueType":0,"score":-13.286138636406426}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-13.286138636406426,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2094645657","theCode":"QC03.2","title":"Need for immunization against diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis with typhoid-paratyphoid","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/429001741","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/429001741","important":false,"label":"prophylactic vaccination against diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis combined with poliomyelitis","propertyId":"Synonym","propertyValueType":0,"score":-13.927687867432763}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-13.927687867432763,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/429001741","theCode":"QC03.3","title":"Need for immunization against diphtheria-<em class='found'>tetanus</em><em class='nonwbe'></em>-pertussis with poliomyelitis","titleIsASearchResult":true,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=tetanus%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

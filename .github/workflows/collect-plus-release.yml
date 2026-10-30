@@ -24,10 +24,10 @@ env:
   EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL: "2026-11-25T08:12:11Z"
   # The offline ICD-11 engine release this build stages. scripts/icd11-engine.env holds the same version; a step
   # checks the two match.
-  ICD11_ENGINE_TAG: icd11-engine-v2026.10.25.1
+  ICD11_ENGINE_TAG: icd11-engine-v2026.10.29.1
   # sha256 of icd11-engine-<version>.tar.gz, printed by scripts/publish-icd11-engine.sh after the owner publishes the
   # engine release. Until it is set, the build fails at once (the placeholder is not a sha256).
-  ICD11_ENGINE_SHA256: 975887076aabe5c126475b886e97ff8388699084a9ca53d426e09e3abd2ac0a3
+  ICD11_ENGINE_SHA256: d3fe3c3a1d7aee3fde9bb4e31224229aae1f9ff01fcbf988ff6244fdecac38c7
 
 jobs:
   build:
@@ -198,6 +198,33 @@ jobs:
         env:
           APP_VARIANT: plus
         run: npx expo prebuild --platform android --clean --non-interactive
+
+      # The shim refuses a library without digitva_icd11_call at load, so a stale engine pin would build an APK whose engine is
+      # unavailable. Prebuild staged the library; fail here if it lacks any of the three exports the shim needs.
+      - name: Check the staged engine exports the functions the shim loads
+        shell: bash
+        run: |
+          set -euo pipefail
+          lib=mobile/digitva-collect/modules/digitva-icd11/android/src/main/jniLibs/arm64-v8a/libdigitva_icd11.so
+          nm="$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          [[ -s "$lib" ]] || { echo "staged engine library missing: $lib" >&2; exit 1; }
+          [[ -x "$nm" ]] || { echo "llvm-nm not found in the NDK: $nm" >&2; exit 1; }
+          symbols="$("$nm" -D --defined-only "$lib")"
+          for symbol in digitva_icd11_init digitva_icd11_call digitva_icd11_free; do
+            # NativeAOT writes the version suffix: "T digitva_icd11_call@@V1.0".
+            grep -Eq " T ${symbol}(@.*)?\$" <<<"$symbols" || {
+              echo "the staged engine does not export $symbol: ICD11_ENGINE_TAG pins an engine release older than 2026.10.29" >&2
+              exit 1
+            }
+          done
+
+      # The module is linked only in this (plus) build, so its JVM unit tests (modules/digitva-icd11/android/src/test) run here, on the
+      # prebuilt project, and fail the release before an APK is built. They need no emulator and assemble nothing.
+      - name: Run the offline ICD-11 module's JVM unit tests
+        working-directory: mobile/digitva-collect/android
+        env:
+          APP_VARIANT: plus
+        run: ./gradlew --no-daemon :digitva-icd11:testReleaseUnitTest
 
       - name: Build the signed arm64 Collect Plus APK
         working-directory: mobile/digitva-collect/android

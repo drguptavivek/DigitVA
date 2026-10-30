@@ -1,0 +1,123 @@
+{
+ "id": "sex-male-pregnancy-code",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P27Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "JA43.1",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+       "Text": "PPH"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "sex-male-pregnancy-code",
+  "source": "WHO DORIS sex check",
+  "why": "Male with a pregnancy code (WHO sex-consistency)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JA43.1",
+    "POST icd/release/11/2026-01/doris #49984da30c",
+    "POST icd/release/11/2026-01/codedit #49984da30c"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P27Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "JA43.1",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+          "Text": "PPH"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-873,FER-CE-993",
+       "report": "The reported cause of death (JA43.1) is inconsistent with the indicated sex of the deceased 'Male'. It is recommended to review the MCCD to ensure that causes of death limited to, or more likely to occur in, female persons are correctly reported.\nOne or more maternal condition(s) has been reported, but pregnancy information is missing. It is recommended to review the MCCD and ensure that the pregnancy status is completed to accurately capture maternal and pregnancy-related deaths.",
+       "tabularReport": "0,\"The reported cause of death (JA43.1) is inconsistent with the indicated sex of the deceased 'Male'. It is recommended to review the MCCD to ensure that causes of death limited to, or more likely to occur in, female persons are correctly reported.\",FER-CE-873;JA43.1;;;\n0,\"One or more maternal condition(s) has been reported, but pregnancy information is missing. It is recommended to review the MCCD and ensure that the pregnancy status is completed to accurately capture maternal and pregnancy-related deaths.\",FER-CE-993;JA43.1;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "JA43.1",
+       "error": null,
+       "reject": false,
+       "report": "SP1: JA43.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n\n\nFull report:\nSP1: JA43.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA43.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA43.1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n",
+       "stemCode": "JA43.1",
+       "stemURI": "http://id.who.int/icd/entity/1531859332",
+       "tabularReport": "MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JA43.1;JA43.1;;;0;SP1: JA43.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA43.1;;;;;0;SP6: is not applicable with the current TSP JA43.1.;;;;BER\nSP7;False;JA43.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA43.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA43.1;;;;;0;M1: There is no special instruction applicable with TUC JA43.1.;;;;BER\nM2;False;JA43.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA43.1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA43.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA43.1;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1531859332",
+       "warning": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nPlausibility of the tentative underlying cause - JA43.1 - and the indicated sex 'Male' should be checked.\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "JA43.1",
+       "role": "stem",
+       "title": "PPH",
+       "uri": "http://id.who.int/icd/release/11/mms/1531859332"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P27Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "JA43.1",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1531859332",
+         "Text": "PPH"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/JA43.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JA43.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JA43.1","code":"JA43.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1531859332"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #49984da30c": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-873,FER-CE-993","report":"The reported cause of death (JA43.1) is inconsistent with the indicated sex of the deceased 'Male'. It is recommended to review the MCCD to ensure that causes of death limited to, or more likely to occur in, female persons are correctly reported.\nOne or more maternal condition(s) has been reported, but pregnancy information is missing. It is recommended to review the MCCD and ensure that the pregnancy status is completed to accurately capture maternal and pregnancy-related deaths.","tabularReport":"0,\"The reported cause of death (JA43.1) is inconsistent with the indicated sex of the deceased 'Male'. It is recommended to review the MCCD to ensure that causes of death limited to, or more likely to occur in, female persons are correctly reported.\",FER-CE-873;JA43.1;;;\n0,\"One or more maternal condition(s) has been reported, but pregnancy information is missing. It is recommended to review the MCCD and ensure that the pregnancy status is completed to accurately capture maternal and pregnancy-related deaths.\",FER-CE-993;JA43.1;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"JA43.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1531859332\",\"Text\":\"PPH\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #49984da30c": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"JA43.1","error":null,"reject":false,"report":"SP1: JA43.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n\n\nFull report:\nSP1: JA43.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP JA43.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC JA43.1.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.\n","stemCode":"JA43.1","stemURI":"http://id.who.int/icd/entity/1531859332","tabularReport":"MCC;True;;;;;;1;Pregnancy, childbirth, or puerperium is mentioned on the certificate.;;;;BER\nSP1;True;;JA43.1;JA43.1;;;0;SP1: JA43.1 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;JA43.1;;;;;0;SP6: is not applicable with the current TSP JA43.1.;;;;BER\nSP7;False;JA43.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;JA43.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;JA43.1;;;;;0;M1: There is no special instruction applicable with TUC JA43.1.;;;;BER\nM2;False;JA43.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;JA43.1;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;JA43.1;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER\nM4;True;JA43.1;;;;;0;M4 - Maternal - The deceased was pregnant at the time of death, or death occurred within 42 days or an unknown time after the end of pregnancy. - JA43.1 - remains the TUC.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1531859332","warning":"Pregnancy, childbirth, or puerperium is mentioned on the certificate.\nPlausibility of the tentative underlying cause - JA43.1 - and the indicated sex 'Male' should be checked.\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P27Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"JA43.1\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1531859332\",\"Text\":\"PPH\"}]}]}","status":200}
+ }
+}

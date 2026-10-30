@@ -102,6 +102,10 @@ jest.mock("../src/sync", () => ({
   getCachedReferenceData: jest.fn(async () => undefined),
 }));
 const mockEditorSave = jest.fn(async () => undefined);
+const mockOnGuidance = jest.fn(async (_endpoint: string, body: unknown) => ({ answered: body }));
+const mockPrimaryStem = jest.fn(async (_expression: string) => "GB00");
+const mockBundledDefinition = jest.fn(async (_value: string, _stem?: string) => null);
+jest.mock("../src/coding/bundledVaDefinitions", () => ({ getBundledVaDefinition: (value: string, stem?: string) => mockBundledDefinition(value, stem) }));
 let mockIcd11DorisEnabled = true;
 jest.mock("../src/icd11DorisPreference", () => ({
   isIcd11DorisEnabled: async () => mockIcd11DorisEnabled,
@@ -122,10 +126,11 @@ const mockAcquireEditor = jest.fn<ReturnType<AcquireEditor>, Parameters<AcquireE
 jest.mock("../src/localCodingLeases", () => ({ acquireLocalCodingEditor: () => mockAcquireEditor() }));
 let mockPanelProps: Record<string, any> | undefined;
 jest.mock("../src/workspace/offlineDoris", () => {
-  const { OfflineAllowabilityError } = jest.requireActual<typeof import("../src/workspace/offlineDoris")>("../src/workspace/offlineDoris");
+  const { OfflineAllowabilityError, createGuidanceRequester } = jest.requireActual<typeof import("../src/workspace/offlineDoris")>("../src/workspace/offlineDoris");
   return {
     OfflineAllowabilityError,
-    createOfflineDorisEditor: jest.fn(() => ({ onProcess: jest.fn(), save: mockEditorSave })),
+    createGuidanceRequester,
+    createOfflineDorisEditor: jest.fn(() => ({ onProcess: jest.fn(), primaryStem: mockPrimaryStem, save: mockEditorSave, onGuidance: mockOnGuidance })),
     certificateSeedFromInterview: jest.fn(() => ({ certificate: {}, provenance: {} })),
   };
 });
@@ -191,6 +196,7 @@ beforeEach(() => {
   mockReload.mockClear();
   mockEngineInit.mockClear();
   mockEditorSave.mockClear();
+  mockOnGuidance.mockClear();
   mockIcd11DorisEnabled = true;
   mockPanelProps = undefined;
   mockEnsureSmartVa.mockReset().mockResolvedValue({ status: "config_needed" });
@@ -354,6 +360,22 @@ describe("the offline coding screen", () => {
     expect(alerts(root)).toContain("Offline coding access for this project is unavailable.");
   });
 
+  it("resolves a '/' cluster's VA cause from the editor's primary stem, and a single code from the code itself", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    await render(<OfflineCoding />);
+    const api = mockPanelProps!.api;
+    await api.getVaDefinitionForIcd("1A00/GB00");
+    expect(mockPrimaryStem).toHaveBeenCalledWith("1A00/GB00");
+    expect(mockBundledDefinition).toHaveBeenLastCalledWith("1A00/GB00", "GB00");
+    mockPrimaryStem.mockClear();
+    await api.getVaDefinitionForIcd("1A00");
+    expect(mockBundledDefinition).toHaveBeenLastCalledWith("1A00", undefined);
+    await api.getVaDefinitionForIcd("not a code");
+    expect(mockPrimaryStem).not.toHaveBeenCalled();
+  });
+
   it("stops an already-open local editor from processing or saving after ICD-11 coding is turned off", async () => {
     setOs("android");
     mockPlus.mockReturnValue(true);
@@ -381,6 +403,25 @@ describe("the offline coding screen", () => {
     expect(mockPanelProps!.request).toBe(request);
     expect(mockEngineInit).toHaveBeenCalledTimes(1);
     expect(mockEnsureSmartVa).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers the picker's guidance routes for the open case from the editor, and nothing else", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    const root = await render(<OfflineCoding />);
+    const request = mockPanelProps!.request;
+    await expect(request("/api/v1/doris-clinical/hierarchy/draft-7", { method: "POST", json: { schema_version: 1, code: "1A00" } }))
+      .resolves.toEqual({ answered: { schema_version: 1, code: "1A00" } });
+    expect(mockOnGuidance).toHaveBeenCalledWith("hierarchy", { schema_version: 1, code: "1A00" });
+    await expect(request("/api/v1/doris-clinical/hierarchy/draft-8", { method: "POST", json: {} })).rejects.toThrow("offline_server_unavailable");
+    await expect(request("/api/v1/doris-clinical/process/draft-7", { method: "POST", json: {} })).rejects.toThrow("offline_server_unavailable");
+    expect(mockOnGuidance).toHaveBeenCalledTimes(1);
+    mockIcd11DorisEnabled = false;
+    await act(async () => { root.update(<OfflineCoding />); });
+    expect(mockPanelProps!.request).toBe(request);
+    await expect(mockPanelProps!.request("/api/v1/doris-clinical/details/draft-7", { method: "POST", json: {} })).rejects.toThrow("icd11_doris_disabled");
+    expect(mockOnGuidance).toHaveBeenCalledTimes(1);
   });
 
   it("ensures SmartVA on local coding entry before taking the editor lease", async () => {

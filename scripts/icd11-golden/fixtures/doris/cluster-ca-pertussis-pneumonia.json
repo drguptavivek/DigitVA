@@ -1,0 +1,142 @@
+{
+ "id": "cluster-ca-pertussis-pneumonia",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P7M",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "1C12.0/CA40.0Y",
+       "Interval": "P10D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other",
+       "Text": "Whooping cough with pneumonia"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "child",
+  "id": "cluster-ca-pertussis-pneumonia",
+  "source": "scripts/icd11-parity/queries.json",
+  "why": "Whooping cough with pneumonia cluster 1C12.0/CA40.0Y"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
+    "POST icd/release/11/2026-01/doris #41ffded1a4",
+    "POST icd/release/11/2026-01/codedit #41ffded1a4",
+    "GET icd/release/11/2026-01/mms/codeinfo/1C12.0",
+    "GET icd/release/11/2026-01/mms/1287021540",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y",
+    "GET icd/release/11/2026-01/mms/1323682030/other"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P7M",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "1C12.0/CA40.0Y",
+          "Interval": "P10D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other",
+          "Text": "Whooping cough with pneumonia"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-934",
+       "report": "This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.",
+       "tabularReport": "0,\"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.\",FER-CE-934;;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1C12.0/CA40.0Y",
+       "error": null,
+       "reject": false,
+       "report": "SP1: 1C12.0/CA40.0Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1C12.0/CA40.0Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1C12.0/CA40.0Y.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1C12.0/CA40.0Y.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1C12.0",
+       "stemURI": "http://id.who.int/icd/entity/1287021540",
+       "tabularReport": "SP1;True;;1C12.0/CA40.0Y;1C12.0/CA40.0Y;;;0;SP1: 1C12.0/CA40.0Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1C12.0/CA40.0Y;;;;;0;SP6: is not applicable with the current TSP 1C12.0/CA40.0Y.;;;;BER\nSP7;False;1C12.0/CA40.0Y;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1C12.0/CA40.0Y;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1C12.0/CA40.0Y;;;;;0;M1: There is no special instruction applicable with TUC 1C12.0/CA40.0Y.;;;;BER\nM2;False;1C12.0/CA40.0Y;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1C12.0/CA40.0Y;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1287021540 / http://id.who.int/icd/release/11/mms/1323682030/other",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1C12.0",
+       "role": "stem",
+       "title": "Whooping cough due to Bordetella pertussis",
+       "uri": "http://id.who.int/icd/release/11/mms/1287021540"
+      },
+      {
+       "code": "CA40.0Y",
+       "role": "postcoordinated",
+       "title": "Pneumonia due to other specified bacteria",
+       "uri": "http://id.who.int/icd/release/11/mms/1323682030/other"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P7M",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "1C12.0/CA40.0Y",
+         "Interval": "P10D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other",
+         "Text": "Whooping cough with pneumonia"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1287021540": {"method":"GET","path":"icd/release/11/2026-01/mms/1287021540","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1287021540","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1287021540","classKind":"category","code":"1C12.0","definition":{"@language":"en","@value":"A disease of the upper respiratory tract, caused by an infection of the gram-negative bacteria Bordetella pertussis. This disease typically presents with paroxysmal cough, inspiratory whoop, and fainting or vomiting after coughing. Transmission is by inhalation of infected respiratory secretions. Confirmation is by identification of Bordetella pertussis from nasopharyngeal samples or sputum, or detection of antibodies against Bordetella pertussis."},"indexTerm":[{"label":{"@language":"en","@value":"Whooping cough due to Bordetella pertussis"}},{"label":{"@language":"en","@value":"Bordetella pertussis infection"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"Pneumonia due to whooping cough due to Bordetella pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia due to whooping cough"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia in pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia in whooping cough"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia with pertussis"}},{"foundationReference":"http://id.who.int/icd/entity/821284594","label":{"@language":"en","@value":"pneumonia with whooping cough"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2064398473"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1287021540/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"]}],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1935107489"],"source":"http://id.who.int/icd/entity/1287021540","title":{"@language":"en","@value":"Whooping cough due to Bordetella pertussis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1323682030/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1323682030/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1323682030/other","classKind":"category","code":"CA40.0Y","indexTerm":[{"label":{"@language":"en","@value":"Pneumonia due to other specified bacteria"}},{"foundationReference":"http://id.who.int/icd/entity/1689714965","label":{"@language":"en","@value":"Pneumonia due to Acinetobacter"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"Pneumonia due to other streptococci"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"pneumonia due to streptococcus NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"streptococcal bronchopneumonia NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"streptococcal pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1304502126","label":{"@language":"en","@value":"streptococcal purulent pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/1546093061","label":{"@language":"en","@value":"Pneumonia due to other aerobic Gram-negative bacteria"}},{"foundationReference":"http://id.who.int/icd/entity/138548297","label":{"@language":"en","@value":"Pneumonia due to Serratia marcescens"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"Pneumonia due to proteus"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"acute proteus pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"proteus double pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"proteus lobar pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/916731393","label":{"@language":"en","@value":"proteus purulent pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"Pneumonia in Chlamydia psittaci infection"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"ornithosis with pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"pneumonia in Chlamydophila psittaci infection"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"respiratory ornithosis"}},{"foundationReference":"http://id.who.int/icd/entity/105118271","label":{"@language":"en","@value":"respiratory psittacosis"}},{"foundationReference":"http://id.who.int/icd/entity/1734922521","label":{"@language":"en","@value":"Early-onset pneumonia due to Listeria monocytogenes"}},{"foundationReference":"http://id.who.int/icd/entity/1714052626","label":{"@language":"en","@value":"Pneumonia due to Enterobacter"}},{"foundationReference":"http://id.who.int/icd/entity/1714052626","label":{"@language":"en","@value":"enterobacter pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/268364503","label":{"@language":"en","@value":"Late-onset pneumonia due to Klebsiella"}},{"foundationReference":"http://id.who.int/icd/entity/1601698397","label":{"@language":"en","@value":"Late-onset pneumonia due to other bacteria"}},{"foundationReference":"http://id.who.int/icd/entity/1245083795","label":{"@language":"en","@value":"Pneumonia in spirochaetal, not elsewhere classified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1323682030"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/causality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/causality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/894194405","http://id.who.int/icd/release/11/2026-01/mms/1674014893","http://id.who.int/icd/release/11/2026-01/mms/655959100","http://id.who.int/icd/release/11/2026-01/mms/56475710","http://id.who.int/icd/release/11/2026-01/mms/339929010"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/606208893","http://id.who.int/icd/release/11/2026-01/mms/1874454144","http://id.who.int/icd/release/11/2026-01/mms/1522409994","http://id.who.int/icd/release/11/2026-01/mms/509021347","http://id.who.int/icd/release/11/2026-01/mms/1785213202","http://id.who.int/icd/release/11/2026-01/mms/718893335","http://id.who.int/icd/release/11/2026-01/mms/1964711990","http://id.who.int/icd/release/11/2026-01/mms/176665435","http://id.who.int/icd/release/11/2026-01/mms/1526491884","http://id.who.int/icd/release/11/2026-01/mms/1978113063","http://id.who.int/icd/release/11/2026-01/mms/1895892604","http://id.who.int/icd/release/11/2026-01/mms/465867565","http://id.who.int/icd/release/11/2026-01/mms/1619465677","http://id.who.int/icd/release/11/2026-01/mms/809107389","http://id.who.int/icd/release/11/2026-01/mms/797046553","http://id.who.int/icd/release/11/2026-01/mms/565298763","http://id.who.int/icd/release/11/2026-01/mms/1258154716","http://id.who.int/icd/release/11/2026-01/mms/12651959","http://id.who.int/icd/release/11/2026-01/mms/468349501","http://id.who.int/icd/release/11/2026-01/mms/1068406335","http://id.who.int/icd/release/11/2026-01/mms/551388955","http://id.who.int/icd/release/11/2026-01/mms/1532703292","http://id.who.int/icd/release/11/2026-01/mms/1273847800","http://id.who.int/icd/release/11/2026-01/mms/1578336142","http://id.who.int/icd/release/11/2026-01/mms/1893350624","http://id.who.int/icd/release/11/2026-01/mms/352424277","http://id.who.int/icd/release/11/2026-01/mms/984423506","http://id.who.int/icd/release/11/2026-01/mms/977078705","http://id.who.int/icd/release/11/2026-01/mms/1783025664","http://id.who.int/icd/release/11/2026-01/mms/1634656297","http://id.who.int/icd/release/11/2026-01/mms/1409902713","http://id.who.int/icd/release/11/2026-01/mms/749698918","http://id.who.int/icd/release/11/2026-01/mms/190524601","http://id.who.int/icd/release/11/2026-01/mms/1848062332","http://id.who.int/icd/release/11/2026-01/mms/1528886538","http://id.who.int/icd/release/11/2026-01/mms/1046276301","http://id.who.int/icd/release/11/2026-01/mms/547766313","http://id.who.int/icd/release/11/2026-01/mms/837115999","http://id.who.int/icd/release/11/2026-01/mms/1248056702","http://id.who.int/icd/release/11/2026-01/mms/2140128219","http://id.who.int/icd/release/11/2026-01/mms/1537645708","http://id.who.int/icd/release/11/2026-01/mms/814156624","http://id.who.int/icd/release/11/2026-01/mms/243989463","http://id.who.int/icd/release/11/2026-01/mms/524436822","http://id.who.int/icd/release/11/2026-01/mms/275796787","http://id.who.int/icd/release/11/2026-01/mms/778020718","http://id.who.int/icd/release/11/2026-01/mms/507535969","http://id.who.int/icd/release/11/2026-01/mms/1852144030","http://id.who.int/icd/release/11/2026-01/mms/237808899","http://id.who.int/icd/release/11/2026-01/mms/1420836726","http://id.who.int/icd/release/11/2026-01/mms/192048727","http://id.who.int/icd/release/11/2026-01/mms/1798986860","http://id.who.int/icd/release/11/2026-01/mms/988763316","http://id.who.int/icd/release/11/2026-01/mms/1367609484","http://id.who.int/icd/release/11/2026-01/mms/1189225448","http://id.who.int/icd/release/11/2026-01/mms/1414907878","http://id.who.int/icd/release/11/2026-01/mms/1542213496","http://id.who.int/icd/release/11/2026-01/mms/1879790283","http://id.who.int/icd/release/11/2026-01/mms/950578131","http://id.who.int/icd/release/11/2026-01/mms/777929410","http://id.who.int/icd/release/11/2026-01/mms/1503622535","http://id.who.int/icd/release/11/2026-01/mms/311270238","http://id.who.int/icd/release/11/2026-01/mms/925617298","http://id.who.int/icd/release/11/2026-01/mms/1225222637","http://id.who.int/icd/release/11/2026-01/mms/103211928","http://id.who.int/icd/release/11/2026-01/mms/322809168","http://id.who.int/icd/release/11/2026-01/mms/2116096692","http://id.who.int/icd/release/11/2026-01/mms/568542103","http://id.who.int/icd/release/11/2026-01/mms/1151295060","http://id.who.int/icd/release/11/2026-01/mms/235145545","http://id.who.int/icd/release/11/2026-01/mms/2122752710","http://id.who.int/icd/release/11/2026-01/mms/708898123","http://id.who.int/icd/release/11/2026-01/mms/80817633","http://id.who.int/icd/release/11/2026-01/mms/870681014","http://id.who.int/icd/release/11/2026-01/mms/1927114867","http://id.who.int/icd/release/11/2026-01/mms/1495276771","http://id.who.int/icd/release/11/2026-01/mms/1645734341","http://id.who.int/icd/release/11/2026-01/mms/684652094","http://id.who.int/icd/release/11/2026-01/mms/841906326","http://id.who.int/icd/release/11/2026-01/mms/1283744438","http://id.who.int/icd/release/11/2026-01/mms/120175840","http://id.who.int/icd/release/11/2026-01/mms/1465017681","http://id.who.int/icd/release/11/2026-01/mms/752144496","http://id.who.int/icd/release/11/2026-01/mms/2023517537","http://id.who.int/icd/release/11/2026-01/mms/1371953258","http://id.who.int/icd/release/11/2026-01/mms/1302046997"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/833290117"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1528414070","http://id.who.int/icd/release/11/2026-01/mms/515117475","http://id.who.int/icd/release/11/2026-01/mms/840155638","http://id.who.int/icd/release/11/2026-01/mms/2058300982","http://id.who.int/icd/release/11/2026-01/mms/980168338","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/2064398473","http://id.who.int/icd/release/11/2026-01/mms/419706488","http://id.who.int/icd/release/11/2026-01/mms/1937339080","http://id.who.int/icd/release/11/2026-01/mms/2113860626"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/594985340"],"title":{"@language":"en","@value":"Pneumonia due to other specified bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1C12.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1C12.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1C12.0","code":"1C12.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1287021540"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1C12.0%2FCA40.0Y","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1C12.0%2fCA40.0Y","code":"1C12.0/CA40.0Y","hasManifestation":["CA40.0Y"],"stemCode":"1C12.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1287021540"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Y": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.0Y","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.0Y","code":"CA40.0Y","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1323682030/other"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #41ffded1a4": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-934","report":"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.","tabularReport":"0,\"This MCCD is identified as a fetal (or early infant) death under 1 year of age. Critical details such as birth weight and number of completed weeks of pregnancy (gestational age) are missing. It is recommended to review the certificate and complete these fields, if possible, to ensure accurate infant mortality reporting and classification.\",FER-CE-934;;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P7M\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1C12.0/CA40.0Y\",\"Interval\":\"P10D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other\",\"Text\":\"Whooping cough with pneumonia\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #41ffded1a4": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1C12.0/CA40.0Y","error":null,"reject":false,"report":"SP1: 1C12.0/CA40.0Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: 1C12.0/CA40.0Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1C12.0/CA40.0Y.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1C12.0/CA40.0Y.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1C12.0","stemURI":"http://id.who.int/icd/entity/1287021540","tabularReport":"SP1;True;;1C12.0/CA40.0Y;1C12.0/CA40.0Y;;;0;SP1: 1C12.0/CA40.0Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1C12.0/CA40.0Y;;;;;0;SP6: is not applicable with the current TSP 1C12.0/CA40.0Y.;;;;BER\nSP7;False;1C12.0/CA40.0Y;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1C12.0/CA40.0Y;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1C12.0/CA40.0Y;;;;;0;M1: There is no special instruction applicable with TUC 1C12.0/CA40.0Y.;;;;BER\nM2;False;1C12.0/CA40.0Y;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1C12.0/CA40.0Y;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1287021540 / http://id.who.int/icd/release/11/mms/1323682030/other","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P7M\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"1C12.0/CA40.0Y\",\"Interval\":\"P10D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1287021540 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/other\",\"Text\":\"Whooping cough with pneumonia\"}]}]}","status":200}
+ }
+}

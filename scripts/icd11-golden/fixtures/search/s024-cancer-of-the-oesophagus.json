@@ -1,0 +1,98 @@
+{
+ "id": "s024-cancer-of-the-oesophagus",
+ "input": {
+  "id": "s024-cancer-of-the-oesophagus",
+  "kind": "disease",
+  "query": "cancer of the oesophagus",
+  "source": "VAs-02.02",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #da1d5ccc9c"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 9,
+     "items": [
+      {
+       "code": "2B70.Z",
+       "has_coding_note": false,
+       "matching_text": "Malignant neoplasms of oesophagus, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Malignant neoplasms of oesophagus, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/669033105/unspecified"
+      },
+      {
+       "code": "2B70.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified malignant neoplasms of oesophagus",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified malignant neoplasms of oesophagus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/669033105/other"
+      },
+      {
+       "code": "2B5Z",
+       "has_coding_note": false,
+       "matching_text": "Malignant mesenchymal neoplasm of unspecified type",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Malignant mesenchymal neoplasm of unspecified type",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1965082709/unspecified"
+      },
+      {
+       "code": "2D8Y&XA0828",
+       "has_coding_note": false,
+       "matching_text": "Malignant neoplasm metastasis in the oesophagus",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Malignant neoplasm metastasis in the oesophagus",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/111033337/other & http://id.who.int/icd/release/11/2026-01/mms/72252748"
+      },
+      {
+       "code": "2B71.Z",
+       "has_coding_note": false,
+       "matching_text": "Malignant neoplasms of oesophagogastric junction, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Malignant neoplasms of oesophagogastric junction, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1103107484/unspecified"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "cancer of the oesophagus",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #da1d5ccc9c": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/669033105/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"<em class='found'>Malignant</em> <em class='found'>neoplasms</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"<em class='found'>cancer</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"<em class='found'>malignant</em> <em class='found'>tumour</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"oesophageal <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"primary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.5744402728750052},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"lower esophagus <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":0.5633945894570919},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"distal oesophageal <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":0.5184393409113909},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"proximal esophageal <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":0.5034120111703547},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"primary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of thoracic <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.3120203068280426},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"primary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of lower third of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.18776207155345115},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"primary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of upper third of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.1790381190997849},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"primary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of middle third of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.12251302758106632},{"foundationUri":"http://id.who.int/icd/entity/742327988","important":false,"label":"Metastatic oesophageal <em class='found'>cancer</em> [primary oesophageal <em class='found'>cancer</em> spreading elsewhere]","propertyId":"Title","propertyValueType":1,"score":0.09113802833062049},{"foundationUri":"http://id.who.int/icd/entity/669033105","important":false,"label":"primary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of cervical part of esophagus","propertyId":"Synonym","propertyValueType":0,"score":-0.18014329400333334}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/669033105/unspecified","theCode":"2B70.Z","title":"<em class='found'>Malignant</em> <em class='found'>neoplasms</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/669033105/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.6232719874961731,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/669033105/other","theCode":"2B70.Y","title":"Other specified <em class='found'>malignant</em> <em class='found'>neoplasms</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1965082709/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2144425943","important":false,"label":"<em class='found'>Malignant</em> mesenchymal <em class='found'>tumour</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.4782757335157093}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.4782757335157093,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1965082709/unspecified","theCode":"2B5Z","title":"<em class='found'>Malignant</em> mesenchymal <em class='found'>neoplasm</em> of unspecified type","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/111033337/other & http://id.who.int/icd/release/11/2026-01/mms/72252748","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/947417878","important":false,"label":"secondary <em class='found'>malignant</em> <em class='found'>neoplasm</em> of <em class='found'>oesophagus</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":0.2346319426273866}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.2346319426273866,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/111033337/other","theCode":"2D8Y&XA0828","title":"<em class='found'>Malignant</em> <em class='found'>neoplasm</em> metastasis in the <em class='found'>oesophagus</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1103107484/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1103107484","important":false,"label":"<em class='found'>Malignant</em> <em class='found'>neoplasms</em> of oesophagogastric junction","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":0.22306412029816164},{"foundationUri":"http://id.who.int/icd/entity/1103107484","important":false,"label":"esophagogastric junction <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":0.22306412029816164},{"foundationUri":"http://id.who.int/icd/entity/1103107484","important":false,"label":"cardioesophageal junction <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":-0.03229249102970818},{"foundationUri":"http://id.who.int/icd/entity/1103107484","important":false,"label":"<em class='found'>cancer</em> of gastro-oesophageal junction","propertyId":"Synonym","propertyValueType":0,"score":-0.07426742503685824},{"foundationUri":"http://id.who.int/icd/entity/1103107484","important":false,"label":"<em class='found'>cancer</em> of gastroesophageal junction","propertyId":"Synonym","propertyValueType":0,"score":-0.07426742503685824},{"foundationUri":"http://id.who.int/icd/entity/1103107484","important":false,"label":"gastroesophageal junction <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":0,"score":-0.07426742503685824}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.22306412029816164,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1103107484/unspecified","theCode":"2B71.Z","title":"<em class='found'>Malignant</em> <em class='found'>neoplasms</em> of oesophagogastric junction, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1103107484/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.12233991966689241,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1103107484/other","theCode":"2B71.Y","title":"Other specified <em class='found'>malignant</em> <em class='found'>neoplasm</em> of oesophagogastric junction","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"14","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1676945961","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/457036041","important":false,"label":"Tylosis with oesophageal <em class='found'>cancer</em>","propertyId":"Synonym","propertyValueType":1,"score":-0.48497705154684084}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.48497705154684084,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1676945961","theCode":"EC20.31","title":"Focal palmoplantar keratodermas","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/111033337/other & http://id.who.int/icd/release/11/2026-01/mms/706655436","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.6453382264469576,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/111033337/other","theCode":"2D8Y&XA9CB6","title":"<em class='found'>Malignant</em> <em class='found'>neoplasm</em> metastasis in gastroesophageal junction","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1579028734 & http://id.who.int/icd/release/11/2026-01/mms/1939408265","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0711660073523073,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1579028734","theCode":"2D60.1&XA8VY5","title":"<em class='found'>Malignant</em> <em class='found'>neoplasm</em> metastasis in intrathoracic lymph nodes [Oesophageal lymph node]","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=cancer+of+the+oesophagus%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

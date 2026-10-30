@@ -1,0 +1,74 @@
+{
+ "id": "s026-prostate-cancer",
+ "input": {
+  "id": "s026-prostate-cancer",
+  "kind": "disease",
+  "query": "prostate cancer",
+  "source": "VAs-02.06",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #1e8616098d"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "2C82.Z",
+       "has_coding_note": false,
+       "matching_text": "Malignant neoplasms of prostate, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Malignant neoplasms of prostate, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1552457716/unspecified"
+      },
+      {
+       "code": "2C82.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified malignant neoplasms of prostate",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified malignant neoplasms of prostate",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1552457716/other"
+      },
+      {
+       "code": "2E06",
+       "has_coding_note": false,
+       "matching_text": "Malignant neoplasm metastasis in male genital organs",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Malignant neoplasm metastasis in male genital organs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/770549239"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "prostate cancer",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #1e8616098d": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1552457716/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"Malignant neoplasms of <em class='found'>prostate</em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"<em class='found'>cancer</em><em class='nonwbe'></em> of <em class='found'>prostate</em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"malignant <em class='found'>prostatic</em> tumour","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"malignant tumour of <em class='found'>prostate</em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"<em class='found'>prostate</em> <em class='found'>cancer</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"primary malignant neoplasm of <em class='found'>prostate</em>","propertyId":"Synonym","propertyValueType":0,"score":0.1790302030939992},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"primary <em class='found'>prostate</em> <em class='found'>cancer</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.1790302030939992},{"foundationUri":"http://id.who.int/icd/entity/1552457716","important":false,"label":"<em class='found'>prostate</em> gland <em class='found'>cancer</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.16021272147094662},{"foundationUri":"http://id.who.int/icd/entity/829639637","important":false,"label":"Metastatic <em class='found'>prostate</em> <em class='found'>cancer</em><em class='nonwbe'></em> [primary <em class='found'>prostate</em> <em class='found'>cancer</em><em class='nonwbe'></em> spreading elsewhere]","propertyId":"Title","propertyValueType":1,"score":-0.29734280108549854},{"foundationUri":"http://id.who.int/icd/entity/829639637","important":false,"label":"metastatic <em class='found'>prostatic</em> <em class='found'>cancer</em><em class='nonwbe'></em> [primary <em class='found'>prostatic</em> <em class='found'>cancer</em><em class='nonwbe'></em> spreading elsewhere]","propertyId":"Synonym","propertyValueType":1,"score":-0.29734280108549854}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1552457716/unspecified","theCode":"2C82.Z","title":"Malignant neoplasms of <em class='found'>prostate</em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1552457716/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1593240346","important":false,"label":"Familial <em class='found'>prostate</em> <em class='found'>cancer</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":0.15467284190262218}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.22716180367295197,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1552457716/other","theCode":"2C82.Y","title":"Other specified malignant neoplasms of <em class='found'>prostate</em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/770549239","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/948374583","important":false,"label":"Malignant neoplasm metastasis in <em class='found'>prostate</em>","propertyId":"Title","propertyValueType":1,"score":-0.23644130545361747}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.23644130545361747,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/770549239","theCode":"2E06","title":"Malignant neoplasm metastasis in male genital organs","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=prostate+cancer%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

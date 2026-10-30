@@ -1,0 +1,98 @@
+{
+ "id": "s025-carcinoma-of-cervix",
+ "input": {
+  "id": "s025-carcinoma-of-cervix",
+  "kind": "disease",
+  "query": "carcinoma of cervix",
+  "source": "VAs-02.05",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #27a9fa9267"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "2E66.Z",
+       "has_coding_note": false,
+       "matching_text": "Carcinoma in situ of cervix uteri, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Carcinoma in situ of cervix uteri, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1072810807/unspecified"
+      },
+      {
+       "code": "2C77.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified malignant neoplasms of cervix uteri",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified malignant neoplasms of cervix uteri",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1256072522/other"
+      },
+      {
+       "code": "2E66.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified carcinoma in situ of cervix uteri",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified carcinoma in situ of cervix uteri",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1072810807/other"
+      },
+      {
+       "code": "2C77.0",
+       "has_coding_note": false,
+       "matching_text": "Squamous cell carcinoma of cervix uteri",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Squamous cell carcinoma of cervix uteri",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1544785014"
+      },
+      {
+       "code": "2E67.3&XA5WW1",
+       "has_coding_note": false,
+       "matching_text": "Carcinoma in situ of other or unspecified female genital organs [Cervix uteri]",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Carcinoma in situ of other or unspecified female genital organs [Cervix uteri]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/664251835 & http://id.who.int/icd/release/11/2026-01/mms/1399753101"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "carcinoma of cervix",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #27a9fa9267": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1072810807/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1072810807","important":false,"label":"<em class='found'>carcinoma</em> in situ of <em class='found'>cervix</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.29035894160969866},{"foundationUri":"http://id.who.int/icd/entity/1072810807","important":false,"label":"<em class='found'>Carcinoma</em> in situ of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-0.05157659644125302},{"foundationUri":"http://id.who.int/icd/entity/1072810807","important":false,"label":"<em class='found'>cervix</em><em class='nonwbe'></em> uteri <em class='found'>carcinoma</em> in situ","propertyId":"Synonym","propertyValueType":0,"score":-0.05157659644125302},{"foundationUri":"http://id.who.int/icd/entity/1009559121","important":false,"label":"<em class='found'>Carcinoma</em> in situ of other parts of <em class='found'>cervix</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.08027243072039313}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.29035894160969866,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1072810807/unspecified","theCode":"2E66.Z","title":"<em class='found'>Carcinoma</em> in situ of <em class='found'>cervix</em><em class='nonwbe'></em> uteri, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1256072522/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1743710977","important":false,"label":"<em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"Synonym","propertyValueType":1,"score":0.22455926255672373},{"foundationUri":"http://id.who.int/icd/entity/1537471814","important":false,"label":"Papillary <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"Title","propertyValueType":1,"score":-0.06684718649534979},{"foundationUri":"http://id.who.int/icd/entity/2084412621","important":false,"label":"Glassy cell <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"Title","propertyValueType":1,"score":-0.5039222651030241},{"foundationUri":"http://id.who.int/icd/entity/62048122","important":false,"label":"Poorly differentiated endocrine <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"Title","propertyValueType":1,"score":-0.71627601394624}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.22455926255672373,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1256072522/other","theCode":"2C77.Y","title":"Other specified malignant neoplasms of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1072810807/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.1853471827144019,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1072810807/other","theCode":"2E66.Y","title":"Other specified <em class='found'>carcinoma</em> in situ of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1544785014","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.24757024348632994,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1544785014","theCode":"2C77.0","title":"Squamous cell <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/664251835 & http://id.who.int/icd/release/11/2026-01/mms/1399753101","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/664251835 & http://id.who.int/icd/entity/1399753101","important":false,"label":"<em class='found'>Carcinoma</em> in situ of other or unspecified female genital organs [<em class='found'>Cervix</em><em class='nonwbe'></em>, NOS]","propertyId":"Title","propertyValueType":3,"score":-0.47064494074924224}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.47064494074924224,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/664251835","theCode":"2E67.3&XA5WW1","title":"<em class='found'>Carcinoma</em> in situ of other or unspecified female genital organs [<em class='found'>Cervix</em><em class='nonwbe'></em> uteri]","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/261293318","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/109863869","important":false,"label":"Adenoid cystic <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"Title","propertyValueType":1,"score":-1.1317258120724316},{"foundationUri":"http://id.who.int/icd/entity/255284408","important":false,"label":"Adenoid basal <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","propertyId":"Title","propertyValueType":1,"score":-1.1915181187551325}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5555597218753033,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/261293318","theCode":"2C77.1","title":"Adenocarcinoma of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/128151553","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.7412303848038375,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/128151553","theCode":"2C77.3","title":"Neuroendocrine <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"02","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/156186129","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.843999251436652,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/156186129","theCode":"2C77.2","title":"Adenosquamous <em class='found'>carcinoma</em> of <em class='found'>cervix</em><em class='nonwbe'></em> uteri","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=carcinoma+of+cervix%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

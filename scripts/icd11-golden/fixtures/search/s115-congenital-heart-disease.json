@@ -1,0 +1,98 @@
+{
+ "id": "s115-congenital-heart-disease",
+ "input": {
+  "id": "s115-congenital-heart-disease",
+  "kind": "neonatal",
+  "query": "congenital heart disease",
+  "source": "VAs-10.06",
+  "why": "neonatal or stillbirth cause"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #841e68b235"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 8,
+     "items": [
+      {
+       "code": "LA8Z",
+       "has_coding_note": false,
+       "matching_text": "Structural developmental anomaly of heart or great vessels, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Structural developmental anomaly of heart or great vessels, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2004408087/unspecified"
+      },
+      {
+       "code": "1A60.4",
+       "has_coding_note": false,
+       "matching_text": "Other late congenital syphilis, symptomatic",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other late congenital syphilis, symptomatic",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2132718683"
+      },
+      {
+       "code": "LA8Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified structural developmental anomaly of heart or great vessels",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified structural developmental anomaly of heart or great vessels",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2004408087/other"
+      },
+      {
+       "code": "BB01.0/LA8Z",
+       "has_coding_note": false,
+       "matching_text": "Pulmonary arterial hypertension associated with congenital heart disease",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Pulmonary arterial hypertension associated with congenital heart disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1931148955 / http://id.who.int/icd/release/11/2026-01/mms/2004408087/unspecified"
+      },
+      {
+       "code": "KA00.Y",
+       "has_coding_note": true,
+       "matching_text": "Fetus or newborn affected by other specified maternal condition that may be unrelated to present pregnancy",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Fetus or newborn affected by other specified maternal condition that may be unrelated to present pregnancy",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/128908879/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "congenital heart disease",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #841e68b235": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"20","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2004408087/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2004408087","important":true,"label":"<em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2004408087/unspecified","theCode":"LA8Z","title":"Structural developmental anomaly of <em class='found'>heart</em> or great vessels, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/2132718683","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/440549475","important":false,"label":"<em class='found'>congenital</em> syphilitic <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":0.2151638288062488}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.2151638288062488,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2132718683","theCode":"1A60.4","title":"Other late <em class='found'>congenital</em> syphilis, symptomatic","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"20","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2004408087/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1970307127","important":false,"label":"Aortic aneurysm due to <em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.09187415481868134},{"foundationUri":"http://id.who.int/icd/entity/1970307127","important":false,"label":"Aortic aneurysm secondary to <em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.6252487064037588}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.09187415481868134,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2004408087/other","theCode":"LA8Y","title":"Other specified structural developmental anomaly of <em class='found'>heart</em> or great vessels","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1931148955 / http://id.who.int/icd/release/11/2026-01/mms/2004408087/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.4365244394373719,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1931148955","theCode":"BB01.0/LA8Z","title":"Pulmonary arterial hypertension associated with <em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/128908879/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1487774080","important":false,"label":"<em class='found'>Congenital</em> maternal <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em> affecting fetus or newborn","propertyId":"Title","propertyValueType":1,"score":-0.46660594149562473}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.46660594149562473,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/128908879/other","theCode":"KA00.Y","title":"Fetus or newborn affected by other specified maternal condition that may be unrelated to present pregnancy","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1782708952","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/8965736","important":false,"label":"Dilated cardiomyopathy due to <em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.5200042852286092}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.5200042852286092,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1782708952","theCode":"BC43.01","title":"Nonfamilial dilated cardiomyopathy","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1098829699/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/226950168","important":false,"label":"Pulmonary haemorrhage of newborn associated with <em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.7181214760276041}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.7181214760276041,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1098829699/other","theCode":"KB28.Y","title":"Other specified pulmonary haemorrhage originating in the perinatal period","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/226977635","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1013312334","important":false,"label":"Noncompaction cardiomyopathy associated with <em class='found'>congenital</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.7849845305694744}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.7849845305694744,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/226977635","theCode":"BC44","title":"Noncompaction cardiomyopathy","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=congenital+heart+disease%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

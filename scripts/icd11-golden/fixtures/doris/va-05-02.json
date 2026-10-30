@@ -1,0 +1,127 @@
+{
+ "id": "va-05-02",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P44Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "CA23.0",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1870104478",
+       "Text": "Asthma"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-05-02",
+  "source": "VA cause VAs-05.02 Asthma",
+  "why": "Asthma: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/CA23.0",
+    "POST icd/release/11/2026-01/doris #7b29557d7e",
+    "POST icd/release/11/2026-01/codedit #7b29557d7e",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA23.02",
+    "GET icd/release/11/2026-01/mms/1779929269"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P44Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "CA23.0",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1870104478",
+          "Text": "Asthma"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "BER-CE-10",
+       "report": "CA23.0 is not a terminal code in the MMS linearization.",
+       "tabularReport": "0,CA23.0 is not a terminal code in the MMS linearization.,BER-CE-10;CA23.0;CA23.02;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "CA23.02",
+       "error": null,
+       "reject": false,
+       "report": "SP1: CA23.02 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: CA23.02 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP CA23.02.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC CA23.02.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "CA23.02",
+       "stemURI": "http://id.who.int/icd/entity/1779929269",
+       "tabularReport": "MCC;True;;;;Substitution:0:CA23.0>CA23.02;;1;CA23.0 is not a terminal code in the MMS linearization. CA23.0 was recoded to CA23.02 which is not a residual.;;;;BER\nSP1;True;;CA23.02;CA23.02;;;0;SP1: CA23.02 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;CA23.02;;;;;0;SP6: is not applicable with the current TSP CA23.02.;;;;BER\nSP7;False;CA23.02;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA23.02;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;CA23.02;;;;;0;M1: There is no special instruction applicable with TUC CA23.02.;;;;BER\nM2;False;CA23.02;;;;;0;M2: is not applicable.;;;;BER\nM3;False;CA23.02;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1779929269",
+       "warning": "CA23.0 is not a terminal code in the MMS linearization.\nCA23.0 was recoded to CA23.02 which is not a residual.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "CA23.02",
+       "role": "stem",
+       "title": "Allergic asthma, uncomplicated",
+       "uri": "http://id.who.int/icd/release/11/mms/1779929269"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P44Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "CA23.0",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1870104478",
+         "Text": "Asthma"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1779929269": {"method":"GET","path":"icd/release/11/2026-01/mms/1779929269","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1779929269","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1779929269","classKind":"category","code":"CA23.02","indexTerm":[{"label":{"@language":"en","@value":"Allergic asthma, uncomplicated"}},{"label":{"@language":"en","@value":"allergic asthma NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1870104478"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1779929269/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1450176443","http://id.who.int/icd/release/11/2026-01/mms/678821627"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1779929269/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/562478860","http://id.who.int/icd/release/11/2026-01/mms/1663264387","http://id.who.int/icd/release/11/2026-01/mms/1201187093"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/607453719"],"source":"http://id.who.int/icd/entity/1779929269","title":{"@language":"en","@value":"Allergic asthma, uncomplicated"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA23.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA23.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA23.0","code":"CA23.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1870104478"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA23.02": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA23.02","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA23.02","code":"CA23.02","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1779929269"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #7b29557d7e": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"BER-CE-10","report":"CA23.0 is not a terminal code in the MMS linearization.","tabularReport":"0,CA23.0 is not a terminal code in the MMS linearization.,BER-CE-10;CA23.0;CA23.02;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P44Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CA23.0\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1870104478\",\"Text\":\"Asthma\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #7b29557d7e": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"CA23.02","error":null,"reject":false,"report":"SP1: CA23.02 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: CA23.02 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP CA23.02.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC CA23.02.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"CA23.02","stemURI":"http://id.who.int/icd/entity/1779929269","tabularReport":"MCC;True;;;;Substitution:0:CA23.0>CA23.02;;1;CA23.0 is not a terminal code in the MMS linearization. CA23.0 was recoded to CA23.02 which is not a residual.;;;;BER\nSP1;True;;CA23.02;CA23.02;;;0;SP1: CA23.02 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;CA23.02;;;;;0;SP6: is not applicable with the current TSP CA23.02.;;;;BER\nSP7;False;CA23.02;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA23.02;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;CA23.02;;;;;0;M1: There is no special instruction applicable with TUC CA23.02.;;;;BER\nM2;False;CA23.02;;;;;0;M2: is not applicable.;;;;BER\nM3;False;CA23.02;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1779929269","warning":"CA23.0 is not a terminal code in the MMS linearization.\nCA23.0 was recoded to CA23.02 which is not a residual.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P44Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CA23.0\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1870104478\",\"Text\":\"Asthma\"}]}]}","status":200}
+ }
+}

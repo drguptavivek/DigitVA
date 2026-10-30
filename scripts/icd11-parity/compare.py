@@ -3,10 +3,10 @@
 Both files come from phone_harness.c and run_container.py over the same build_inputs.py list.
 A pair matches when both sides succeed (HTTP 2xx) with equal JSON, or both refuse the request
 (any non-2xx; the phone's in-process call and the container's web stack word their errors
-differently, so only "refused" is compared). JSON field names are compared case-insensitively:
-the container's REST layer writes camelCase (`stemCode`), the in-process call the controller's
-own PascalCase (`StemCode`). A search's `uniqueSearchId` (a random id per request) is
-left out. Prints a table per section and the latency of each side; exits 1 on
+differently, so only "refused" is compared, except the bridge's own refusals (include=descendant, limit with flatResults=false), whose body must be exactly its own). JSON field names are compared case-sensitively:
+the bridge must write what the container's REST layer writes (camelCase `stemCode`), not the
+controller's own PascalCase (`StemCode`). A search's
+`uniqueSearchId` (a random id per request) is left out. Prints a table per section and the latency of each side; exits 1 on
 any mismatch.
 
 usage: python3 scripts/icd11-parity/compare.py PHONE.tsv CONTAINER.tsv
@@ -16,21 +16,18 @@ import statistics
 import sys
 
 
-def lower_keys(value):
-    if isinstance(value, dict):
-        return {k.lower(): lower_keys(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [lower_keys(v) for v in value]
-    return value
-
-
 # Fields WHO fills fresh on every request: a search's uniqueSearchId is a new random id each call.
-VOLATILE = {"uniquesearchid"}
+VOLATILE = {"uniqueSearchId"}
+
+
+# The bridge's own refusals of include=descendant and of limit with flatResults=false (Bridge.cs); the container does not refuse them, so
+# run_container.py writes these bodies.
+BRIDGE_REFUSALS = [{"error": "include descendant is not allowed"}, {"error": "limit requires flatResults"}]
 
 
 def parse(body):
     try:
-        value = lower_keys(json.loads(body))
+        value = json.loads(body)
     except ValueError:
         return body
     if isinstance(value, dict):
@@ -47,9 +44,10 @@ def load(path):
             _, ident, t1, t2, s1, s2, b1, b2 = parts
             rows[ident] = {"kind": "doris", "ms": [float(t1), float(t2)],
                            "calls": [(int(s1), parse(b1)), (int(s2), parse(b2))]}
-        elif parts[0] in ("SEARCH", "CODEINFO"):
+        elif parts[0] == "CALL":
             _, ident, t, s, b = parts
-            rows[ident] = {"kind": parts[0].lower(), "ms": [float(t)], "calls": [(int(s), parse(b))]}
+            section = ident.split("/", 1)[0]  # search and codeinfo texts are calls too; their latency is reported apart
+            rows[ident] = {"kind": section if section in ("search", "codeinfo") else "call", "ms": [float(t)], "calls": [(int(s), parse(b))]}
     return rows
 
 
@@ -68,6 +66,9 @@ def verdict(a, b):
                 return "differs: " + ", ".join(fields[:6])
             outcomes.append("same")
         elif not ok(sa) and not ok(sb):
+            # A refusal that the container side only emulates (run_container.py: include=descendant, limit with flatResults=false) must be the bridge's own text.
+            if bb in BRIDGE_REFUSALS and ba != bb:
+                return "refused with another body"
             outcomes.append("refused")
         else:
             return f"one side refused (phone {sa}, container {sb})"
@@ -101,7 +102,7 @@ def main():
         print(f"{section:10} {t['total']:6} {t['same']:6} {t['both refused']:8} {t['mismatch']:9}")
     for ident, v in mismatches[:40]:
         print(f"  {ident}: {v}")
-    for kind, label in [("doris", "DORIS"), ("search", "search"), ("codeinfo", "code info")]:
+    for kind, label in [("doris", "DORIS"), ("search", "search"), ("codeinfo", "code info"), ("call", "generic")]:
         p = [r["ms"][0] for r in phone.values() if r["kind"] == kind]
         c = [r["ms"][0] for r in container.values() if r["kind"] == kind]
         if p:

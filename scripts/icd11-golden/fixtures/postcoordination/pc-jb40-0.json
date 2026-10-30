@@ -1,0 +1,1152 @@
+{
+ "built": [
+  {
+   "expression": "JB40.0&XN74M/JB40.2",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.2",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JB40.0&XN74M/JB40.2",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 & http://id.who.int/icd/release/11/2026-01/mms/83217129 / http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0&XN74M/JB40.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.2",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JB40.0&XN74M/JB40.2",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 & http://id.who.int/icd/release/11/2026-01/mms/83217129 / http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0&XN74M/JB40.2",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 & http://id.who.int/icd/release/11/2026-01/mms/83217129 / http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079",
+      "GET icd/release/11/2026-01/mms/1741519874",
+      "GET icd/release/11/2026-01/mms/1421997617",
+      "GET icd/release/11/2026-01/mms/714000734",
+      "GET icd/release/11/2026-01/mms/1741519874",
+      "GET icd/release/11/2026-01/mms/194200207",
+      "GET icd/release/11/2026-01/mms/1859686171",
+      "GET icd/release/11/2026-01/mms/443932646",
+      "GET icd/release/11/2026-01/mms/214991332",
+      "GET icd/release/11/2026-01/mms/1741519874/other",
+      "GET icd/release/11/2026-01/mms/1741519874/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "18",
+         "title": "Pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+        },
+        {
+         "code": "",
+         "title": "Complications predominantly related to the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1421997617"
+        },
+        {
+         "code": "JB40",
+         "title": "Infections in the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Puerperal sepsis",
+        "generalised puerperal infection",
+        "major puerperal infection",
+        "postpartum sepsis",
+        "puerperal fever",
+        "puerperal pyaemia",
+        "Puerperal endometritis",
+        "Puerperal metroperitonitis",
+        "Puerperal metrosalpingitis",
+        "puerperal perimetrosalpingitis",
+        "puerperal pyosalpingitis",
+        "puerperal salpingoperitonitis"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "selected_expression": {
+        "code": "JB40.0&XN74M/JB40.2",
+        "stem_code": "JB40.0"
+       },
+       "siblings": [
+        {
+         "code": "JB40.1",
+         "has_children": false,
+         "title": "Infection of obstetric surgical wound",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/194200207"
+        },
+        {
+         "code": "JB40.2",
+         "has_children": false,
+         "title": "Other infection of genital tract following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+        },
+        {
+         "code": "JB40.3",
+         "has_children": false,
+         "title": "Urinary tract infection following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/443932646"
+        },
+        {
+         "code": "JB40.4",
+         "has_children": false,
+         "title": "Pyrexia of unknown origin following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/214991332"
+        },
+        {
+         "code": "JB40.Y",
+         "has_children": false,
+         "title": "Other specified infections in the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/other"
+        },
+        {
+         "code": "JB40.Z",
+         "has_children": false,
+         "title": "Infections in the puerperium, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0&XN74M/JB40.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "JB40.0&XN74M/JB40.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "JB40.0&XN74M/JB40.2"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079",
+      "GET icd/release/11/2026-01/mms/759302477",
+      "GET icd/release/11/2026-01/mms/1124951812/other"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis.",
+       "definition": "",
+       "exclusions": [
+        {
+         "code": "JB42.3",
+         "title": "Obstetric pyaemic or septic embolism"
+        },
+        {
+         "code": "JB0D.Y",
+         "title": "sepsis during labour"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0&XN74M/JB40.2"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 & http://id.who.int/icd/release/11/2026-01/mms/83217129 / http://id.who.int/icd/release/11/2026-01/mms/1859686171",
+   "why": "bacteria extension, then genital tract infection"
+  },
+  {
+   "expression": "JB40.0/JB40.3",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.3",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JB40.0/JB40.3",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 / http://id.who.int/icd/release/11/2026-01/mms/443932646"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0/JB40.3"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.3",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "JB40.0/JB40.3",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 / http://id.who.int/icd/release/11/2026-01/mms/443932646"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0/JB40.3",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 / http://id.who.int/icd/release/11/2026-01/mms/443932646"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079",
+      "GET icd/release/11/2026-01/mms/1741519874",
+      "GET icd/release/11/2026-01/mms/1421997617",
+      "GET icd/release/11/2026-01/mms/714000734",
+      "GET icd/release/11/2026-01/mms/1741519874",
+      "GET icd/release/11/2026-01/mms/194200207",
+      "GET icd/release/11/2026-01/mms/1859686171",
+      "GET icd/release/11/2026-01/mms/443932646",
+      "GET icd/release/11/2026-01/mms/214991332",
+      "GET icd/release/11/2026-01/mms/1741519874/other",
+      "GET icd/release/11/2026-01/mms/1741519874/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "18",
+         "title": "Pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+        },
+        {
+         "code": "",
+         "title": "Complications predominantly related to the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1421997617"
+        },
+        {
+         "code": "JB40",
+         "title": "Infections in the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Puerperal sepsis",
+        "generalised puerperal infection",
+        "major puerperal infection",
+        "postpartum sepsis",
+        "puerperal fever",
+        "puerperal pyaemia",
+        "Puerperal endometritis",
+        "Puerperal metroperitonitis",
+        "Puerperal metrosalpingitis",
+        "puerperal perimetrosalpingitis",
+        "puerperal pyosalpingitis",
+        "puerperal salpingoperitonitis"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "selected_expression": {
+        "code": "JB40.0/JB40.3",
+        "stem_code": "JB40.0"
+       },
+       "siblings": [
+        {
+         "code": "JB40.1",
+         "has_children": false,
+         "title": "Infection of obstetric surgical wound",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/194200207"
+        },
+        {
+         "code": "JB40.2",
+         "has_children": false,
+         "title": "Other infection of genital tract following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+        },
+        {
+         "code": "JB40.3",
+         "has_children": false,
+         "title": "Urinary tract infection following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/443932646"
+        },
+        {
+         "code": "JB40.4",
+         "has_children": false,
+         "title": "Pyrexia of unknown origin following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/214991332"
+        },
+        {
+         "code": "JB40.Y",
+         "has_children": false,
+         "title": "Other specified infections in the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/other"
+        },
+        {
+         "code": "JB40.Z",
+         "has_children": false,
+         "title": "Infections in the puerperium, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0/JB40.3"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "JB40.0/JB40.3"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "JB40.0/JB40.3"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+      "GET icd/release/11/2026-01/mms/325070079",
+      "GET icd/release/11/2026-01/mms/759302477",
+      "GET icd/release/11/2026-01/mms/1124951812/other"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis.",
+       "definition": "",
+       "exclusions": [
+        {
+         "code": "JB42.3",
+         "title": "Obstetric pyaemic or septic embolism"
+        },
+        {
+         "code": "JB0D.Y",
+         "title": "sepsis during labour"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "JB40.0",
+        "title": "Puerperal sepsis",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "JB40.0/JB40.3"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079 / http://id.who.int/icd/release/11/2026-01/mms/443932646",
+   "why": "urinary tract infection"
+  }
+ ],
+ "id": "pc-jb40-0",
+ "input": {
+  "built": [
+   {
+    "expression": "JB40.0&XN74M/JB40.2",
+    "why": "bacteria extension, then genital tract infection"
+   },
+   {
+    "expression": "JB40.0/JB40.3",
+    "why": "urinary tract infection"
+   }
+  ],
+  "category": "mandatory",
+  "id": "pc-jb40-0",
+  "source": "VAs-09.06",
+  "stem": "JB40.0",
+  "why": "Puerperal sepsis (VA cause 09.06): required causing condition and an infectious-agent axis"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JB40.0",
+      "has_coding_note": true,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "JB40.0",
+      "has_coding_note": true,
+      "postcoordination": true,
+      "postcoordination_availability": 2,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB40.0",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079",
+    "GET icd/release/11/2026-01/mms/83217129",
+    "GET icd/release/11/2026-01/mms/1208497819",
+    "GET icd/release/11/2026-01/mms/1184377859",
+    "GET icd/release/11/2026-01/mms/674202049",
+    "GET icd/release/11/2026-01/mms/1063008297",
+    "GET icd/release/11/2026-01/mms/622600769",
+    "GET icd/release/11/2026-01/mms/1683090852",
+    "GET icd/release/11/2026-01/mms/194200207",
+    "GET icd/release/11/2026-01/mms/1859686171",
+    "GET icd/release/11/2026-01/mms/443932646",
+    "GET icd/release/11/2026-01/mms/1139189645",
+    "GET icd/release/11/2026-01/mms/673901775"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "infectiousAgent",
+       "instruction": "use additional code, if desired",
+       "label": "Infectious agent",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+         "code": "XN74M",
+         "has_children": true,
+         "title": "Bacteria",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+         "code": "XN3BH",
+         "has_children": true,
+         "title": "Virus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1208497819"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1184377859",
+         "code": "XN8AY",
+         "has_children": true,
+         "title": "Fungi",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1184377859"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/674202049",
+         "code": "XN9S1",
+         "has_children": true,
+         "title": "Parasites",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/674202049"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1063008297",
+         "code": "",
+         "has_children": true,
+         "title": "Other Pathogens",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1063008297"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+        "http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+        "http://id.who.int/icd/release/11/2026-01/mms/1184377859",
+        "http://id.who.int/icd/release/11/2026-01/mms/674202049",
+        "http://id.who.int/icd/release/11/2026-01/mms/1063008297"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+         "code": "1G40",
+         "has_children": false,
+         "title": "Sepsis without septic shock",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1683090852",
+         "code": "1G41",
+         "has_children": false,
+         "title": "Sepsis with septic shock",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683090852"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/622600769",
+        "http://id.who.int/icd/release/11/2026-01/mms/1683090852"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "hasCausingCondition",
+       "instruction": "code also",
+       "label": "Has causing condition",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/194200207",
+         "code": "JB40.1",
+         "has_children": false,
+         "title": "Infection of obstetric surgical wound",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/194200207"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1859686171",
+         "code": "JB40.2",
+         "has_children": false,
+         "title": "Other infection of genital tract following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/443932646",
+         "code": "JB40.3",
+         "has_children": false,
+         "title": "Urinary tract infection following delivery",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/443932646"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+         "code": "JB45",
+         "has_children": true,
+         "title": "Infections of breast associated with childbirth",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/673901775",
+         "code": "JB63",
+         "has_children": true,
+         "title": "Maternal infectious diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/673901775"
+        }
+       ],
+       "required": true,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/194200207",
+        "http://id.who.int/icd/release/11/2026-01/mms/1859686171",
+        "http://id.who.int/icd/release/11/2026-01/mms/443932646",
+        "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+        "http://id.who.int/icd/release/11/2026-01/mms/673901775"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079",
+    "GET icd/release/11/2026-01/mms/83217129",
+    "GET icd/release/11/2026-01/mms/180747195",
+    "GET icd/release/11/2026-01/mms/777702149",
+    "GET icd/release/11/2026-01/mms/1302046997"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "infectiousAgent",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+       "code": "XN5PZ",
+       "has_children": true,
+       "title": "Gram Negative Bacteria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/180747195"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+       "code": "XN2QM",
+       "has_children": true,
+       "title": "Gram Positive Bacteria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/777702149"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+       "code": "XN87X",
+       "has_children": true,
+       "title": "Bacteria, neither Gram Negative nor Gram Positive",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1302046997"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "infectiousAgent",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+    "stem_code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079",
+    "GET icd/release/11/2026-01/mms/1139189645",
+    "GET icd/release/11/2026-01/mms/1169939818",
+    "GET icd/release/11/2026-01/mms/823561621",
+    "GET icd/release/11/2026-01/mms/1139189645/other",
+    "GET icd/release/11/2026-01/mms/1139189645/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "hasCausingCondition",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+       "code": "JB45.0",
+       "has_children": false,
+       "title": "Abscess of breast associated with childbirth",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1169939818"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+       "code": "JB45.1",
+       "has_children": false,
+       "title": "Nonpurulent mastitis associated with childbirth",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/823561621"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+       "code": "JB45.Y",
+       "has_children": false,
+       "title": "Other specified infections of breast associated with childbirth",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+       "code": "JB45.Z",
+       "has_children": false,
+       "title": "Infections of breast associated with childbirth, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "hasCausingCondition",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1139189645",
+    "stem_code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079",
+    "GET icd/release/11/2026-01/mms/1741519874",
+    "GET icd/release/11/2026-01/mms/1421997617",
+    "GET icd/release/11/2026-01/mms/714000734",
+    "GET icd/release/11/2026-01/mms/1741519874",
+    "GET icd/release/11/2026-01/mms/194200207",
+    "GET icd/release/11/2026-01/mms/1859686171",
+    "GET icd/release/11/2026-01/mms/443932646",
+    "GET icd/release/11/2026-01/mms/214991332",
+    "GET icd/release/11/2026-01/mms/1741519874/other",
+    "GET icd/release/11/2026-01/mms/1741519874/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "18",
+       "title": "Pregnancy, childbirth or the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/714000734"
+      },
+      {
+       "code": "",
+       "title": "Complications predominantly related to the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1421997617"
+      },
+      {
+       "code": "JB40",
+       "title": "Infections in the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Puerperal sepsis",
+      "generalised puerperal infection",
+      "major puerperal infection",
+      "postpartum sepsis",
+      "puerperal fever",
+      "puerperal pyaemia",
+      "Puerperal endometritis",
+      "Puerperal metroperitonitis",
+      "Puerperal metrosalpingitis",
+      "puerperal perimetrosalpingitis",
+      "puerperal pyosalpingitis",
+      "puerperal salpingoperitonitis"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "JB40.1",
+       "has_children": false,
+       "title": "Infection of obstetric surgical wound",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/194200207"
+      },
+      {
+       "code": "JB40.2",
+       "has_children": false,
+       "title": "Other infection of genital tract following delivery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1859686171"
+      },
+      {
+       "code": "JB40.3",
+       "has_children": false,
+       "title": "Urinary tract infection following delivery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/443932646"
+      },
+      {
+       "code": "JB40.4",
+       "has_children": false,
+       "title": "Pyrexia of unknown origin following delivery",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/214991332"
+      },
+      {
+       "code": "JB40.Y",
+       "has_children": false,
+       "title": "Other specified infections in the puerperium",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/other"
+      },
+      {
+       "code": "JB40.Z",
+       "has_children": false,
+       "title": "Infections in the puerperium, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "JB40.0"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
+    "GET icd/release/11/2026-01/mms/325070079",
+    "GET icd/release/11/2026-01/mms/759302477",
+    "GET icd/release/11/2026-01/mms/1124951812/other"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis.",
+     "definition": "",
+     "exclusions": [
+      {
+       "code": "JB42.3",
+       "title": "Obstetric pyaemic or septic embolism"
+      },
+      {
+       "code": "JB0D.Y",
+       "title": "sepsis during labour"
+      }
+     ],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "JB40.0",
+      "title": "Puerperal sepsis",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/325070079"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "JB40.0"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1063008297": {"method":"GET","path":"icd/release/11/2026-01/mms/1063008297","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1063008297","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1063008297","child":["http://id.who.int/icd/release/11/2026-01/mms/564564173","http://id.who.int/icd/release/11/2026-01/mms/98727119","http://id.who.int/icd/release/11/2026-01/mms/1620994314"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/1063008297","title":{"@language":"en","@value":"Other Pathogens"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1124951812/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1124951812/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1124951812/other","classKind":"category","code":"JB0D.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified complications of labour or delivery, not elsewhere classified"}},{"foundationReference":"http://id.who.int/icd/entity/1909570991","label":{"@language":"en","@value":"Other infection during labour"}},{"deprecated":true,"foundationReference":"http://id.who.int/icd/entity/1909570991","label":{"@language":"en","@value":"septicaemia during labour (deprecated)"}},{"foundationReference":"http://id.who.int/icd/entity/1003498312","label":{"@language":"en","@value":"Sepsis during labour"}},{"foundationReference":"http://id.who.int/icd/entity/1855970567","label":{"@language":"en","@value":"Septic intoxication, during labour"}},{"foundationReference":"http://id.who.int/icd/entity/1993885286","label":{"@language":"en","@value":"Disturbance of metabolism in labour or delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1092782929","label":{"@language":"en","@value":"Maternal exhaustion complicating delivery"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1124951812"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]}],"title":{"@language":"en","@value":"Other specified complications of labour or delivery, not elsewhere classified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1139189645": {"method":"GET","path":"icd/release/11/2026-01/mms/1139189645","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1139189645","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1139189645","child":["http://id.who.int/icd/release/11/2026-01/mms/1169939818","http://id.who.int/icd/release/11/2026-01/mms/823561621","http://id.who.int/icd/release/11/2026-01/mms/1139189645/other","http://id.who.int/icd/release/11/2026-01/mms/1139189645/unspecified"],"classKind":"category","code":"JB45","parent":["http://id.who.int/icd/release/11/2026-01/mms/1421997617"],"source":"http://id.who.int/icd/entity/1139189645","title":{"@language":"en","@value":"Infections of breast associated with childbirth"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1139189645/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1139189645/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1139189645/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1139189645/other","classKind":"category","code":"JB45.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified infections of breast associated with childbirth"}},{"foundationReference":"http://id.who.int/icd/entity/552603904","label":{"@language":"en","@value":"Infection of nipple associated with childbirth"}},{"foundationReference":"http://id.who.int/icd/entity/552603904","label":{"@language":"en","@value":"puerperal infection of nipple"}},{"foundationReference":"http://id.who.int/icd/entity/552603904","label":{"@language":"en","@value":"puerperal mammillitis"}},{"foundationReference":"http://id.who.int/icd/entity/552603904","label":{"@language":"en","@value":"puerperal thelitis"}},{"foundationReference":"http://id.who.int/icd/entity/369410188","label":{"@language":"en","@value":"Infection of nipple associated with childbirth, without mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/1934560538","label":{"@language":"en","@value":"Infection of nipple associated with childbirth, with mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/710635230","label":{"@language":"en","@value":"Puerperal abscess of nipple"}},{"foundationReference":"http://id.who.int/icd/entity/710635230","label":{"@language":"en","@value":"gestational abscess of nipple"}},{"foundationReference":"http://id.who.int/icd/entity/1538622467","label":{"@language":"en","@value":"Puerperal abscess of areola"}},{"foundationReference":"http://id.who.int/icd/entity/2132056209","label":{"@language":"en","@value":"Puerperal fistula of nipple"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1139189645"],"title":{"@language":"en","@value":"Other specified infections of breast associated with childbirth"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1139189645/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1139189645/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1139189645/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1139189645/unspecified","classKind":"category","code":"JB45.Z","indexTerm":[{"label":{"@language":"en","@value":"Infections of breast associated with childbirth, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1139189645","label":{"@language":"en","@value":"Infections of breast associated with childbirth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1139189645"],"title":{"@language":"en","@value":"Infections of breast associated with childbirth, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1169939818": {"method":"GET","path":"icd/release/11/2026-01/mms/1169939818","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1169939818","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1169939818","classKind":"category","code":"JB45.0","indexTerm":[{"label":{"@language":"en","@value":"Abscess of breast associated with childbirth"}},{"label":{"@language":"en","@value":"gestational abscess of breast"}},{"label":{"@language":"en","@value":"gestational mammary abscess"}},{"foundationReference":"http://id.who.int/icd/entity/1103202453","label":{"@language":"en","@value":"Abscess of breast associated with childbirth, without mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/613041409","label":{"@language":"en","@value":"Abscess of breast associated with childbirth, with mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/2039063870","label":{"@language":"en","@value":"Lactational abscess"}},{"foundationReference":"http://id.who.int/icd/entity/492008714","label":{"@language":"en","@value":"Lactational abscess, without mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/1052044243","label":{"@language":"en","@value":"Lactational abscess, with mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/2091133807","label":{"@language":"en","@value":"Antepartum abscess of breast"}},{"foundationReference":"http://id.who.int/icd/entity/1832958825","label":{"@language":"en","@value":"Puerperal breast abscess"}},{"foundationReference":"http://id.who.int/icd/entity/1832958825","label":{"@language":"en","@value":"puerperal mammary abscess"}},{"foundationReference":"http://id.who.int/icd/entity/625785175","label":{"@language":"en","@value":"Mastitis with purulent abscess associated with childbirth"}},{"foundationReference":"http://id.who.int/icd/entity/1356038090","label":{"@language":"en","@value":"Purulent mastitis associated with childbirth"}},{"foundationReference":"http://id.who.int/icd/entity/183090025","label":{"@language":"en","@value":"Puerperal purulent mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/183090025","label":{"@language":"en","@value":"gestational or puerperal purulent mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/183090025","label":{"@language":"en","@value":"purulent puerperal mammitis"}},{"foundationReference":"http://id.who.int/icd/entity/183090025","label":{"@language":"en","@value":"purulent puerperal mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/453847919","label":{"@language":"en","@value":"Puerperal subareolar abscess"}},{"foundationReference":"http://id.who.int/icd/entity/453847919","label":{"@language":"en","@value":"gestational or puerperal subareolar abscess"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1139189645"],"source":"http://id.who.int/icd/entity/1169939818","title":{"@language":"en","@value":"Abscess of breast associated with childbirth"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1184377859": {"method":"GET","path":"icd/release/11/2026-01/mms/1184377859","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1184377859","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1184377859","child":["http://id.who.int/icd/release/11/2026-01/mms/596589512","http://id.who.int/icd/release/11/2026-01/mms/1829653149","http://id.who.int/icd/release/11/2026-01/mms/741782362","http://id.who.int/icd/release/11/2026-01/mms/422672176","http://id.who.int/icd/release/11/2026-01/mms/130801610","http://id.who.int/icd/release/11/2026-01/mms/167505562","http://id.who.int/icd/release/11/2026-01/mms/2037990677","http://id.who.int/icd/release/11/2026-01/mms/649794614","http://id.who.int/icd/release/11/2026-01/mms/222722214","http://id.who.int/icd/release/11/2026-01/mms/1175903901","http://id.who.int/icd/release/11/2026-01/mms/594199384","http://id.who.int/icd/release/11/2026-01/mms/433360832","http://id.who.int/icd/release/11/2026-01/mms/1236227599","http://id.who.int/icd/release/11/2026-01/mms/1499844537","http://id.who.int/icd/release/11/2026-01/mms/1818364877","http://id.who.int/icd/release/11/2026-01/mms/152966666","http://id.who.int/icd/release/11/2026-01/mms/1457276715","http://id.who.int/icd/release/11/2026-01/mms/111648412","http://id.who.int/icd/release/11/2026-01/mms/1675330399","http://id.who.int/icd/release/11/2026-01/mms/474419248","http://id.who.int/icd/release/11/2026-01/mms/692114502","http://id.who.int/icd/release/11/2026-01/mms/1388732773","http://id.who.int/icd/release/11/2026-01/mms/335452322","http://id.who.int/icd/release/11/2026-01/mms/653876440","http://id.who.int/icd/release/11/2026-01/mms/1864884632","http://id.who.int/icd/release/11/2026-01/mms/1512056302","http://id.who.int/icd/release/11/2026-01/mms/766764299","http://id.who.int/icd/release/11/2026-01/mms/131924109","http://id.who.int/icd/release/11/2026-01/mms/618620614","http://id.who.int/icd/release/11/2026-01/mms/293540546","http://id.who.int/icd/release/11/2026-01/mms/1312010621","http://id.who.int/icd/release/11/2026-01/mms/1638718347","http://id.who.int/icd/release/11/2026-01/mms/457584634","http://id.who.int/icd/release/11/2026-01/mms/292305128","http://id.who.int/icd/release/11/2026-01/mms/1103426149","http://id.who.int/icd/release/11/2026-01/mms/1264588775"],"classKind":"category","code":"XN8AY","indexTerm":[{"label":{"@language":"en","@value":"Fungi"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/1184377859","title":{"@language":"en","@value":"Fungi"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1208497819": {"method":"GET","path":"icd/release/11/2026-01/mms/1208497819","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1208497819","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1208497819","child":["http://id.who.int/icd/release/11/2026-01/mms/1075681120","http://id.who.int/icd/release/11/2026-01/mms/1429210584","http://id.who.int/icd/release/11/2026-01/mms/1500682559","http://id.who.int/icd/release/11/2026-01/mms/192700427","http://id.who.int/icd/release/11/2026-01/mms/1387937261","http://id.who.int/icd/release/11/2026-01/mms/1339560953","http://id.who.int/icd/release/11/2026-01/mms/1375406603","http://id.who.int/icd/release/11/2026-01/mms/1209596839","http://id.who.int/icd/release/11/2026-01/mms/626416374","http://id.who.int/icd/release/11/2026-01/mms/90349191","http://id.who.int/icd/release/11/2026-01/mms/646250592","http://id.who.int/icd/release/11/2026-01/mms/1550840879","http://id.who.int/icd/release/11/2026-01/mms/871564532","http://id.who.int/icd/release/11/2026-01/mms/1418788600","http://id.who.int/icd/release/11/2026-01/mms/450704861","http://id.who.int/icd/release/11/2026-01/mms/1045785505","http://id.who.int/icd/release/11/2026-01/mms/1071436385","http://id.who.int/icd/release/11/2026-01/mms/1454950754","http://id.who.int/icd/release/11/2026-01/mms/824203597","http://id.who.int/icd/release/11/2026-01/mms/713413721","http://id.who.int/icd/release/11/2026-01/mms/1359176056","http://id.who.int/icd/release/11/2026-01/mms/571840927","http://id.who.int/icd/release/11/2026-01/mms/884000671","http://id.who.int/icd/release/11/2026-01/mms/545685931","http://id.who.int/icd/release/11/2026-01/mms/439930189","http://id.who.int/icd/release/11/2026-01/mms/1917096226","http://id.who.int/icd/release/11/2026-01/mms/1266244023","http://id.who.int/icd/release/11/2026-01/mms/816236373","http://id.who.int/icd/release/11/2026-01/mms/1699643754"],"classKind":"category","code":"XN3BH","indexTerm":[{"label":{"@language":"en","@value":"Virus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/1208497819","title":{"@language":"en","@value":"Virus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1302046997": {"method":"GET","path":"icd/release/11/2026-01/mms/1302046997","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1302046997","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1302046997","child":["http://id.who.int/icd/release/11/2026-01/mms/686273744","http://id.who.int/icd/release/11/2026-01/mms/1743748165"],"classKind":"category","code":"XN87X","indexTerm":[{"label":{"@language":"en","@value":"Bacteria, neither Gram Negative nor Gram Positive"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/83217129"],"source":"http://id.who.int/icd/entity/1302046997","title":{"@language":"en","@value":"Bacteria, neither Gram Negative nor Gram Positive"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1421997617": {"method":"GET","path":"icd/release/11/2026-01/mms/1421997617","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1421997617","blockId":"BlockL1-JB4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1421997617","child":["http://id.who.int/icd/release/11/2026-01/mms/1741519874","http://id.who.int/icd/release/11/2026-01/mms/42381716","http://id.who.int/icd/release/11/2026-01/mms/2146411734","http://id.who.int/icd/release/11/2026-01/mms/446982468","http://id.who.int/icd/release/11/2026-01/mms/648899097","http://id.who.int/icd/release/11/2026-01/mms/1139189645","http://id.who.int/icd/release/11/2026-01/mms/927725428","http://id.who.int/icd/release/11/2026-01/mms/1421997617/unspecified"],"classKind":"block","code":"","codeRange":"JB40-JB4Z","definition":{"@language":"en","@value":"A group of conditions characterised as any adverse evolution (complication) which may arise during the approximately six weeks after delivery during which the uterus returns to the original size (puerperium)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/262236278","label":{"@language":"en","@value":"Obstetrical tetanus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/262236278"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/651708716","label":{"@language":"en","@value":"Postpartum symptom or complaint"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/651708716"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/714000734"],"source":"http://id.who.int/icd/entity/1421997617","title":{"@language":"en","@value":"Complications predominantly related to the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1683090852": {"method":"GET","path":"icd/release/11/2026-01/mms/1683090852","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1683090852","classKind":"category","code":"1G41","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"definition":{"@language":"en","@value":"Septic shock is a subset of sepsis in which circulatory, cellular and metabolic abnormalities are profound enough to substantially increase mortality."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},{"foundationReference":"http://id.who.int/icd/entity/2093238381","label":{"@language":"en","@value":"Septicaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/770483821"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis with septic shock"}},{"label":{"@language":"en","@value":"endotoxic shock"}},{"label":{"@language":"en","@value":"infectious shock"}},{"label":{"@language":"en","@value":"septic shock NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/293771399"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/74527684","http://id.who.int/icd/release/11/2026-01/mms/260431605","http://id.who.int/icd/release/11/2026-01/mms/2098808565","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/40398753","http://id.who.int/icd/release/11/2026-01/mms/2071113448","http://id.who.int/icd/release/11/2026-01/mms/775356003","http://id.who.int/icd/release/11/2026-01/mms/1351188281","http://id.who.int/icd/release/11/2026-01/mms/1824134974","http://id.who.int/icd/release/11/2026-01/mms/763951483","http://id.who.int/icd/release/11/2026-01/mms/410058129","http://id.who.int/icd/release/11/2026-01/mms/455330172","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/441183088","http://id.who.int/icd/release/11/2026-01/mms/1848472780","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/325070079","http://id.who.int/icd/entity/759302477"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/381388700"],"source":"http://id.who.int/icd/entity/1683090852","title":{"@language":"en","@value":"Sepsis with septic shock"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1741519874": {"method":"GET","path":"icd/release/11/2026-01/mms/1741519874","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1741519874","child":["http://id.who.int/icd/release/11/2026-01/mms/325070079","http://id.who.int/icd/release/11/2026-01/mms/194200207","http://id.who.int/icd/release/11/2026-01/mms/1859686171","http://id.who.int/icd/release/11/2026-01/mms/443932646","http://id.who.int/icd/release/11/2026-01/mms/214991332","http://id.who.int/icd/release/11/2026-01/mms/1741519874/other","http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified"],"classKind":"category","code":"JB40","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1909570991","label":{"@language":"en","@value":"infection during labour"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1421997617"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"source":"http://id.who.int/icd/entity/1741519874","title":{"@language":"en","@value":"Infections in the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1741519874/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1741519874/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1741519874/other","classKind":"category","code":"JB40.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified infections in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/2134774384","label":{"@language":"en","@value":"Other genitourinary tract infections following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/2134774384","label":{"@language":"en","@value":"Puerperal genitourinary tract infection NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1466261902","label":{"@language":"en","@value":"Puerperal lymphangitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/other/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"title":{"@language":"en","@value":"Other specified infections in the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1741519874/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1741519874/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1741519874/unspecified","classKind":"category","code":"JB40.Z","indexTerm":[{"label":{"@language":"en","@value":"Infections in the puerperium, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1741519874","label":{"@language":"en","@value":"Infections in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/176527586","label":{"@language":"en","@value":"Puerperal infection, not elsewhere classified"}},{"foundationReference":"http://id.who.int/icd/entity/176527586","label":{"@language":"en","@value":"Puerperal infection NOS"}},{"deprecated":true,"foundationReference":"http://id.who.int/icd/entity/176527586","label":{"@language":"en","@value":"puerperal septicaemia (deprecated)"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1741519874/unspecified/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"title":{"@language":"en","@value":"Infections in the puerperium, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/180747195": {"method":"GET","path":"icd/release/11/2026-01/mms/180747195","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/180747195","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#180747195","child":["http://id.who.int/icd/release/11/2026-01/mms/606208893","http://id.who.int/icd/release/11/2026-01/mms/1874454144","http://id.who.int/icd/release/11/2026-01/mms/1522409994","http://id.who.int/icd/release/11/2026-01/mms/509021347","http://id.who.int/icd/release/11/2026-01/mms/1785213202","http://id.who.int/icd/release/11/2026-01/mms/718893335","http://id.who.int/icd/release/11/2026-01/mms/1964711990","http://id.who.int/icd/release/11/2026-01/mms/1065383727","http://id.who.int/icd/release/11/2026-01/mms/1978113063","http://id.who.int/icd/release/11/2026-01/mms/1895892604","http://id.who.int/icd/release/11/2026-01/mms/465867565","http://id.who.int/icd/release/11/2026-01/mms/1619465677","http://id.who.int/icd/release/11/2026-01/mms/809107389","http://id.who.int/icd/release/11/2026-01/mms/1435433976","http://id.who.int/icd/release/11/2026-01/mms/1258154716","http://id.who.int/icd/release/11/2026-01/mms/12651959","http://id.who.int/icd/release/11/2026-01/mms/806821549","http://id.who.int/icd/release/11/2026-01/mms/1068406335","http://id.who.int/icd/release/11/2026-01/mms/1889951404","http://id.who.int/icd/release/11/2026-01/mms/984423506","http://id.who.int/icd/release/11/2026-01/mms/977078705","http://id.who.int/icd/release/11/2026-01/mms/1783025664","http://id.who.int/icd/release/11/2026-01/mms/1634656297","http://id.who.int/icd/release/11/2026-01/mms/1409902713","http://id.who.int/icd/release/11/2026-01/mms/749698918","http://id.who.int/icd/release/11/2026-01/mms/2129504458","http://id.who.int/icd/release/11/2026-01/mms/547766313","http://id.who.int/icd/release/11/2026-01/mms/837115999","http://id.who.int/icd/release/11/2026-01/mms/1248056702","http://id.who.int/icd/release/11/2026-01/mms/2140128219","http://id.who.int/icd/release/11/2026-01/mms/1537645708","http://id.who.int/icd/release/11/2026-01/mms/814156624","http://id.who.int/icd/release/11/2026-01/mms/1055740190","http://id.who.int/icd/release/11/2026-01/mms/507535969","http://id.who.int/icd/release/11/2026-01/mms/1852144030","http://id.who.int/icd/release/11/2026-01/mms/237808899","http://id.who.int/icd/release/11/2026-01/mms/1420836726","http://id.who.int/icd/release/11/2026-01/mms/192048727","http://id.who.int/icd/release/11/2026-01/mms/1798986860","http://id.who.int/icd/release/11/2026-01/mms/988763316","http://id.who.int/icd/release/11/2026-01/mms/1367609484","http://id.who.int/icd/release/11/2026-01/mms/1189225448","http://id.who.int/icd/release/11/2026-01/mms/1414907878","http://id.who.int/icd/release/11/2026-01/mms/1542213496","http://id.who.int/icd/release/11/2026-01/mms/1879790283","http://id.who.int/icd/release/11/2026-01/mms/950578131","http://id.who.int/icd/release/11/2026-01/mms/777929410","http://id.who.int/icd/release/11/2026-01/mms/1503622535","http://id.who.int/icd/release/11/2026-01/mms/311270238","http://id.who.int/icd/release/11/2026-01/mms/925617298","http://id.who.int/icd/release/11/2026-01/mms/1225222637","http://id.who.int/icd/release/11/2026-01/mms/103211928","http://id.who.int/icd/release/11/2026-01/mms/322809168"],"classKind":"category","code":"XN5PZ","indexTerm":[{"label":{"@language":"en","@value":"Gram Negative Bacteria"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/83217129"],"source":"http://id.who.int/icd/entity/180747195","title":{"@language":"en","@value":"Gram Negative Bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1859686171": {"method":"GET","path":"icd/release/11/2026-01/mms/1859686171","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1859686171","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1859686171","classKind":"category","code":"JB40.2","indexTerm":[{"label":{"@language":"en","@value":"Other infection of genital tract following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/2053091267","label":{"@language":"en","@value":"Cervicitis following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/2053091267","label":{"@language":"en","@value":"puerperal cervicitis"}},{"foundationReference":"http://id.who.int/icd/entity/2053091267","label":{"@language":"en","@value":"puerperal infection of cervix"}},{"foundationReference":"http://id.who.int/icd/entity/628622962","label":{"@language":"en","@value":"Vaginitis following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/628622962","label":{"@language":"en","@value":"puerperal infection of vagina"}},{"foundationReference":"http://id.who.int/icd/entity/628622962","label":{"@language":"en","@value":"puerperal paravaginitis"}},{"foundationReference":"http://id.who.int/icd/entity/628622962","label":{"@language":"en","@value":"puerperal perivaginitis"}},{"foundationReference":"http://id.who.int/icd/entity/628622962","label":{"@language":"en","@value":"puerperal vaginitis"}},{"foundationReference":"http://id.who.int/icd/entity/2040839096","label":{"@language":"en","@value":"Puerperal abscess of vulvovaginal gland"}},{"foundationReference":"http://id.who.int/icd/entity/2089849930","label":{"@language":"en","@value":"Puerperal abscess of Bartholin's gland"}},{"foundationReference":"http://id.who.int/icd/entity/1942807628","label":{"@language":"en","@value":"Puerperal abscess of cervix"}},{"foundationReference":"http://id.who.int/icd/entity/1646818382","label":{"@language":"en","@value":"Puerperal abscess of genital organ, not elsewhere classified"}},{"foundationReference":"http://id.who.int/icd/entity/703996137","label":{"@language":"en","@value":"Puerperal abscess of uterus"}},{"foundationReference":"http://id.who.int/icd/entity/1138117934","label":{"@language":"en","@value":"Puerperal abscess of vaginal wall"}},{"foundationReference":"http://id.who.int/icd/entity/927908077","label":{"@language":"en","@value":"Puerperal adnexitis"}},{"foundationReference":"http://id.who.int/icd/entity/43527977","label":{"@language":"en","@value":"Puerperal salpingo-oophoritis"}},{"foundationReference":"http://id.who.int/icd/entity/230973227","label":{"@language":"en","@value":"Vaginorectal puerperal abscess"}},{"foundationReference":"http://id.who.int/icd/entity/1389016182","label":{"@language":"en","@value":"Puerperal vulvovaginitis"}},{"foundationReference":"http://id.who.int/icd/entity/126173753","label":{"@language":"en","@value":"Puerperal vulvitis"}},{"foundationReference":"http://id.who.int/icd/entity/589586091","label":{"@language":"en","@value":"Puerperal perimetritis"}},{"foundationReference":"http://id.who.int/icd/entity/325874195","label":{"@language":"en","@value":"Puerperal abscess of vulva"}},{"foundationReference":"http://id.who.int/icd/entity/593467801","label":{"@language":"en","@value":"Labium puerperal abscess"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"source":"http://id.who.int/icd/entity/1859686171","title":{"@language":"en","@value":"Other infection of genital tract following delivery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/194200207": {"method":"GET","path":"icd/release/11/2026-01/mms/194200207","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/194200207","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#194200207","classKind":"category","code":"JB40.1","indexTerm":[{"label":{"@language":"en","@value":"Infection of obstetric surgical wound"}},{"foundationReference":"http://id.who.int/icd/entity/280584458","label":{"@language":"en","@value":"Infected caesarean section wound following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1162946357","label":{"@language":"en","@value":"Infected perineal repair following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1162946357","label":{"@language":"en","@value":"infection of perineal repair"}},{"foundationReference":"http://id.who.int/icd/entity/1162946357","label":{"@language":"en","@value":"infection of perineum repair"}},{"foundationReference":"http://id.who.int/icd/entity/1158901717","label":{"@language":"en","@value":"Episiotomy infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/194200207/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1634086968"]}],"source":"http://id.who.int/icd/entity/194200207","title":{"@language":"en","@value":"Infection of obstetric surgical wound"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/214991332": {"method":"GET","path":"icd/release/11/2026-01/mms/214991332","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/214991332","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#214991332","classKind":"category","code":"JB40.4","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/325070079","label":{"@language":"en","@value":"puerperal fever"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/325070079"},{"foundationReference":"http://id.who.int/icd/entity/345665595","label":{"@language":"en","@value":"Pyrexia during labour, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/345665595"}],"indexTerm":[{"label":{"@language":"en","@value":"Pyrexia of unknown origin following delivery"}},{"label":{"@language":"en","@value":"fever following delivery"}},{"label":{"@language":"en","@value":"puerperal pyrexia NOS"}},{"foundationReference":"http://id.who.int/icd/entity/878951082","label":{"@language":"en","@value":"Minor puerperal infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/214991332/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/915343154"]}],"source":"http://id.who.int/icd/entity/214991332","title":{"@language":"en","@value":"Pyrexia of unknown origin following delivery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/325070079": {"method":"GET","path":"icd/release/11/2026-01/mms/325070079","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/325070079","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#325070079","classKind":"category","code":"JB40.0","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/759302477","label":{"@language":"en","@value":"Obstetric pyaemic or septic embolism"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/759302477"},{"foundationReference":"http://id.who.int/icd/entity/1909570991","label":{"@language":"en","@value":"sepsis during labour"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1124951812/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Puerperal sepsis"}},{"label":{"@language":"en","@value":"generalised puerperal infection"}},{"label":{"@language":"en","@value":"major puerperal infection"}},{"label":{"@language":"en","@value":"postpartum sepsis"}},{"label":{"@language":"en","@value":"puerperal fever"}},{"label":{"@language":"en","@value":"puerperal pyaemia"}},{"foundationReference":"http://id.who.int/icd/entity/360314812","label":{"@language":"en","@value":"Puerperal endometritis"}},{"foundationReference":"http://id.who.int/icd/entity/1087633763","label":{"@language":"en","@value":"Puerperal metroperitonitis"}},{"foundationReference":"http://id.who.int/icd/entity/356237150","label":{"@language":"en","@value":"Puerperal metrosalpingitis"}},{"foundationReference":"http://id.who.int/icd/entity/356237150","label":{"@language":"en","@value":"puerperal perimetrosalpingitis"}},{"foundationReference":"http://id.who.int/icd/entity/356237150","label":{"@language":"en","@value":"puerperal pyosalpingitis"}},{"foundationReference":"http://id.who.int/icd/entity/356237150","label":{"@language":"en","@value":"puerperal salpingoperitonitis"}},{"foundationReference":"http://id.who.int/icd/entity/1693243987","label":{"@language":"en","@value":"Puerperal metrovaginitis"}},{"foundationReference":"http://id.who.int/icd/entity/1622455549","label":{"@language":"en","@value":"Puerperal parametritis"}},{"foundationReference":"http://id.who.int/icd/entity/1097060209","label":{"@language":"en","@value":"Puerperal pelvic sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1097060209","label":{"@language":"en","@value":"puerperal pelviperitonitis"}},{"foundationReference":"http://id.who.int/icd/entity/1097060209","label":{"@language":"en","@value":"puerperal peritoneal abscess"}},{"foundationReference":"http://id.who.int/icd/entity/1097060209","label":{"@language":"en","@value":"puerperal peritoneal infection"}},{"foundationReference":"http://id.who.int/icd/entity/1097060209","label":{"@language":"en","@value":"puerperal pyometra"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/325070079/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/325070079/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/325070079/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/194200207","http://id.who.int/icd/release/11/2026-01/mms/1859686171","http://id.who.int/icd/release/11/2026-01/mms/443932646","http://id.who.int/icd/release/11/2026-01/mms/1139189645","http://id.who.int/icd/release/11/2026-01/mms/673901775"]}],"source":"http://id.who.int/icd/entity/325070079","title":{"@language":"en","@value":"Puerperal sepsis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/443932646": {"method":"GET","path":"icd/release/11/2026-01/mms/443932646","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/443932646","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#443932646","classKind":"category","code":"JB40.3","indexTerm":[{"label":{"@language":"en","@value":"Urinary tract infection following delivery"}},{"foundationReference":"http://id.who.int/icd/entity/1975622558","label":{"@language":"en","@value":"Cystitis in the puerperium"}},{"foundationReference":"http://id.who.int/icd/entity/1975622558","label":{"@language":"en","@value":"puerperal cystitis"}},{"foundationReference":"http://id.who.int/icd/entity/534902363","label":{"@language":"en","@value":"Puerperal asymptomatic bacteriuria"}},{"foundationReference":"http://id.who.int/icd/entity/534902363","label":{"@language":"en","@value":"Postpartum asymptomatic bacteriuria"}},{"foundationReference":"http://id.who.int/icd/entity/1266682276","label":{"@language":"en","@value":"Puerperal abscess of kidney"}},{"foundationReference":"http://id.who.int/icd/entity/963199438","label":{"@language":"en","@value":"Puerperal cystopyelitis"}},{"foundationReference":"http://id.who.int/icd/entity/963199438","label":{"@language":"en","@value":"puerperal pyelocystitis"}},{"foundationReference":"http://id.who.int/icd/entity/909455824","label":{"@language":"en","@value":"Puerperal infection of kidney"}},{"foundationReference":"http://id.who.int/icd/entity/668049866","label":{"@language":"en","@value":"Puerperal pyocystitis"}},{"foundationReference":"http://id.who.int/icd/entity/1812985197","label":{"@language":"en","@value":"Puerperal perinephritis"}},{"foundationReference":"http://id.who.int/icd/entity/103782570","label":{"@language":"en","@value":"Puerperal pyelitis"}},{"foundationReference":"http://id.who.int/icd/entity/1924601193","label":{"@language":"en","@value":"Puerperal pyelonephrosis"}},{"foundationReference":"http://id.who.int/icd/entity/223363382","label":{"@language":"en","@value":"Puerperal pyelonephritis"}},{"foundationReference":"http://id.who.int/icd/entity/1735404787","label":{"@language":"en","@value":"Puerperal pyonephritis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1741519874"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/443932646/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1506336899","http://id.who.int/icd/release/11/2026-01/mms/1848472780"]}],"source":"http://id.who.int/icd/entity/443932646","title":{"@language":"en","@value":"Urinary tract infection following delivery"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/622600769": {"method":"GET","path":"icd/release/11/2026-01/mms/622600769","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#622600769","classKind":"category","code":"1G40","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"definition":{"@language":"en","@value":"Sepsis is defined as a life-threatening organ dysfunction caused by a dysregulated host response to infection."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/2093238381","label":{"@language":"en","@value":"Septicaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/770483821"},{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1375378681","label":{"@language":"en","@value":"Viral sepsis without mention of septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1136802325/other"},{"foundationReference":"http://id.who.int/icd/entity/513367650","label":{"@language":"en","@value":"Fungal sepsis without mention of septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1939815950/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis without septic shock"}},{"label":{"@language":"en","@value":"sepsis without septic shock with known organism"}},{"foundationReference":"http://id.who.int/icd/entity/455265504","label":{"@language":"en","@value":"Sepsis-associated hypotension"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"Unspecified sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"general septic intoxication"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"generalised sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"multiple pyemic embolism"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"pyemic embolism"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"sepsis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"septic intoxication"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"systemic infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/293771399"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/74527684","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1596449540","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/516585689","http://id.who.int/icd/release/11/2026-01/mms/520429137","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/684930313","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/237422666","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1913468488","http://id.who.int/icd/release/11/2026-01/mms/2055968951","http://id.who.int/icd/release/11/2026-01/mms/1438584733","http://id.who.int/icd/release/11/2026-01/mms/132287989","http://id.who.int/icd/release/11/2026-01/mms/1326582778","http://id.who.int/icd/release/11/2026-01/mms/390527954","http://id.who.int/icd/release/11/2026-01/mms/1802307036","http://id.who.int/icd/release/11/2026-01/mms/1866587875","http://id.who.int/icd/release/11/2026-01/mms/1676389165","http://id.who.int/icd/release/11/2026-01/mms/547567937","http://id.who.int/icd/release/11/2026-01/mms/1357848258","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/2098808565","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/40398753","http://id.who.int/icd/release/11/2026-01/mms/2071113448","http://id.who.int/icd/release/11/2026-01/mms/775356003","http://id.who.int/icd/release/11/2026-01/mms/1351188281","http://id.who.int/icd/release/11/2026-01/mms/1824134974","http://id.who.int/icd/release/11/2026-01/mms/763951483","http://id.who.int/icd/release/11/2026-01/mms/410058129","http://id.who.int/icd/release/11/2026-01/mms/455330172","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/441183088","http://id.who.int/icd/release/11/2026-01/mms/1848472780","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/325070079","http://id.who.int/icd/entity/759302477"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/381388700"],"source":"http://id.who.int/icd/entity/622600769","title":{"@language":"en","@value":"Sepsis without septic shock"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/673901775": {"method":"GET","path":"icd/release/11/2026-01/mms/673901775","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/673901775","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#673901775","child":["http://id.who.int/icd/release/11/2026-01/mms/1240824451","http://id.who.int/icd/release/11/2026-01/mms/750696215","http://id.who.int/icd/release/11/2026-01/mms/1477699562","http://id.who.int/icd/release/11/2026-01/mms/1029188220","http://id.who.int/icd/release/11/2026-01/mms/1320597992","http://id.who.int/icd/release/11/2026-01/mms/738030718","http://id.who.int/icd/release/11/2026-01/mms/1599087747","http://id.who.int/icd/release/11/2026-01/mms/1113397856","http://id.who.int/icd/release/11/2026-01/mms/673901775/other","http://id.who.int/icd/release/11/2026-01/mms/673901775/unspecified"],"classKind":"category","code":"JB63","definition":{"@language":"en","@value":"Maternal infectious and parasitic diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium"},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1511167574","label":{"@language":"en","@value":"Asymptomatic human immunodeficiency virus infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/574153866"},{"foundationReference":"http://id.who.int/icd/entity/82994689","label":{"@language":"en","@value":"Laboratory evidence of human immunodeficiency virus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/82994689"},{"foundationReference":"http://id.who.int/icd/entity/262236278","label":{"@language":"en","@value":"Obstetrical tetanus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/262236278"},{"foundationReference":"http://id.who.int/icd/entity/1741519874","label":{"@language":"en","@value":"puerperal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1741519874"},{"foundationReference":"http://id.who.int/icd/entity/325070079","label":{"@language":"en","@value":"Puerperal sepsis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/325070079"},{"foundationReference":"http://id.who.int/icd/entity/1864248550","label":{"@language":"en","@value":"when the reason for maternal care is that the disease is known or suspected to have affected the fetus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1864248550"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1781019902"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/673901775/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/673901775/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/142052508"]}],"source":"http://id.who.int/icd/entity/673901775","title":{"@language":"en","@value":"Maternal infectious diseases classifiable elsewhere but complicating pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/674202049": {"method":"GET","path":"icd/release/11/2026-01/mms/674202049","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/674202049","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#674202049","child":["http://id.who.int/icd/release/11/2026-01/mms/1191270655","http://id.who.int/icd/release/11/2026-01/mms/1639872620","http://id.who.int/icd/release/11/2026-01/mms/36915786","http://id.who.int/icd/release/11/2026-01/mms/1886856003","http://id.who.int/icd/release/11/2026-01/mms/201554714","http://id.who.int/icd/release/11/2026-01/mms/1226941585","http://id.who.int/icd/release/11/2026-01/mms/1551409833","http://id.who.int/icd/release/11/2026-01/mms/744339798","http://id.who.int/icd/release/11/2026-01/mms/1769719968","http://id.who.int/icd/release/11/2026-01/mms/675782428","http://id.who.int/icd/release/11/2026-01/mms/1571238088"],"classKind":"category","code":"XN9S1","indexTerm":[{"label":{"@language":"en","@value":"Parasites"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/674202049","title":{"@language":"en","@value":"Parasites"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/714000734": {"method":"GET","path":"icd/release/11/2026-01/mms/714000734","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/714000734","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#714000734","child":["http://id.who.int/icd/release/11/2026-01/mms/877352786","http://id.who.int/icd/release/11/2026-01/mms/1042184245","http://id.who.int/icd/release/11/2026-01/mms/903303141","http://id.who.int/icd/release/11/2026-01/mms/21112155","http://id.who.int/icd/release/11/2026-01/mms/1864248550","http://id.who.int/icd/release/11/2026-01/mms/299840850","http://id.who.int/icd/release/11/2026-01/mms/973282267","http://id.who.int/icd/release/11/2026-01/mms/1421997617","http://id.who.int/icd/release/11/2026-01/mms/1781019902","http://id.who.int/icd/release/11/2026-01/mms/207290928"],"classKind":"chapter","code":"18","codingNote":{"@language":"en","@value":"The codes included in this chapter are to be used for conditions related to or aggravated by the pregnancy, childbirth or by the puerperium (maternal causes or obstetric causes)"},"definition":{"@language":"en","@value":"A group of conditions characterised as occurring during the period of time from conception to delivery (pregnancy), during labour and delivery (childbirth) or during the approximately six weeks after delivery during which the uterus returns to the original size (puerperium)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/262236278","label":{"@language":"en","@value":"Obstetrical tetanus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/262236278"},{"foundationReference":"http://id.who.int/icd/entity/768216194","label":{"@language":"en","@value":"Postpartum necrosis of pituitary gland"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/768216194"},{"foundationReference":"http://id.who.int/icd/entity/850137482","label":{"@language":"en","@value":"External causes (for mortality)"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/850137482"},{"foundationReference":"http://id.who.int/icd/entity/882114523","label":{"@language":"en","@value":"Mental or behavioural disorders associated with pregnancy, childbirth or the puerperium"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/882114523"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1144140024","label":{"@language":"en","@value":"Contact with health services for reasons associated with reproduction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1144140024"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/714000734","title":{"@language":"en","@value":"Pregnancy, childbirth or the puerperium"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/759302477": {"method":"GET","path":"icd/release/11/2026-01/mms/759302477","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/759302477","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#759302477","classKind":"category","code":"JB42.3","indexTerm":[{"label":{"@language":"en","@value":"Obstetric pyaemic or septic embolism"}},{"label":{"@language":"en","@value":"pyaemic obstetric embolism"}},{"label":{"@language":"en","@value":"pyaemic puerperal embolism"}},{"label":{"@language":"en","@value":"septic puerperal embolism"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2146411734"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/759302477/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]}],"source":"http://id.who.int/icd/entity/759302477","title":{"@language":"en","@value":"Obstetric pyaemic or septic embolism"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/777702149": {"method":"GET","path":"icd/release/11/2026-01/mms/777702149","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/777702149","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#777702149","child":["http://id.who.int/icd/release/11/2026-01/mms/2116096692","http://id.who.int/icd/release/11/2026-01/mms/568542103","http://id.who.int/icd/release/11/2026-01/mms/1151295060","http://id.who.int/icd/release/11/2026-01/mms/235145545","http://id.who.int/icd/release/11/2026-01/mms/2122752710","http://id.who.int/icd/release/11/2026-01/mms/708898123","http://id.who.int/icd/release/11/2026-01/mms/80817633","http://id.who.int/icd/release/11/2026-01/mms/870681014","http://id.who.int/icd/release/11/2026-01/mms/1927114867","http://id.who.int/icd/release/11/2026-01/mms/1495276771","http://id.who.int/icd/release/11/2026-01/mms/1645734341","http://id.who.int/icd/release/11/2026-01/mms/428956900","http://id.who.int/icd/release/11/2026-01/mms/1997317917","http://id.who.int/icd/release/11/2026-01/mms/2023517537","http://id.who.int/icd/release/11/2026-01/mms/1371953258"],"classKind":"category","code":"XN2QM","indexTerm":[{"label":{"@language":"en","@value":"Gram Positive Bacteria"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/83217129"],"source":"http://id.who.int/icd/entity/777702149","title":{"@language":"en","@value":"Gram Positive Bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/823561621": {"method":"GET","path":"icd/release/11/2026-01/mms/823561621","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/823561621","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#823561621","classKind":"category","code":"JB45.1","indexTerm":[{"label":{"@language":"en","@value":"Nonpurulent mastitis associated with childbirth"}},{"label":{"@language":"en","@value":"gestational mastitis NOS"}},{"label":{"@language":"en","@value":"lactation mastitis"}},{"label":{"@language":"en","@value":"mastitis associated with childbirth"}},{"foundationReference":"http://id.who.int/icd/entity/1181855554","label":{"@language":"en","@value":"Nonpurulent mastitis associated with childbirth, without mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/591028948","label":{"@language":"en","@value":"Nonpurulent mastitis associated with childbirth, with mention of attachment difficulty"}},{"foundationReference":"http://id.who.int/icd/entity/845966039","label":{"@language":"en","@value":"Gestational lymphadenitis of breast"}},{"foundationReference":"http://id.who.int/icd/entity/845966039","label":{"@language":"en","@value":"lymphadenitis breast in pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/1833681764","label":{"@language":"en","@value":"Gestational lymphangitis of breast"}},{"foundationReference":"http://id.who.int/icd/entity/1833681764","label":{"@language":"en","@value":"lymphangitis of breast in pregnancy"}},{"foundationReference":"http://id.who.int/icd/entity/314333701","label":{"@language":"en","@value":"Puerperal lymphangitis of breast"}},{"foundationReference":"http://id.who.int/icd/entity/1207151692","label":{"@language":"en","@value":"Puerperal interstitial mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/416548345","label":{"@language":"en","@value":"Puerperal parenchymatous mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/190543388","label":{"@language":"en","@value":"Postpartum mastitis"}},{"foundationReference":"http://id.who.int/icd/entity/190543388","label":{"@language":"en","@value":"puerperal mammitis"}},{"foundationReference":"http://id.who.int/icd/entity/190543388","label":{"@language":"en","@value":"puerperal mastitis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/996711824","label":{"@language":"en","@value":"Puerperal galactophoritis"}},{"foundationReference":"http://id.who.int/icd/entity/996711824","label":{"@language":"en","@value":"puerperium galactophoritis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1139189645"],"source":"http://id.who.int/icd/entity/823561621","title":{"@language":"en","@value":"Nonpurulent mastitis associated with childbirth"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/83217129": {"method":"GET","path":"icd/release/11/2026-01/mms/83217129","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/83217129","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#83217129","child":["http://id.who.int/icd/release/11/2026-01/mms/180747195","http://id.who.int/icd/release/11/2026-01/mms/777702149","http://id.who.int/icd/release/11/2026-01/mms/1302046997"],"classKind":"category","code":"XN74M","indexTerm":[{"label":{"@language":"en","@value":"Bacteria"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/83217129","title":{"@language":"en","@value":"Bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB40.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB40.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB40.0","code":"JB40.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/325070079"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2FJB40.2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB40.0%26XN74M%2fJB40.2","code":"JB40.0&XN74M/JB40.2","hasCausingCondition":["JB40.2"],"infectiousAgent":["XN74M"],"stemCode":"JB40.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/325070079"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB40.0%2fJB40.3","code":"JB40.0/JB40.3","hasCausingCondition":["JB40.3"],"stemCode":"JB40.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/325070079"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB40.2": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB40.2","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB40.2","code":"JB40.2","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1859686171"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/JB40.3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/JB40.3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/JB40.3","code":"JB40.3","stemId":"http://id.who.int/icd/release/11/2026-01/mms/443932646"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XN74M": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XN74M","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XN74M","code":"XN74M","stemId":"http://id.who.int/icd/release/11/2026-01/mms/83217129"},"request_body":null,"status":200}
+ }
+}

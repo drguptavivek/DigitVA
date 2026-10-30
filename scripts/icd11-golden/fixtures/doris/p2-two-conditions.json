@@ -1,0 +1,178 @@
+{
+ "id": "p2-two-conditions",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P67Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BA41.Z",
+       "Interval": "PT5H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+       "Text": "MI"
+      }
+     ]
+    }
+   ],
+   "Part2": {
+    "Conditions": [
+     {
+      "Code": "5A11",
+      "Interval": "P10Y",
+      "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+      "Text": "Diabetes"
+     },
+     {
+      "Code": "BA00.Z",
+      "Interval": "P10Y",
+      "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+      "Text": "Hypertension"
+     }
+    ]
+   }
+  },
+  "group": "adult",
+  "id": "p2-two-conditions",
+  "source": "VA cause VAs-04.01 Acute cardiac disease",
+  "why": "Part II with two conditions: diabetes and hypertension"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z",
+    "POST icd/release/11/2026-01/doris #13ce457b4c",
+    "POST icd/release/11/2026-01/codedit #13ce457b4c"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P67Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "BA41.Z",
+          "Interval": "PT5H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+          "Text": "MI"
+         }
+        ]
+       }
+      ],
+      "Part2": {
+       "Conditions": [
+        {
+         "Code": "5A11",
+         "Interval": "P10Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        },
+        {
+         "Code": "BA00.Z",
+         "Interval": "P10Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+         "Text": "Hypertension"
+        }
+       ]
+      }
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "BA41.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP2: BA41.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: BA41.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA41.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC BA41.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "BA41.Z",
+       "stemURI": "http://id.who.int/icd/entity/1334938734/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;BA41.Z;BA41.Z;;;0;SP2: BA41.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA41.Z;;;;;0;SP6: is not applicable with the current TSP BA41.Z.;;;;BER\nSP7;False;BA41.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA41.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;BA41.Z;;;;;0;M1: There is no special instruction applicable with TUC BA41.Z.;;;;BER\nM2;False;BA41.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;BA41.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1334938734/unspecified",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "BA41.Z",
+       "role": "stem",
+       "title": "MI",
+       "uri": "http://id.who.int/icd/release/11/mms/1334938734/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P67Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BA41.Z",
+         "Interval": "PT5H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+         "Text": "MI"
+        }
+       ]
+      }
+     ],
+     "Part2": {
+      "Conditions": [
+       {
+        "Code": "5A11",
+        "Interval": "P10Y",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+        "Text": "Diabetes"
+       },
+       {
+        "Code": "BA00.Z",
+        "Interval": "P10Y",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified",
+        "Text": "Hypertension"
+       }
+      ]
+     }
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA00.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA00.Z","code":"BA00.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z","code":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #13ce457b4c": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P67Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\",\"Interval\":\"PT5H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified\",\"Text\":\"MI\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P10Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"},{\"Code\":\"BA00.Z\",\"Interval\":\"P10Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"Hypertension\"}]}}","status":200},
+  "POST icd/release/11/2026-01/doris #13ce457b4c": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"BA41.Z","error":null,"reject":false,"report":"SP2: BA41.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: BA41.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA41.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC BA41.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"BA41.Z","stemURI":"http://id.who.int/icd/entity/1334938734/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;BA41.Z;BA41.Z;;;0;SP2: BA41.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA41.Z;;;;;0;SP6: is not applicable with the current TSP BA41.Z.;;;;BER\nSP7;False;BA41.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA41.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;BA41.Z;;;;;0;M1: There is no special instruction applicable with TUC BA41.Z.;;;;BER\nM2;False;BA41.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;BA41.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1334938734/unspecified","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P67Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\",\"Interval\":\"PT5H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified\",\"Text\":\"MI\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P10Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"},{\"Code\":\"BA00.Z\",\"Interval\":\"P10Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified\",\"Text\":\"Hypertension\"}]}}","status":200}
+ }
+}

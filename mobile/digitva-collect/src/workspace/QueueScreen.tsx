@@ -240,7 +240,7 @@ function ProjectPicker({ options, value, disabled, onSelect }: {
         <View style={q.backdrop}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close project list" onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
           <View style={q.sheet} accessibilityViewIsModal>
-            <ScrollView>
+            <ScrollView keyboardDismissMode="on-drag">
               {row("all", "All projects", undefined, !value)}
               {options.map((option) => row(option.project_id, option.project_name, option.project_id, option.project_id === value))}
             </ScrollView>

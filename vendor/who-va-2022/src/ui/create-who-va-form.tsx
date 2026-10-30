@@ -1657,7 +1657,7 @@ export function createWhoVaForm(
 
     if (view === "preview") {
       return (
-        <ScrollView
+        <ScrollView keyboardDismissMode="on-drag"
           key="preview"
           style={styles.root}
           contentContainerStyle={styles.content}
@@ -1767,7 +1767,7 @@ export function createWhoVaForm(
           setShellWidth(event.nativeEvent.layout.width)
         }
       >
-        <ScrollView
+        <ScrollView keyboardDismissMode="on-drag"
           key="form"
           ref={scrollViewRef}
           style={styles.root}

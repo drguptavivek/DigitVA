@@ -1,0 +1,75 @@
+{
+ "id": "s176-syn-lower-respiratory-tract-infection",
+ "input": {
+  "concept": "pneumonia",
+  "id": "s176-syn-lower-respiratory-tract-infection",
+  "kind": "synonym",
+  "query": "lower respiratory tract infection",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #50b832e2d4"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "CA4Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified lung infections",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified lung infections",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/915779102/other"
+      },
+      {
+       "code": "CA4Z",
+       "has_coding_note": false,
+       "matching_text": "Lung infections, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Lung infections, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/915779102/unspecified"
+      },
+      {
+       "code": "CA45",
+       "has_coding_note": false,
+       "matching_text": "Respiratory infections, not elsewhere classified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Respiratory infections, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/413668698"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "lower respiratory tract infection",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #50b832e2d4": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/915779102/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/203049199","important":false,"label":"Acute <em class='found'>lower</em> <em class='found'>respiratory</em> <em class='found'>tract</em> <em class='found'>infection</em><em class='nonwbe'></em> NOS","propertyId":"Title","propertyValueType":1,"score":0.41589495014284295}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.41589495014284295,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/915779102/other","theCode":"CA4Y","title":"Other specified lung <em class='found'>infection</em><em class='nonwbe'>s</em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/915779102/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/915779102","important":false,"label":"LRTI - [<em class='found'>lower</em> <em class='found'>respiratory</em> <em class='found'>tract</em> <em class='found'>infection</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.09533268373923329}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.09533268373923329,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/915779102/unspecified","theCode":"CA4Z","title":"Lung <em class='found'>infection</em><em class='nonwbe'>s</em>, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/413668698","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/413668698","important":false,"label":"<em class='found'>respiratory</em> <em class='found'>tract</em> <em class='found'>infection</em><em class='nonwbe'>s</em> not specified as acute, chronic, <em class='found'>lower</em>, or upper","propertyId":"Synonym","propertyValueType":0,"score":-0.09322983749797877}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.09322983749797877,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/413668698","theCode":"CA45","title":"<em class='found'>Respiratory</em> <em class='found'>infection</em><em class='nonwbe'>s</em>, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=lower+respiratory+tract+infection%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

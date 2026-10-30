@@ -1,0 +1,171 @@
+{
+ "id": "surgery-no",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P61Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BA41.Z",
+       "Interval": "PT3H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+       "Text": "MI"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "BA52.Z",
+       "Interval": "P3Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+       "Text": "Coronary disease"
+      }
+     ]
+    }
+   ],
+   "Surgery": {
+    "Date": "2026-04-01",
+    "Reason": "None",
+    "WasPerformed": 0
+   }
+  },
+  "group": "adult",
+  "id": "surgery-no",
+  "source": "docs/policy/doris-certificate-rules.md",
+  "why": "Surgery not performed (Date/Reason dropped)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA52.Z",
+    "POST icd/release/11/2026-01/doris #6d96c119ac",
+    "POST icd/release/11/2026-01/codedit #6d96c119ac"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P61Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "BA41.Z",
+          "Interval": "PT3H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+          "Text": "MI"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "BA52.Z",
+          "Interval": "P3Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+          "Text": "Coronary disease"
+         }
+        ]
+       }
+      ],
+      "Surgery": {
+       "WasPerformed": 0
+      }
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "BA41.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: BA52.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM1: There is a special instruction on BA52.Z reported with mention of BA41.Z.\nM1: BA41.Z is selected as the TUC.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: BA52.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA52.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is a special instruction on BA52.Z reported with mention of BA41.Z.\nM1: BA41.Z is selected as the TUC.\nM1: There is no special instruction applicable with TUC BA41.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\nSP6: is not applicable with the current TSP BA41.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC BA41.Z.\nM2: is not applicable.\n",
+       "stemCode": "BA41.Z",
+       "stemURI": "http://id.who.int/icd/entity/1334938734/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;BA52.Z;BA52.Z;;;0;SP3: BA52.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA52.Z;;;;;0;SP6: is not applicable with the current TSP BA52.Z.;;;;BER\nSP7;False;BA52.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA52.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;BA52.Z;BA41.Z;BA41.Z, BA41.Z;;;0;M1: There is a special instruction on BA52.Z reported with mention of BA41.Z. M1: BA41.Z is selected as the TUC.;;;;BER BER\nM1;False;BA41.Z;;;;;0;M1: There is no special instruction applicable with TUC BA41.Z.;;;;BER\nM2;False;BA41.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;BA41.Z;;;;;0;M3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.;;;;BER\nSP6;False;BA41.Z;;;;;0;SP6: is not applicable with the current TSP BA41.Z.;;;;BER\nSP7;False;BA41.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA41.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;BA41.Z;;;;;0;M1: There is no special instruction applicable with TUC BA41.Z.;;;;BER\nM2;False;BA41.Z;;;;;0;M2: is not applicable.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1334938734/unspecified",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "BA41.Z",
+       "role": "stem",
+       "title": "MI",
+       "uri": "http://id.who.int/icd/release/11/mms/1334938734/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P61Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BA41.Z",
+         "Interval": "PT3H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+         "Text": "MI"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "BA52.Z",
+         "Interval": "P3Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+         "Text": "Coronary disease"
+        }
+       ]
+      }
+     ],
+     "Surgery": {
+      "Date": "2026-04-01",
+      "Reason": "None",
+      "WasPerformed": 0
+     }
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z","code":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA52.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA52.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA52.Z","code":"BA52.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #6d96c119ac": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P61Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\",\"Interval\":\"PT3H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified\",\"Text\":\"MI\"}]},{\"Conditions\":[{\"Code\":\"BA52.Z\",\"Interval\":\"P3Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified\",\"Text\":\"Coronary disease\"}]}],\"Surgery\":{\"WasPerformed\":0}}","status":200},
+  "POST icd/release/11/2026-01/doris #6d96c119ac": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"BA41.Z","error":null,"reject":false,"report":"SP3: BA52.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM1: There is a special instruction on BA52.Z reported with mention of BA41.Z.\nM1: BA41.Z is selected as the TUC.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: BA52.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP BA52.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is a special instruction on BA52.Z reported with mention of BA41.Z.\nM1: BA41.Z is selected as the TUC.\nM1: There is no special instruction applicable with TUC BA41.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\nSP6: is not applicable with the current TSP BA41.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC BA41.Z.\nM2: is not applicable.\n","stemCode":"BA41.Z","stemURI":"http://id.who.int/icd/entity/1334938734/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;BA52.Z;BA52.Z;;;0;SP3: BA52.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;BA52.Z;;;;;0;SP6: is not applicable with the current TSP BA52.Z.;;;;BER\nSP7;False;BA52.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA52.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;BA52.Z;BA41.Z;BA41.Z, BA41.Z;;;0;M1: There is a special instruction on BA52.Z reported with mention of BA41.Z. M1: BA41.Z is selected as the TUC.;;;;BER BER\nM1;False;BA41.Z;;;;;0;M1: There is no special instruction applicable with TUC BA41.Z.;;;;BER\nM2;False;BA41.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;BA41.Z;;;;;0;M3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.;;;;BER\nSP6;False;BA41.Z;;;;;0;SP6: is not applicable with the current TSP BA41.Z.;;;;BER\nSP7;False;BA41.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;BA41.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;BA41.Z;;;;;0;M1: There is no special instruction applicable with TUC BA41.Z.;;;;BER\nM2;False;BA41.Z;;;;;0;M2: is not applicable.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1334938734/unspecified","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P61Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\",\"Interval\":\"PT3H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified\",\"Text\":\"MI\"}]},{\"Conditions\":[{\"Code\":\"BA52.Z\",\"Interval\":\"P3Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified\",\"Text\":\"Coronary disease\"}]}],\"Surgery\":{\"WasPerformed\":0}}","status":200}
+ }
+}

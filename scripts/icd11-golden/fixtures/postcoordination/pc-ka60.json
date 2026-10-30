@@ -1,0 +1,882 @@
+{
+ "built": [
+  {
+   "expression": "KA60&XN74M",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/381388700"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "KA60&XN74M",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Sepsis of fetus or newborn",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/83217129"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "KA60&XN74M"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/381388700"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "KA60&XN74M",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Sepsis of fetus or newborn",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/83217129"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "KA60&XN74M",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/83217129"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/381388700",
+      "GET icd/release/11/2026-01/mms/911707612",
+      "GET icd/release/11/2026-01/mms/1306203631",
+      "GET icd/release/11/2026-01/mms/911707612",
+      "GET icd/release/11/2026-01/mms/1935107489",
+      "GET icd/release/11/2026-01/mms/1645664101",
+      "GET icd/release/11/2026-01/mms/528118622",
+      "GET icd/release/11/2026-01/mms/1945127438",
+      "GET icd/release/11/2026-01/mms/188684108",
+      "GET icd/release/11/2026-01/mms/911707612/other",
+      "GET icd/release/11/2026-01/mms/911707612/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "19",
+         "title": "Certain conditions originating in the perinatal period",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1306203631"
+        },
+        {
+         "code": "",
+         "title": "Infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Sepsis of fetus or newborn",
+        "congenital sepsis",
+        "neonatal sepsis",
+        "perinatal sepsis",
+        "sepsis neonatorum",
+        "Sepsis of fetus or newborn due to streptococcus, group A",
+        "neonatal sepsis due to streptococcus, group A",
+        "Sepsis of fetus or newborn due to streptococcus, group B",
+        "neonatal sepsis due to streptococcus, group B",
+        "Sepsis of fetus or newborn due to Staphylococcus aureus infection",
+        "neonatal sepsis due to Staphylococcus aureus infection",
+        "Sepsis of fetus or newborn due to Escherichia coli infection"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "KA60",
+        "title": "Sepsis of fetus or newborn",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       },
+       "selected_expression": {
+        "code": "KA60&XN74M",
+        "stem_code": "KA60"
+       },
+       "siblings": [
+        {
+         "code": "KA61",
+         "has_children": true,
+         "title": "Other bacterial infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+        },
+        {
+         "code": "KA62",
+         "has_children": true,
+         "title": "Viral infection in the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1645664101"
+        },
+        {
+         "code": "KA63",
+         "has_children": true,
+         "title": "Fungal infection of fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/528118622"
+        },
+        {
+         "code": "KA64",
+         "has_children": true,
+         "title": "Parasitic diseases in the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1945127438"
+        },
+        {
+         "code": "KA65",
+         "has_children": true,
+         "title": "Neonatal infections of certain specified sites",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/188684108"
+        },
+        {
+         "code": "KA6Y",
+         "has_children": false,
+         "title": "Other specified infections of the fetus or newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/other"
+        },
+        {
+         "code": "KA6Z",
+         "has_children": false,
+         "title": "Infections of the fetus or newborn, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "KA60&XN74M"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/381388700"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "KA60",
+        "title": "Sepsis of fetus or newborn",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "KA60&XN74M"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/381388700"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "KA60",
+        "title": "Sepsis of fetus or newborn",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "KA60&XN74M"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/381388700",
+      "GET icd/release/11/2026-01/mms/622600769",
+      "GET icd/release/11/2026-01/mms/1683090852"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [
+        {
+         "code": "1G40",
+         "title": "Sepsis without septic shock"
+        },
+        {
+         "code": "1G41",
+         "title": "Sepsis with septic shock"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "KA60",
+        "title": "Sepsis of fetus or newborn",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "KA60&XN74M"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/83217129",
+   "why": "bacterial neonatal sepsis"
+  }
+ ],
+ "id": "pc-ka60",
+ "input": {
+  "built": [
+   {
+    "expression": "KA60&XN74M",
+    "why": "bacterial neonatal sepsis"
+   }
+  ],
+  "category": "optional",
+  "id": "pc-ka60",
+  "source": "VAs-10.04",
+  "stem": "KA60",
+  "why": "Sepsis of newborn (VA cause 10.04): infectious agent and associated-with"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "KA60",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "KA60",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KA60",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/83217129",
+    "GET icd/release/11/2026-01/mms/1208497819",
+    "GET icd/release/11/2026-01/mms/1184377859",
+    "GET icd/release/11/2026-01/mms/674202049",
+    "GET icd/release/11/2026-01/mms/1063008297",
+    "GET icd/release/11/2026-01/mms/1458683894",
+    "GET icd/release/11/2026-01/mms/508643963",
+    "GET icd/release/11/2026-01/mms/761526554",
+    "GET icd/release/11/2026-01/mms/519468631",
+    "GET icd/release/11/2026-01/mms/243925837",
+    "GET icd/release/11/2026-01/mms/1882742628"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "infectiousAgent",
+       "instruction": "use additional code, if desired",
+       "label": "Infectious agent",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+         "code": "XN74M",
+         "has_children": true,
+         "title": "Bacteria",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+         "code": "XN3BH",
+         "has_children": true,
+         "title": "Virus",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1208497819"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1184377859",
+         "code": "XN8AY",
+         "has_children": true,
+         "title": "Fungi",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1184377859"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/674202049",
+         "code": "XN9S1",
+         "has_children": true,
+         "title": "Parasites",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/674202049"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1063008297",
+         "code": "",
+         "has_children": true,
+         "title": "Other Pathogens",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1063008297"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+        "http://id.who.int/icd/release/11/2026-01/mms/1208497819",
+        "http://id.who.int/icd/release/11/2026-01/mms/1184377859",
+        "http://id.who.int/icd/release/11/2026-01/mms/674202049",
+        "http://id.who.int/icd/release/11/2026-01/mms/1063008297"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+         "code": "",
+         "has_children": true,
+         "title": "Heart failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/508643963",
+         "code": "DB99.7",
+         "has_children": false,
+         "title": "Hepatic failure without mention whether acute or chronic",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/508643963"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/761526554",
+         "code": "",
+         "has_children": true,
+         "title": "Kidney failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/761526554"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/519468631",
+         "code": "KB2D",
+         "has_children": false,
+         "title": "Respiratory failure of newborn",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/519468631"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/243925837",
+         "code": "MG4A",
+         "has_children": false,
+         "title": "Multi organ failure",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/243925837"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1882742628",
+         "code": "",
+         "has_children": true,
+         "title": "Finding of microorganism resistant to antimicrobial drugs",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1882742628"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+        "http://id.who.int/icd/release/11/2026-01/mms/508643963",
+        "http://id.who.int/icd/release/11/2026-01/mms/761526554",
+        "http://id.who.int/icd/release/11/2026-01/mms/519468631",
+        "http://id.who.int/icd/release/11/2026-01/mms/243925837",
+        "http://id.who.int/icd/release/11/2026-01/mms/1882742628"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/83217129",
+    "GET icd/release/11/2026-01/mms/180747195",
+    "GET icd/release/11/2026-01/mms/777702149",
+    "GET icd/release/11/2026-01/mms/1302046997"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "infectiousAgent",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+       "code": "XN5PZ",
+       "has_children": true,
+       "title": "Gram Negative Bacteria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/180747195"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+       "code": "XN2QM",
+       "has_children": true,
+       "title": "Gram Positive Bacteria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/777702149"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+       "code": "XN87X",
+       "has_children": true,
+       "title": "Bacteria, neither Gram Negative nor Gram Positive",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1302046997"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "infectiousAgent",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/83217129",
+    "stem_code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/1458683894",
+    "GET icd/release/11/2026-01/mms/2136808878",
+    "GET icd/release/11/2026-01/mms/437702716",
+    "GET icd/release/11/2026-01/mms/1754821737",
+    "GET icd/release/11/2026-01/mms/1594578199",
+    "GET icd/release/11/2026-01/mms/1992125824",
+    "GET icd/release/11/2026-01/mms/1458683894/other",
+    "GET icd/release/11/2026-01/mms/1458683894/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD10",
+       "has_children": false,
+       "title": "Congestive heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2136808878"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD11",
+       "has_children": true,
+       "title": "Left ventricular failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/437702716"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD12",
+       "has_children": false,
+       "title": "High output syndromes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1754821737"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD13",
+       "has_children": false,
+       "title": "Right ventricular failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1594578199"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD14",
+       "has_children": false,
+       "title": "Biventricular failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1992125824"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD1Y",
+       "has_children": false,
+       "title": "Other specified heart failure",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+       "code": "BD1Z",
+       "has_children": false,
+       "title": "Heart failure, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1458683894",
+    "stem_code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/911707612",
+    "GET icd/release/11/2026-01/mms/1306203631",
+    "GET icd/release/11/2026-01/mms/911707612",
+    "GET icd/release/11/2026-01/mms/1935107489",
+    "GET icd/release/11/2026-01/mms/1645664101",
+    "GET icd/release/11/2026-01/mms/528118622",
+    "GET icd/release/11/2026-01/mms/1945127438",
+    "GET icd/release/11/2026-01/mms/188684108",
+    "GET icd/release/11/2026-01/mms/911707612/other",
+    "GET icd/release/11/2026-01/mms/911707612/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "19",
+       "title": "Certain conditions originating in the perinatal period",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1306203631"
+      },
+      {
+       "code": "",
+       "title": "Infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Sepsis of fetus or newborn",
+      "congenital sepsis",
+      "neonatal sepsis",
+      "perinatal sepsis",
+      "sepsis neonatorum",
+      "Sepsis of fetus or newborn due to streptococcus, group A",
+      "neonatal sepsis due to streptococcus, group A",
+      "Sepsis of fetus or newborn due to streptococcus, group B",
+      "neonatal sepsis due to streptococcus, group B",
+      "Sepsis of fetus or newborn due to Staphylococcus aureus infection",
+      "neonatal sepsis due to Staphylococcus aureus infection",
+      "Sepsis of fetus or newborn due to Escherichia coli infection"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "KA61",
+       "has_children": true,
+       "title": "Other bacterial infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1935107489"
+      },
+      {
+       "code": "KA62",
+       "has_children": true,
+       "title": "Viral infection in the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1645664101"
+      },
+      {
+       "code": "KA63",
+       "has_children": true,
+       "title": "Fungal infection of fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/528118622"
+      },
+      {
+       "code": "KA64",
+       "has_children": true,
+       "title": "Parasitic diseases in the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1945127438"
+      },
+      {
+       "code": "KA65",
+       "has_children": true,
+       "title": "Neonatal infections of certain specified sites",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/188684108"
+      },
+      {
+       "code": "KA6Y",
+       "has_children": false,
+       "title": "Other specified infections of the fetus or newborn",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/other"
+      },
+      {
+       "code": "KA6Z",
+       "has_children": false,
+       "title": "Infections of the fetus or newborn, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "KA60"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+    "GET icd/release/11/2026-01/mms/381388700",
+    "GET icd/release/11/2026-01/mms/622600769",
+    "GET icd/release/11/2026-01/mms/1683090852"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [
+      {
+       "code": "1G40",
+       "title": "Sepsis without septic shock"
+      },
+      {
+       "code": "1G41",
+       "title": "Sepsis with septic shock"
+      }
+     ],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "KA60",
+      "title": "Sepsis of fetus or newborn",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "KA60"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1063008297": {"method":"GET","path":"icd/release/11/2026-01/mms/1063008297","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1063008297","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1063008297","child":["http://id.who.int/icd/release/11/2026-01/mms/564564173","http://id.who.int/icd/release/11/2026-01/mms/98727119","http://id.who.int/icd/release/11/2026-01/mms/1620994314"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/1063008297","title":{"@language":"en","@value":"Other Pathogens"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1184377859": {"method":"GET","path":"icd/release/11/2026-01/mms/1184377859","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1184377859","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1184377859","child":["http://id.who.int/icd/release/11/2026-01/mms/596589512","http://id.who.int/icd/release/11/2026-01/mms/1829653149","http://id.who.int/icd/release/11/2026-01/mms/741782362","http://id.who.int/icd/release/11/2026-01/mms/422672176","http://id.who.int/icd/release/11/2026-01/mms/130801610","http://id.who.int/icd/release/11/2026-01/mms/167505562","http://id.who.int/icd/release/11/2026-01/mms/2037990677","http://id.who.int/icd/release/11/2026-01/mms/649794614","http://id.who.int/icd/release/11/2026-01/mms/222722214","http://id.who.int/icd/release/11/2026-01/mms/1175903901","http://id.who.int/icd/release/11/2026-01/mms/594199384","http://id.who.int/icd/release/11/2026-01/mms/433360832","http://id.who.int/icd/release/11/2026-01/mms/1236227599","http://id.who.int/icd/release/11/2026-01/mms/1499844537","http://id.who.int/icd/release/11/2026-01/mms/1818364877","http://id.who.int/icd/release/11/2026-01/mms/152966666","http://id.who.int/icd/release/11/2026-01/mms/1457276715","http://id.who.int/icd/release/11/2026-01/mms/111648412","http://id.who.int/icd/release/11/2026-01/mms/1675330399","http://id.who.int/icd/release/11/2026-01/mms/474419248","http://id.who.int/icd/release/11/2026-01/mms/692114502","http://id.who.int/icd/release/11/2026-01/mms/1388732773","http://id.who.int/icd/release/11/2026-01/mms/335452322","http://id.who.int/icd/release/11/2026-01/mms/653876440","http://id.who.int/icd/release/11/2026-01/mms/1864884632","http://id.who.int/icd/release/11/2026-01/mms/1512056302","http://id.who.int/icd/release/11/2026-01/mms/766764299","http://id.who.int/icd/release/11/2026-01/mms/131924109","http://id.who.int/icd/release/11/2026-01/mms/618620614","http://id.who.int/icd/release/11/2026-01/mms/293540546","http://id.who.int/icd/release/11/2026-01/mms/1312010621","http://id.who.int/icd/release/11/2026-01/mms/1638718347","http://id.who.int/icd/release/11/2026-01/mms/457584634","http://id.who.int/icd/release/11/2026-01/mms/292305128","http://id.who.int/icd/release/11/2026-01/mms/1103426149","http://id.who.int/icd/release/11/2026-01/mms/1264588775"],"classKind":"category","code":"XN8AY","indexTerm":[{"label":{"@language":"en","@value":"Fungi"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/1184377859","title":{"@language":"en","@value":"Fungi"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1208497819": {"method":"GET","path":"icd/release/11/2026-01/mms/1208497819","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1208497819","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1208497819","child":["http://id.who.int/icd/release/11/2026-01/mms/1075681120","http://id.who.int/icd/release/11/2026-01/mms/1429210584","http://id.who.int/icd/release/11/2026-01/mms/1500682559","http://id.who.int/icd/release/11/2026-01/mms/192700427","http://id.who.int/icd/release/11/2026-01/mms/1387937261","http://id.who.int/icd/release/11/2026-01/mms/1339560953","http://id.who.int/icd/release/11/2026-01/mms/1375406603","http://id.who.int/icd/release/11/2026-01/mms/1209596839","http://id.who.int/icd/release/11/2026-01/mms/626416374","http://id.who.int/icd/release/11/2026-01/mms/90349191","http://id.who.int/icd/release/11/2026-01/mms/646250592","http://id.who.int/icd/release/11/2026-01/mms/1550840879","http://id.who.int/icd/release/11/2026-01/mms/871564532","http://id.who.int/icd/release/11/2026-01/mms/1418788600","http://id.who.int/icd/release/11/2026-01/mms/450704861","http://id.who.int/icd/release/11/2026-01/mms/1045785505","http://id.who.int/icd/release/11/2026-01/mms/1071436385","http://id.who.int/icd/release/11/2026-01/mms/1454950754","http://id.who.int/icd/release/11/2026-01/mms/824203597","http://id.who.int/icd/release/11/2026-01/mms/713413721","http://id.who.int/icd/release/11/2026-01/mms/1359176056","http://id.who.int/icd/release/11/2026-01/mms/571840927","http://id.who.int/icd/release/11/2026-01/mms/884000671","http://id.who.int/icd/release/11/2026-01/mms/545685931","http://id.who.int/icd/release/11/2026-01/mms/439930189","http://id.who.int/icd/release/11/2026-01/mms/1917096226","http://id.who.int/icd/release/11/2026-01/mms/1266244023","http://id.who.int/icd/release/11/2026-01/mms/816236373","http://id.who.int/icd/release/11/2026-01/mms/1699643754"],"classKind":"category","code":"XN3BH","indexTerm":[{"label":{"@language":"en","@value":"Virus"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/1208497819","title":{"@language":"en","@value":"Virus"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1302046997": {"method":"GET","path":"icd/release/11/2026-01/mms/1302046997","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1302046997","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1302046997","child":["http://id.who.int/icd/release/11/2026-01/mms/686273744","http://id.who.int/icd/release/11/2026-01/mms/1743748165"],"classKind":"category","code":"XN87X","indexTerm":[{"label":{"@language":"en","@value":"Bacteria, neither Gram Negative nor Gram Positive"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/83217129"],"source":"http://id.who.int/icd/entity/1302046997","title":{"@language":"en","@value":"Bacteria, neither Gram Negative nor Gram Positive"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1306203631": {"method":"GET","path":"icd/release/11/2026-01/mms/1306203631","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1306203631","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1306203631","child":["http://id.who.int/icd/release/11/2026-01/mms/927970860","http://id.who.int/icd/release/11/2026-01/mms/287901798","http://id.who.int/icd/release/11/2026-01/mms/624443803","http://id.who.int/icd/release/11/2026-01/mms/911707612","http://id.who.int/icd/release/11/2026-01/mms/1800910986","http://id.who.int/icd/release/11/2026-01/mms/426167863","http://id.who.int/icd/release/11/2026-01/mms/1858685964","http://id.who.int/icd/release/11/2026-01/mms/1008196289","http://id.who.int/icd/release/11/2026-01/mms/1004987305","http://id.who.int/icd/release/11/2026-01/mms/494951911","http://id.who.int/icd/release/11/2026-01/mms/1024145243","http://id.who.int/icd/release/11/2026-01/mms/680361950","http://id.who.int/icd/release/11/2026-01/mms/1319339568","http://id.who.int/icd/release/11/2026-01/mms/861066692","http://id.who.int/icd/release/11/2026-01/mms/1306203631/unspecified"],"classKind":"chapter","code":"19","codingNote":{"@language":"en","@value":"Conditions arising in the perinatal period, even though death or morbidity occurs later, should, as far as possible, be coded to chapter 19, which takes precedence over chapters containing codes for diseases by their anatomical site.\n\nFor children less than 28 days old, assume that a reported condition developed in the perinatal period, unless the duration is stated and the onset was after the first completed week of life."},"definition":{"@language":"en","@value":"This chapter includes conditions that have their origin in the perinatal period even though death or morbidity occurs later."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"Congenital gonococcal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/609214049"},{"foundationReference":"http://id.who.int/icd/entity/1435254666","label":{"@language":"en","@value":"Certain infectious or parasitic diseases - acquired after birth"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1435254666"},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/588616678"},{"foundationReference":"http://id.who.int/icd/entity/1909380523","label":{"@language":"en","@value":"Hereditary haemolytic anaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1909380523"},{"foundationReference":"http://id.who.int/icd/entity/1686370790","label":{"@language":"en","@value":"Transient hypogammaglobulinaemia of infancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1686370790"},{"foundationReference":"http://id.who.int/icd/entity/1296093776","label":{"@language":"en","@value":"Certain congenital diseases of the nervous system"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1296093776"},{"foundationReference":"http://id.who.int/icd/entity/282225286","label":{"@language":"en","@value":"congenital cardiomyopathy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/282225286"},{"foundationReference":"http://id.who.int/icd/entity/1868011045","label":{"@language":"en","@value":"Paralytic ileus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1868011045"},{"foundationReference":"http://id.who.int/icd/entity/1631069488","label":{"@language":"en","@value":"Pemphigus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/918813679/unspecified"},{"foundationReference":"http://id.who.int/icd/entity/1315633810","label":{"@language":"en","@value":"Cradle cap"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1315633810"},{"foundationReference":"http://id.who.int/icd/entity/223744320","label":{"@language":"en","@value":"Congenital malformations, deformations and chromosomal abnormalities"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/223744320"},{"foundationReference":"http://id.who.int/icd/entity/21500692","label":{"@language":"en","@value":"Endocrine, nutritional or metabolic diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/21500692"},{"foundationReference":"http://id.who.int/icd/entity/435227771","label":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/435227771"},{"foundationReference":"http://id.who.int/icd/entity/1630407678","label":{"@language":"en","@value":"Neoplasms"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1630407678"},{"foundationReference":"http://id.who.int/icd/entity/947283385","label":{"@language":"en","@value":"Retinopathy of prematurity"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/947283385"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/1306203631","title":{"@language":"en","@value":"Certain conditions originating in the perinatal period"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1458683894": {"method":"GET","path":"icd/release/11/2026-01/mms/1458683894","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894","blockId":"BlockL1-BD1","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1458683894","child":["http://id.who.int/icd/release/11/2026-01/mms/2136808878","http://id.who.int/icd/release/11/2026-01/mms/437702716","http://id.who.int/icd/release/11/2026-01/mms/1754821737","http://id.who.int/icd/release/11/2026-01/mms/1594578199","http://id.who.int/icd/release/11/2026-01/mms/1992125824","http://id.who.int/icd/release/11/2026-01/mms/1458683894/other","http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified"],"classKind":"block","code":"","codeRange":"BD10-BD1Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1403588899","label":{"@language":"en","@value":"complicating abortion or ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1403588899"},{"foundationReference":"http://id.who.int/icd/entity/37695035","label":{"@language":"en","@value":"complicating obstetric surgery and procedures"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/37695035"},{"foundationReference":"http://id.who.int/icd/entity/506055626","label":{"@language":"en","@value":"Heart failure following cardiac surgery or due to presence of cardiac prosthesis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/506055626"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1611051049","label":{"@language":"en","@value":"Neonatal cardiac failure"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1611051049"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/426429380"],"source":"http://id.who.int/icd/entity/1458683894","title":{"@language":"en","@value":"Heart failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1458683894/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1458683894/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1458683894/other","classKind":"category","code":"BD1Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/other/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"title":{"@language":"en","@value":"Other specified heart failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1458683894/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1458683894/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1458683894/unspecified","classKind":"category","code":"BD1Z","indexTerm":[{"label":{"@language":"en","@value":"Heart failure, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"HF- [heart failure]"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"acute cardiac decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"acute myocardial decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac deficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"cardiac failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"chronic cardiac decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"chronic myocardial decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"heart weakness"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial deficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial failure"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial insufficiency"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"myocardial weakness"}},{"foundationReference":"http://id.who.int/icd/entity/1458683894","label":{"@language":"en","@value":"weak heart"}},{"foundationReference":"http://id.who.int/icd/entity/1353864413","label":{"@language":"en","@value":"Acute heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1353864413","label":{"@language":"en","@value":"acute cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/1353864413","label":{"@language":"en","@value":"acute ventricular failure NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1619115863","label":{"@language":"en","@value":"Chronic heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1619115863","label":{"@language":"en","@value":"CHF - [chronic heart failure]"}},{"foundationReference":"http://id.who.int/icd/entity/1619115863","label":{"@language":"en","@value":"chronic cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"Cardiac asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"cardiovascular asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"heart asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/184968605","label":{"@language":"en","@value":"myocardium asthenia"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"Cardiac exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"heart exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"myocardial exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/1315369718","label":{"@language":"en","@value":"myocardium exhaustion"}},{"foundationReference":"http://id.who.int/icd/entity/997705463","label":{"@language":"en","@value":"Cordis paralysis"}},{"foundationReference":"http://id.who.int/icd/entity/535778743","label":{"@language":"en","@value":"Heart collapse"}},{"foundationReference":"http://id.who.int/icd/entity/99230605","label":{"@language":"en","@value":"Heart failure with decompensation"}},{"foundationReference":"http://id.who.int/icd/entity/99230605","label":{"@language":"en","@value":"decompensated heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1601656670","label":{"@language":"en","@value":"Heart paresis"}},{"foundationReference":"http://id.who.int/icd/entity/266958463","label":{"@language":"en","@value":"Myocardial impairment"}},{"foundationReference":"http://id.who.int/icd/entity/2031753305","label":{"@language":"en","@value":"Myocardial fatigue"}},{"foundationReference":"http://id.who.int/icd/entity/1014665010","label":{"@language":"en","@value":"Sudden heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1458683894/unspecified/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"title":{"@language":"en","@value":"Heart failure, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1594578199": {"method":"GET","path":"icd/release/11/2026-01/mms/1594578199","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1594578199","classKind":"category","code":"BD13","definition":{"@language":"en","@value":"Heart failure associated with right ventricular dysfunction manifest by distention of the neck veins, enlargement of the liver, and dependent oedema."},"indexTerm":[{"label":{"@language":"en","@value":"Right ventricular failure"}},{"label":{"@language":"en","@value":"right heart failure"}},{"label":{"@language":"en","@value":"right ventricle failure"}},{"label":{"@language":"en","@value":"right ventricle heart failure"}},{"label":{"@language":"en","@value":"right ventricular failure secondary to left heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1152694663","label":{"@language":"en","@value":"Right ventricular failure due to pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/1152694663","label":{"@language":"en","@value":"Right ventricular failure secondary to pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/2070500598","label":{"@language":"en","@value":"Right ventricular failure due to pulmonary vascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/2070500598","label":{"@language":"en","@value":"Right ventricular failure secondary to pulmonary vascular disease"}},{"foundationReference":"http://id.who.int/icd/entity/1679681449","label":{"@language":"en","@value":"Right ventricular failure due to right ventricular infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1679681449","label":{"@language":"en","@value":"Right ventricular failure secondary to right ventricular infarction"}},{"foundationReference":"http://id.who.int/icd/entity/1291482508","label":{"@language":"en","@value":"Right ventricular failure due to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1291482508","label":{"@language":"en","@value":"Right ventricular failure secondary to valvular heart disease"}},{"foundationReference":"http://id.who.int/icd/entity/1494827140","label":{"@language":"en","@value":"Right ventricular failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/104786225","label":{"@language":"en","@value":"Right ventricular failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1399922560","label":{"@language":"en","@value":"Right ventricular failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/2066756090","label":{"@language":"en","@value":"Right ventricular failure NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/223755232","label":{"@language":"en","@value":"Acute right heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/223755232","label":{"@language":"en","@value":"acute right sided heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1456211027","label":{"@language":"en","@value":"Bernheim syndrome"}},{"foundationReference":"http://id.who.int/icd/entity/1600081882","label":{"@language":"en","@value":"Right ventricular obstruction - failure syndrome"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1594578199/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1334938734","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/437702716","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1594578199","title":{"@language":"en","@value":"Right ventricular failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1645664101": {"method":"GET","path":"icd/release/11/2026-01/mms/1645664101","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1645664101","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1645664101","child":["http://id.who.int/icd/release/11/2026-01/mms/755611612","http://id.who.int/icd/release/11/2026-01/mms/1861788994","http://id.who.int/icd/release/11/2026-01/mms/2071159826","http://id.who.int/icd/release/11/2026-01/mms/1515465998","http://id.who.int/icd/release/11/2026-01/mms/1354629557","http://id.who.int/icd/release/11/2026-01/mms/1981771784","http://id.who.int/icd/release/11/2026-01/mms/453730080","http://id.who.int/icd/release/11/2026-01/mms/648536096","http://id.who.int/icd/release/11/2026-01/mms/1059053724","http://id.who.int/icd/release/11/2026-01/mms/1270001765","http://id.who.int/icd/release/11/2026-01/mms/788102641","http://id.who.int/icd/release/11/2026-01/mms/1645664101/other","http://id.who.int/icd/release/11/2026-01/mms/1645664101/unspecified"],"classKind":"category","code":"KA62","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a virus."},"longDefinition":{"@language":"en","@value":"Congential viral diseases are diseases caused by either the bloodborne transmission of a virus from a pregnant mother to the placenta and her fetus (horizontal infection) or less commonly a direct infection of the membranes and placenta transvaginally across the cervix (vertical transmission) during any point during gestation and through the first 28 days of life The clinical manifestations of these diseases vary depending on the viral agent and gestational age at exposure."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1645664101/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1646490591"]}],"source":"http://id.who.int/icd/entity/1645664101","title":{"@language":"en","@value":"Viral infection in the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1683090852": {"method":"GET","path":"icd/release/11/2026-01/mms/1683090852","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1683090852","classKind":"category","code":"1G41","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"definition":{"@language":"en","@value":"Septic shock is a subset of sepsis in which circulatory, cellular and metabolic abnormalities are profound enough to substantially increase mortality."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},{"foundationReference":"http://id.who.int/icd/entity/2093238381","label":{"@language":"en","@value":"Septicaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/770483821"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis with septic shock"}},{"label":{"@language":"en","@value":"endotoxic shock"}},{"label":{"@language":"en","@value":"infectious shock"}},{"label":{"@language":"en","@value":"septic shock NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/293771399"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683090852/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/74527684","http://id.who.int/icd/release/11/2026-01/mms/260431605","http://id.who.int/icd/release/11/2026-01/mms/2098808565","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/40398753","http://id.who.int/icd/release/11/2026-01/mms/2071113448","http://id.who.int/icd/release/11/2026-01/mms/775356003","http://id.who.int/icd/release/11/2026-01/mms/1351188281","http://id.who.int/icd/release/11/2026-01/mms/1824134974","http://id.who.int/icd/release/11/2026-01/mms/763951483","http://id.who.int/icd/release/11/2026-01/mms/410058129","http://id.who.int/icd/release/11/2026-01/mms/455330172","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/441183088","http://id.who.int/icd/release/11/2026-01/mms/1848472780","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/325070079","http://id.who.int/icd/entity/759302477"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/381388700"],"source":"http://id.who.int/icd/entity/1683090852","title":{"@language":"en","@value":"Sepsis with septic shock"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1754821737": {"method":"GET","path":"icd/release/11/2026-01/mms/1754821737","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1754821737","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1754821737","classKind":"category","code":"BD12","definition":{"@language":"en","@value":"Increased cardiac output above normal associated with anaemia, arteriovenous fistulas, thyrotoxicosis and other syndromes. May result in heart failure."},"indexTerm":[{"label":{"@language":"en","@value":"High output syndromes"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1754821737/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/224336967","http://id.who.int/icd/release/11/2026-01/mms/1470387017"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1754821737/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1754821737","title":{"@language":"en","@value":"High output syndromes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/180747195": {"method":"GET","path":"icd/release/11/2026-01/mms/180747195","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/180747195","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#180747195","child":["http://id.who.int/icd/release/11/2026-01/mms/606208893","http://id.who.int/icd/release/11/2026-01/mms/1874454144","http://id.who.int/icd/release/11/2026-01/mms/1522409994","http://id.who.int/icd/release/11/2026-01/mms/509021347","http://id.who.int/icd/release/11/2026-01/mms/1785213202","http://id.who.int/icd/release/11/2026-01/mms/718893335","http://id.who.int/icd/release/11/2026-01/mms/1964711990","http://id.who.int/icd/release/11/2026-01/mms/1065383727","http://id.who.int/icd/release/11/2026-01/mms/1978113063","http://id.who.int/icd/release/11/2026-01/mms/1895892604","http://id.who.int/icd/release/11/2026-01/mms/465867565","http://id.who.int/icd/release/11/2026-01/mms/1619465677","http://id.who.int/icd/release/11/2026-01/mms/809107389","http://id.who.int/icd/release/11/2026-01/mms/1435433976","http://id.who.int/icd/release/11/2026-01/mms/1258154716","http://id.who.int/icd/release/11/2026-01/mms/12651959","http://id.who.int/icd/release/11/2026-01/mms/806821549","http://id.who.int/icd/release/11/2026-01/mms/1068406335","http://id.who.int/icd/release/11/2026-01/mms/1889951404","http://id.who.int/icd/release/11/2026-01/mms/984423506","http://id.who.int/icd/release/11/2026-01/mms/977078705","http://id.who.int/icd/release/11/2026-01/mms/1783025664","http://id.who.int/icd/release/11/2026-01/mms/1634656297","http://id.who.int/icd/release/11/2026-01/mms/1409902713","http://id.who.int/icd/release/11/2026-01/mms/749698918","http://id.who.int/icd/release/11/2026-01/mms/2129504458","http://id.who.int/icd/release/11/2026-01/mms/547766313","http://id.who.int/icd/release/11/2026-01/mms/837115999","http://id.who.int/icd/release/11/2026-01/mms/1248056702","http://id.who.int/icd/release/11/2026-01/mms/2140128219","http://id.who.int/icd/release/11/2026-01/mms/1537645708","http://id.who.int/icd/release/11/2026-01/mms/814156624","http://id.who.int/icd/release/11/2026-01/mms/1055740190","http://id.who.int/icd/release/11/2026-01/mms/507535969","http://id.who.int/icd/release/11/2026-01/mms/1852144030","http://id.who.int/icd/release/11/2026-01/mms/237808899","http://id.who.int/icd/release/11/2026-01/mms/1420836726","http://id.who.int/icd/release/11/2026-01/mms/192048727","http://id.who.int/icd/release/11/2026-01/mms/1798986860","http://id.who.int/icd/release/11/2026-01/mms/988763316","http://id.who.int/icd/release/11/2026-01/mms/1367609484","http://id.who.int/icd/release/11/2026-01/mms/1189225448","http://id.who.int/icd/release/11/2026-01/mms/1414907878","http://id.who.int/icd/release/11/2026-01/mms/1542213496","http://id.who.int/icd/release/11/2026-01/mms/1879790283","http://id.who.int/icd/release/11/2026-01/mms/950578131","http://id.who.int/icd/release/11/2026-01/mms/777929410","http://id.who.int/icd/release/11/2026-01/mms/1503622535","http://id.who.int/icd/release/11/2026-01/mms/311270238","http://id.who.int/icd/release/11/2026-01/mms/925617298","http://id.who.int/icd/release/11/2026-01/mms/1225222637","http://id.who.int/icd/release/11/2026-01/mms/103211928","http://id.who.int/icd/release/11/2026-01/mms/322809168"],"classKind":"category","code":"XN5PZ","indexTerm":[{"label":{"@language":"en","@value":"Gram Negative Bacteria"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/83217129"],"source":"http://id.who.int/icd/entity/180747195","title":{"@language":"en","@value":"Gram Negative Bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1882742628": {"method":"GET","path":"icd/release/11/2026-01/mms/1882742628","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1882742628","blockId":"BlockL2-MG5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1882742628","child":["http://id.who.int/icd/release/11/2026-01/mms/1215034670","http://id.who.int/icd/release/11/2026-01/mms/1839638766","http://id.who.int/icd/release/11/2026-01/mms/501791005","http://id.who.int/icd/release/11/2026-01/mms/1975056531","http://id.who.int/icd/release/11/2026-01/mms/828922344","http://id.who.int/icd/release/11/2026-01/mms/174465822","http://id.who.int/icd/release/11/2026-01/mms/612672352","http://id.who.int/icd/release/11/2026-01/mms/1882742628/other","http://id.who.int/icd/release/11/2026-01/mms/1882742628/unspecified"],"classKind":"block","code":"","codeRange":"MG50-MG5Z","codingNote":{"@language":"en","@value":"These categories should never be used in primary coding. The codes are provided for use as supplementary or additional codes when it is desired to identify the resistance, non-responsiveness and refractive properties of a condition to antimicrobials."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/509543139"],"source":"http://id.who.int/icd/entity/1882742628","title":{"@language":"en","@value":"Finding of microorganism resistant to antimicrobial drugs"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/188684108": {"method":"GET","path":"icd/release/11/2026-01/mms/188684108","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#188684108","child":["http://id.who.int/icd/release/11/2026-01/mms/358047372","http://id.who.int/icd/release/11/2026-01/mms/244932428","http://id.who.int/icd/release/11/2026-01/mms/78758887","http://id.who.int/icd/release/11/2026-01/mms/1880920858","http://id.who.int/icd/release/11/2026-01/mms/1366690608","http://id.who.int/icd/release/11/2026-01/mms/188684108/other"],"classKind":"category","code":"KA65","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/2040953952","label":{"@language":"en","@value":"Neonatal tracheitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2040953952"},{"foundationReference":"http://id.who.int/icd/entity/2002735219","label":{"@language":"en","@value":"Neonatal skin infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2002735219"}],"indexTerm":[{"label":{"@language":"en","@value":"Neonatal infections of certain specified sites"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1644747126","http://id.who.int/icd/release/11/2026-01/mms/687250607","http://id.who.int/icd/release/11/2026-01/mms/1509166126"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/188684108/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]}],"source":"http://id.who.int/icd/entity/188684108","title":{"@language":"en","@value":"Neonatal infections of certain specified sites"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1935107489": {"method":"GET","path":"icd/release/11/2026-01/mms/1935107489","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1935107489","child":["http://id.who.int/icd/release/11/2026-01/mms/576751653","http://id.who.int/icd/release/11/2026-01/mms/864425294","http://id.who.int/icd/release/11/2026-01/mms/1935107489/other","http://id.who.int/icd/release/11/2026-01/mms/1935107489/unspecified"],"classKind":"category","code":"KA61","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/358047372","label":{"@language":"en","@value":"Neonatal conjunctivitis or dacryocystitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/358047372"},{"foundationReference":"http://id.who.int/icd/entity/1880920858","label":{"@language":"en","@value":"Neonatal infectious mastitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1880920858"},{"foundationReference":"http://id.who.int/icd/entity/78758887","label":{"@language":"en","@value":"Neonatal urinary tract infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/78758887"},{"foundationReference":"http://id.who.int/icd/entity/244932428","label":{"@language":"en","@value":"Omphalitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/244932428"},{"foundationReference":"http://id.who.int/icd/entity/1366690608","label":{"@language":"en","@value":"Neonatal meningitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1366690608"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1926763926","label":{"@language":"en","@value":"Early congenital syphilis, latent"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1926763926"},{"foundationReference":"http://id.who.int/icd/entity/395565060","label":{"@language":"en","@value":"Early congenital syphilis, symptomatic"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/395565060"},{"foundationReference":"http://id.who.int/icd/entity/1681155693","label":{"@language":"en","@value":"Neonatal necrotising fasciitis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1681155693"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/756297560","label":{"@language":"en","@value":"Neonatal pyogenic skin infections"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/756297560"},{"foundationReference":"http://id.who.int/icd/entity/594985340","label":{"@language":"en","@value":"Congenital pneumonia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/594985340"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/487269828"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1600014919"]}],"source":"http://id.who.int/icd/entity/1935107489","title":{"@language":"en","@value":"Other bacterial infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1945127438": {"method":"GET","path":"icd/release/11/2026-01/mms/1945127438","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1945127438","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1945127438","child":["http://id.who.int/icd/release/11/2026-01/mms/1194018225","http://id.who.int/icd/release/11/2026-01/mms/738335517","http://id.who.int/icd/release/11/2026-01/mms/1945127438/other","http://id.who.int/icd/release/11/2026-01/mms/1945127438/unspecified"],"classKind":"category","code":"KA64","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a parasite."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/587996426","label":{"@language":"en","@value":"Congenital syphilis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/587996426"},{"foundationReference":"http://id.who.int/icd/entity/141267925","label":{"@language":"en","@value":"Necrotising enterocolitis of newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/141267925"},{"foundationReference":"http://id.who.int/icd/entity/2085616610","label":{"@language":"en","@value":"Tetanus neonatorum"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2085616610"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1945127438/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1439886552","http://id.who.int/icd/release/11/2026-01/mms/817691561","http://id.who.int/icd/release/11/2026-01/mms/1786908147","http://id.who.int/icd/release/11/2026-01/mms/793136270","http://id.who.int/icd/release/11/2026-01/mms/255141529/other","http://id.who.int/icd/release/11/2026-01/mms/255141529/unspecified"]}],"source":"http://id.who.int/icd/entity/1945127438","title":{"@language":"en","@value":"Parasitic diseases in the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1992125824": {"method":"GET","path":"icd/release/11/2026-01/mms/1992125824","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1992125824","classKind":"category","code":"BD14","indexTerm":[{"label":{"@language":"en","@value":"Biventricular failure"}},{"label":{"@language":"en","@value":"biventricular cardiac failure, NOS"}},{"label":{"@language":"en","@value":"biventricular congestive heart failure"}},{"label":{"@language":"en","@value":"biventricular heart failure, NOS"}},{"foundationReference":"http://id.who.int/icd/entity/894744637","label":{"@language":"en","@value":"Biventricular failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/1273373410","label":{"@language":"en","@value":"Biventricular failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1869511838","label":{"@language":"en","@value":"Biventricular failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/89002329","label":{"@language":"en","@value":"Biventricular failure NYHA Class IV"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1992125824/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/291726710","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/1992125824","title":{"@language":"en","@value":"Biventricular failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2136808878": {"method":"GET","path":"icd/release/11/2026-01/mms/2136808878","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2136808878","classKind":"category","code":"BD10","definition":{"@language":"en","@value":"A clinical syndrome characterised by abnormalities of ventricular function and neurohormonal regulation which are accompanied by effort intolerance and fluid retention."},"inclusion":[{"label":{"@language":"en","@value":"Congestive heart disease"}}],"indexTerm":[{"label":{"@language":"en","@value":"Congestive heart failure"}},{"label":{"@language":"en","@value":"CCF - [congestive cardiac failure]"}},{"label":{"@language":"en","@value":"CHF - [congestive heart failure]"}},{"label":{"@language":"en","@value":"Congestive heart disease"}},{"label":{"@language":"en","@value":"cardiac anasarca"}},{"label":{"@language":"en","@value":"cardiac hydrops"}},{"label":{"@language":"en","@value":"cardiac oedema"}},{"label":{"@language":"en","@value":"cardiac stasis"}},{"label":{"@language":"en","@value":"cardiovascular oedema"}},{"label":{"@language":"en","@value":"congested heart failure"}},{"label":{"@language":"en","@value":"congestive cardiac diseases"}},{"label":{"@language":"en","@value":"congestive cardiac failure"}},{"label":{"@language":"en","@value":"congestive failure"}},{"label":{"@language":"en","@value":"heart congestion"}},{"label":{"@language":"en","@value":"heart fluid"}},{"label":{"@language":"en","@value":"oedematous heart"}},{"foundationReference":"http://id.who.int/icd/entity/2011334376","label":{"@language":"en","@value":"Decompensated congestive cardiac failure"}},{"foundationReference":"http://id.who.int/icd/entity/2011334376","label":{"@language":"en","@value":"Decompensated congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/1703792511","label":{"@language":"en","@value":"Congestive heart failure NYHA Class I"}},{"foundationReference":"http://id.who.int/icd/entity/457135520","label":{"@language":"en","@value":"Congestive heart failure NYHA Class II"}},{"foundationReference":"http://id.who.int/icd/entity/1068960732","label":{"@language":"en","@value":"Congestive heart failure NYHA Class III"}},{"foundationReference":"http://id.who.int/icd/entity/1068960732","label":{"@language":"en","@value":"congestive heart failure NYHA Class III - Marked limitation of physical activity. Comfortable at rest. Less than ordinary activity causes fatigue, palpitation or dyspnoea."}},{"foundationReference":"http://id.who.int/icd/entity/1435985435","label":{"@language":"en","@value":"Congestive heart failure NYHA Class IV"}},{"foundationReference":"http://id.who.int/icd/entity/1981559937","label":{"@language":"en","@value":"Acute congestive heart failure"}},{"foundationReference":"http://id.who.int/icd/entity/58978844","label":{"@language":"en","@value":"Chronic congestive heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2136808878/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1380872553"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/1611051049"],"source":"http://id.who.int/icd/entity/2136808878","title":{"@language":"en","@value":"Congestive heart failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/243925837": {"method":"GET","path":"icd/release/11/2026-01/mms/243925837","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/243925837","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#243925837","classKind":"category","code":"MG4A","definition":{"@language":"en","@value":"Failure of function of more than one organ or organ system, not otherwise specified"},"indexTerm":[{"label":{"@language":"en","@value":"Multi organ failure"}},{"label":{"@language":"en","@value":"MODS - [multi organ dysfunction syndrome]"}},{"label":{"@language":"en","@value":"MSOF - [multi system organ failure]"}},{"label":{"@language":"en","@value":"multi system failure"}},{"label":{"@language":"en","@value":"multiorgan failure syndrome"}},{"label":{"@language":"en","@value":"multiple organ failure"}},{"label":{"@language":"en","@value":"multiple organ system failure"}},{"label":{"@language":"en","@value":"multiple system failure"}},{"label":{"@language":"en","@value":"multiple system organ failure"}},{"label":{"@language":"en","@value":"multisystem organ failure"}},{"label":{"@language":"en","@value":"organ failure NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1390117811"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/243925837/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/622600769","http://id.who.int/icd/release/11/2026-01/mms/1683090852"]}],"source":"http://id.who.int/icd/entity/243925837","title":{"@language":"en","@value":"Multi organ failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/381388700": {"method":"GET","path":"icd/release/11/2026-01/mms/381388700","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#381388700","classKind":"category","code":"KA60","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/622600769","label":{"@language":"en","@value":"Sepsis without septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/622600769"},{"foundationReference":"http://id.who.int/icd/entity/1683090852","label":{"@language":"en","@value":"Sepsis with septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1683090852"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1244991579","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified staphylococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"},{"foundationReference":"http://id.who.int/icd/entity/1540590898","label":{"@language":"en","@value":"Bacterial infection of fetus or newborn due to other and unspecified streptococci"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1935107489/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis of fetus or newborn"}},{"label":{"@language":"en","@value":"congenital sepsis"}},{"label":{"@language":"en","@value":"neonatal sepsis"}},{"label":{"@language":"en","@value":"perinatal sepsis"}},{"label":{"@language":"en","@value":"sepsis neonatorum"}},{"foundationReference":"http://id.who.int/icd/entity/1559390111","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to streptococcus, group A"}},{"foundationReference":"http://id.who.int/icd/entity/1559390111","label":{"@language":"en","@value":"neonatal sepsis due to streptococcus, group A"}},{"foundationReference":"http://id.who.int/icd/entity/1050165412","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/1050165412","label":{"@language":"en","@value":"neonatal sepsis due to streptococcus, group B"}},{"foundationReference":"http://id.who.int/icd/entity/796843471","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to Staphylococcus aureus infection"}},{"foundationReference":"http://id.who.int/icd/entity/796843471","label":{"@language":"en","@value":"neonatal sepsis due to Staphylococcus aureus infection"}},{"foundationReference":"http://id.who.int/icd/entity/970687439","label":{"@language":"en","@value":"Sepsis of fetus or newborn due to Escherichia coli infection"}},{"foundationReference":"http://id.who.int/icd/entity/970687439","label":{"@language":"en","@value":"neonatal sepsis due to Escherichia coli"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700/postcoordinationScale/infectiousAgent","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/infectiousAgent","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/83217129","http://id.who.int/icd/release/11/2026-01/mms/1208497819","http://id.who.int/icd/release/11/2026-01/mms/1184377859","http://id.who.int/icd/release/11/2026-01/mms/674202049","http://id.who.int/icd/release/11/2026-01/mms/1063008297"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/381388700/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/519468631","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628"]}],"source":"http://id.who.int/icd/entity/381388700","title":{"@language":"en","@value":"Sepsis of fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/437702716": {"method":"GET","path":"icd/release/11/2026-01/mms/437702716","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#437702716","child":["http://id.who.int/icd/release/11/2026-01/mms/1428007510","http://id.who.int/icd/release/11/2026-01/mms/572130061","http://id.who.int/icd/release/11/2026-01/mms/1653508908","http://id.who.int/icd/release/11/2026-01/mms/437702716/unspecified"],"classKind":"category","code":"BD11","definition":{"@language":"en","@value":"A clinical syndrome characterised by abnormalities of left ventricular function resulting in pulmonary congestion and fluid retention."},"inclusion":[{"label":{"@language":"en","@value":"Left heart failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1458683894"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/206731332","http://id.who.int/icd/release/11/2026-01/mms/1232119755","http://id.who.int/icd/release/11/2026-01/mms/537685513","http://id.who.int/icd/release/11/2026-01/mms/175684441"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/postcoordinationScale/course","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/course","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/786106375","http://id.who.int/icd/release/11/2026-01/mms/490003542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/437702716/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/465177735","http://id.who.int/icd/release/11/2026-01/mms/1492142148","http://id.who.int/icd/release/11/2026-01/mms/1210166201","http://id.who.int/icd/release/11/2026-01/mms/1015872326","http://id.who.int/icd/release/11/2026-01/mms/1280712786","http://id.who.int/icd/release/11/2026-01/mms/1121431779","http://id.who.int/icd/release/11/2026-01/mms/2135151223","http://id.who.int/icd/release/11/2026-01/mms/197934298"]}],"source":"http://id.who.int/icd/entity/437702716","title":{"@language":"en","@value":"Left ventricular failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/508643963": {"method":"GET","path":"icd/release/11/2026-01/mms/508643963","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/508643963","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#508643963","classKind":"category","code":"DB99.7","indexTerm":[{"label":{"@language":"en","@value":"Hepatic failure without mention whether acute or chronic"}},{"label":{"@language":"en","@value":"decompensated liver disease"}},{"label":{"@language":"en","@value":"decompensated liver failure"}},{"label":{"@language":"en","@value":"decompensation of liver function"}},{"label":{"@language":"en","@value":"end stage liver disease"}},{"label":{"@language":"en","@value":"end stage liver failure"}},{"label":{"@language":"en","@value":"hepatic decompensation"}},{"label":{"@language":"en","@value":"hepatic failure NOS"}},{"label":{"@language":"en","@value":"hepatic insufficiency"}},{"label":{"@language":"en","@value":"liver cell necrosis with hepatic failure"}},{"label":{"@language":"en","@value":"liver decompensation"}},{"label":{"@language":"en","@value":"liver failure NOS"}},{"label":{"@language":"en","@value":"liver function failure"}},{"label":{"@language":"en","@value":"liver insufficiency"}},{"label":{"@language":"en","@value":"liver necrosis with hepatic failure"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/224323205"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/508643963/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1020615731"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/1110228123"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/494951911"],"source":"http://id.who.int/icd/entity/508643963","title":{"@language":"en","@value":"Hepatic failure without mention whether acute or chronic"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/519468631": {"method":"GET","path":"icd/release/11/2026-01/mms/519468631","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/519468631","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#519468631","classKind":"category","code":"KB2D","definition":{"@language":"en","@value":"Acute or chronic respiratory failure in a newborn. Neonates in acute respiratory failure require respiratory support."},"indexTerm":[{"label":{"@language":"en","@value":"Respiratory failure of newborn"}},{"label":{"@language":"en","@value":"inadequate pulmonary ventilation of newborn"}},{"label":{"@language":"en","@value":"neonatal respiratory failure"}},{"label":{"@language":"en","@value":"newborn lung insufficiency"}},{"label":{"@language":"en","@value":"newborn pulmonary function inadequate"}},{"label":{"@language":"en","@value":"newborn pulmonary insufficiency"}},{"label":{"@language":"en","@value":"newborn respiration failure"}},{"label":{"@language":"en","@value":"newborn respiratory insufficiency"}},{"label":{"@language":"en","@value":"respiratory insufficiency syndrome of newborn"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1858685964"],"source":"http://id.who.int/icd/entity/519468631","title":{"@language":"en","@value":"Respiratory failure of newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/528118622": {"method":"GET","path":"icd/release/11/2026-01/mms/528118622","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/528118622","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#528118622","child":["http://id.who.int/icd/release/11/2026-01/mms/1888209399","http://id.who.int/icd/release/11/2026-01/mms/1791817517","http://id.who.int/icd/release/11/2026-01/mms/1080592090","http://id.who.int/icd/release/11/2026-01/mms/528118622/other","http://id.who.int/icd/release/11/2026-01/mms/528118622/unspecified"],"classKind":"category","code":"KA63","definition":{"@language":"en","@value":"Any condition affecting fetuses or newborns, caused by an infection with a fungal agent."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/528118622/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1913468488","http://id.who.int/icd/release/11/2026-01/mms/2087283296","http://id.who.int/icd/release/11/2026-01/mms/1968108845","http://id.who.int/icd/release/11/2026-01/mms/2055968951","http://id.who.int/icd/release/11/2026-01/mms/1438584733","http://id.who.int/icd/release/11/2026-01/mms/132287989","http://id.who.int/icd/release/11/2026-01/mms/1326582778","http://id.who.int/icd/release/11/2026-01/mms/390527954","http://id.who.int/icd/release/11/2026-01/mms/1802307036","http://id.who.int/icd/release/11/2026-01/mms/1866587875","http://id.who.int/icd/release/11/2026-01/mms/1303003466","http://id.who.int/icd/release/11/2026-01/mms/566562143","http://id.who.int/icd/release/11/2026-01/mms/1676389165","http://id.who.int/icd/release/11/2026-01/mms/532698403","http://id.who.int/icd/release/11/2026-01/mms/268777657","http://id.who.int/icd/release/11/2026-01/mms/547567937","http://id.who.int/icd/release/11/2026-01/mms/404370038","http://id.who.int/icd/release/11/2026-01/mms/807637046","http://id.who.int/icd/release/11/2026-01/mms/579570784","http://id.who.int/icd/release/11/2026-01/mms/646368820","http://id.who.int/icd/release/11/2026-01/mms/1357848258","http://id.who.int/icd/release/11/2026-01/mms/730271848","http://id.who.int/icd/release/11/2026-01/mms/1939815950/other","http://id.who.int/icd/release/11/2026-01/mms/1939815950/unspecified"]}],"source":"http://id.who.int/icd/entity/528118622","title":{"@language":"en","@value":"Fungal infection of fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/622600769": {"method":"GET","path":"icd/release/11/2026-01/mms/622600769","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#622600769","classKind":"category","code":"1G40","codingNote":{"@language":"en","@value":"Any type of infection - bacterial, viral, fungal or protozoal, can cause sepsis and must be coded as well. When the site of infection is unknown, select a code for Infection of unspecified site by organism followed by the appropriate code for sepsis."},"definition":{"@language":"en","@value":"Sepsis is defined as a life-threatening organ dysfunction caused by a dysregulated host response to infection."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/2093238381","label":{"@language":"en","@value":"Septicaemia"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/770483821"},{"foundationReference":"http://id.who.int/icd/entity/381388700","label":{"@language":"en","@value":"Sepsis of fetus or newborn"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/381388700"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1375378681","label":{"@language":"en","@value":"Viral sepsis without mention of septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1136802325/other"},{"foundationReference":"http://id.who.int/icd/entity/513367650","label":{"@language":"en","@value":"Fungal sepsis without mention of septic shock"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1939815950/other"}],"indexTerm":[{"label":{"@language":"en","@value":"Sepsis without septic shock"}},{"label":{"@language":"en","@value":"sepsis without septic shock with known organism"}},{"foundationReference":"http://id.who.int/icd/entity/455265504","label":{"@language":"en","@value":"Sepsis-associated hypotension"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"Unspecified sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"general septic intoxication"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"generalised sepsis"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"multiple pyemic embolism"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"pyemic embolism"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"sepsis NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"septic intoxication"}},{"foundationReference":"http://id.who.int/icd/entity/1891465458","label":{"@language":"en","@value":"systemic infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/293771399"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1458683894","http://id.who.int/icd/release/11/2026-01/mms/74527684","http://id.who.int/icd/release/11/2026-01/mms/370028006","http://id.who.int/icd/release/11/2026-01/mms/508643963","http://id.who.int/icd/release/11/2026-01/mms/761526554","http://id.who.int/icd/release/11/2026-01/mms/243925837","http://id.who.int/icd/release/11/2026-01/mms/1882742628","http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/622600769/postcoordinationScale/hasCausingCondition","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasCausingCondition","requiredPostcoordination":"true","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1596449540","http://id.who.int/icd/release/11/2026-01/mms/1321303663","http://id.who.int/icd/release/11/2026-01/mms/516585689","http://id.who.int/icd/release/11/2026-01/mms/520429137","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/684930313","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/237422666","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1913468488","http://id.who.int/icd/release/11/2026-01/mms/2055968951","http://id.who.int/icd/release/11/2026-01/mms/1438584733","http://id.who.int/icd/release/11/2026-01/mms/132287989","http://id.who.int/icd/release/11/2026-01/mms/1326582778","http://id.who.int/icd/release/11/2026-01/mms/390527954","http://id.who.int/icd/release/11/2026-01/mms/1802307036","http://id.who.int/icd/release/11/2026-01/mms/1866587875","http://id.who.int/icd/release/11/2026-01/mms/1676389165","http://id.who.int/icd/release/11/2026-01/mms/547567937","http://id.who.int/icd/release/11/2026-01/mms/1357848258","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1965146397","http://id.who.int/icd/release/11/2026-01/mms/2098808565","http://id.who.int/icd/release/11/2026-01/mms/1323682030","http://id.who.int/icd/release/11/2026-01/mms/40398753","http://id.who.int/icd/release/11/2026-01/mms/2071113448","http://id.who.int/icd/release/11/2026-01/mms/775356003","http://id.who.int/icd/release/11/2026-01/mms/1351188281","http://id.who.int/icd/release/11/2026-01/mms/1824134974","http://id.who.int/icd/release/11/2026-01/mms/763951483","http://id.who.int/icd/release/11/2026-01/mms/410058129","http://id.who.int/icd/release/11/2026-01/mms/455330172","http://id.who.int/icd/release/11/2026-01/mms/216184590","http://id.who.int/icd/release/11/2026-01/mms/2058491071","http://id.who.int/icd/release/11/2026-01/mms/441183088","http://id.who.int/icd/release/11/2026-01/mms/1848472780","http://id.who.int/icd/release/11/2026-01/mms/911707612"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/325070079","http://id.who.int/icd/entity/759302477"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/381388700"],"source":"http://id.who.int/icd/entity/622600769","title":{"@language":"en","@value":"Sepsis without septic shock"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/674202049": {"method":"GET","path":"icd/release/11/2026-01/mms/674202049","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/674202049","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#674202049","child":["http://id.who.int/icd/release/11/2026-01/mms/1191270655","http://id.who.int/icd/release/11/2026-01/mms/1639872620","http://id.who.int/icd/release/11/2026-01/mms/36915786","http://id.who.int/icd/release/11/2026-01/mms/1886856003","http://id.who.int/icd/release/11/2026-01/mms/201554714","http://id.who.int/icd/release/11/2026-01/mms/1226941585","http://id.who.int/icd/release/11/2026-01/mms/1551409833","http://id.who.int/icd/release/11/2026-01/mms/744339798","http://id.who.int/icd/release/11/2026-01/mms/1769719968","http://id.who.int/icd/release/11/2026-01/mms/675782428","http://id.who.int/icd/release/11/2026-01/mms/1571238088"],"classKind":"category","code":"XN9S1","indexTerm":[{"label":{"@language":"en","@value":"Parasites"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/674202049","title":{"@language":"en","@value":"Parasites"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/761526554": {"method":"GET","path":"icd/release/11/2026-01/mms/761526554","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/761526554","blockId":"BlockL2-GB6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#761526554","child":["http://id.who.int/icd/release/11/2026-01/mms/476391827","http://id.who.int/icd/release/11/2026-01/mms/412389819","http://id.who.int/icd/release/11/2026-01/mms/761526554/unspecified"],"classKind":"block","code":"","codeRange":"GB60-GB6Z","definition":{"@language":"en","@value":"Inability of the kidneys to adequately filter the blood of waste products, with a lower than normal glomerular filtration rate (GFR). Can be abrupt and potentially reversible (acute kidney injury) or persistent due to irreversible kidney damage (chronic kidney disease)."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1015872326","label":{"@language":"en","@value":"Hypertensive renal disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1015872326"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/562199727","label":{"@language":"en","@value":"Renal failure following abortion, ectopic or molar pregnancy"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/562199727"},{"foundationReference":"http://id.who.int/icd/entity/1635967154","label":{"@language":"en","@value":"Congenital renal failure"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1635967154"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1932345217"],"source":"http://id.who.int/icd/entity/761526554","title":{"@language":"en","@value":"Kidney failure"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/777702149": {"method":"GET","path":"icd/release/11/2026-01/mms/777702149","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/777702149","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#777702149","child":["http://id.who.int/icd/release/11/2026-01/mms/2116096692","http://id.who.int/icd/release/11/2026-01/mms/568542103","http://id.who.int/icd/release/11/2026-01/mms/1151295060","http://id.who.int/icd/release/11/2026-01/mms/235145545","http://id.who.int/icd/release/11/2026-01/mms/2122752710","http://id.who.int/icd/release/11/2026-01/mms/708898123","http://id.who.int/icd/release/11/2026-01/mms/80817633","http://id.who.int/icd/release/11/2026-01/mms/870681014","http://id.who.int/icd/release/11/2026-01/mms/1927114867","http://id.who.int/icd/release/11/2026-01/mms/1495276771","http://id.who.int/icd/release/11/2026-01/mms/1645734341","http://id.who.int/icd/release/11/2026-01/mms/428956900","http://id.who.int/icd/release/11/2026-01/mms/1997317917","http://id.who.int/icd/release/11/2026-01/mms/2023517537","http://id.who.int/icd/release/11/2026-01/mms/1371953258"],"classKind":"category","code":"XN2QM","indexTerm":[{"label":{"@language":"en","@value":"Gram Positive Bacteria"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/83217129"],"source":"http://id.who.int/icd/entity/777702149","title":{"@language":"en","@value":"Gram Positive Bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/83217129": {"method":"GET","path":"icd/release/11/2026-01/mms/83217129","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/83217129","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#83217129","child":["http://id.who.int/icd/release/11/2026-01/mms/180747195","http://id.who.int/icd/release/11/2026-01/mms/777702149","http://id.who.int/icd/release/11/2026-01/mms/1302046997"],"classKind":"category","code":"XN74M","indexTerm":[{"label":{"@language":"en","@value":"Bacteria"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/437215757"],"source":"http://id.who.int/icd/entity/83217129","title":{"@language":"en","@value":"Bacteria"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612","blockId":"BlockL1-KA6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612","child":["http://id.who.int/icd/release/11/2026-01/mms/381388700","http://id.who.int/icd/release/11/2026-01/mms/1935107489","http://id.who.int/icd/release/11/2026-01/mms/1645664101","http://id.who.int/icd/release/11/2026-01/mms/528118622","http://id.who.int/icd/release/11/2026-01/mms/1945127438","http://id.who.int/icd/release/11/2026-01/mms/188684108","http://id.who.int/icd/release/11/2026-01/mms/911707612/other","http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified"],"classKind":"block","code":"","codeRange":"KA60-KA6Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1511167574","label":{"@language":"en","@value":"Asymptomatic human immunodeficiency virus infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/574153866"},{"foundationReference":"http://id.who.int/icd/entity/609214049","label":{"@language":"en","@value":"congenital gonococcal infection"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/609214049"},{"foundationReference":"http://id.who.int/icd/entity/1000704511","label":{"@language":"en","@value":"human immunodeficiency virus [HIV] disease"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1000704511"},{"foundationReference":"http://id.who.int/icd/entity/588616678","label":{"@language":"en","@value":"Gastroenteritis or colitis of infectious origin"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/588616678"},{"foundationReference":"http://id.who.int/icd/entity/82994689","label":{"@language":"en","@value":"Laboratory evidence of human immunodeficiency virus"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/82994689"}],"foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/953221469","label":{"@language":"en","@value":"Fetus or newborn affected by maternal infectious diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/953221469"},{"foundationReference":"http://id.who.int/icd/entity/587996426","label":{"@language":"en","@value":"Congenital syphilis"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/587996426"}],"inclusion":[{"label":{"@language":"en","@value":"infections acquired in utero or during birth"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1306203631"],"source":"http://id.who.int/icd/entity/911707612","title":{"@language":"en","@value":"Infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612/other": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612/other","classKind":"category","code":"KA6Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified infections of the fetus or newborn"}},{"foundationReference":"http://id.who.int/icd/entity/492702806","label":{"@language":"en","@value":"Neonatal hyperbilirubinaemia due to red cell haemolysis with infection"}},{"foundationReference":"http://id.who.int/icd/entity/492702806","label":{"@language":"en","@value":"Neonatal hyperbilirubinemia secondary to red cell haemolysis with infection"}},{"foundationReference":"http://id.who.int/icd/entity/1643777651","label":{"@language":"en","@value":"Intra-amniotic infection of fetus"}},{"foundationReference":"http://id.who.int/icd/entity/1643777651","label":{"@language":"en","@value":"intra-amniotic infection of fetus nos"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/other/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"title":{"@language":"en","@value":"Other specified infections of the fetus or newborn"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911707612/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/911707612/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911707612/unspecified","classKind":"category","code":"KA6Z","indexTerm":[{"label":{"@language":"en","@value":"Infections of the fetus or newborn, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"fetal infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infection in perinatal period"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infection of newborn NOS"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"infections acquired in utero or during birth"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"newborn infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"newborn opportunistic infection"}},{"foundationReference":"http://id.who.int/icd/entity/911707612","label":{"@language":"en","@value":"perinatal infection"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/911707612"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/911707612/unspecified/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/588616678","http://id.who.int/icd/release/11/2026-01/mms/1904876434","http://id.who.int/icd/release/11/2026-01/mms/979278646","http://id.who.int/icd/release/11/2026-01/mms/1539889147","http://id.who.int/icd/release/11/2026-01/mms/1412960686","http://id.who.int/icd/release/11/2026-01/mms/1935092859","http://id.who.int/icd/release/11/2026-01/mms/487269828","http://id.who.int/icd/release/11/2026-01/mms/1000704511","http://id.who.int/icd/release/11/2026-01/mms/1104303944","http://id.who.int/icd/release/11/2026-01/mms/1585949804","http://id.who.int/icd/release/11/2026-01/mms/1959883044","http://id.who.int/icd/release/11/2026-01/mms/921595235","http://id.who.int/icd/release/11/2026-01/mms/1251496839","http://id.who.int/icd/release/11/2026-01/mms/1136802325","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/985510409","http://id.who.int/icd/release/11/2026-01/mms/1646490591","http://id.who.int/icd/release/11/2026-01/mms/1939815950","http://id.who.int/icd/release/11/2026-01/mms/255141529","http://id.who.int/icd/release/11/2026-01/mms/293771399","http://id.who.int/icd/release/11/2026-01/mms/1760597414","http://id.who.int/icd/release/11/2026-01/mms/458687859","http://id.who.int/icd/release/11/2026-01/mms/1435254666/unspecified"]}],"title":{"@language":"en","@value":"Infections of the fetus or newborn, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KA60": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA60","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA60","code":"KA60","stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M","code":"KA60&XN74M","infectiousAgent":["XN74M"],"stemCode":"KA60","stemId":"http://id.who.int/icd/release/11/2026-01/mms/381388700"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XN74M": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XN74M","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XN74M","code":"XN74M","stemId":"http://id.who.int/icd/release/11/2026-01/mms/83217129"},"request_body":null,"status":200}
+ }
+}

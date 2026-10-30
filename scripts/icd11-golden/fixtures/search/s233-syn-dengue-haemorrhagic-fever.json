@@ -1,0 +1,75 @@
+{
+ "id": "s233-syn-dengue-haemorrhagic-fever",
+ "input": {
+  "concept": "dengue",
+  "id": "s233-syn-dengue-haemorrhagic-fever",
+  "kind": "synonym",
+  "query": "dengue haemorrhagic fever",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for dengue (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #10b3b09111"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 3,
+     "items": [
+      {
+       "code": "1D22",
+       "has_coding_note": false,
+       "matching_text": "Severe dengue",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Severe dengue",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/56575149"
+      },
+      {
+       "code": "1D21",
+       "has_coding_note": false,
+       "matching_text": "Dengue with warning signs",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Dengue with warning signs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1302232870"
+      },
+      {
+       "code": "1D20",
+       "has_coding_note": false,
+       "matching_text": "Dengue without warning signs",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Dengue without warning signs",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/685093552"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "dengue haemorrhagic fever",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #10b3b09111": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/56575149","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/56575149","important":false,"label":"Severe <em class='found'>dengue</em> <em class='found'>haemorrhagic</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.6019098365689818}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.6019098365689818,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/56575149","theCode":"1D22","title":"Severe <em class='found'>dengue</em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1302232870","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1302232870","important":false,"label":"<em class='found'>dengue</em> <em class='found'>haemorrhagic</em> <em class='found'>fever</em><em class='nonwbe'></em> Grade 2","propertyId":"Synonym","propertyValueType":0,"score":0.5010155919047559},{"foundationUri":"http://id.who.int/icd/entity/1302232870","important":false,"label":"DHF -[<em class='found'>dengue</em> <em class='found'>haemorrhagic</em> <em class='found'>fever</em><em class='nonwbe'></em>]","propertyId":"Synonym","propertyValueType":0,"score":0.4474865560566216},{"foundationUri":"http://id.who.int/icd/entity/1302232870","important":false,"label":"<em class='found'>dengue</em> <em class='found'>haemorrhagic</em> <em class='found'>fever</em><em class='nonwbe'></em> with warning signs","propertyId":"Synonym","propertyValueType":0,"score":0.3762604610579163}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.5010155919047559,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1302232870","theCode":"1D21","title":"<em class='found'>Dengue</em> with warning signs","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/685093552","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/685093552","important":false,"label":"<em class='found'>Dengue</em> <em class='found'>haemorrhagic</em> <em class='found'>fever</em><em class='nonwbe'></em> Grade 1","propertyId":"Synonym","propertyValueType":0,"score":0.4954937034089617},{"foundationUri":"http://id.who.int/icd/entity/685093552","important":false,"label":"<em class='found'>Dengue</em> <em class='found'>haemorrhagic</em> <em class='found'>fever</em><em class='nonwbe'></em> without warning signs","propertyId":"Synonym","propertyValueType":0,"score":0.29496403332816096}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.4954937034089617,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/685093552","theCode":"1D20","title":"<em class='found'>Dengue</em> without warning signs","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=dengue+haemorrhagic+fever%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

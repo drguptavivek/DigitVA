@@ -1,0 +1,99 @@
+{
+ "id": "s195-syn-swelling-of-feet",
+ "input": {
+  "concept": "oedema",
+  "id": "s195-syn-swelling-of-feet",
+  "kind": "synonym",
+  "query": "swelling of feet",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for oedema (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #43a4d73cac"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 5,
+     "items": [
+      {
+       "code": "FB56.6",
+       "has_coding_note": false,
+       "matching_text": "Other specified soft tissue disorders",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified soft tissue disorders",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1936927312"
+      },
+      {
+       "code": "FA36.Z&XA22T0",
+       "has_coding_note": false,
+       "matching_text": "Effusion of joint, unspecified [Joint of the foot]",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Effusion of joint, unspecified [Joint of the foot]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/355147270"
+      },
+      {
+       "code": "FA36.Z&XA04T7",
+       "has_coding_note": false,
+       "matching_text": "Effusion of joint, unspecified [Interphalangeal joint of the foot]",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Effusion of joint, unspecified [Interphalangeal joint of the foot]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1313102037"
+      },
+      {
+       "code": "FA36.Z&XA0RK3",
+       "has_coding_note": false,
+       "matching_text": "Effusion of joint, unspecified [Distal interphalangeal joint of the foot]",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Effusion of joint, unspecified [Distal interphalangeal joint of the foot]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1500265493"
+      },
+      {
+       "code": "FA36.Z&XA5573",
+       "has_coding_note": false,
+       "matching_text": "Effusion of joint, unspecified [Proximal interphalangeal joint of the foot]",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Effusion of joint, unspecified [Proximal interphalangeal joint of the foot]",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1018495573"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "swelling of feet",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #43a4d73cac": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"15","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1936927312","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/278548969","important":true,"label":"<em class='found'>Swelling</em> of foot","propertyId":"Title","propertyValueType":1,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1936927312","theCode":"FB56.6","title":"Other specified soft tissue disorders","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"15","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/355147270","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1707520902 & http://id.who.int/icd/entity/355147270","important":false,"label":"joint <em class='found'>swelling</em> [Joint of the foot]","propertyId":"Synonym","propertyValueType":3,"score":0.4044538435460718}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.4044538435460718,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified","theCode":"FA36.Z&XA22T0","title":"Effusion of joint, unspecified [Joint of the foot]","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"15","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1313102037","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1707520902 & http://id.who.int/icd/entity/1313102037","important":false,"label":"joint <em class='found'>swelling</em> [Interphalangeal joint of the foot]","propertyId":"Synonym","propertyValueType":3,"score":-0.29745495951122075}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.29745495951122075,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified","theCode":"FA36.Z&XA04T7","title":"Effusion of joint, unspecified [Interphalangeal joint of the foot]","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"15","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1500265493","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1707520902 & http://id.who.int/icd/entity/1500265493","important":false,"label":"joint <em class='found'>swelling</em> [Distal interphalangeal joint of the foot]","propertyId":"Synonym","propertyValueType":3,"score":-0.5601277296723004}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5601277296723004,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified","theCode":"FA36.Z&XA0RK3","title":"Effusion of joint, unspecified [Distal interphalangeal joint of the foot]","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"15","descendants":[],"entityType":2,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1018495573","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1707520902 & http://id.who.int/icd/entity/1018495573","important":false,"label":"joint <em class='found'>swelling</em> [Proximal interphalangeal joint of the foot]","propertyId":"Synonym","propertyValueType":3,"score":-0.5793305457529202}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5793305457529202,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1707520902/unspecified","theCode":"FA36.Z&XA5573","title":"Effusion of joint, unspecified [Proximal interphalangeal joint of the foot]","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=swelling+of+feet%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

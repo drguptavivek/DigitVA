@@ -13,6 +13,8 @@ export interface DorisOption {
 export interface DorisAxis {
   id: string;
   label: string;
+  /** WHO wording after the label, e.g. "code also" or "use additional code, if desired". */
+  instruction?: string;
   required: boolean;
   allow_multiple_values: "AllowAlways" | "NotAllowed" | "AllowedExceptFromSameBlock";
   options: DorisOption[];
@@ -40,6 +42,16 @@ export interface DorisHierarchy {
   children: DorisOption[];
   related_maternal: DorisOption[];
   related_perinatal: DorisOption[];
+  truncated: boolean;
+}
+
+/** Bounded WHO details of one code; text the server leaves out is an empty string or list. */
+export interface DorisDetails {
+  coding_note: string;
+  definition: string;
+  fully_specified_name: string;
+  inclusions: string[];
+  exclusions: Array<{ code: string; title: string }>;
   truncated: boolean;
 }
 
@@ -123,6 +135,7 @@ export function parseDorisPostcoordination(value: unknown): DorisPostcoordinatio
       return {
         id: text(axis.id, `axes[${index}].id`),
         label: text(axis.label, `axes[${index}].label`),
+        ...(typeof axis.instruction === "string" && axis.instruction ? { instruction: axis.instruction } : {}),
         required: boolean(axis.required, `axes[${index}].required`),
         allow_multiple_values: multiple as DorisAxis["allow_multiple_values"],
         options: options(axis.options, `axes[${index}].options`),
@@ -168,5 +181,23 @@ export function parseDorisRelated(value: unknown): DorisRelated {
       return { ...option(item, `terms[${index}]`), requires_postcoordination: boolean(item.requires_postcoordination, `terms[${index}].requires_postcoordination`) };
     }),
     truncated: boolean(source.truncated, "truncated"),
+  };
+}
+
+/** Validates the code-details reply; absent text fields are shown as nothing, a wrong schema is refused. */
+export function parseDorisDetails(value: unknown): DorisDetails {
+  const source = record(value, "details");
+  if (source.schema_version !== 1) throw new Error("Invalid DORIS details response.");
+  const optionalText = (field: unknown) => (typeof field === "string" ? field : "");
+  return {
+    coding_note: optionalText(source.coding_note),
+    definition: optionalText(source.definition),
+    fully_specified_name: optionalText(source.fully_specified_name),
+    inclusions: Array.isArray(source.inclusions) ? source.inclusions.filter((item): item is string => typeof item === "string") : [],
+    exclusions: Array.isArray(source.exclusions) ? source.exclusions.map((raw, index) => {
+      const item = record(raw, `exclusions[${index}]`);
+      return { code: optionalText(item.code), title: text(item.title, `exclusions[${index}].title`) };
+    }) : [],
+    truncated: source.truncated === true,
   };
 }

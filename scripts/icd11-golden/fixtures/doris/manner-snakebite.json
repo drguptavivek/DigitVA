@@ -1,0 +1,183 @@
+{
+ "id": "manner-snakebite",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P38Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NE61",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+       "Text": "Envenomation"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA78&XE9H6",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148",
+       "Text": "Venomous snake bite"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "manner-snakebite",
+  "source": "tests/fixtures/doris_warning_cases.json",
+  "why": "Snake bite with extension (PA78&XE9H6)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NE61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA78%26XE9H6",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA78",
+    "GET icd/release/11/2026-01/mms/codeinfo/XE9H6",
+    "POST icd/release/11/2026-01/doris #037e4fbd30",
+    "POST icd/release/11/2026-01/codedit #037e4fbd30",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA78",
+    "GET icd/release/11/2026-01/mms/1472928386",
+    "GET icd/release/11/2026-01/mms/codeinfo/XE9H6",
+    "GET icd/release/11/2026-01/mms/2000596148"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P38Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NE61",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+          "Text": "Envenomation"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA78&XE9H6",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148",
+          "Text": "Venomous snake bite"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA78&XE9H6/NE61",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA78&XE9H6 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA78&XE9H6 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA78&XE9H6.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA78&XE9H6.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n",
+       "stemCode": "PA78",
+       "stemURI": "http://id.who.int/icd/entity/1472928386",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA78&XE9H6;PA78&XE9H6;;;0;SP3: PA78&XE9H6 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA78&XE9H6;;;;;0;SP6: is not applicable with the current TSP PA78&XE9H6.;;;;BER\nSP7;False;PA78&XE9H6;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA78&XE9H6;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA78&XE9H6;;;;;0;M1: There is no special instruction applicable with TUC PA78&XE9H6.;;;;BER\nM2;False;PA78&XE9H6;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA78&XE9H6;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA78&XE9H6/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1472928386 & http://id.who.int/icd/release/11/mms/2000596148 / http://id.who.int/icd/release/11/mms/1119330136",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA78",
+       "role": "stem",
+       "title": "Unintentionally stung or envenomated by animal",
+       "uri": "http://id.who.int/icd/release/11/mms/1472928386"
+      },
+      {
+       "code": "XE9H6",
+       "role": "extension",
+       "title": "Venomous snake",
+       "uri": "http://id.who.int/icd/release/11/mms/2000596148"
+      },
+      {
+       "code": "NE61",
+       "role": "postcoordinated",
+       "title": "Envenomation",
+       "uri": "http://id.who.int/icd/release/11/mms/1119330136"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P38Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NE61",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1119330136",
+         "Text": "Envenomation"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA78&XE9H6",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148",
+         "Text": "Venomous snake bite"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1472928386": {"method":"GET","path":"icd/release/11/2026-01/mms/1472928386","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1472928386","classKind":"category","code":"PA78","indexTerm":[{"label":{"@language":"en","@value":"Unintentionally stung or envenomated by animal"}},{"foundationReference":"http://id.who.int/icd/entity/210251606","label":{"@language":"en","@value":"Unintentionally stung or envenomated by land mammal"}},{"foundationReference":"http://id.who.int/icd/entity/1024404542","label":{"@language":"en","@value":"Unintentionally stung or envenomated by marine animal"}},{"foundationReference":"http://id.who.int/icd/entity/881028479","label":{"@language":"en","@value":"Contact with venomous marine animals and plants"}},{"foundationReference":"http://id.who.int/icd/entity/2089516763","label":{"@language":"en","@value":"Unintentionally stung or envenomated by reptile or amphibian"}},{"foundationReference":"http://id.who.int/icd/entity/572928895","label":{"@language":"en","@value":"Contact with venomous snakes or lizards"}},{"foundationReference":"http://id.who.int/icd/entity/234436746","label":{"@language":"en","@value":"Contact with venomous snake"}},{"foundationReference":"http://id.who.int/icd/entity/234436746","label":{"@language":"en","@value":"bitten by venomous snake"}},{"foundationReference":"http://id.who.int/icd/entity/234436746","label":{"@language":"en","@value":"venomous snake bite"}},{"foundationReference":"http://id.who.int/icd/entity/242503080","label":{"@language":"en","@value":"Unintentionally stung or envenomated by insect or bird"}},{"foundationReference":"http://id.who.int/icd/entity/1198391019","label":{"@language":"en","@value":"Contact with venomous spiders"}},{"foundationReference":"http://id.who.int/icd/entity/195425996","label":{"@language":"en","@value":"Contact with black widow spider"}},{"foundationReference":"http://id.who.int/icd/entity/2134735631","label":{"@language":"en","@value":"Contact with tarantula"}},{"foundationReference":"http://id.who.int/icd/entity/1451975552","label":{"@language":"en","@value":"Contact with hornets, wasps and bees"}},{"foundationReference":"http://id.who.int/icd/entity/36524762","label":{"@language":"en","@value":"Stung by hornet"}},{"foundationReference":"http://id.who.int/icd/entity/1602046045","label":{"@language":"en","@value":"Stung by wasp"}},{"foundationReference":"http://id.who.int/icd/entity/1602046045","label":{"@language":"en","@value":"stung by yellow jacket"}},{"foundationReference":"http://id.who.int/icd/entity/547591122","label":{"@language":"en","@value":"Stung by bee"}},{"foundationReference":"http://id.who.int/icd/entity/627437588","label":{"@language":"en","@value":"Contact with centipedes and venomous millipedes"}},{"foundationReference":"http://id.who.int/icd/entity/627437588","label":{"@language":"en","@value":"Contact with centipedes and venomous millipedes, tropical"}},{"foundationReference":"http://id.who.int/icd/entity/1076772226","label":{"@language":"en","@value":"Contact with other venomous arthropods"}},{"foundationReference":"http://id.who.int/icd/entity/1256953035","label":{"@language":"en","@value":"Unintentionally stung by caterpillar"}},{"foundationReference":"http://id.who.int/icd/entity/1169679561","label":{"@language":"en","@value":"Unintentionally stung by ant"}},{"foundationReference":"http://id.who.int/icd/entity/868265494","label":{"@language":"en","@value":"Contact with scorpions"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1054699166"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386/postcoordinationScale/objectOrSubstanceProducingInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/objectOrSubstanceProducingInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1517361661","http://id.who.int/icd/release/11/2026-01/mms/1297710397","http://id.who.int/icd/release/11/2026-01/mms/679494525","http://id.who.int/icd/release/11/2026-01/mms/1067984829","http://id.who.int/icd/release/11/2026-01/mms/114330365","http://id.who.int/icd/release/11/2026-01/mms/1862208036"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1670965842","http://id.who.int/icd/release/11/2026-01/mms/1524647698","http://id.who.int/icd/release/11/2026-01/mms/1304962002","http://id.who.int/icd/release/11/2026-01/mms/672210322","http://id.who.int/icd/release/11/2026-01/mms/1060731218","http://id.who.int/icd/release/11/2026-01/mms/713258542","http://id.who.int/icd/release/11/2026-01/mms/292139218","http://id.who.int/icd/release/11/2026-01/mms/839669614","http://id.who.int/icd/release/11/2026-01/mms/623129518","http://id.who.int/icd/release/11/2026-01/mms/278563516","http://id.who.int/icd/release/11/2026-01/mms/1231726668","http://id.who.int/icd/release/11/2026-01/mms/1581436044","http://id.who.int/icd/release/11/2026-01/mms/1731879372","http://id.who.int/icd/release/11/2026-01/mms/391771100","http://id.who.int/icd/release/11/2026-01/mms/53410898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1472928386/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]}],"source":"http://id.who.int/icd/entity/1472928386","title":{"@language":"en","@value":"Unintentionally stung or envenomated by animal"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2000596148": {"method":"GET","path":"icd/release/11/2026-01/mms/2000596148","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2000596148","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2000596148","child":["http://id.who.int/icd/release/11/2026-01/mms/953734580","http://id.who.int/icd/release/11/2026-01/mms/1121442131","http://id.who.int/icd/release/11/2026-01/mms/1653152543","http://id.who.int/icd/release/11/2026-01/mms/900533941","http://id.who.int/icd/release/11/2026-01/mms/19100417"],"classKind":"category","code":"XE9H6","indexTerm":[{"label":{"@language":"en","@value":"Venomous snake"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/114330365"],"source":"http://id.who.int/icd/entity/2000596148","title":{"@language":"en","@value":"Venomous snake"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/NE61": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NE61","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NE61","code":"NE61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA78": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA78","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA78","code":"PA78","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA78%26XE9H6": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA78%26XE9H6","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA78%26XE9H6","code":"PA78&XE9H6","objectOrSubstanceProducingInjury":["XE9H6"],"stemCode":"PA78","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472928386"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XE9H6": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XE9H6","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XE9H6","code":"XE9H6","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2000596148"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #037e4fbd30": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P38Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Envenomation\"}]},{\"Conditions\":[{\"Code\":\"PA78&XE9H6\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148\",\"Text\":\"Venomous snake bite\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #037e4fbd30": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA78&XE9H6/NE61","error":null,"reject":false,"report":"SP3: PA78&XE9H6 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA78&XE9H6 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA78&XE9H6.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA78&XE9H6.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NE61 - as postcoordination for the current TUC - PA78.\n","stemCode":"PA78","stemURI":"http://id.who.int/icd/entity/1472928386","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA78&XE9H6;PA78&XE9H6;;;0;SP3: PA78&XE9H6 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA78&XE9H6;;;;;0;SP6: is not applicable with the current TSP PA78&XE9H6.;;;;BER\nSP7;False;PA78&XE9H6;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA78&XE9H6;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA78&XE9H6;;;;;0;M1: There is no special instruction applicable with TUC PA78&XE9H6.;;;;BER\nM2;False;PA78&XE9H6;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA78&XE9H6;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA78&XE9H6/NE61;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1472928386 & http://id.who.int/icd/release/11/mms/2000596148 / http://id.who.int/icd/release/11/mms/1119330136","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P38Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NE61\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1119330136\",\"Text\":\"Envenomation\"}]},{\"Conditions\":[{\"Code\":\"PA78&XE9H6\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1472928386 & http://id.who.int/icd/release/11/2026-01/mms/2000596148\",\"Text\":\"Venomous snake bite\"}]}]}","status":200}
+ }
+}

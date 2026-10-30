@@ -1,0 +1,99 @@
+{
+ "id": "s201-syn-ischemic-heart-disease",
+ "input": {
+  "concept": "ischaemic heart disease",
+  "id": "s201-syn-ischemic-heart-disease",
+  "kind": "synonym",
+  "query": "ischemic heart disease",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for ischaemic heart disease (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #9f71cfe90f"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 7,
+     "items": [
+      {
+       "code": "BA6Z",
+       "has_coding_note": false,
+       "matching_text": "Ischaemic heart diseases, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Ischaemic heart diseases, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1964269418/unspecified"
+      },
+      {
+       "code": "BA4Z",
+       "has_coding_note": false,
+       "matching_text": "Acute ischaemic heart disease, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 2,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Acute ischaemic heart disease, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1829545371/unspecified"
+      },
+      {
+       "code": "BA5Z",
+       "has_coding_note": false,
+       "matching_text": "Chronic ischaemic heart disease, unspecified",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Chronic ischaemic heart disease, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1221742343/unspecified"
+      },
+      {
+       "code": "BA5Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified chronic ischaemic heart disease",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified chronic ischaemic heart disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1221742343/other"
+      },
+      {
+       "code": "QC67",
+       "has_coding_note": false,
+       "matching_text": "Family history of ischaemic heart disease or other diseases of the circulatory system",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Family history of ischaemic heart disease or other diseases of the circulatory system",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/325068404"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "ischemic heart disease",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #9f71cfe90f": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1964269418/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1964269418","important":false,"label":"<em class='found'>Ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1964269418","important":false,"label":"IHD - [<em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>], NOS","propertyId":"Synonym","propertyValueType":0,"score":0.49440921050850245}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1964269418/unspecified","theCode":"BA6Z","title":"<em class='found'>Ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'>s</em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1829545371/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/765035155","important":false,"label":"Certain specified acute <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'>s</em>","propertyId":"Title","propertyValueType":1,"score":0.5679890977973142},{"foundationUri":"http://id.who.int/icd/entity/765035155","important":false,"label":"<em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em> with a stated duration of four weeks or less","propertyId":"Synonym","propertyValueType":1,"score":-0.3328310463073575}],"postcoordinationAvailability":2,"propertiesTruncated":false,"score":0.7692479897863809,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1829545371/unspecified","theCode":"BA4Z","title":"Acute <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1221742343/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1221742343","important":false,"label":"<em class='found'>Ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em> (chronic) NOS","propertyId":"Synonym","propertyValueType":0,"score":0.7668306776363779}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.7668306776363779,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1221742343/unspecified","theCode":"BA5Z","title":"Chronic <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1221742343/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.6650715733255772,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1221742343/other","theCode":"BA5Y","title":"Other specified chronic <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/325068404","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/325068404","important":false,"label":"family history of <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.526481512604998}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.526481512604998,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/325068404","theCode":"QC67","title":"Family history of <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em> or other <em class='found'>disease</em><em class='nonwbe'>s</em> of the circulatory system","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/718946808/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/718946808","important":false,"label":"<em class='found'>Ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em> with angina","propertyId":"Synonym","propertyValueType":0,"score":0.06708475305114435}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.06708475305114435,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/718946808/unspecified","theCode":"BA40.Z","title":"Angina pectoris, unspecified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1259725625/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1259725625","important":false,"label":"dilated cardiomyopathy due to <em class='found'>ischaemic</em> <em class='found'>heart</em> <em class='found'>disease</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.40891308649465885}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.40891308649465885,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1259725625/unspecified","theCode":"BA51.Z","title":"<em class='found'>Ischaemic</em> cardiomyopathy, unspecified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=ischemic+heart+disease%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

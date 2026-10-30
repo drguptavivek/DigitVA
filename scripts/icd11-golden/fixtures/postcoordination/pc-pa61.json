@@ -1,0 +1,1263 @@
+{
+ "built": [
+  {
+   "expression": "PA61&XE545&XE266",
+   "operations": [
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE545",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE266",
+      "GET icd/release/11/2026-01/mms/1729453916"
+     ],
+     "name": "codeinfo",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "PA61&XE545&XE266",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Unintentional fall from a height of 1 metre or more",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/2071638841 & http://id.who.int/icd/release/11/2026-01/mms/1670965842"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "PA61&XE545&XE266"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE545",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE545",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE266",
+      "GET icd/release/11/2026-01/mms/1729453916"
+     ],
+     "name": "selection-check",
+     "reply": {
+      "body": {
+       "item": {
+        "code": "PA61&XE545&XE266",
+        "postcoordination": false,
+        "release": "2026-01",
+        "title": "Unintentional fall from a height of 1 metre or more",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/2071638841 & http://id.who.int/icd/release/11/2026-01/mms/1670965842"
+       },
+       "schema_version": 1
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "PA61&XE545&XE266",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/2071638841 & http://id.who.int/icd/release/11/2026-01/mms/1670965842"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/1729453916",
+      "GET icd/release/11/2026-01/mms/134290789",
+      "GET icd/release/11/2026-01/mms/980862652",
+      "GET icd/release/11/2026-01/mms/850137482",
+      "GET icd/release/11/2026-01/mms/134290789",
+      "GET icd/release/11/2026-01/mms/415990995",
+      "GET icd/release/11/2026-01/mms/134290789/unspecified"
+     ],
+     "name": "hierarchy",
+     "reply": {
+      "body": {
+       "ancestors": [
+        {
+         "code": "23",
+         "title": "External causes of morbidity or mortality",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482"
+        },
+        {
+         "code": "",
+         "title": "Unintentional causes",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/980862652"
+        },
+        {
+         "code": "",
+         "title": "Unintentional fall",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/134290789"
+        }
+       ],
+       "children": [],
+       "matching_terms": [
+        "Unintentional fall from a height of 1 metre or more",
+        "Unintentional fall from cliff",
+        "Fall from cliff",
+        "Unintentional fall on or from scaffolding",
+        "accidental fall from scaffolding",
+        "fall from scaffold",
+        "fall from scaffolding",
+        "fall on and from scaffolding",
+        "fall on and from scaffolding causing accidental injury",
+        "Unintentional fall from tree",
+        "fall from tree",
+        "Unintentional fall from, out of or through building or structure"
+       ],
+       "related_maternal": [],
+       "related_perinatal": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "PA61",
+        "title": "Unintentional fall from a height of 1 metre or more",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+       },
+       "selected_expression": {
+        "code": "PA61&XE545&XE266",
+        "stem_code": "PA61"
+       },
+       "siblings": [
+        {
+         "code": "PA60",
+         "has_children": false,
+         "title": "Unintentional fall on the same level or from less than 1 metre",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/415990995"
+        },
+        {
+         "code": "PA6Z",
+         "has_children": false,
+         "title": "Unintentional fall from unspecified height",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified"
+        }
+       ],
+       "truncated": true
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "PA61&XE545&XE266"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/1729453916"
+     ],
+     "name": "related-maternal",
+     "reply": {
+      "body": {
+       "chapter": "maternal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "PA61",
+        "title": "Unintentional fall from a height of 1 metre or more",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "maternal",
+      "code": "PA61&XE545&XE266"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/1729453916"
+     ],
+     "name": "related-perinatal",
+     "reply": {
+      "body": {
+       "chapter": "perinatal",
+       "composite": null,
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "PA61",
+        "title": "Unintentional fall from a height of 1 metre or more",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+       },
+       "terms": [],
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "chapter": "perinatal",
+      "code": "PA61&XE545&XE266"
+     }
+    },
+    {
+     "calls": [
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/1729453916",
+      "GET icd/release/11/2026-01/mms/1363622909",
+      "GET icd/release/11/2026-01/mms/1213438339"
+     ],
+     "name": "details",
+     "reply": {
+      "body": {
+       "coding_note": "",
+       "definition": "",
+       "exclusions": [
+        {
+         "code": "PL14.E",
+         "title": "Fall in health care"
+        },
+        {
+         "code": "PA1E",
+         "title": "Fall from animal"
+        }
+       ],
+       "fully_specified_name": "",
+       "inclusions": [],
+       "release": "2026-01",
+       "schema_version": 1,
+       "selected": {
+        "code": "PA61",
+        "title": "Unintentional fall from a height of 1 metre or more",
+        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+       },
+       "truncated": false
+      },
+      "http_status": 200
+     },
+     "request": {
+      "code": "PA61&XE545&XE266"
+     }
+    }
+   ],
+   "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/2071638841 & http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+   "why": "paid work at home"
+  }
+ ],
+ "id": "pc-pa61",
+ "input": {
+  "built": [
+   {
+    "expression": "PA61&XE545&XE266",
+    "why": "paid work at home"
+   }
+  ],
+  "category": "injury",
+  "id": "pc-pa61",
+  "source": "VAs-12.03",
+  "stem": "PA61",
+  "why": "Fall from a height (VA cause 12.03): five external-cause axes, roots over 12 (truncated)"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "PA61",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "PA61",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PA61",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916",
+    "GET icd/release/11/2026-01/mms/2071638841",
+    "GET icd/release/11/2026-01/mms/1107435129",
+    "GET icd/release/11/2026-01/mms/1428847289",
+    "GET icd/release/11/2026-01/mms/821249273",
+    "GET icd/release/11/2026-01/mms/160164281",
+    "GET icd/release/11/2026-01/mms/1151626888",
+    "GET icd/release/11/2026-01/mms/2111620040",
+    "GET icd/release/11/2026-01/mms/1794418440",
+    "GET icd/release/11/2026-01/mms/254646600",
+    "GET icd/release/11/2026-01/mms/403045768",
+    "GET icd/release/11/2026-01/mms/561860808",
+    "GET icd/release/11/2026-01/mms/911553544",
+    "GET icd/release/11/2026-01/mms/355521464",
+    "GET icd/release/11/2026-01/mms/35174264",
+    "GET icd/release/11/2026-01/mms/1298357017",
+    "GET icd/release/11/2026-01/mms/1514880985",
+    "GET icd/release/11/2026-01/mms/1664324249",
+    "GET icd/release/11/2026-01/mms/1670965842",
+    "GET icd/release/11/2026-01/mms/1524647698",
+    "GET icd/release/11/2026-01/mms/1304962002",
+    "GET icd/release/11/2026-01/mms/672210322",
+    "GET icd/release/11/2026-01/mms/1060731218",
+    "GET icd/release/11/2026-01/mms/713258542",
+    "GET icd/release/11/2026-01/mms/292139218",
+    "GET icd/release/11/2026-01/mms/839669614",
+    "GET icd/release/11/2026-01/mms/623129518",
+    "GET icd/release/11/2026-01/mms/278563516",
+    "GET icd/release/11/2026-01/mms/1231726668",
+    "GET icd/release/11/2026-01/mms/1581436044",
+    "GET icd/release/11/2026-01/mms/1993515327",
+    "GET icd/release/11/2026-01/mms/1336544383",
+    "GET icd/release/11/2026-01/mms/1484941503",
+    "GET icd/release/11/2026-01/mms/1029396223",
+    "GET icd/release/11/2026-01/mms/712192575",
+    "GET icd/release/11/2026-01/mms/1848703062",
+    "GET icd/release/11/2026-01/mms/1464358166",
+    "GET icd/release/11/2026-01/mms/1080046038",
+    "GET icd/release/11/2026-01/mms/632885142",
+    "GET icd/release/11/2026-01/mms/848390998"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "activityWhenInjured",
+       "instruction": "use additional code, if desired",
+       "label": "Activity when injured",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+         "code": "XE545",
+         "has_children": true,
+         "title": "Paid work",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1107435129",
+         "code": "XE8VF",
+         "has_children": true,
+         "title": "Unpaid work",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1107435129"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1428847289",
+         "code": "XE729",
+         "has_children": true,
+         "title": "Educational activity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1428847289"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/821249273",
+         "code": "",
+         "has_children": true,
+         "title": "Sports, recreation or leisure activity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/821249273"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/160164281",
+         "code": "",
+         "has_children": true,
+         "title": "Being taken care of",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/160164281"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+        "http://id.who.int/icd/release/11/2026-01/mms/1107435129",
+        "http://id.who.int/icd/release/11/2026-01/mms/1428847289",
+        "http://id.who.int/icd/release/11/2026-01/mms/821249273",
+        "http://id.who.int/icd/release/11/2026-01/mms/160164281"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "objectOrSubstanceProducingInjury",
+       "instruction": "use additional code, if desired",
+       "label": "Object or substance producing injury",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+         "code": "",
+         "has_children": true,
+         "title": "Land vehicle or means of land transport",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2111620040",
+         "code": "",
+         "has_children": true,
+         "title": "Mobile machinery or special purpose vehicle",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2111620040"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1794418440",
+         "code": "",
+         "has_children": true,
+         "title": "Watercraft or means of water transport",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1794418440"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/254646600",
+         "code": "",
+         "has_children": true,
+         "title": "Aircraft or means of air transport",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/254646600"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/403045768",
+         "code": "XE5HA",
+         "has_children": true,
+         "title": "Furniture or furnishing",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/403045768"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/561860808",
+         "code": "XE8RW",
+         "has_children": true,
+         "title": "Infant or child product",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/561860808"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/911553544",
+         "code": "XE14C",
+         "has_children": true,
+         "title": "Appliance mainly used in household",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/911553544"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/355521464",
+         "code": "",
+         "has_children": true,
+         "title": "Utensil or container",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/355521464"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/35174264",
+         "code": "",
+         "has_children": true,
+         "title": "Item mainly for personal use",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/35174264"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1298357017",
+         "code": "",
+         "has_children": true,
+         "title": "Equipment mainly used in sports or recreational activity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1298357017"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1514880985",
+         "code": "XE0P3",
+         "has_children": true,
+         "title": "Tool, machine, apparatus mainly used for work-related activity",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1514880985"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1664324249",
+         "code": "",
+         "has_children": true,
+         "title": "Weapon",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1664324249"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+        "http://id.who.int/icd/release/11/2026-01/mms/2111620040",
+        "http://id.who.int/icd/release/11/2026-01/mms/1794418440",
+        "http://id.who.int/icd/release/11/2026-01/mms/254646600",
+        "http://id.who.int/icd/release/11/2026-01/mms/403045768",
+        "http://id.who.int/icd/release/11/2026-01/mms/561860808",
+        "http://id.who.int/icd/release/11/2026-01/mms/911553544",
+        "http://id.who.int/icd/release/11/2026-01/mms/355521464",
+        "http://id.who.int/icd/release/11/2026-01/mms/35174264",
+        "http://id.who.int/icd/release/11/2026-01/mms/1298357017",
+        "http://id.who.int/icd/release/11/2026-01/mms/1514880985",
+        "http://id.who.int/icd/release/11/2026-01/mms/1664324249"
+       ],
+       "truncated": true
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "placeOfOccurrence",
+       "instruction": "use additional code, if desired",
+       "label": "Place of occurrence",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+         "code": "XE266",
+         "has_children": true,
+         "title": "Home",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1524647698",
+         "code": "XE9DC",
+         "has_children": true,
+         "title": "Residential institution",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1524647698"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1304962002",
+         "code": "XE9VC",
+         "has_children": true,
+         "title": "Medical service area",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1304962002"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/672210322",
+         "code": "XE6TU",
+         "has_children": true,
+         "title": "School or educational area",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672210322"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1060731218",
+         "code": "XE7K0",
+         "has_children": true,
+         "title": "Sports and athletics area",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1060731218"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+         "code": "XE5NE",
+         "has_children": true,
+         "title": "Public highway, street or road",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/713258542"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/292139218",
+         "code": "XE5KY",
+         "has_children": true,
+         "title": "Transport area other than highway, street or road",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/292139218"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/839669614",
+         "code": "XE7T4",
+         "has_children": true,
+         "title": "Industrial or construction area",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/839669614"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/623129518",
+         "code": "XE9CS",
+         "has_children": true,
+         "title": "Farm or other place of primary production",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/623129518"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/278563516",
+         "code": "XE1WL",
+         "has_children": true,
+         "title": "Place for socialising and consumption of alcoholic drinks",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/278563516"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1231726668",
+         "code": "XE7GY",
+         "has_children": true,
+         "title": "Recreational area, cultural area, or public building",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1231726668"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1581436044",
+         "code": "XE48U",
+         "has_children": true,
+         "title": "Commercial area (non-recreational)",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1581436044"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+        "http://id.who.int/icd/release/11/2026-01/mms/1524647698",
+        "http://id.who.int/icd/release/11/2026-01/mms/1304962002",
+        "http://id.who.int/icd/release/11/2026-01/mms/672210322",
+        "http://id.who.int/icd/release/11/2026-01/mms/1060731218",
+        "http://id.who.int/icd/release/11/2026-01/mms/713258542",
+        "http://id.who.int/icd/release/11/2026-01/mms/292139218",
+        "http://id.who.int/icd/release/11/2026-01/mms/839669614",
+        "http://id.who.int/icd/release/11/2026-01/mms/623129518",
+        "http://id.who.int/icd/release/11/2026-01/mms/278563516",
+        "http://id.who.int/icd/release/11/2026-01/mms/1231726668",
+        "http://id.who.int/icd/release/11/2026-01/mms/1581436044"
+       ],
+       "truncated": true
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "alcoholUseInInjury",
+       "instruction": "use additional code, if desired",
+       "label": "Alcohol use in injury",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1993515327",
+         "code": "XE47R",
+         "has_children": false,
+         "title": "Alcohol use, no information available",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1993515327"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1336544383",
+         "code": "XE08X",
+         "has_children": false,
+         "title": "Alcohol use, no suspicion or evidence of alcohol use by any person involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1336544383"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1484941503",
+         "code": "XE1G3",
+         "has_children": false,
+         "title": "Alcohol use, suspicion or evidence of alcohol use by the injured person",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1484941503"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1029396223",
+         "code": "XE15H",
+         "has_children": false,
+         "title": "Alcohol use, suspicion or evidence of alcohol use by other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1029396223"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/712192575",
+         "code": "XE3JF",
+         "has_children": false,
+         "title": "Alcohol use, suspicion or evidence of alcohol use by both the injured person and other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/712192575"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1993515327",
+        "http://id.who.int/icd/release/11/2026-01/mms/1336544383",
+        "http://id.who.int/icd/release/11/2026-01/mms/1484941503",
+        "http://id.who.int/icd/release/11/2026-01/mms/1029396223",
+        "http://id.who.int/icd/release/11/2026-01/mms/712192575"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowedExceptFromSameBlock",
+       "id": "psychoactiveDrugUseInInjury",
+       "instruction": "use additional code, if desired",
+       "label": "Psychoactive drug use in injury",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1848703062",
+         "code": "XE43G",
+         "has_children": false,
+         "title": "Psychoactive drug use, no information available",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1848703062"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1464358166",
+         "code": "XE5TU",
+         "has_children": false,
+         "title": "Psychoactive drug use, no suspicion or evidence of psychoactive drug use by any person involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1464358166"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1080046038",
+         "code": "XE5VY",
+         "has_children": false,
+         "title": "Psychoactive drug use, suspicion or evidence of psychoactive drug use by the injured person",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1080046038"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/632885142",
+         "code": "XE8GW",
+         "has_children": false,
+         "title": "Psychoactive drug use, suspicion or evidence of psychoactive drug use by other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/632885142"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/848390998",
+         "code": "XE28E",
+         "has_children": false,
+         "title": "Psychoactive drug use, suspicion or evidence of psychoactive drug use by both the injured person and other persons involved in the injury event",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/848390998"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1848703062",
+        "http://id.who.int/icd/release/11/2026-01/mms/1464358166",
+        "http://id.who.int/icd/release/11/2026-01/mms/1080046038",
+        "http://id.who.int/icd/release/11/2026-01/mms/632885142",
+        "http://id.who.int/icd/release/11/2026-01/mms/848390998"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916",
+    "GET icd/release/11/2026-01/mms/2071638841",
+    "GET icd/release/11/2026-01/mms/1468452550",
+    "GET icd/release/11/2026-01/mms/1862165382",
+    "GET icd/release/11/2026-01/mms/1667452226",
+    "GET icd/release/11/2026-01/mms/2096473334",
+    "GET icd/release/11/2026-01/mms/1987576730"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "activityWhenInjured",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE7NW",
+       "has_children": false,
+       "title": "Travelling to or from paid work",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1468452550"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE9Q2",
+       "has_children": false,
+       "title": "Travelling in the course of paid work",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1862165382"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE2QJ",
+       "has_children": false,
+       "title": "Repetitive forceful work",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1667452226"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE88E",
+       "has_children": false,
+       "title": "Extended periods of work in a kneeling position",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2096473334"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+       "code": "XE714",
+       "has_children": false,
+       "title": "Extended periods of work in a squatting position",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1987576730"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "activityWhenInjured",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/2071638841",
+    "stem_code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916",
+    "GET icd/release/11/2026-01/mms/1151626888",
+    "GET icd/release/11/2026-01/mms/1090117309",
+    "GET icd/release/11/2026-01/mms/2038526973",
+    "GET icd/release/11/2026-01/mms/1856575293",
+    "GET icd/release/11/2026-01/mms/191900029",
+    "GET icd/release/11/2026-01/mms/475549117",
+    "GET icd/release/11/2026-01/mms/622911741",
+    "GET icd/release/11/2026-01/mms/839418941",
+    "GET icd/release/11/2026-01/mms/1111833116"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "objectOrSubstanceProducingInjury",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE81T",
+       "has_children": true,
+       "title": "Person-powered means of transport",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1090117309"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE1MP",
+       "has_children": true,
+       "title": "Animal-powered means of transport",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2038526973"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE3ZP",
+       "has_children": true,
+       "title": "Motorised two- or three-wheeled vehicle",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1856575293"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE3GH",
+       "has_children": true,
+       "title": "Light transport vehicle with four or more wheels",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/191900029"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE4NR",
+       "has_children": true,
+       "title": "Heavy transport vehicle with four or more wheels",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/475549117"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE0ZK",
+       "has_children": true,
+       "title": "Rail vehicle",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/622911741"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE0YD",
+       "has_children": true,
+       "title": "Parts or components of land vehicle or means of land transport",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/839418941"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+       "code": "XE3C0",
+       "has_children": true,
+       "title": "Certain specified land vehicle or means of land transport",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1111833116"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "objectOrSubstanceProducingInjury",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1151626888",
+    "stem_code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916",
+    "GET icd/release/11/2026-01/mms/1670965842",
+    "GET icd/release/11/2026-01/mms/1894348690",
+    "GET icd/release/11/2026-01/mms/1234295506",
+    "GET icd/release/11/2026-01/mms/1589231122",
+    "GET icd/release/11/2026-01/mms/996180050",
+    "GET icd/release/11/2026-01/mms/742974610",
+    "GET icd/release/11/2026-01/mms/355486162",
+    "GET icd/release/11/2026-01/mms/35138834"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "placeOfOccurrence",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE9XY",
+       "has_children": false,
+       "title": "Detached house",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1894348690"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE9P0",
+       "has_children": false,
+       "title": "Terrace house or row house",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1234295506"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE7DU",
+       "has_children": false,
+       "title": "Apartment or flat",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1589231122"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE7F8",
+       "has_children": false,
+       "title": "Farmhouse",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/996180050"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE1LE",
+       "has_children": false,
+       "title": "Residential caravan, mobile home, houseboat or motor home",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/742974610"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE3ZC",
+       "has_children": false,
+       "title": "Hut",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/355486162"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+       "code": "XE6X4",
+       "has_children": false,
+       "title": "Boarding house or hotel",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/35138834"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "placeOfOccurrence",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/1670965842",
+    "stem_code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916",
+    "GET icd/release/11/2026-01/mms/134290789",
+    "GET icd/release/11/2026-01/mms/980862652",
+    "GET icd/release/11/2026-01/mms/850137482",
+    "GET icd/release/11/2026-01/mms/134290789",
+    "GET icd/release/11/2026-01/mms/415990995",
+    "GET icd/release/11/2026-01/mms/134290789/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "23",
+       "title": "External causes of morbidity or mortality",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482"
+      },
+      {
+       "code": "",
+       "title": "Unintentional causes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/980862652"
+      },
+      {
+       "code": "",
+       "title": "Unintentional fall",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/134290789"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Unintentional fall from a height of 1 metre or more",
+      "Unintentional fall from cliff",
+      "Fall from cliff",
+      "Unintentional fall on or from scaffolding",
+      "accidental fall from scaffolding",
+      "fall from scaffold",
+      "fall from scaffolding",
+      "fall on and from scaffolding",
+      "fall on and from scaffolding causing accidental injury",
+      "Unintentional fall from tree",
+      "fall from tree",
+      "Unintentional fall from, out of or through building or structure"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "PA60",
+       "has_children": false,
+       "title": "Unintentional fall on the same level or from less than 1 metre",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/415990995"
+      },
+      {
+       "code": "PA6Z",
+       "has_children": false,
+       "title": "Unintentional fall from unspecified height",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified"
+      }
+     ],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "PA61"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+    "GET icd/release/11/2026-01/mms/1729453916",
+    "GET icd/release/11/2026-01/mms/1363622909",
+    "GET icd/release/11/2026-01/mms/1213438339"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [
+      {
+       "code": "PL14.E",
+       "title": "Fall in health care"
+      },
+      {
+       "code": "PA1E",
+       "title": "Fall from animal"
+      }
+     ],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "PA61",
+      "title": "Unintentional fall from a height of 1 metre or more",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "PA61"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1029396223": {"method":"GET","path":"icd/release/11/2026-01/mms/1029396223","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1029396223","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1029396223","classKind":"category","code":"XE15H","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1029396223","title":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1060731218": {"method":"GET","path":"icd/release/11/2026-01/mms/1060731218","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1060731218","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1060731218","child":["http://id.who.int/icd/release/11/2026-01/mms/1098038036","http://id.who.int/icd/release/11/2026-01/mms/2013926996","http://id.who.int/icd/release/11/2026-01/mms/1864528532","http://id.who.int/icd/release/11/2026-01/mms/184241364","http://id.who.int/icd/release/11/2026-01/mms/500377620","http://id.who.int/icd/release/11/2026-01/mms/615220564","http://id.who.int/icd/release/11/2026-01/mms/864280980"],"classKind":"category","code":"XE7K0","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1670965842","label":{"@language":"en","@value":"Home"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1670965842"}],"indexTerm":[{"label":{"@language":"en","@value":"Sports and athletics area"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/1060731218","title":{"@language":"en","@value":"Sports and athletics area"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1080046038": {"method":"GET","path":"icd/release/11/2026-01/mms/1080046038","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1080046038","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1080046038","classKind":"category","code":"XE5VY","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by the injured person"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/1080046038","title":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by the injured person"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1090117309": {"method":"GET","path":"icd/release/11/2026-01/mms/1090117309","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1090117309","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1090117309","child":["http://id.who.int/icd/release/11/2026-01/mms/988233492","http://id.who.int/icd/release/11/2026-01/mms/1715907604"],"classKind":"category","code":"XE81T","indexTerm":[{"label":{"@language":"en","@value":"Person-powered means of transport"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/1090117309","title":{"@language":"en","@value":"Person-powered means of transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1107435129": {"method":"GET","path":"icd/release/11/2026-01/mms/1107435129","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1107435129","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1107435129","child":["http://id.who.int/icd/release/11/2026-01/mms/1513020610","http://id.who.int/icd/release/11/2026-01/mms/1666609538","http://id.who.int/icd/release/11/2026-01/mms/1348253932"],"classKind":"category","code":"XE8VF","indexTerm":[{"label":{"@language":"en","@value":"Unpaid work"}},{"label":{"@language":"en","@value":"unpaid internship"}},{"label":{"@language":"en","@value":"voluntary work"}},{"label":{"@language":"en","@value":"volunteer work"}},{"label":{"@language":"en","@value":"working solely for non-monetary benefits (e.g. for food, or possible employment in future)"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/1107435129","title":{"@language":"en","@value":"Unpaid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1111833116": {"method":"GET","path":"icd/release/11/2026-01/mms/1111833116","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1111833116","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1111833116","child":["http://id.who.int/icd/release/11/2026-01/mms/854317032","http://id.who.int/icd/release/11/2026-01/mms/1850361064","http://id.who.int/icd/release/11/2026-01/mms/1528375793","http://id.who.int/icd/release/11/2026-01/mms/277929521"],"classKind":"category","code":"XE3C0","indexTerm":[{"label":{"@language":"en","@value":"Certain specified land vehicle or means of land transport"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/1111833116","title":{"@language":"en","@value":"Certain specified land vehicle or means of land transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1151626888": {"method":"GET","path":"icd/release/11/2026-01/mms/1151626888","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1151626888","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1151626888","child":["http://id.who.int/icd/release/11/2026-01/mms/1090117309","http://id.who.int/icd/release/11/2026-01/mms/2038526973","http://id.who.int/icd/release/11/2026-01/mms/1856575293","http://id.who.int/icd/release/11/2026-01/mms/191900029","http://id.who.int/icd/release/11/2026-01/mms/475549117","http://id.who.int/icd/release/11/2026-01/mms/622911741","http://id.who.int/icd/release/11/2026-01/mms/839418941","http://id.who.int/icd/release/11/2026-01/mms/1111833116"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/1151626888","title":{"@language":"en","@value":"Land vehicle or means of land transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1213438339": {"method":"GET","path":"icd/release/11/2026-01/mms/1213438339","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1213438339","classKind":"category","code":"PA1E","indexTerm":[{"label":{"@language":"en","@value":"Unintentional land transport nontraffic event injuring a rider of an animal"}},{"foundationReference":"http://id.who.int/icd/entity/864242868","label":{"@language":"en","@value":"Fall from horse in nontraffic event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/714231201"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1670965842","http://id.who.int/icd/release/11/2026-01/mms/1524647698","http://id.who.int/icd/release/11/2026-01/mms/1304962002","http://id.who.int/icd/release/11/2026-01/mms/672210322","http://id.who.int/icd/release/11/2026-01/mms/1060731218","http://id.who.int/icd/release/11/2026-01/mms/713258542","http://id.who.int/icd/release/11/2026-01/mms/292139218","http://id.who.int/icd/release/11/2026-01/mms/839669614","http://id.who.int/icd/release/11/2026-01/mms/623129518","http://id.who.int/icd/release/11/2026-01/mms/278563516","http://id.who.int/icd/release/11/2026-01/mms/1231726668","http://id.who.int/icd/release/11/2026-01/mms/1581436044","http://id.who.int/icd/release/11/2026-01/mms/1731879372","http://id.who.int/icd/release/11/2026-01/mms/391771100","http://id.who.int/icd/release/11/2026-01/mms/53410898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1075090949","http://id.who.int/icd/release/11/2026-01/mms/1463612101"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339/postcoordinationScale/sportsActivityDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/sportsActivityDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1582350237","http://id.who.int/icd/release/11/2026-01/mms/1730679517","http://id.who.int/icd/release/11/2026-01/mms/1879078429","http://id.who.int/icd/release/11/2026-01/mms/366561373"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1213438339/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]}],"source":"http://id.who.int/icd/entity/1213438339","title":{"@language":"en","@value":"Unintentional land transport nontraffic event injuring a rider of an animal"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1231726668": {"method":"GET","path":"icd/release/11/2026-01/mms/1231726668","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1231726668","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1231726668","child":["http://id.who.int/icd/release/11/2026-01/mms/630355598","http://id.who.int/icd/release/11/2026-01/mms/485153742","http://id.who.int/icd/release/11/2026-01/mms/197312270","http://id.who.int/icd/release/11/2026-01/mms/1847296334","http://id.who.int/icd/release/11/2026-01/mms/2033444238","http://id.who.int/icd/release/11/2026-01/mms/1078675662"],"classKind":"category","code":"XE7GY","indexTerm":[{"label":{"@language":"en","@value":"Recreational area, cultural area, or public building"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/1231726668","title":{"@language":"en","@value":"Recreational area, cultural area, or public building"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1234295506": {"method":"GET","path":"icd/release/11/2026-01/mms/1234295506","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1234295506","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1234295506","classKind":"category","code":"XE9P0","indexTerm":[{"label":{"@language":"en","@value":"Terrace house or row house"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/1234295506","title":{"@language":"en","@value":"Terrace house or row house"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1298357017": {"method":"GET","path":"icd/release/11/2026-01/mms/1298357017","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1298357017","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1298357017","child":["http://id.who.int/icd/release/11/2026-01/mms/1641526172","http://id.who.int/icd/release/11/2026-01/mms/1487871708","http://id.who.int/icd/release/11/2026-01/mms/1334278684","http://id.who.int/icd/release/11/2026-01/mms/710820956","http://id.who.int/icd/release/11/2026-01/mms/1031151772","http://id.who.int/icd/release/11/2026-01/mms/1667979069"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/1298357017","title":{"@language":"en","@value":"Equipment mainly used in sports or recreational activity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1304962002": {"method":"GET","path":"icd/release/11/2026-01/mms/1304962002","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1304962002","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1304962002","child":["http://id.who.int/icd/release/11/2026-01/mms/2125227683","http://id.who.int/icd/release/11/2026-01/mms/1205128163","http://id.who.int/icd/release/11/2026-01/mms/1358737187","http://id.who.int/icd/release/11/2026-01/mms/237419259"],"classKind":"category","code":"XE9VC","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1524647698","label":{"@language":"en","@value":"Residential institution"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1524647698"},{"foundationReference":"http://id.who.int/icd/entity/640506137","label":{"@language":"en","@value":"Building under construction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/640506137"}],"indexTerm":[{"label":{"@language":"en","@value":"Medical service area"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/1304962002","title":{"@language":"en","@value":"Medical service area"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1336544383": {"method":"GET","path":"icd/release/11/2026-01/mms/1336544383","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1336544383","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1336544383","classKind":"category","code":"XE08X","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, no suspicion or evidence of alcohol use by any person involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1336544383","title":{"@language":"en","@value":"Alcohol use, no suspicion or evidence of alcohol use by any person involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/134290789": {"method":"GET","path":"icd/release/11/2026-01/mms/134290789","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789","blockId":"BlockL2-PA6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#134290789","child":["http://id.who.int/icd/release/11/2026-01/mms/415990995","http://id.who.int/icd/release/11/2026-01/mms/1729453916","http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified"],"classKind":"block","code":"","codeRange":"PA60-PA6Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1363622909","label":{"@language":"en","@value":"Fall in health care"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1363622909"},{"foundationReference":"http://id.who.int/icd/entity/1093196899","label":{"@language":"en","@value":"Tendency to fall"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1093196899"},{"foundationReference":"http://id.who.int/icd/entity/1861381370","label":{"@language":"en","@value":"Unintentional land transport traffic event injuring a rider of an animal"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1861381370"},{"foundationReference":"http://id.who.int/icd/entity/1213438339","label":{"@language":"en","@value":"Fall from animal"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1213438339"},{"foundationReference":"http://id.who.int/icd/entity/1448524405","label":{"@language":"en","@value":"Fall from burning building or structure"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/2096449099"},{"foundationReference":"http://id.who.int/icd/entity/615802413","label":{"@language":"en","@value":"Fall into fire"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/615802413"},{"foundationReference":"http://id.who.int/icd/entity/497764339","label":{"@language":"en","@value":"Unintentional immersion, submersion or falling into water"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/497764339"},{"foundationReference":"http://id.who.int/icd/entity/425728062","label":{"@language":"en","@value":"Fall into or from machinery"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/425728062"},{"foundationReference":"http://id.who.int/icd/entity/709884928","label":{"@language":"en","@value":"Fall from railway train or railway vehicle"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/709884928"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/980862652"],"source":"http://id.who.int/icd/entity/134290789","title":{"@language":"en","@value":"Unintentional fall"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/134290789/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/134290789/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#134290789/unspecified","classKind":"category","code":"PA6Z","indexTerm":[{"label":{"@language":"en","@value":"Unintentional fall from unspecified height"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"accidental fall"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall NOS"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall at home"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall at nursing home"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall at residence"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall causing injury that resulted in death"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall from unknown height"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fall to floor"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fell NOS"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fell at home"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"fell to floor"}},{"foundationReference":"http://id.who.int/icd/entity/134290789","label":{"@language":"en","@value":"mechanical fall NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/134290789"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified/postcoordinationScale/objectOrSubstanceProducingInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/objectOrSubstanceProducingInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1151626888","http://id.who.int/icd/release/11/2026-01/mms/2111620040","http://id.who.int/icd/release/11/2026-01/mms/1794418440","http://id.who.int/icd/release/11/2026-01/mms/254646600","http://id.who.int/icd/release/11/2026-01/mms/403045768","http://id.who.int/icd/release/11/2026-01/mms/561860808","http://id.who.int/icd/release/11/2026-01/mms/911553544","http://id.who.int/icd/release/11/2026-01/mms/355521464","http://id.who.int/icd/release/11/2026-01/mms/35174264","http://id.who.int/icd/release/11/2026-01/mms/1298357017","http://id.who.int/icd/release/11/2026-01/mms/1514880985","http://id.who.int/icd/release/11/2026-01/mms/1664324249","http://id.who.int/icd/release/11/2026-01/mms/1947989593","http://id.who.int/icd/release/11/2026-01/mms/297977881","http://id.who.int/icd/release/11/2026-01/mms/116042969","http://id.who.int/icd/release/11/2026-01/mms/1066533273","http://id.who.int/icd/release/11/2026-01/mms/683304281","http://id.who.int/icd/release/11/2026-01/mms/199197415","http://id.who.int/icd/release/11/2026-01/mms/486008359","http://id.who.int/icd/release/11/2026-01/mms/1410221427","http://id.who.int/icd/release/11/2026-01/mms/1836509235","http://id.who.int/icd/release/11/2026-01/mms/2053016819","http://id.who.int/icd/release/11/2026-01/mms/528986803","http://id.who.int/icd/release/11/2026-01/mms/145741427","http://id.who.int/icd/release/11/2026-01/mms/1454547412","http://id.who.int/icd/release/11/2026-01/mms/1380607018","http://id.who.int/icd/release/11/2026-01/mms/1597357976","http://id.who.int/icd/release/11/2026-01/mms/1321407960"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1670965842","http://id.who.int/icd/release/11/2026-01/mms/1524647698","http://id.who.int/icd/release/11/2026-01/mms/1304962002","http://id.who.int/icd/release/11/2026-01/mms/672210322","http://id.who.int/icd/release/11/2026-01/mms/1060731218","http://id.who.int/icd/release/11/2026-01/mms/713258542","http://id.who.int/icd/release/11/2026-01/mms/292139218","http://id.who.int/icd/release/11/2026-01/mms/839669614","http://id.who.int/icd/release/11/2026-01/mms/623129518","http://id.who.int/icd/release/11/2026-01/mms/278563516","http://id.who.int/icd/release/11/2026-01/mms/1231726668","http://id.who.int/icd/release/11/2026-01/mms/1581436044","http://id.who.int/icd/release/11/2026-01/mms/1731879372","http://id.who.int/icd/release/11/2026-01/mms/391771100","http://id.who.int/icd/release/11/2026-01/mms/53410898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/134290789/unspecified/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]}],"title":{"@language":"en","@value":"Unintentional fall from unspecified height"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1363622909": {"method":"GET","path":"icd/release/11/2026-01/mms/1363622909","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1363622909","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1363622909","classKind":"category","code":"PL14.E","codingNote":{"@language":"en","@value":"Code first the injury or harm associated with other health care. Code also the cause of harm (i.e. PL10 Other health care related causes of injury or harm)"},"indexTerm":[{"label":{"@language":"en","@value":"Fall in health care"}},{"label":{"@language":"en","@value":"fall in hospital"}},{"foundationReference":"http://id.who.int/icd/entity/885918513","label":{"@language":"en","@value":"Fall from chair in health care or hospital"}},{"foundationReference":"http://id.who.int/icd/entity/1635908992","label":{"@language":"en","@value":"Fall from stretcher in health care or hospital"}},{"foundationReference":"http://id.who.int/icd/entity/1006610887","label":{"@language":"en","@value":"Fall from hospital bed"}},{"foundationReference":"http://id.who.int/icd/entity/1313418676","label":{"@language":"en","@value":"Fall from operating room table"}},{"foundationReference":"http://id.who.int/icd/entity/1313418676","label":{"@language":"en","@value":"fall from operating table"}},{"foundationReference":"http://id.who.int/icd/entity/1313418676","label":{"@language":"en","@value":"fall from operation table"}},{"foundationReference":"http://id.who.int/icd/entity/1313418676","label":{"@language":"en","@value":"fall from surgical table"}},{"foundationReference":"http://id.who.int/icd/entity/1634711970","label":{"@language":"en","@value":"Fall from orthopaedic surgical table"}},{"foundationReference":"http://id.who.int/icd/entity/1634711970","label":{"@language":"en","@value":"fall from trauma table"}},{"foundationReference":"http://id.who.int/icd/entity/189781093","label":{"@language":"en","@value":"Fall from examination table"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1669303982"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1363622909/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/435227771","http://id.who.int/icd/release/11/2026-01/mms/2024436666"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1363622909/postcoordinationScale/objectOrSubstanceProducingInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/objectOrSubstanceProducingInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1177430729","http://id.who.int/icd/release/11/2026-01/mms/2136377225","http://id.who.int/icd/release/11/2026-01/mms/1753146185"]}],"source":"http://id.who.int/icd/entity/1363622909","title":{"@language":"en","@value":"Fall in health care"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1428847289": {"method":"GET","path":"icd/release/11/2026-01/mms/1428847289","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1428847289","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1428847289","child":["http://id.who.int/icd/release/11/2026-01/mms/1120699819","http://id.who.int/icd/release/11/2026-01/mms/436950409"],"classKind":"category","code":"XE729","indexTerm":[{"label":{"@language":"en","@value":"Educational activity"}},{"label":{"@language":"en","@value":"activities as student or pupil of school, college, university or other educational institution"}},{"label":{"@language":"en","@value":"paid engagement in educational activity"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/1428847289","title":{"@language":"en","@value":"Educational activity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1464358166": {"method":"GET","path":"icd/release/11/2026-01/mms/1464358166","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1464358166","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1464358166","classKind":"category","code":"XE5TU","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, no suspicion or evidence of psychoactive drug use by any person involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/1464358166","title":{"@language":"en","@value":"Psychoactive drug use, no suspicion or evidence of psychoactive drug use by any person involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1468452550": {"method":"GET","path":"icd/release/11/2026-01/mms/1468452550","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1468452550","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1468452550","classKind":"category","code":"XE7NW","indexTerm":[{"label":{"@language":"en","@value":"Travelling to or from paid work"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1468452550","title":{"@language":"en","@value":"Travelling to or from paid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1484941503": {"method":"GET","path":"icd/release/11/2026-01/mms/1484941503","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1484941503","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1484941503","classKind":"category","code":"XE1G3","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by the injured person"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1484941503","title":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by the injured person"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1514880985": {"method":"GET","path":"icd/release/11/2026-01/mms/1514880985","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1514880985","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1514880985","child":["http://id.who.int/icd/release/11/2026-01/mms/1617055367","http://id.who.int/icd/release/11/2026-01/mms/1494934471","http://id.who.int/icd/release/11/2026-01/mms/1311934215","http://id.who.int/icd/release/11/2026-01/mms/736868679","http://id.who.int/icd/release/11/2026-01/mms/1019469191","http://id.who.int/icd/release/11/2026-01/mms/1855882865"],"classKind":"category","code":"XE0P3","indexTerm":[{"label":{"@language":"en","@value":"Tool, machine, apparatus mainly used for work-related activity"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/1514880985","title":{"@language":"en","@value":"Tool, machine, apparatus mainly used for work-related activity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1524647698": {"method":"GET","path":"icd/release/11/2026-01/mms/1524647698","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1524647698","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1524647698","child":["http://id.who.int/icd/release/11/2026-01/mms/1716404170","http://id.who.int/icd/release/11/2026-01/mms/1597411978","http://id.who.int/icd/release/11/2026-01/mms/1209988682","http://id.who.int/icd/release/11/2026-01/mms/768067594","http://id.who.int/icd/release/11/2026-01/mms/988785866"],"classKind":"category","code":"XE9DC","indexTerm":[{"label":{"@language":"en","@value":"Residential institution"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/1524647698","title":{"@language":"en","@value":"Residential institution"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1581436044": {"method":"GET","path":"icd/release/11/2026-01/mms/1581436044","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1581436044","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1581436044","child":["http://id.who.int/icd/release/11/2026-01/mms/1030762471","http://id.who.int/icd/release/11/2026-01/mms/2016260698","http://id.who.int/icd/release/11/2026-01/mms/67666599","http://id.who.int/icd/release/11/2026-01/mms/320923239"],"classKind":"category","code":"XE48U","indexTerm":[{"label":{"@language":"en","@value":"Commercial area (non-recreational)"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/1581436044","title":{"@language":"en","@value":"Commercial area (non-recreational)"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1589231122": {"method":"GET","path":"icd/release/11/2026-01/mms/1589231122","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1589231122","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1589231122","classKind":"category","code":"XE7DU","indexTerm":[{"label":{"@language":"en","@value":"Apartment or flat"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/1589231122","title":{"@language":"en","@value":"Apartment or flat"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/160164281": {"method":"GET","path":"icd/release/11/2026-01/mms/160164281","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/160164281","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#160164281","child":["http://id.who.int/icd/release/11/2026-01/mms/1750602613","http://id.who.int/icd/release/11/2026-01/mms/1361100341","http://id.who.int/icd/release/11/2026-01/mms/786745995"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/160164281","title":{"@language":"en","@value":"Being taken care of"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1664324249": {"method":"GET","path":"icd/release/11/2026-01/mms/1664324249","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1664324249","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1664324249","child":["http://id.who.int/icd/release/11/2026-01/mms/1656506786","http://id.who.int/icd/release/11/2026-01/mms/1539630306","http://id.who.int/icd/release/11/2026-01/mms/1610657031"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/1664324249","title":{"@language":"en","@value":"Weapon"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1667452226": {"method":"GET","path":"icd/release/11/2026-01/mms/1667452226","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1667452226","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1667452226","classKind":"category","code":"XE2QJ","indexTerm":[{"label":{"@language":"en","@value":"Repetitive forceful work"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1667452226","title":{"@language":"en","@value":"Repetitive forceful work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1670965842": {"method":"GET","path":"icd/release/11/2026-01/mms/1670965842","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1670965842","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1670965842","child":["http://id.who.int/icd/release/11/2026-01/mms/1894348690","http://id.who.int/icd/release/11/2026-01/mms/1234295506","http://id.who.int/icd/release/11/2026-01/mms/1589231122","http://id.who.int/icd/release/11/2026-01/mms/996180050","http://id.who.int/icd/release/11/2026-01/mms/742974610","http://id.who.int/icd/release/11/2026-01/mms/355486162","http://id.who.int/icd/release/11/2026-01/mms/35138834"],"classKind":"category","code":"XE266","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1524647698","label":{"@language":"en","@value":"Residential institution"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1524647698"},{"foundationReference":"http://id.who.int/icd/entity/1209988682","label":{"@language":"en","@value":"Prison"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1209988682"},{"foundationReference":"http://id.who.int/icd/entity/1973552212","label":{"@language":"en","@value":"Sidewalk"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1973552212"},{"foundationReference":"http://id.who.int/icd/entity/640506137","label":{"@language":"en","@value":"Building under construction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/640506137"},{"foundationReference":"http://id.who.int/icd/entity/525726809","label":{"@language":"en","@value":"Demolition site"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/525726809"},{"foundationReference":"http://id.who.int/icd/entity/1597411978","label":{"@language":"en","@value":"Nursing home"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1597411978"}],"indexTerm":[{"label":{"@language":"en","@value":"Home"}},{"label":{"@language":"en","@value":"private home"}},{"label":{"@language":"en","@value":"private residence"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/1670965842","title":{"@language":"en","@value":"Home"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1729453916": {"method":"GET","path":"icd/release/11/2026-01/mms/1729453916","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1729453916","classKind":"category","code":"PA61","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1363622909","label":{"@language":"en","@value":"Fall in health care"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1363622909"},{"foundationReference":"http://id.who.int/icd/entity/1213438339","label":{"@language":"en","@value":"Fall from animal"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1213438339"}],"indexTerm":[{"label":{"@language":"en","@value":"Unintentional fall from a height of 1 metre or more"}},{"foundationReference":"http://id.who.int/icd/entity/152750569","label":{"@language":"en","@value":"Unintentional fall from cliff"}},{"foundationReference":"http://id.who.int/icd/entity/152750569","label":{"@language":"en","@value":"Fall from cliff"}},{"foundationReference":"http://id.who.int/icd/entity/2062834301","label":{"@language":"en","@value":"Unintentional fall on or from scaffolding"}},{"foundationReference":"http://id.who.int/icd/entity/2062834301","label":{"@language":"en","@value":"accidental fall from scaffolding"}},{"foundationReference":"http://id.who.int/icd/entity/2062834301","label":{"@language":"en","@value":"fall from scaffold"}},{"foundationReference":"http://id.who.int/icd/entity/2062834301","label":{"@language":"en","@value":"fall from scaffolding"}},{"foundationReference":"http://id.who.int/icd/entity/2062834301","label":{"@language":"en","@value":"fall on and from scaffolding"}},{"foundationReference":"http://id.who.int/icd/entity/2062834301","label":{"@language":"en","@value":"fall on and from scaffolding causing accidental injury"}},{"foundationReference":"http://id.who.int/icd/entity/1817248893","label":{"@language":"en","@value":"Unintentional fall from tree"}},{"foundationReference":"http://id.who.int/icd/entity/1817248893","label":{"@language":"en","@value":"fall from tree"}},{"foundationReference":"http://id.who.int/icd/entity/532649961","label":{"@language":"en","@value":"Unintentional fall from, out of or through building or structure"}},{"foundationReference":"http://id.who.int/icd/entity/532649961","label":{"@language":"en","@value":"fall from, out of or through building or structure"}},{"foundationReference":"http://id.who.int/icd/entity/669650876","label":{"@language":"en","@value":"Fall from, out of or through balcony"}},{"foundationReference":"http://id.who.int/icd/entity/924882442","label":{"@language":"en","@value":"Fall from, out of or through bridge"}},{"foundationReference":"http://id.who.int/icd/entity/1224625541","label":{"@language":"en","@value":"Fall from, out of or through building"}},{"foundationReference":"http://id.who.int/icd/entity/2044964799","label":{"@language":"en","@value":"Fall from flag-pole"}},{"foundationReference":"http://id.who.int/icd/entity/2008585443","label":{"@language":"en","@value":"Fall through floor"}},{"foundationReference":"http://id.who.int/icd/entity/2028266721","label":{"@language":"en","@value":"Fall from or through railing"}},{"foundationReference":"http://id.who.int/icd/entity/847229948","label":{"@language":"en","@value":"Fall from or through roof"}},{"foundationReference":"http://id.who.int/icd/entity/546326103","label":{"@language":"en","@value":"Unintentional fall from roof"}},{"foundationReference":"http://id.who.int/icd/entity/566120423","label":{"@language":"en","@value":"Unintentional fall through roof"}},{"foundationReference":"http://id.who.int/icd/entity/849593528","label":{"@language":"en","@value":"Fall from or out of tower"}},{"foundationReference":"http://id.who.int/icd/entity/205907696","label":{"@language":"en","@value":"Fall from, out of or through turret"}},{"foundationReference":"http://id.who.int/icd/entity/1188999659","label":{"@language":"en","@value":"Fall from, out of or through viaduct"}},{"foundationReference":"http://id.who.int/icd/entity/1018869510","label":{"@language":"en","@value":"Fall from, out of or through wall"}},{"foundationReference":"http://id.who.int/icd/entity/1460888323","label":{"@language":"en","@value":"Fall from, out of or through window"}},{"foundationReference":"http://id.who.int/icd/entity/240716420","label":{"@language":"en","@value":"Unintentional fall from ladder"}},{"foundationReference":"http://id.who.int/icd/entity/240716420","label":{"@language":"en","@value":"accidental fall from ladder"}},{"foundationReference":"http://id.who.int/icd/entity/240716420","label":{"@language":"en","@value":"fall from ladder"}},{"foundationReference":"http://id.who.int/icd/entity/240716420","label":{"@language":"en","@value":"fall on and from ladder causing accidental injury"}},{"foundationReference":"http://id.who.int/icd/entity/240716420","label":{"@language":"en","@value":"fall on or from ladder"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/134290789"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916/postcoordinationScale/objectOrSubstanceProducingInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/objectOrSubstanceProducingInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1151626888","http://id.who.int/icd/release/11/2026-01/mms/2111620040","http://id.who.int/icd/release/11/2026-01/mms/1794418440","http://id.who.int/icd/release/11/2026-01/mms/254646600","http://id.who.int/icd/release/11/2026-01/mms/403045768","http://id.who.int/icd/release/11/2026-01/mms/561860808","http://id.who.int/icd/release/11/2026-01/mms/911553544","http://id.who.int/icd/release/11/2026-01/mms/355521464","http://id.who.int/icd/release/11/2026-01/mms/35174264","http://id.who.int/icd/release/11/2026-01/mms/1298357017","http://id.who.int/icd/release/11/2026-01/mms/1514880985","http://id.who.int/icd/release/11/2026-01/mms/1664324249","http://id.who.int/icd/release/11/2026-01/mms/1947989593","http://id.who.int/icd/release/11/2026-01/mms/297977881","http://id.who.int/icd/release/11/2026-01/mms/116042969","http://id.who.int/icd/release/11/2026-01/mms/1066533273","http://id.who.int/icd/release/11/2026-01/mms/683304281","http://id.who.int/icd/release/11/2026-01/mms/199197415","http://id.who.int/icd/release/11/2026-01/mms/486008359","http://id.who.int/icd/release/11/2026-01/mms/1410221427","http://id.who.int/icd/release/11/2026-01/mms/1836509235","http://id.who.int/icd/release/11/2026-01/mms/2053016819","http://id.who.int/icd/release/11/2026-01/mms/528986803","http://id.who.int/icd/release/11/2026-01/mms/145741427","http://id.who.int/icd/release/11/2026-01/mms/1454547412","http://id.who.int/icd/release/11/2026-01/mms/1380607018","http://id.who.int/icd/release/11/2026-01/mms/1597357976","http://id.who.int/icd/release/11/2026-01/mms/1321407960"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1670965842","http://id.who.int/icd/release/11/2026-01/mms/1524647698","http://id.who.int/icd/release/11/2026-01/mms/1304962002","http://id.who.int/icd/release/11/2026-01/mms/672210322","http://id.who.int/icd/release/11/2026-01/mms/1060731218","http://id.who.int/icd/release/11/2026-01/mms/713258542","http://id.who.int/icd/release/11/2026-01/mms/292139218","http://id.who.int/icd/release/11/2026-01/mms/839669614","http://id.who.int/icd/release/11/2026-01/mms/623129518","http://id.who.int/icd/release/11/2026-01/mms/278563516","http://id.who.int/icd/release/11/2026-01/mms/1231726668","http://id.who.int/icd/release/11/2026-01/mms/1581436044","http://id.who.int/icd/release/11/2026-01/mms/1731879372","http://id.who.int/icd/release/11/2026-01/mms/391771100","http://id.who.int/icd/release/11/2026-01/mms/53410898"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1729453916/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]}],"source":"http://id.who.int/icd/entity/1729453916","title":{"@language":"en","@value":"Unintentional fall from a height of 1 metre or more"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1794418440": {"method":"GET","path":"icd/release/11/2026-01/mms/1794418440","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1794418440","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1794418440","child":["http://id.who.int/icd/release/11/2026-01/mms/1133651079","http://id.who.int/icd/release/11/2026-01/mms/2062191047","http://id.who.int/icd/release/11/2026-01/mms/1841491207"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/1794418440","title":{"@language":"en","@value":"Watercraft or means of water transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1848703062": {"method":"GET","path":"icd/release/11/2026-01/mms/1848703062","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1848703062","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1848703062","classKind":"category","code":"XE43G","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, no information available"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/1848703062","title":{"@language":"en","@value":"Psychoactive drug use, no information available"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1856575293": {"method":"GET","path":"icd/release/11/2026-01/mms/1856575293","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1856575293","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1856575293","child":["http://id.who.int/icd/release/11/2026-01/mms/965526830","http://id.who.int/icd/release/11/2026-01/mms/1697469998","http://id.who.int/icd/release/11/2026-01/mms/1350449975"],"classKind":"category","code":"XE3ZP","indexTerm":[{"label":{"@language":"en","@value":"Motorised two- or three-wheeled vehicle"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/1856575293","title":{"@language":"en","@value":"Motorised two- or three-wheeled vehicle"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1862165382": {"method":"GET","path":"icd/release/11/2026-01/mms/1862165382","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1862165382","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1862165382","classKind":"category","code":"XE9Q2","indexTerm":[{"label":{"@language":"en","@value":"Travelling in the course of paid work"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1862165382","title":{"@language":"en","@value":"Travelling in the course of paid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1894348690": {"method":"GET","path":"icd/release/11/2026-01/mms/1894348690","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1894348690","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1894348690","classKind":"category","code":"XE9XY","indexTerm":[{"label":{"@language":"en","@value":"Detached house"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/1894348690","title":{"@language":"en","@value":"Detached house"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/191900029": {"method":"GET","path":"icd/release/11/2026-01/mms/191900029","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/191900029","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#191900029","child":["http://id.who.int/icd/release/11/2026-01/mms/1032140413","http://id.who.int/icd/release/11/2026-01/mms/1629791613","http://id.who.int/icd/release/11/2026-01/mms/1417136230"],"classKind":"category","code":"XE3GH","indexTerm":[{"label":{"@language":"en","@value":"Light transport vehicle with four or more wheels"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/191900029","title":{"@language":"en","@value":"Light transport vehicle with four or more wheels"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1987576730": {"method":"GET","path":"icd/release/11/2026-01/mms/1987576730","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1987576730","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1987576730","classKind":"category","code":"XE714","indexTerm":[{"label":{"@language":"en","@value":"Extended periods of work in a squatting position"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/1987576730","title":{"@language":"en","@value":"Extended periods of work in a squatting position"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1993515327": {"method":"GET","path":"icd/release/11/2026-01/mms/1993515327","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1993515327","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1993515327","classKind":"category","code":"XE47R","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, no information available"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/1993515327","title":{"@language":"en","@value":"Alcohol use, no information available"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2038526973": {"method":"GET","path":"icd/release/11/2026-01/mms/2038526973","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2038526973","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2038526973","child":["http://id.who.int/icd/release/11/2026-01/mms/943274035","http://id.who.int/icd/release/11/2026-01/mms/1687726899"],"classKind":"category","code":"XE1MP","indexTerm":[{"label":{"@language":"en","@value":"Animal-powered means of transport"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/2038526973","title":{"@language":"en","@value":"Animal-powered means of transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2071638841": {"method":"GET","path":"icd/release/11/2026-01/mms/2071638841","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2071638841","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2071638841","child":["http://id.who.int/icd/release/11/2026-01/mms/1468452550","http://id.who.int/icd/release/11/2026-01/mms/1862165382","http://id.who.int/icd/release/11/2026-01/mms/1667452226","http://id.who.int/icd/release/11/2026-01/mms/2096473334","http://id.who.int/icd/release/11/2026-01/mms/1987576730"],"classKind":"category","code":"XE545","indexTerm":[{"label":{"@language":"en","@value":"Paid work"}},{"label":{"@language":"en","@value":"paid engagement in sports, recreation or leisure activity"}},{"label":{"@language":"en","@value":"working as owner or proprietor of business"}},{"label":{"@language":"en","@value":"working for income"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/2071638841","title":{"@language":"en","@value":"Paid work"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2096473334": {"method":"GET","path":"icd/release/11/2026-01/mms/2096473334","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2096473334","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2096473334","classKind":"category","code":"XE88E","indexTerm":[{"label":{"@language":"en","@value":"Extended periods of work in a kneeling position"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2071638841"],"source":"http://id.who.int/icd/entity/2096473334","title":{"@language":"en","@value":"Extended periods of work in a kneeling position"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2111620040": {"method":"GET","path":"icd/release/11/2026-01/mms/2111620040","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2111620040","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2111620040","child":["http://id.who.int/icd/release/11/2026-01/mms/1109907866","http://id.who.int/icd/release/11/2026-01/mms/2069853402","http://id.who.int/icd/release/11/2026-01/mms/1819742234","http://id.who.int/icd/release/11/2026-01/mms/1083915581"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/2111620040","title":{"@language":"en","@value":"Mobile machinery or special purpose vehicle"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/254646600": {"method":"GET","path":"icd/release/11/2026-01/mms/254646600","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/254646600","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#254646600","child":["http://id.who.int/icd/release/11/2026-01/mms/1201395668","http://id.who.int/icd/release/11/2026-01/mms/2128837268","http://id.who.int/icd/release/11/2026-01/mms/1774919252"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/254646600","title":{"@language":"en","@value":"Aircraft or means of air transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/278563516": {"method":"GET","path":"icd/release/11/2026-01/mms/278563516","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/278563516","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#278563516","child":["http://id.who.int/icd/release/11/2026-01/mms/479878845","http://id.who.int/icd/release/11/2026-01/mms/1721061982"],"classKind":"category","code":"XE1WL","indexTerm":[{"label":{"@language":"en","@value":"Place for socialising and consumption of alcoholic drinks"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/278563516","title":{"@language":"en","@value":"Place for socialising and consumption of alcoholic drinks"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/292139218": {"method":"GET","path":"icd/release/11/2026-01/mms/292139218","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/292139218","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#292139218","child":["http://id.who.int/icd/release/11/2026-01/mms/1413017725","http://id.who.int/icd/release/11/2026-01/mms/2053650941"],"classKind":"category","code":"XE5KY","indexTerm":[{"label":{"@language":"en","@value":"Transport area other than highway, street or road"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/292139218","title":{"@language":"en","@value":"Transport area other than highway, street or road"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/35138834": {"method":"GET","path":"icd/release/11/2026-01/mms/35138834","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/35138834","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#35138834","classKind":"category","code":"XE6X4","indexTerm":[{"label":{"@language":"en","@value":"Boarding house or hotel"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/35138834","title":{"@language":"en","@value":"Boarding house or hotel"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/35174264": {"method":"GET","path":"icd/release/11/2026-01/mms/35174264","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/35174264","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#35174264","child":["http://id.who.int/icd/release/11/2026-01/mms/1297495637","http://id.who.int/icd/release/11/2026-01/mms/1949211413","http://id.who.int/icd/release/11/2026-01/mms/1661403093","http://id.who.int/icd/release/11/2026-01/mms/115327381","http://id.who.int/icd/release/11/2026-01/mms/301442389","http://id.who.int/icd/release/11/2026-01/mms/680462357","http://id.who.int/icd/release/11/2026-01/mms/1067936981","http://id.who.int/icd/release/11/2026-01/mms/482511723","http://id.who.int/icd/release/11/2026-01/mms/1340789492"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/35174264","title":{"@language":"en","@value":"Item mainly for personal use"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/355486162": {"method":"GET","path":"icd/release/11/2026-01/mms/355486162","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/355486162","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#355486162","classKind":"category","code":"XE3ZC","indexTerm":[{"label":{"@language":"en","@value":"Hut"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/355486162","title":{"@language":"en","@value":"Hut"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/355521464": {"method":"GET","path":"icd/release/11/2026-01/mms/355521464","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/355521464","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#355521464","child":["http://id.who.int/icd/release/11/2026-01/mms/1289997128","http://id.who.int/icd/release/11/2026-01/mms/1973118472","http://id.who.int/icd/release/11/2026-01/mms/1655898824","http://id.who.int/icd/release/11/2026-01/mms/124402824","http://id.who.int/icd/release/11/2026-01/mms/1314861039"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/355521464","title":{"@language":"en","@value":"Utensil or container"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/403045768": {"method":"GET","path":"icd/release/11/2026-01/mms/403045768","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/403045768","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#403045768","child":["http://id.who.int/icd/release/11/2026-01/mms/1177430729","http://id.who.int/icd/release/11/2026-01/mms/2136377225","http://id.who.int/icd/release/11/2026-01/mms/1753146185","http://id.who.int/icd/release/11/2026-01/mms/229104905"],"classKind":"category","code":"XE5HA","indexTerm":[{"label":{"@language":"en","@value":"Furniture or furnishing"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/403045768","title":{"@language":"en","@value":"Furniture or furnishing"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/415990995": {"method":"GET","path":"icd/release/11/2026-01/mms/415990995","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/415990995","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#415990995","classKind":"category","code":"PA60","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1363622909","label":{"@language":"en","@value":"Fall in health care"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1363622909"},{"foundationReference":"http://id.who.int/icd/entity/1363622909","label":{"@language":"en","@value":"Fall while in hospital"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1363622909"},{"foundationReference":"http://id.who.int/icd/entity/1363622909","label":{"@language":"en","@value":"Fall from hospital bed"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1363622909"}],"indexTerm":[{"label":{"@language":"en","@value":"Unintentional fall on the same level or from less than 1 metre"}},{"label":{"@language":"en","@value":"fall from standing height"}},{"label":{"@language":"en","@value":"fall from standing position"}},{"label":{"@language":"en","@value":"fell from standing"}},{"label":{"@language":"en","@value":"fell while ambulating"}},{"label":{"@language":"en","@value":"ground level fall"}},{"foundationReference":"http://id.who.int/icd/entity/1796392726","label":{"@language":"en","@value":"Unintentional fall involving stairs or steps"}},{"foundationReference":"http://id.who.int/icd/entity/1796392726","label":{"@language":"en","@value":"fall downstairs"}},{"foundationReference":"http://id.who.int/icd/entity/1796392726","label":{"@language":"en","@value":"fall on or from stairs or steps"}},{"foundationReference":"http://id.who.int/icd/entity/1804496786","label":{"@language":"en","@value":"Fall on or from incline"}},{"foundationReference":"http://id.who.int/icd/entity/1270589394","label":{"@language":"en","@value":"Fall involving ice or snow on stairs or steps"}},{"foundationReference":"http://id.who.int/icd/entity/1534148200","label":{"@language":"en","@value":"fall on or from ramp"}},{"foundationReference":"http://id.who.int/icd/entity/1432899034","label":{"@language":"en","@value":"Fall on or from escalator"}},{"foundationReference":"http://id.who.int/icd/entity/1020759823","label":{"@language":"en","@value":"Unintentional fall involving ice or snow"}},{"foundationReference":"http://id.who.int/icd/entity/261691179","label":{"@language":"en","@value":"Unintentional fall involving a pedestrian conveyance"}},{"foundationReference":"http://id.who.int/icd/entity/1591706098","label":{"@language":"en","@value":"Fall involving wheelchair"}},{"foundationReference":"http://id.who.int/icd/entity/1591706098","label":{"@language":"en","@value":"fall from wheelchair"}},{"foundationReference":"http://id.who.int/icd/entity/1591706098","label":{"@language":"en","@value":"fall from wheelchair (event)"}},{"foundationReference":"http://id.who.int/icd/entity/1591706098","label":{"@language":"en","@value":"fall involving wheelchair causing accidental injury"}},{"foundationReference":"http://id.who.int/icd/entity/1591706098","label":{"@language":"en","@value":"fall with wheelchair"}},{"foundationReference":"http://id.who.int/icd/entity/1430972584","label":{"@language":"en","@value":"Unintentional fall involving furniture"}},{"foundationReference":"http://id.who.int/icd/entity/712167695","label":{"@language":"en","@value":"Unintentional fall involving bed"}},{"foundationReference":"http://id.who.int/icd/entity/712167695","label":{"@language":"en","@value":"fall from bed"}},{"foundationReference":"http://id.who.int/icd/entity/712167695","label":{"@language":"en","@value":"fall involving bed causing accidental injury"}},{"foundationReference":"http://id.who.int/icd/entity/712167695","label":{"@language":"en","@value":"fall out of bed"}},{"foundationReference":"http://id.who.int/icd/entity/712167695","label":{"@language":"en","@value":"fell out of bed"}},{"foundationReference":"http://id.who.int/icd/entity/1329142939","label":{"@language":"en","@value":"Unintentional fall involving chair"}},{"foundationReference":"http://id.who.int/icd/entity/1329142939","label":{"@language":"en","@value":"fall from chair"}},{"foundationReference":"http://id.who.int/icd/entity/1329142939","label":{"@language":"en","@value":"fall involving chair causing accidental injury"}},{"foundationReference":"http://id.who.int/icd/entity/1503412891","label":{"@language":"en","@value":"Fall on same level from slipping, tripping or stumbling"}},{"foundationReference":"http://id.who.int/icd/entity/1584699652","label":{"@language":"en","@value":"Slipped on wet floor and fell"}},{"foundationReference":"http://id.who.int/icd/entity/1002397610","label":{"@language":"en","@value":"Falling over animal"}},{"foundationReference":"http://id.who.int/icd/entity/758190694","label":{"@language":"en","@value":"Fall involving ice-skates, skis, roller-skates or skateboards"}},{"foundationReference":"http://id.who.int/icd/entity/1216012272","label":{"@language":"en","@value":"Other fall on same level due to collision with, or pushing by, another person"}},{"foundationReference":"http://id.who.int/icd/entity/978668813","label":{"@language":"en","@value":"Fall due to collision of pedestrian with another pedestrian either on or off pedestrian conveyance"}},{"foundationReference":"http://id.who.int/icd/entity/999574628","label":{"@language":"en","@value":"Fall while being carried or supported by other persons"}},{"foundationReference":"http://id.who.int/icd/entity/999574628","label":{"@language":"en","@value":"accidentally dropped while being carried"}},{"foundationReference":"http://id.who.int/icd/entity/1461437517","label":{"@language":"en","@value":"Unintentional fall involving playground equipment"}},{"foundationReference":"http://id.who.int/icd/entity/1461437517","label":{"@language":"en","@value":"Fall involving playground equipment"}},{"foundationReference":"http://id.who.int/icd/entity/1461437517","label":{"@language":"en","@value":"fall from playground equipment"}},{"foundationReference":"http://id.who.int/icd/entity/1461437517","label":{"@language":"en","@value":"fall involving playground equipment causing accidental injury"}},{"foundationReference":"http://id.who.int/icd/entity/1461437517","label":{"@language":"en","@value":"fall on and from playground equipment"}},{"foundationReference":"http://id.who.int/icd/entity/996246205","label":{"@language":"en","@value":"Fall in bathtub"}},{"foundationReference":"http://id.who.int/icd/entity/1045802307","label":{"@language":"en","@value":"Fall in shower"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/134290789"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/415990995/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/415990995/postcoordinationScale/objectOrSubstanceProducingInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/objectOrSubstanceProducingInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1151626888","http://id.who.int/icd/release/11/2026-01/mms/2111620040","http://id.who.int/icd/release/11/2026-01/mms/1794418440","http://id.who.int/icd/release/11/2026-01/mms/254646600","http://id.who.int/icd/release/11/2026-01/mms/403045768","http://id.who.int/icd/release/11/2026-01/mms/561860808","http://id.who.int/icd/release/11/2026-01/mms/911553544","http://id.who.int/icd/release/11/2026-01/mms/355521464","http://id.who.int/icd/release/11/2026-01/mms/35174264","http://id.who.int/icd/release/11/2026-01/mms/1298357017","http://id.who.int/icd/release/11/2026-01/mms/1514880985","http://id.who.int/icd/release/11/2026-01/mms/1664324249","http://id.who.int/icd/release/11/2026-01/mms/1947989593","http://id.who.int/icd/release/11/2026-01/mms/297977881","http://id.who.int/icd/release/11/2026-01/mms/116042969","http://id.who.int/icd/release/11/2026-01/mms/1066533273","http://id.who.int/icd/release/11/2026-01/mms/683304281","http://id.who.int/icd/release/11/2026-01/mms/199197415","http://id.who.int/icd/release/11/2026-01/mms/486008359","http://id.who.int/icd/release/11/2026-01/mms/1410221427","http://id.who.int/icd/release/11/2026-01/mms/1836509235","http://id.who.int/icd/release/11/2026-01/mms/2053016819","http://id.who.int/icd/release/11/2026-01/mms/528986803","http://id.who.int/icd/release/11/2026-01/mms/145741427","http://id.who.int/icd/release/11/2026-01/mms/1454547412","http://id.who.int/icd/release/11/2026-01/mms/1380607018","http://id.who.int/icd/release/11/2026-01/mms/1597357976","http://id.who.int/icd/release/11/2026-01/mms/1321407960"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/415990995/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1081404635","http://id.who.int/icd/release/11/2026-01/mms/1786773723"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/415990995/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/415990995/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]}],"source":"http://id.who.int/icd/entity/415990995","title":{"@language":"en","@value":"Unintentional fall on the same level or from less than 1 metre"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/475549117": {"method":"GET","path":"icd/release/11/2026-01/mms/475549117","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/475549117","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#475549117","child":["http://id.who.int/icd/release/11/2026-01/mms/1009830752","http://id.who.int/icd/release/11/2026-01/mms/1438791033","http://id.who.int/icd/release/11/2026-01/mms/1929774728","http://id.who.int/icd/release/11/2026-01/mms/1692008976"],"classKind":"category","code":"XE4NR","indexTerm":[{"label":{"@language":"en","@value":"Heavy transport vehicle with four or more wheels"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/475549117","title":{"@language":"en","@value":"Heavy transport vehicle with four or more wheels"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/561860808": {"method":"GET","path":"icd/release/11/2026-01/mms/561860808","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/561860808","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#561860808","child":["http://id.who.int/icd/release/11/2026-01/mms/1156591086","http://id.who.int/icd/release/11/2026-01/mms/2106097838","http://id.who.int/icd/release/11/2026-01/mms/1788929134"],"classKind":"category","code":"XE8RW","indexTerm":[{"label":{"@language":"en","@value":"Infant or child product"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/561860808","title":{"@language":"en","@value":"Infant or child product"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/622911741": {"method":"GET","path":"icd/release/11/2026-01/mms/622911741","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/622911741","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#622911741","child":["http://id.who.int/icd/release/11/2026-01/mms/1055837255","http://id.who.int/icd/release/11/2026-01/mms/1649368903","http://id.who.int/icd/release/11/2026-01/mms/1461465696"],"classKind":"category","code":"XE0ZK","indexTerm":[{"label":{"@language":"en","@value":"Rail vehicle"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/622911741","title":{"@language":"en","@value":"Rail vehicle"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/623129518": {"method":"GET","path":"icd/release/11/2026-01/mms/623129518","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/623129518","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#623129518","child":["http://id.who.int/icd/release/11/2026-01/mms/1053753458","http://id.who.int/icd/release/11/2026-01/mms/129477938","http://id.who.int/icd/release/11/2026-01/mms/278907378"],"classKind":"category","code":"XE9CS","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1670965842","label":{"@language":"en","@value":"Home"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1670965842"}],"indexTerm":[{"label":{"@language":"en","@value":"Farm or other place of primary production"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/623129518","title":{"@language":"en","@value":"Farm or other place of primary production"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/632885142": {"method":"GET","path":"icd/release/11/2026-01/mms/632885142","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/632885142","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#632885142","classKind":"category","code":"XE8GW","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/632885142","title":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/672210322": {"method":"GET","path":"icd/release/11/2026-01/mms/672210322","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/672210322","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#672210322","child":["http://id.who.int/icd/release/11/2026-01/mms/1117763621","http://id.who.int/icd/release/11/2026-01/mms/2078741861","http://id.who.int/icd/release/11/2026-01/mms/1825534373","http://id.who.int/icd/release/11/2026-01/mms/152457189","http://id.who.int/icd/release/11/2026-01/mms/507390757","http://id.who.int/icd/release/11/2026-01/mms/658933349"],"classKind":"category","code":"XE6TU","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/640506137","label":{"@language":"en","@value":"Building under construction"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/640506137"}],"indexTerm":[{"label":{"@language":"en","@value":"School or educational area"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/672210322","title":{"@language":"en","@value":"School or educational area"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/712192575": {"method":"GET","path":"icd/release/11/2026-01/mms/712192575","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/712192575","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#712192575","classKind":"category","code":"XE3JF","indexTerm":[{"label":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by both the injured person and other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1847862619"],"source":"http://id.who.int/icd/entity/712192575","title":{"@language":"en","@value":"Alcohol use, suspicion or evidence of alcohol use by both the injured person and other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/713258542": {"method":"GET","path":"icd/release/11/2026-01/mms/713258542","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/713258542","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#713258542","child":["http://id.who.int/icd/release/11/2026-01/mms/1289398548","http://id.who.int/icd/release/11/2026-01/mms/1973552212","http://id.who.int/icd/release/11/2026-01/mms/1653235860"],"classKind":"category","code":"XE5NE","indexTerm":[{"label":{"@language":"en","@value":"Public highway, street or road"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/713258542","title":{"@language":"en","@value":"Public highway, street or road"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/742974610": {"method":"GET","path":"icd/release/11/2026-01/mms/742974610","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/742974610","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#742974610","classKind":"category","code":"XE1LE","indexTerm":[{"label":{"@language":"en","@value":"Residential caravan, mobile home, houseboat or motor home"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/742974610","title":{"@language":"en","@value":"Residential caravan, mobile home, houseboat or motor home"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/821249273": {"method":"GET","path":"icd/release/11/2026-01/mms/821249273","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/821249273","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#821249273","child":["http://id.who.int/icd/release/11/2026-01/mms/1710227827","http://id.who.int/icd/release/11/2026-01/mms/668672057","http://id.who.int/icd/release/11/2026-01/mms/879017037"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1465681947"],"source":"http://id.who.int/icd/entity/821249273","title":{"@language":"en","@value":"Sports, recreation or leisure activity"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/839418941": {"method":"GET","path":"icd/release/11/2026-01/mms/839418941","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/839418941","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#839418941","child":["http://id.who.int/icd/release/11/2026-01/mms/1062941018","http://id.who.int/icd/release/11/2026-01/mms/1677369946","http://id.who.int/icd/release/11/2026-01/mms/1453969219","http://id.who.int/icd/release/11/2026-01/mms/488650883","http://id.who.int/icd/release/11/2026-01/mms/246900331","http://id.who.int/icd/release/11/2026-01/mms/1161728427"],"classKind":"category","code":"XE0YD","indexTerm":[{"label":{"@language":"en","@value":"Parts or components of land vehicle or means of land transport"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1151626888"],"source":"http://id.who.int/icd/entity/839418941","title":{"@language":"en","@value":"Parts or components of land vehicle or means of land transport"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/839669614": {"method":"GET","path":"icd/release/11/2026-01/mms/839669614","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/839669614","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#839669614","child":["http://id.who.int/icd/release/11/2026-01/mms/640506137","http://id.who.int/icd/release/11/2026-01/mms/525726809","http://id.who.int/icd/release/11/2026-01/mms/142446745","http://id.who.int/icd/release/11/2026-01/mms/1839509209","http://id.who.int/icd/release/11/2026-01/mms/2056047129","http://id.who.int/icd/release/11/2026-01/mms/1140090713","http://id.who.int/icd/release/11/2026-01/mms/1423704985"],"classKind":"category","code":"XE7T4","indexTerm":[{"label":{"@language":"en","@value":"Industrial or construction area"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1081404635"],"source":"http://id.who.int/icd/entity/839669614","title":{"@language":"en","@value":"Industrial or construction area"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/848390998": {"method":"GET","path":"icd/release/11/2026-01/mms/848390998","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/848390998","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#848390998","classKind":"category","code":"XE28E","indexTerm":[{"label":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by both the injured person and other persons involved in the injury event"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/2030846363"],"source":"http://id.who.int/icd/entity/848390998","title":{"@language":"en","@value":"Psychoactive drug use, suspicion or evidence of psychoactive drug use by both the injured person and other persons involved in the injury event"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482","child":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"],"classKind":"chapter","code":"23","definition":{"@language":"en","@value":"!markdown\nThe WHO definition of an ‘injury’ is: ‘Injuries are caused by acute exposure to physical agents such as mechanical energy, heat, electricity, chemicals, and ionizing radiation interacting with the body in amounts or at rates that exceed the threshold of human tolerance. In some cases, (for example, drowning and frostbite), injuries result from the sudden lack of essential agents such as oxygen or heat.\nInjuries may be categorized in a number of ways. However, for most analytical purposes and for identifying intervention opportunities, it is especially useful to categorize injuries according to whether or not they were deliberately inflicted and by whom. Commonly used categories are:\n\n- unintentional (i.e. accidental)\n- intentional (i.e. deliberate):\n- interpersonal (e.g. assault and homicide)\n- self-harm (e.g. abuse of drugs and alcohol, self-mutilation, suicide)\n- legal intervention (e.g. action by police or other law enforcement personnel)\n- war, civil insurrection and disturbances (e.g. demonstrations and riots)\n- undetermined intent\n\nRegarding the collection of events that cause injuries, a set of definitions apply. See ICD-11 Reference guide sections 2.21.8.9 'Coding of transport injury events', and 2.23.19 'Standards and coding instructions for injury events'."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/850137482","title":{"@language":"en","@value":"External causes of morbidity or mortality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/911553544": {"method":"GET","path":"icd/release/11/2026-01/mms/911553544","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/911553544","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#911553544","child":["http://id.who.int/icd/release/11/2026-01/mms/1162203379","http://id.who.int/icd/release/11/2026-01/mms/2084404659","http://id.who.int/icd/release/11/2026-01/mms/1796544883","http://id.who.int/icd/release/11/2026-01/mms/248260403","http://id.who.int/icd/release/11/2026-01/mms/434390003","http://id.who.int/icd/release/11/2026-01/mms/547155635","http://id.who.int/icd/release/11/2026-01/mms/370790052"],"classKind":"category","code":"XE14C","indexTerm":[{"label":{"@language":"en","@value":"Appliance mainly used in household"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/632148635"],"source":"http://id.who.int/icd/entity/911553544","title":{"@language":"en","@value":"Appliance mainly used in household"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/980862652": {"method":"GET","path":"icd/release/11/2026-01/mms/980862652","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/980862652","blockId":"BlockL1-PA0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#980862652","child":["http://id.who.int/icd/release/11/2026-01/mms/1609069486","http://id.who.int/icd/release/11/2026-01/mms/134290789","http://id.who.int/icd/release/11/2026-01/mms/1054699166","http://id.who.int/icd/release/11/2026-01/mms/138214015","http://id.who.int/icd/release/11/2026-01/mms/497764339","http://id.who.int/icd/release/11/2026-01/mms/1546589464","http://id.who.int/icd/release/11/2026-01/mms/615802413","http://id.who.int/icd/release/11/2026-01/mms/746448055","http://id.who.int/icd/release/11/2026-01/mms/425728062","http://id.who.int/icd/release/11/2026-01/mms/980862652/other","http://id.who.int/icd/release/11/2026-01/mms/980862652/unspecified"],"classKind":"block","code":"","codeRange":"PA00-PB6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/980862652","title":{"@language":"en","@value":"Unintentional causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/996180050": {"method":"GET","path":"icd/release/11/2026-01/mms/996180050","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/996180050","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#996180050","classKind":"category","code":"XE7F8","indexTerm":[{"label":{"@language":"en","@value":"Farmhouse"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1670965842"],"source":"http://id.who.int/icd/entity/996180050","title":{"@language":"en","@value":"Farmhouse"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA61": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA61","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA61","code":"PA61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1729453916"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA61%26XE545%26XE266","activityWhenInjured":["XE545"],"code":"PA61&XE545&XE266","placeOfOccurrence":["XE266"],"stemCode":"PA61","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1729453916"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XE266": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XE266","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XE266","code":"XE266","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1670965842"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XE545": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XE545","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XE545","code":"XE545","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2071638841"},"request_body":null,"status":200}
+ }
+}

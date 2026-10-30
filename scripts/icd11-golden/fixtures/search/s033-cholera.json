@@ -1,0 +1,98 @@
+{
+ "id": "s033-cholera",
+ "input": {
+  "id": "s033-cholera",
+  "kind": "disease",
+  "query": "cholera",
+  "source": "VAs-01.04",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #42e1d749b8"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 16,
+     "items": [
+      {
+       "code": "1A00",
+       "has_coding_note": false,
+       "matching_text": "Cholera",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Cholera",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234"
+      },
+      {
+       "code": "QC90.00",
+       "has_coding_note": false,
+       "matching_text": "Exposure to cholera",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Exposure to cholera",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/733451521"
+      },
+      {
+       "code": "1A00&XN8P1",
+       "has_coding_note": false,
+       "matching_text": "Cholera due to Vibrio cholerae O1, biovar cholerae",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Cholera due to Vibrio cholerae O1, biovar cholerae",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911"
+      },
+      {
+       "code": "QD01.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified carrier of intestinal infectious agents",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified carrier of intestinal infectious agents",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/779258009/other"
+      },
+      {
+       "code": "NE61",
+       "has_coding_note": true,
+       "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1119330136"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "cholera",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #42e1d749b8": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/257068234","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/257068234","important":false,"label":"<em class='found'>cholera</em><em class='nonwbe'></em> syndrome","propertyId":"Synonym","propertyValueType":0,"score":-2.1313471074690757},{"foundationUri":"http://id.who.int/icd/entity/257068234","important":false,"label":"epidemic <em class='found'>cholera</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.6925436401237066},{"foundationUri":"http://id.who.int/icd/entity/257068234","important":false,"label":"asiatic <em class='found'>cholera</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-3.1176933128314754},{"foundationUri":"http://id.who.int/icd/entity/257068234","important":false,"label":"Intestinal infection due to Vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em>","propertyId":"FullySpecifiedName","propertyValueType":0,"score":-4.4287914678332765},{"foundationUri":"http://id.who.int/icd/entity/1170831944","important":false,"label":"Enteritis due to <em class='found'>cholera</em><em class='nonwbe'></em> due to Vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em>, non-O1 strains","propertyId":"Title","propertyValueType":1,"score":-7.312073355463495}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234","theCode":"1A00","title":"<em class='found'>Cholera</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/733451521","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/733451521","important":false,"label":"<em class='found'>cholera</em><em class='nonwbe'></em> contact","propertyId":"Synonym","propertyValueType":0,"score":-2.3417453773958226}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.3417453773958226,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/733451521","theCode":"QC90.00","title":"Exposure to <em class='found'>cholera</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/194483911","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1205958647","important":false,"label":"classical <em class='found'>cholera</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-2.537144450438804},{"foundationUri":"http://id.who.int/icd/entity/1384028266","important":false,"label":"Enteritis due to classical <em class='found'>cholera</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":2,"score":-4.620857962770322}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.537144450438804,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234","theCode":"1A00&XN8P1","title":"<em class='found'>Cholera</em><em class='nonwbe'></em> due to Vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em> O1, biovar <em class='found'>cholera</em><em class='nonwbe'>e</em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/779258009/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1474305701","important":false,"label":"<em class='found'>Cholera</em><em class='nonwbe'></em> carrier","propertyId":"Title","propertyValueType":1,"score":-2.6581557288430915}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.6581557288430915,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/779258009/other","theCode":"QD01.Y","title":"Other specified carrier of intestinal infectious agents","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/238837919","important":false,"label":"Antimonial <em class='found'>cholera</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-2.8179564037316798}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.8179564037316798,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1119330136","theCode":"NE61","title":"Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2053472774","important":false,"label":"Harmful effects of <em class='found'>Cholera</em><em class='nonwbe'></em> vaccine","propertyId":"Title","propertyValueType":1,"score":-3.211094856338476}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.211094856338476,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1868408442","theCode":"NE60","title":"Harmful effects of drugs, medicaments or biological substances, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2056290402","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/136299182","important":false,"label":"<em class='found'>Cholera</em><em class='nonwbe'></em> screening","propertyId":"Title","propertyValueType":1,"score":-3.969917796124795}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.969917796124795,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2056290402","theCode":"QA08.0","title":"Special screening examination for intestinal infectious diseases","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/802386629","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/581614179","important":false,"label":"<em class='found'>cholera</em><em class='nonwbe'></em> due to <em class='found'>Cholera</em><em class='nonwbe'></em> eltor","propertyId":"Synonym","propertyValueType":2,"score":-3.998903029284361},{"foundationUri":"http://id.who.int/icd/entity/375406584","important":false,"label":"Enteritis due to <em class='found'>cholera</em><em class='nonwbe'></em> due to <em class='found'>Cholera</em><em class='nonwbe'></em> eltor","propertyId":"Synonym","propertyValueType":2,"score":-6.082616541615878},{"foundationUri":"http://id.who.int/icd/entity/581614179","important":false,"label":"<em class='found'>cholera</em><em class='nonwbe'></em> due to Vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em> 01, <em class='found'>Cholera</em><em class='nonwbe'></em> eltor","propertyId":"Synonym","propertyValueType":2,"score":-6.114592945930644},{"foundationUri":"http://id.who.int/icd/entity/581614179","important":false,"label":"<em class='found'>cholera</em><em class='nonwbe'></em> - vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em> 01 eltor biotype","propertyId":"Synonym","propertyValueType":2,"score":-7.524612254451863},{"foundationUri":"http://id.who.int/icd/entity/375406584","important":false,"label":"infectious enteritis due to vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em> 01, biovar eltor","propertyId":"Synonym","propertyValueType":2,"score":-10.48559727884564}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.998903029284361,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234","theCode":"1A00&XN62R","title":"<em class='found'>Cholera</em><em class='nonwbe'></em> due to Vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em> O1, biovar eltor","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1472302478","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1472302478","important":false,"label":"prophylactic vaccination against <em class='found'>cholera</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-4.106751175106797}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-4.106751175106797,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1472302478","theCode":"QC00.0","title":"Need for immunization against <em class='found'>cholera</em><em class='nonwbe'></em> alone","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/257068234 & http://id.who.int/icd/release/11/2026-01/mms/21927667","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-4.8625631174460455,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/257068234","theCode":"1A00&XN8KD","title":"<em class='found'>Cholera</em><em class='nonwbe'></em> due to Vibrio <em class='found'>cholera</em><em class='nonwbe'>e</em> O139","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/799356470 & http://id.who.int/icd/release/11/2026-01/mms/1471383174","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.124509017839241,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/799356470","theCode":"PB28&XM29K4","title":"Unintentional exposure to or harmful effects of <em class='found'>cholera</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1832869108","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1832869108","important":false,"label":"<em class='found'>cholera</em><em class='nonwbe'></em> with TAB immunisation","propertyId":"Synonym","propertyValueType":0,"score":-5.290509247937797},{"foundationUri":"http://id.who.int/icd/entity/1832869108","important":false,"label":"prophylactic vaccination against <em class='found'>cholera</em><em class='nonwbe'></em> with typhoid-paratyphoid","propertyId":"Synonym","propertyValueType":0,"score":-7.823199345749492}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-5.290509247937797,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1832869108","theCode":"QC03.0","title":"Need for immunization against <em class='found'>cholera</em><em class='nonwbe'></em> with typhoid-paratyphoid","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1593715151 & http://id.who.int/icd/release/11/2026-01/mms/1471383174","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.576211461061841,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1593715151","theCode":"PC98&XM29K4","title":"Intentional self-harm by exposure to or harmful effects of <em class='found'>cholera</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/638046280 & http://id.who.int/icd/release/11/2026-01/mms/1471383174","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.6214105768708365,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/638046280","theCode":"PH48&XM29K4","title":"Exposure to or harmful effects of undetermined intent of <em class='found'>cholera</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1408645785 & http://id.who.int/icd/release/11/2026-01/mms/1471383174","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-5.910854717490761,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1408645785","theCode":"PE88&XM29K4","title":"Assault by or harmful exposure to <em class='found'>cholera</em><em class='nonwbe'></em> vaccine","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1158914813","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/296398626","important":false,"label":"Drugs medicaments or biological substances associated with injury or harm in therapeutic use, Bacterial vaccines, <em class='found'>Cholera</em><em class='nonwbe'></em> vaccine","propertyId":"Title","propertyValueType":1,"score":-8.184703802490144}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-8.184703802490144,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1158914813","theCode":"PL00","title":"Drugs, medicaments or biological substances associated with injury or harm in therapeutic use","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=cholera%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

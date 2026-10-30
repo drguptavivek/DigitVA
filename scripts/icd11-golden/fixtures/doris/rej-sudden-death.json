@@ -1,0 +1,123 @@
+{
+ "id": "rej-sudden-death",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P35Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "MH12.Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2012689694/other",
+       "Text": "Sudden death"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "rej-sudden-death",
+  "source": "VA cause VAs-99 Cause of death unknown",
+  "why": "Sudden death, cause unknown (MH12.Y)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/MH12.Y",
+    "POST icd/release/11/2026-01/doris #2efa004dc4",
+    "POST icd/release/11/2026-01/codedit #2efa004dc4"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P35Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "MH12.Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2012689694/other",
+          "Text": "Sudden death"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-931",
+       "report": "All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.",
+       "tabularReport": "0,All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.,FER-CE-931;;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "MH12.Y",
+       "error": null,
+       "reject": false,
+       "report": "SP1: MH12.Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP7: Current TSP - MH12.Y - and all other conditions reported on the certificate are ill-defined.\n\n\nFull report:\nSP1: MH12.Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP MH12.Y.\nSP7: Current TSP - MH12.Y - and all other conditions reported on the certificate are ill-defined.\nM1: There is no special instruction applicable with TUC MH12.Y.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "MH12.Y",
+       "stemURI": "http://id.who.int/icd/entity/2012689694/mms/other",
+       "tabularReport": "SP1;True;;MH12.Y;MH12.Y;;;0;SP1: MH12.Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;MH12.Y;;;;;0;SP6: is not applicable with the current TSP MH12.Y.;;;;BER\nSP7;True;MH12.Y;;;;;0;SP7: Current TSP - MH12.Y - and all other conditions reported on the certificate are ill-defined.;;;;BER\nM1;False;MH12.Y;;;;;0;M1: There is no special instruction applicable with TUC MH12.Y.;;;;BER\nM2;False;MH12.Y;;;;;0;M2: is not applicable.;;;;BER\nM3;False;MH12.Y;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/2012689694/other",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "MH12.Y",
+       "role": "stem",
+       "title": "Sudden death",
+       "uri": "http://id.who.int/icd/release/11/mms/2012689694/other"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P35Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "MH12.Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/2012689694/other",
+         "Text": "Sudden death"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/MH12.Y": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/MH12.Y","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/MH12.Y","code":"MH12.Y","stemId":"http://id.who.int/icd/release/11/2026-01/mms/2012689694/other"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #2efa004dc4": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-931","report":"All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.","tabularReport":"0,All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.,FER-CE-931;;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P35Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"MH12.Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2012689694/other\",\"Text\":\"Sudden death\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #2efa004dc4": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"MH12.Y","error":null,"reject":false,"report":"SP1: MH12.Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP7: Current TSP - MH12.Y - and all other conditions reported on the certificate are ill-defined.\n\n\nFull report:\nSP1: MH12.Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP MH12.Y.\nSP7: Current TSP - MH12.Y - and all other conditions reported on the certificate are ill-defined.\nM1: There is no special instruction applicable with TUC MH12.Y.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"MH12.Y","stemURI":"http://id.who.int/icd/entity/2012689694/mms/other","tabularReport":"SP1;True;;MH12.Y;MH12.Y;;;0;SP1: MH12.Y is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;MH12.Y;;;;;0;SP6: is not applicable with the current TSP MH12.Y.;;;;BER\nSP7;True;MH12.Y;;;;;0;SP7: Current TSP - MH12.Y - and all other conditions reported on the certificate are ill-defined.;;;;BER\nM1;False;MH12.Y;;;;;0;M1: There is no special instruction applicable with TUC MH12.Y.;;;;BER\nM2;False;MH12.Y;;;;;0;M2: is not applicable.;;;;BER\nM3;False;MH12.Y;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/2012689694/other","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P35Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"MH12.Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/2012689694/other\",\"Text\":\"Sudden death\"}]}]}","status":200}
+ }
+}

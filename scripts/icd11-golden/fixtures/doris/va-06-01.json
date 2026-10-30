@@ -1,0 +1,123 @@
+{
+ "id": "va-06-01",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P37Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "MD81.3",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/245796173",
+       "Text": "Acute abdomen"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-06-01",
+  "source": "VA cause VAs-06.01 Acute abdomen",
+  "why": "Acute abdomen: single coded condition"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/MD81.3",
+    "POST icd/release/11/2026-01/doris #5585a292cb",
+    "POST icd/release/11/2026-01/codedit #5585a292cb"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P37Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "MD81.3",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/245796173",
+          "Text": "Acute abdomen"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "FER-CE-931",
+       "report": "All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.",
+       "tabularReport": "0,All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.,FER-CE-931;;;;"
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "MD81.3",
+       "error": null,
+       "reject": false,
+       "report": "SP1: MD81.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP7: Current TSP - MD81.3 - and all other conditions reported on the certificate are ill-defined.\n\n\nFull report:\nSP1: MD81.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP MD81.3.\nSP7: Current TSP - MD81.3 - and all other conditions reported on the certificate are ill-defined.\nM1: There is no special instruction applicable with TUC MD81.3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "MD81.3",
+       "stemURI": "http://id.who.int/icd/entity/245796173",
+       "tabularReport": "SP1;True;;MD81.3;MD81.3;;;0;SP1: MD81.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;MD81.3;;;;;0;SP6: is not applicable with the current TSP MD81.3.;;;;BER\nSP7;True;MD81.3;;;;;0;SP7: Current TSP - MD81.3 - and all other conditions reported on the certificate are ill-defined.;;;;BER\nM1;False;MD81.3;;;;;0;M1: There is no special instruction applicable with TUC MD81.3.;;;;BER\nM2;False;MD81.3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;MD81.3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/245796173",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "MD81.3",
+       "role": "stem",
+       "title": "Acute abdomen",
+       "uri": "http://id.who.int/icd/release/11/mms/245796173"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P37Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "MD81.3",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/245796173",
+         "Text": "Acute abdomen"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/MD81.3": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/MD81.3","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/MD81.3","code":"MD81.3","stemId":"http://id.who.int/icd/release/11/2026-01/mms/245796173"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #5585a292cb": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"FER-CE-931","report":"All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.","tabularReport":"0,All the reported conditions on the MCCD are from the list of ill-defined conditions. It is recommended to review and ensure that a more specific cause of death is recorded if possible before processing the MCCD.,FER-CE-931;;;;"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P37Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"MD81.3\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/245796173\",\"Text\":\"Acute abdomen\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #5585a292cb": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"MD81.3","error":null,"reject":false,"report":"SP1: MD81.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP7: Current TSP - MD81.3 - and all other conditions reported on the certificate are ill-defined.\n\n\nFull report:\nSP1: MD81.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP MD81.3.\nSP7: Current TSP - MD81.3 - and all other conditions reported on the certificate are ill-defined.\nM1: There is no special instruction applicable with TUC MD81.3.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"MD81.3","stemURI":"http://id.who.int/icd/entity/245796173","tabularReport":"SP1;True;;MD81.3;MD81.3;;;0;SP1: MD81.3 is the only condition reported on the certificate and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;MD81.3;;;;;0;SP6: is not applicable with the current TSP MD81.3.;;;;BER\nSP7;True;MD81.3;;;;;0;SP7: Current TSP - MD81.3 - and all other conditions reported on the certificate are ill-defined.;;;;BER\nM1;False;MD81.3;;;;;0;M1: There is no special instruction applicable with TUC MD81.3.;;;;BER\nM2;False;MD81.3;;;;;0;M2: is not applicable.;;;;BER\nM3;False;MD81.3;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/245796173","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P37Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"MD81.3\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/245796173\",\"Text\":\"Acute abdomen\"}]}]}","status":200}
+ }
+}

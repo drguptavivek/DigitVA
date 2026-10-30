@@ -1,0 +1,98 @@
+{
+ "id": "s022-alcoholic-cirrhosis",
+ "input": {
+  "id": "s022-alcoholic-cirrhosis",
+  "kind": "disease",
+  "query": "alcoholic cirrhosis",
+  "source": "VAs-06.02",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #a9b6fcdd80"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 7,
+     "items": [
+      {
+       "code": "DB94.3",
+       "has_coding_note": false,
+       "matching_text": "Alcoholic cirrhosis of liver without hepatitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Alcoholic cirrhosis of liver without hepatitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/474954105"
+      },
+      {
+       "code": "DB94.10",
+       "has_coding_note": false,
+       "matching_text": "Alcoholic hepatitis with cirrhosis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Alcoholic hepatitis with cirrhosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/104340874"
+      },
+      {
+       "code": "DB94.1Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified alcoholic hepatitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified alcoholic hepatitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/229221394/other"
+      },
+      {
+       "code": "DB92.1/DB93.1",
+       "has_coding_note": false,
+       "matching_text": "Non-alcoholic steatohepatitis with cirrhosis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Non-alcoholic steatohepatitis with cirrhosis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1884917970 / http://id.who.int/icd/release/11/2026-01/mms/1781315693"
+      },
+      {
+       "code": "DB92.1",
+       "has_coding_note": false,
+       "matching_text": "Non-alcoholic steatohepatitis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Non-alcoholic steatohepatitis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1884917970"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "alcoholic cirrhosis",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #a9b6fcdd80": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"13","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/474954105","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/474954105","important":true,"label":"<em class='found'>Alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":true,"label":"<em class='found'>ETOH</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":true,"label":"<em class='found'>alcohol</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":true,"label":"<em class='found'>alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/2146752945","important":false,"label":"<em class='found'>Alcoholic</em> nodular <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.0016842601368814187},{"foundationUri":"http://id.who.int/icd/entity/2146752945","important":false,"label":"<em class='found'>ETOH</em> nodular <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.0016842601368814187},{"foundationUri":"http://id.who.int/icd/entity/982798040","important":false,"label":"Nutritional <em class='found'>alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.013343821141247646},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":false,"label":"<em class='found'>alcohol</em> hepatic <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.01972116098345045},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":false,"label":"<em class='found'>alcohol</em> liver <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.01972116098345045},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":false,"label":"<em class='found'>alcoholic</em> liver <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.01972116098345045},{"foundationUri":"http://id.who.int/icd/entity/1255825195","important":false,"label":"<em class='found'>Alcohol</em> portal <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.03575143141915823},{"foundationUri":"http://id.who.int/icd/entity/1255825195","important":false,"label":"<em class='found'>alcoholic</em> portal <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.03575143141915823},{"foundationUri":"http://id.who.int/icd/entity/1471219610","important":false,"label":"<em class='found'>Alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em> of liver with complications","propertyId":"Title","propertyValueType":1,"score":-0.20060201865745148},{"foundationUri":"http://id.who.int/icd/entity/474954105","important":false,"label":"<em class='found'>alcoholic</em> Laennec <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.2114996101801931},{"foundationUri":"http://id.who.int/icd/entity/1416523993","important":false,"label":"<em class='found'>Alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em> of liver without complications","propertyId":"Title","propertyValueType":1,"score":-0.35447600819981684},{"foundationUri":"http://id.who.int/icd/entity/529901926","important":false,"label":"<em class='found'>Alcohol</em> micronodular <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.6927125033476278},{"foundationUri":"http://id.who.int/icd/entity/529901926","important":false,"label":"<em class='found'>alcoholic</em> micronodular <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.6927125033476278},{"foundationUri":"http://id.who.int/icd/entity/1144389153","important":false,"label":"<em class='found'>Alcohol</em> macronodular <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.9244570350693933},{"foundationUri":"http://id.who.int/icd/entity/1144389153","important":false,"label":"<em class='found'>alcoholic</em> macronodular <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.9244570350693933},{"foundationUri":"http://id.who.int/icd/entity/368965274","important":false,"label":"<em class='found'>Alcohol</em> postnecrotic <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.9357247426314289},{"foundationUri":"http://id.who.int/icd/entity/368965274","important":false,"label":"<em class='found'>alcoholic</em> postnecrotic <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.9357247426314289}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/474954105","theCode":"DB94.3","title":"<em class='found'>Alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em> of liver without hepatitis","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"13","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/104340874","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/229477999","important":false,"label":"<em class='found'>Alcoholic</em> hepatitis with <em class='found'>cirrhosis</em><em class='nonwbe'></em>, with complications of <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.6217063917685003},{"foundationUri":"http://id.who.int/icd/entity/104340874","important":false,"label":"<em class='found'>Alcoholic</em> <em class='found'>cirrhosis</em><em class='nonwbe'></em> of liver with hepatitis","propertyId":"Synonym","propertyValueType":0,"score":-0.7102608339564567},{"foundationUri":"http://id.who.int/icd/entity/977186577","important":false,"label":"<em class='found'>Alcoholic</em> hepatitis with <em class='found'>cirrhosis</em><em class='nonwbe'></em>, without complications of <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.7755803813108656}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.4408255340944989,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/104340874","theCode":"DB94.10","title":"<em class='found'>Alcoholic</em> hepatitis with <em class='found'>cirrhosis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"13","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/229221394/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/260254351","important":false,"label":"<em class='found'>Alcoholic</em> hepatitis without <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.5946995236368643},{"foundationUri":"http://id.who.int/icd/entity/791567370","important":false,"label":"<em class='found'>Alcoholic</em> hepatitis without mention of <em class='found'>cirrhosis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.8355038103897563}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.5946995236368643,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/229221394/other","theCode":"DB94.1Y","title":"Other specified <em class='found'>alcoholic</em> hepatitis","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"13","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1884917970 / http://id.who.int/icd/release/11/2026-01/mms/1781315693","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.7004717834017864,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1884917970","theCode":"DB92.1/DB93.1","title":"Non-<em class='found'>alcoholic</em> steatohepatitis with <em class='found'>cirrhosis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"13","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1884917970","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/260506148","important":false,"label":"Non-<em class='found'>alcoholic</em> steatohepatitis without <em class='found'>cirrhosis</em><em class='nonwbe'></em> or fibrosis","propertyId":"Title","propertyValueType":1,"score":-2.0827733055100044}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.0827733055100044,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1884917970","theCode":"DB92.1","title":"Non-<em class='found'>alcoholic</em> steatohepatitis","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"13","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/327718790 / http://id.who.int/icd/release/11/2026-01/mms/1781315693","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.512996404402062,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/327718790","theCode":"DB92.0/DB93.1","title":"Non-<em class='found'>alcoholic</em> fatty liver disease without non-<em class='found'>alcoholic</em> steatohepatitis, with <em class='found'>cirrhosis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"13","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/327718790","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/701468558","important":false,"label":"Non-<em class='found'>alcoholic</em> fatty liver disease without non-<em class='found'>alcoholic</em> steatohepatitis, with <em class='found'>cirrhosis</em><em class='nonwbe'></em> and fibrosis","propertyId":"Title","propertyValueType":1,"score":-2.7414239369679145},{"foundationUri":"http://id.who.int/icd/entity/509390580","important":false,"label":"Non-<em class='found'>alcoholic</em> fatty liver disease without non-<em class='found'>alcoholic</em> steatohepatitis, without <em class='found'>cirrhosis</em><em class='nonwbe'></em> or fibrosis","propertyId":"Title","propertyValueType":1,"score":-2.7414239369679145}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-2.7414239369679145,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/327718790","theCode":"DB92.0","title":"Non-<em class='found'>alcoholic</em> fatty liver disease without non-<em class='found'>alcoholic</em> steatohepatitis","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=alcoholic+cirrhosis%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

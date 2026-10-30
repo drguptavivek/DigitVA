@@ -332,8 +332,14 @@ const parsedObject = (text: string | null) => {
 export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, clientDeviceUuid: string) {
   if (row.status !== "coded" || !row.ucod_code || !row.provenance || isCodingStale(row, answersHash)) return null;
   if (row.device_uuid !== clientDeviceUuid || !PROCESS_TOKEN.test(row.process_token)) return null;
-  const provenance = JSON.parse(row.provenance) as { allowability?: { rules?: unknown } };
-  const rules = provenance.allowability?.rules;
+  // `packVersions` (which engine coded this, src/workspace/offlineDoris.ts) travels as the contract's `pack_versions`,
+  // not inside `provenance`, whose keys the server fixes.
+  const { packVersions, ...provenance } = JSON.parse(row.provenance) as { allowability?: { rules?: unknown }; packVersions?: unknown };
+  if (!provenance.allowability) return null;
+  const rules = provenance.allowability.rules;
+  const engineVersions = Object.fromEntries(
+    Object.entries(packVersions && typeof packVersions === "object" && !Array.isArray(packVersions) ? packVersions : {}).filter(([, version]) => typeof version === "string"),
+  );
   return {
     coded_answers_sha256: answersHash,
     device_uuid: clientDeviceUuid,
@@ -346,7 +352,7 @@ export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, cl
     certificate_digest: hex64OrNull(row.certificate_digest),
     result_digest: hex64OrNull(row.result_digest),
     provenance,
-    pack_versions: typeof rules === "string" ? { allowability: rules } : {},
+    pack_versions: { ...engineVersions, ...(typeof rules === "string" ? { allowability: rules } : {}) },
   };
 }
 

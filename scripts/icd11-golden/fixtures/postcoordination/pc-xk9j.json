@@ -1,0 +1,263 @@
+{
+ "built": [],
+ "id": "pc-xk9j",
+ "input": {
+  "category": "plain",
+  "id": "pc-xk9j",
+  "source": "docs/kb/doris-picker-who-behaviour-rules.md rule 6",
+  "stem": "XK9J",
+  "why": "An extension code used as a stem: other_postcoordination must be null (stem starts with X)"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "XK9J",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "XK9J"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "XK9J",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "XK9J",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [],
+     "other_postcoordination": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "XK9J",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "XK9J"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743",
+    "GET icd/release/11/2026-01/mms/1435602785",
+    "GET icd/release/11/2026-01/mms/1413523709",
+    "GET icd/release/11/2026-01/mms/979408586",
+    "GET icd/release/11/2026-01/mms/1435602785",
+    "GET icd/release/11/2026-01/mms/271422288",
+    "GET icd/release/11/2026-01/mms/876572005",
+    "GET icd/release/11/2026-01/mms/1038788978"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "X",
+       "title": "Extension Codes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      },
+      {
+       "code": "",
+       "title": "Topology Scale Value",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1413523709"
+      },
+      {
+       "code": "",
+       "title": "Laterality",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1435602785"
+      }
+     ],
+     "children": [],
+     "matching_terms": [
+      "Bilateral"
+     ],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "XK9J",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "XK8G",
+       "has_children": false,
+       "title": "Left",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288"
+      },
+      {
+       "code": "XK9K",
+       "has_children": false,
+       "title": "Right",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005"
+      },
+      {
+       "code": "XK70",
+       "has_children": false,
+       "title": "Unilateral, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "XK9J"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "XK9J",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "XK9J"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "XK9J",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "XK9J"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+    "GET icd/release/11/2026-01/mms/627678743"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "XK9J",
+      "title": "Bilateral",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "XK9J"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1038788978": {"method":"GET","path":"icd/release/11/2026-01/mms/1038788978","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1038788978","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1038788978","classKind":"category","code":"XK70","indexTerm":[{"label":{"@language":"en","@value":"Unilateral, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/1038788978","title":{"@language":"en","@value":"Unilateral, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1413523709": {"method":"GET","path":"icd/release/11/2026-01/mms/1413523709","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1413523709","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1413523709","child":["http://id.who.int/icd/release/11/2026-01/mms/137775722","http://id.who.int/icd/release/11/2026-01/mms/169306432","http://id.who.int/icd/release/11/2026-01/mms/1435602785","http://id.who.int/icd/release/11/2026-01/mms/1529645872","http://id.who.int/icd/release/11/2026-01/mms/112199345"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1413523709","title":{"@language":"en","@value":"Topology Scale Value"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1435602785": {"method":"GET","path":"icd/release/11/2026-01/mms/1435602785","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1435602785","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1435602785","child":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/1413523709"],"source":"http://id.who.int/icd/entity/1435602785","title":{"@language":"en","@value":"Laterality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271422288": {"method":"GET","path":"icd/release/11/2026-01/mms/271422288","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271422288","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271422288","classKind":"category","code":"XK8G","indexTerm":[{"label":{"@language":"en","@value":"Left"}},{"label":{"@language":"en","@value":"unilateral, left"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/271422288","title":{"@language":"en","@value":"Left"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/627678743": {"method":"GET","path":"icd/release/11/2026-01/mms/627678743","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/627678743","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#627678743","classKind":"category","code":"XK9J","indexTerm":[{"label":{"@language":"en","@value":"Bilateral"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/627678743","title":{"@language":"en","@value":"Bilateral"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/876572005": {"method":"GET","path":"icd/release/11/2026-01/mms/876572005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/876572005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#876572005","classKind":"category","code":"XK9K","indexTerm":[{"label":{"@language":"en","@value":"Right"}},{"label":{"@language":"en","@value":"unilateral, right"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/876572005","title":{"@language":"en","@value":"Right"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/979408586": {"method":"GET","path":"icd/release/11/2026-01/mms/979408586","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/979408586","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#979408586","child":["http://id.who.int/icd/release/11/2026-01/mms/815889539","http://id.who.int/icd/release/11/2026-01/mms/614922797","http://id.who.int/icd/release/11/2026-01/mms/71556738","http://id.who.int/icd/release/11/2026-01/mms/1413523709","http://id.who.int/icd/release/11/2026-01/mms/1154280071","http://id.who.int/icd/release/11/2026-01/mms/411368752","http://id.who.int/icd/release/11/2026-01/mms/870996432","http://id.who.int/icd/release/11/2026-01/mms/1004338415","http://id.who.int/icd/release/11/2026-01/mms/69327534","http://id.who.int/icd/release/11/2026-01/mms/1321407960","http://id.who.int/icd/release/11/2026-01/mms/1897222875","http://id.who.int/icd/release/11/2026-01/mms/1693181075","http://id.who.int/icd/release/11/2026-01/mms/1597357976","http://id.who.int/icd/release/11/2026-01/mms/1948746454"],"classKind":"chapter","code":"X","definition":{"@language":"en","@value":"!markdown\nExtension codes should never be used in primary classification coding or tabulation. \n- They are provided for use as supplementary or additional codes when desired to identify more detail in statistical categories classified elsewhere. \n- Extension codes may be used alone in other contexts."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/979408586","title":{"@language":"en","@value":"Extension Codes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XK9J": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XK9J","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XK9J","code":"XK9J","stemId":"http://id.who.int/icd/release/11/2026-01/mms/627678743"},"request_body":null,"status":200}
+ }
+}

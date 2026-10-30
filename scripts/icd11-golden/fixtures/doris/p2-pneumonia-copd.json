@@ -1,0 +1,162 @@
+{
+ "id": "p2-pneumonia-copd",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P69Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "CA40.Z",
+       "Interval": "P6D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+       "Text": "Pneumonia"
+      }
+     ]
+    }
+   ],
+   "Part2": {
+    "Conditions": [
+     {
+      "Code": "CA22.Z",
+      "Interval": "P9Y",
+      "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified",
+      "Text": "COPD"
+     }
+    ]
+   }
+  },
+  "group": "adult",
+  "id": "p2-pneumonia-copd",
+  "source": "VA cause VAs-01.02 Acute respiratory infection, including pneumonia; VA cause VAs-05.01 Chronic obstructive pulmonary disease (COPD)",
+  "why": "Part II: COPD contributing to pneumonia"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/CA40.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA22.Z",
+    "POST icd/release/11/2026-01/doris #7a3dde960f",
+    "POST icd/release/11/2026-01/codedit #7a3dde960f",
+    "GET icd/release/11/2026-01/mms/codeinfo/CA22.1",
+    "GET icd/release/11/2026-01/mms/143605159"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P69Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "CA40.Z",
+          "Interval": "P6D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+          "Text": "Pneumonia"
+         }
+        ]
+       }
+      ],
+      "Part2": {
+       "Conditions": [
+        {
+         "Code": "CA22.Z",
+         "Interval": "P9Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified",
+         "Text": "COPD"
+        }
+       ]
+      }
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "CA22.1",
+       "error": null,
+       "reject": false,
+       "report": "SP2: CA40.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: CA22.Z listed as obvious cause(s) of the current TSP CA40.Z.\nCA22.Z is selected using priority order from the listed obvious cause(s).\nM1: There is a special instruction on CA22.Z reported with mention of CA40.Z.\nM1: CA22.1 is selected as the TUC.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\n\n\nFull report:\nSP1: is not applicable.\nSP2: CA40.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: CA22.Z listed as obvious cause(s) of the current TSP CA40.Z.\nCA22.Z is selected using priority order from the listed obvious cause(s).\nSP6: is not applicable with the current TSP CA22.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is a special instruction on CA22.Z reported with mention of CA40.Z.\nM1: CA22.1 is selected as the TUC.\nM1: There is no special instruction applicable with TUC CA22.1.\nM2: is not applicable.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\nSP6: is not applicable with the current TSP CA22.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC CA22.1.\nM2: is not applicable.\n",
+       "stemCode": "CA22.1",
+       "stemURI": "http://id.who.int/icd/entity/143605159",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;CA40.Z;CA40.Z;;;0;SP2: CA40.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;True;CA40.Z;CA22.Z;CA22.Z;;;0;SP6: CA22.Z listed as obvious cause(s) of the current TSP CA40.Z. CA22.Z is selected using priority order from the listed obvious cause(s).;;;;BER BER\nSP6;False;CA22.Z;;;;;0;SP6: is not applicable with the current TSP CA22.Z.;;;;BER\nSP7;False;CA22.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA22.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;CA22.Z;CA22.1;CA40.Z;Substitution:6:CA22.Z>CA22.1-Remove:0:CA40.Z;;0;M1: There is a special instruction on CA22.Z reported with mention of CA40.Z. M1: CA22.1 is selected as the TUC.;;;;BER BER\nM1;False;CA22.1;;;;;0;M1: There is no special instruction applicable with TUC CA22.1.;;;;BER\nM2;False;CA22.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;CA22.1;;;;;0;M3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.;;;;BER\nSP6;False;CA22.1;;;;;0;SP6: is not applicable with the current TSP CA22.1.;;;;BER\nSP7;False;CA22.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA22.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;CA22.1;;;;;0;M1: There is no special instruction applicable with TUC CA22.1.;;;;BER\nM2;False;CA22.1;;;;;0;M2: is not applicable.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/143605159",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "CA22.1",
+       "role": "stem",
+       "title": "Certain specified chronic obstructive pulmonary disease",
+       "uri": "http://id.who.int/icd/release/11/mms/143605159"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P69Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "CA40.Z",
+         "Interval": "P6D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified",
+         "Text": "Pneumonia"
+        }
+       ]
+      }
+     ],
+     "Part2": {
+      "Conditions": [
+       {
+        "Code": "CA22.Z",
+        "Interval": "P9Y",
+        "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified",
+        "Text": "COPD"
+       }
+      ]
+     }
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/143605159": {"method":"GET","path":"icd/release/11/2026-01/mms/143605159","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/143605159","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#143605159","classKind":"category","code":"CA22.1","codingNote":{"@language":"en","@value":"Use additional code to identify any associated respiratory tract infection."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1665365733","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute exacerbation, unspecified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1665365733"}],"indexTerm":[{"label":{"@language":"en","@value":"Certain specified chronic obstructive pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/950162075","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, very severe airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/950162075","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, FEV1 less than 30% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/950162075","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, Gold 4"}},{"foundationReference":"http://id.who.int/icd/entity/1575591695","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, severe airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/1575591695","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, 30% equal to or less than FEV1 less than 50% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/1575591695","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, Gold 3"}},{"foundationReference":"http://id.who.int/icd/entity/692375538","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, moderate airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/692375538","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, 50% equal to or less than FEV1 less than 80% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/692375538","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, Gold 2"}},{"foundationReference":"http://id.who.int/icd/entity/1276052068","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, mild airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/1276052068","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, FEV1 greater than or equal to 80% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/1276052068","label":{"@language":"en","@value":"Other specified chronic obstructive pulmonary disease, Gold 1"}},{"foundationReference":"http://id.who.int/icd/entity/101235569","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection"}},{"foundationReference":"http://id.who.int/icd/entity/101235569","label":{"@language":"en","@value":"COPD - [chronic obstructive pulmonary disease] with respiratory infection"}},{"foundationReference":"http://id.who.int/icd/entity/101235569","label":{"@language":"en","@value":"acute infective exacerbation of chronic obstructive pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/101235569","label":{"@language":"en","@value":"infective exacerbation of chronic obstructive airways disease"}},{"foundationReference":"http://id.who.int/icd/entity/101235569","label":{"@language":"en","@value":"infective exacerbation of chronic obstructive pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/350545776","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, very severe airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/350545776","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, FEV1 less than 30% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/350545776","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, Gold 4"}},{"foundationReference":"http://id.who.int/icd/entity/1907305210","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, severe airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/1907305210","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, 30% equal to or less than FEV1 less than 50% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/1907305210","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, Gold 3"}},{"foundationReference":"http://id.who.int/icd/entity/84048389","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, moderate airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/84048389","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, 50% equal to or less than FEV1 less than 80% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/84048389","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, Gold 2"}},{"foundationReference":"http://id.who.int/icd/entity/1615443857","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, mild airflow limitation"}},{"foundationReference":"http://id.who.int/icd/entity/1615443857","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, FEV1 greater than or equal to 80% predicted"}},{"foundationReference":"http://id.who.int/icd/entity/1615443857","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with acute lower respiratory infection, Gold 1"}},{"foundationReference":"http://id.who.int/icd/entity/194863896","label":{"@language":"en","@value":"Obstructive infective bronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/1969979337","label":{"@language":"en","@value":"Chronic obstructive pulmonary disease with pneumonia"}},{"foundationReference":"http://id.who.int/icd/entity/78579607","label":{"@language":"en","@value":"Chronic obstructive tracheobronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/16214329","label":{"@language":"en","@value":"Asthma with chronic obstructive pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/1206211557","label":{"@language":"en","@value":"Chronic obstructive asthma"}},{"foundationReference":"http://id.who.int/icd/entity/222055454","label":{"@language":"en","@value":"Asthmatic dyspnoea with chronic bronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"Bronchitis with chronic obstructive pulmonary disease"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"bronchitis obstruction"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"bronchitis with airway obstruction"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"bronchitis with chronic airway obstruction"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"chronic bronchitis obliterans"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"chronic obstructive bronchitis, NOS"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"diffuse obstructive bronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/686887390","label":{"@language":"en","@value":"obstructive bronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/1751716661","label":{"@language":"en","@value":"Chronic asthmatic and obstructive bronchitis, not otherwise specified"}},{"foundationReference":"http://id.who.int/icd/entity/1751716661","label":{"@language":"en","@value":"chronic asthmatic bronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/777010908","label":{"@language":"en","@value":"Lung disease with obstructive bronchitis"}},{"foundationReference":"http://id.who.int/icd/entity/2132091879","label":{"@language":"en","@value":"Subacute obliterative bronchiolitis"}},{"foundationReference":"http://id.who.int/icd/entity/709285496","label":{"@language":"en","@value":"Obstructive laryngobronchitis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/133207228"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/143605159/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/145723401","http://id.who.int/icd/release/11/2026-01/mms/11753425","http://id.who.int/icd/release/11/2026-01/mms/1948124976","http://id.who.int/icd/release/11/2026-01/mms/1656445230","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/142052508","http://id.who.int/icd/release/11/2026-01/mms/727572936","http://id.who.int/icd/release/11/2026-01/mms/727572936"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/143605159/postcoordinationScale/hasSeverity","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/hasSeverity","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1349205270","http://id.who.int/icd/release/11/2026-01/mms/178078665","http://id.who.int/icd/release/11/2026-01/mms/1866919550","http://id.who.int/icd/release/11/2026-01/mms/1080893150"]}],"relatedEntitiesInMaternalChapter":["http://id.who.int/icd/entity/923122941"],"relatedEntitiesInPerinatalChapter":["http://id.who.int/icd/entity/607453719"],"source":"http://id.who.int/icd/entity/143605159","title":{"@language":"en","@value":"Certain specified chronic obstructive pulmonary disease"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA22.1": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA22.1","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA22.1","code":"CA22.1","stemId":"http://id.who.int/icd/release/11/2026-01/mms/143605159"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA22.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA22.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA22.Z","code":"CA22.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/CA40.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/CA40.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/CA40.Z","code":"CA40.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #7a3dde960f": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P69Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CA40.Z\",\"Interval\":\"P6D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified\",\"Text\":\"Pneumonia\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"CA22.Z\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified\",\"Text\":\"COPD\"}]}}","status":200},
+  "POST icd/release/11/2026-01/doris #7a3dde960f": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"CA22.1","error":null,"reject":false,"report":"SP2: CA40.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: CA22.Z listed as obvious cause(s) of the current TSP CA40.Z.\nCA22.Z is selected using priority order from the listed obvious cause(s).\nM1: There is a special instruction on CA22.Z reported with mention of CA40.Z.\nM1: CA22.1 is selected as the TUC.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\n\n\nFull report:\nSP1: is not applicable.\nSP2: CA40.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).\nSP6: CA22.Z listed as obvious cause(s) of the current TSP CA40.Z.\nCA22.Z is selected using priority order from the listed obvious cause(s).\nSP6: is not applicable with the current TSP CA22.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is a special instruction on CA22.Z reported with mention of CA40.Z.\nM1: CA22.1 is selected as the TUC.\nM1: There is no special instruction applicable with TUC CA22.1.\nM2: is not applicable.\nM3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.\nSP6: is not applicable with the current TSP CA22.1.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC CA22.1.\nM2: is not applicable.\n","stemCode":"CA22.1","stemURI":"http://id.who.int/icd/entity/143605159","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;True;;CA40.Z;CA40.Z;;;0;SP2: CA40.Z is the first condition reported on the only line used in Part 1, which is selected as the tentative starting point (TSP).;;;;BER\nSP6;True;CA40.Z;CA22.Z;CA22.Z;;;0;SP6: CA22.Z listed as obvious cause(s) of the current TSP CA40.Z. CA22.Z is selected using priority order from the listed obvious cause(s).;;;;BER BER\nSP6;False;CA22.Z;;;;;0;SP6: is not applicable with the current TSP CA22.Z.;;;;BER\nSP7;False;CA22.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA22.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;True;CA22.Z;CA22.1;CA40.Z;Substitution:6:CA22.Z>CA22.1-Remove:0:CA40.Z;;0;M1: There is a special instruction on CA22.Z reported with mention of CA40.Z. M1: CA22.1 is selected as the TUC.;;;;BER BER\nM1;False;CA22.1;;;;;0;M1: There is no special instruction applicable with TUC CA22.1.;;;;BER\nM2;False;CA22.1;;;;;0;M2: is not applicable.;;;;BER\nM3;False;CA22.1;;;;;0;M3: The tentative underlying cause is not the same as the starting point selected in Steps SP1 to SP8. Repeat steps SP6, M1 and M2.;;;;BER\nSP6;False;CA22.1;;;;;0;SP6: is not applicable with the current TSP CA22.1.;;;;BER\nSP7;False;CA22.1;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;CA22.1;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;CA22.1;;;;;0;M1: There is no special instruction applicable with TUC CA22.1.;;;;BER\nM2;False;CA22.1;;;;;0;M2: is not applicable.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/143605159","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P69Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"CA40.Z\",\"Interval\":\"P6D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/142052508/unspecified\",\"Text\":\"Pneumonia\"}]}],\"Part2\":{\"Conditions\":[{\"Code\":\"CA22.Z\",\"Interval\":\"P9Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/133207228/unspecified\",\"Text\":\"COPD\"}]}}","status":200}
+ }
+}

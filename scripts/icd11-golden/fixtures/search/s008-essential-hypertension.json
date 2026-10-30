@@ -1,0 +1,98 @@
+{
+ "id": "s008-essential-hypertension",
+ "input": {
+  "id": "s008-essential-hypertension",
+  "kind": "disease",
+  "query": "essential hypertension",
+  "source": "VAs-04.99",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #747c7fe9b8"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 6,
+     "items": [
+      {
+       "code": "BA00.Z",
+       "has_coding_note": false,
+       "matching_text": "Essential hypertension, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Essential hypertension, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"
+      },
+      {
+       "code": "BA00.Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified essential hypertension",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other specified essential hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/761947693/other"
+      },
+      {
+       "code": "BA00.Z/BA03",
+       "has_coding_note": false,
+       "matching_text": "Essential (primary) hypertension, unspecified, with mention of hypertensive crisis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Essential (primary) hypertension, unspecified, with mention of hypertensive crisis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified / http://id.who.int/icd/release/11/2026-01/mms/1002963291"
+      },
+      {
+       "code": "KB45",
+       "has_coding_note": false,
+       "matching_text": "Neonatal hypertension",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Neonatal hypertension",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1910517058"
+      },
+      {
+       "code": "BA01",
+       "has_coding_note": false,
+       "matching_text": "Hypertensive heart disease",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Hypertensive heart disease",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1210166201"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "essential hypertension",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #747c7fe9b8": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified","important":true,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/761947693","important":false,"label":"<em class='found'>Essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1160249934","important":false,"label":"<em class='found'>Essential</em> (primary) <em class='found'>hypertension</em><em class='nonwbe'></em>, unspecified, without mention of hypertensive crisis","propertyId":"Title","propertyValueType":1,"score":-1.4924265959899894},{"foundationUri":"http://id.who.int/icd/entity/1160249934","important":false,"label":"<em class='found'>essential</em> HTN - [<em class='found'>hypertension</em><em class='nonwbe'></em>], without mention of hypertensive crisis","propertyId":"Synonym","propertyValueType":1,"score":-1.7378500755016308}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified","theCode":"BA00.Z","title":"<em class='found'>Essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/761947693/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/644961579","important":false,"label":"Accelerated <em class='found'>essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.7121797319635731}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.32470289279110875,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/other","theCode":"BA00.Y","title":"Other specified <em class='found'>essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified / http://id.who.int/icd/release/11/2026-01/mms/1002963291","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/543412184","important":false,"label":"<em class='found'>essential</em> HTN - [<em class='found'>hypertension</em><em class='nonwbe'></em>], with mention of hypertensive crisis","propertyId":"Synonym","propertyValueType":2,"score":-1.4963569081582853}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.250933428646644,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified","theCode":"BA00.Z/BA03","title":"<em class='found'>Essential</em> (primary) <em class='found'>hypertension</em><em class='nonwbe'></em>, unspecified, with mention of hypertensive crisis","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1910517058","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1910517058","important":false,"label":"newborn <em class='found'>essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.272998285454108},{"foundationUri":"http://id.who.int/icd/entity/1910517058","important":false,"label":"newborn benign <em class='found'>essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.5478945779986746}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.272998285454108,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1910517058","theCode":"KB45","title":"Neonatal <em class='found'>hypertension</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1210166201","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1208029865","important":false,"label":"<em class='found'>essential</em> hypertensive cardiovascular disease","propertyId":"Synonym","propertyValueType":1,"score":-1.5474104633350338}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.5474104633350338,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1210166201","theCode":"BA01","title":"Hypertensive heart disease","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1126579721","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1126579721","important":false,"label":"<em class='found'>Essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em> specified as a reason for obstetric care during pregnancy, childbirth or the puerperium","propertyId":"Synonym","propertyValueType":0,"score":-3.611929254030796}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-3.611929254030796,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1126579721","theCode":"JA20.0","title":"Pre-existing <em class='found'>essential</em> <em class='found'>hypertension</em><em class='nonwbe'></em> complicating pregnancy, childbirth or the puerperium","titleIsASearchResult":true,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=essential+hypertension%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

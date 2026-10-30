@@ -1,0 +1,62 @@
+{
+ "id": "s099-pesticide-poisoning",
+ "input": {
+  "id": "s099-pesticide-poisoning",
+  "kind": "injury",
+  "query": "pesticide poisoning",
+  "source": "VAs-12.07; scripts/icd11-parity/queries.json",
+  "why": "injury or external-cause wording"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #4b90b49bbf"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 2,
+     "items": [
+      {
+       "code": "PD03",
+       "has_coding_note": false,
+       "matching_text": "Intentional self-harm by exposure to or harmful effects of pesticides",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Intentional self-harm by exposure to or harmful effects of pesticides",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1463446644"
+      },
+      {
+       "code": "PH53",
+       "has_coding_note": false,
+       "matching_text": "Exposure to or harmful effects of undetermined intent of pesticides",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Exposure to or harmful effects of undetermined intent of pesticides",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/938040061"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "pesticide poisoning",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #4b90b49bbf": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1463446644","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1463446644","important":false,"label":"intentional self-<em class='found'>poisoning</em><em class='nonwbe'></em> by and exposure to <em class='found'>pesticides</em>","propertyId":"Synonym","propertyValueType":0,"score":-1.1956478642284492}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.1956478642284492,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1463446644","theCode":"PD03","title":"Intentional self-harm by exposure to or harmful effects of <em class='found'>pesticides</em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"23","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/938040061","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/938040061","important":false,"label":"<em class='found'>Poisoning</em><em class='nonwbe'></em> by and exposure to <em class='found'>pesticides</em>, undetermined intent","propertyId":"Synonym","propertyValueType":0,"score":-1.2193652307637395}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.2193652307637395,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/938040061","theCode":"PH53","title":"Exposure to or harmful effects of undetermined intent of <em class='found'>pesticides</em>","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=pesticide+poisoning%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

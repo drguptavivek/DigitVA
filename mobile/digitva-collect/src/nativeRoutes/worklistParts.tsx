@@ -292,7 +292,7 @@ export function InterviewsView(p: InterviewsViewProps) {
           <FilterChips value={filter} counts={counts} onChange={setFilter} />
         </>
       ) : null}
-      <FlatList
+      <FlatList keyboardDismissMode="on-drag"
         style={{ flex: 1 }}
         data={data}
         keyExtractor={(entry) => entry.key}

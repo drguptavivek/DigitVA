@@ -99,7 +99,7 @@ function SelectField({ label, placeholder, options, value, onSelect }: {
         <View style={s.backdrop}>
           <Pressable accessibilityRole="button" accessibilityLabel={t("closeList")} onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
           <View style={s.sheet} accessibilityViewIsModal>
-            <ScrollView>
+            <ScrollView keyboardDismissMode="on-drag">
               {options.map((option) => {
                 const on = option.value === value;
                 return (

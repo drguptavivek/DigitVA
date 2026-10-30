@@ -1,0 +1,51 @@
+{
+ "id": "s175-syn-chest-infection",
+ "input": {
+  "concept": "pneumonia",
+  "id": "s175-syn-chest-infection",
+  "kind": "synonym",
+  "query": "chest infection",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for pneumonia (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #f4a81ebeac"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 1,
+     "items": [
+      {
+       "code": "CA2Z",
+       "has_coding_note": false,
+       "matching_text": "Lower respiratory tract disease, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Lower respiratory tract disease, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1582386590/unspecified"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "chest infection",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #f4a81ebeac": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"12","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1582386590/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1582386590","important":true,"label":"<em class='found'>chest</em> <em class='found'>infection</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1582386590/unspecified","theCode":"CA2Z","title":"Lower respiratory tract disease, unspecified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=chest+infection%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

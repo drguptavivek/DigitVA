@@ -1,0 +1,183 @@
+{
+ "id": "cluster-motor-ext",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P24Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NC72.Z",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+       "Text": "Fractured thigh bone"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PA03&XE7ZZ",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/324760454 & http://id.who.int/icd/release/11/2026-01/mms/1206757646",
+       "Text": "Motorbike rider injured"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "cluster-motor-ext",
+  "source": "docs/kb/doris-picker-who-behaviour-rules.md",
+  "why": "External cause with extension codes (PA03&XE7ZZ)"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA03%26XE7ZZ",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA03",
+    "GET icd/release/11/2026-01/mms/codeinfo/XE7ZZ",
+    "POST icd/release/11/2026-01/doris #7415e49a90",
+    "POST icd/release/11/2026-01/codedit #7415e49a90",
+    "GET icd/release/11/2026-01/mms/codeinfo/PA03",
+    "GET icd/release/11/2026-01/mms/324760454",
+    "GET icd/release/11/2026-01/mms/codeinfo/XE7ZZ",
+    "GET icd/release/11/2026-01/mms/1206757646"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P24Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NC72.Z",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+          "Text": "Fractured thigh bone"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PA03&XE7ZZ",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/324760454 & http://id.who.int/icd/release/11/2026-01/mms/1206757646",
+          "Text": "Motorbike rider injured"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PA03&XE7ZZ/NC72.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PA03&XE7ZZ is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA03.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA03&XE7ZZ is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA03&XE7ZZ.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA03&XE7ZZ.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA03.\n",
+       "stemCode": "PA03",
+       "stemURI": "http://id.who.int/icd/entity/324760454",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA03&XE7ZZ;PA03&XE7ZZ;;;0;SP3: PA03&XE7ZZ is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA03&XE7ZZ;;;;;0;SP6: is not applicable with the current TSP PA03&XE7ZZ.;;;;BER\nSP7;False;PA03&XE7ZZ;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA03&XE7ZZ;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA03&XE7ZZ;;;;;0;M1: There is no special instruction applicable with TUC PA03&XE7ZZ.;;;;BER\nM2;False;PA03&XE7ZZ;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA03&XE7ZZ;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA03&XE7ZZ/NC72.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/324760454 & http://id.who.int/icd/release/11/mms/1206757646 / http://id.who.int/icd/release/11/mms/1810119958/unspecified",
+       "warning": "M4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PA03",
+       "role": "stem",
+       "title": "Unintentional land transport traffic event injuring a motor cyclist",
+       "uri": "http://id.who.int/icd/release/11/mms/324760454"
+      },
+      {
+       "code": "XE7ZZ",
+       "role": "extension",
+       "title": "Pedal cycle as counterpart in land transport crash",
+       "uri": "http://id.who.int/icd/release/11/mms/1206757646"
+      },
+      {
+       "code": "NC72.Z",
+       "role": "postcoordinated",
+       "title": "Fractured thigh bone",
+       "uri": "http://id.who.int/icd/release/11/mms/1810119958/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P24Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NC72.Z",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified",
+         "Text": "Fractured thigh bone"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PA03&XE7ZZ",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/324760454 & http://id.who.int/icd/release/11/2026-01/mms/1206757646",
+         "Text": "Motorbike rider injured"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1206757646": {"method":"GET","path":"icd/release/11/2026-01/mms/1206757646","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1206757646","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1206757646","child":["http://id.who.int/icd/release/11/2026-01/mms/264915300","http://id.who.int/icd/release/11/2026-01/mms/816173806"],"classKind":"category","code":"XE7ZZ","definition":{"@language":"en","@value":"A pedal-cycle is any land transport vehicle propelled by the muscular energy of the person(s) on that vehicle usually by means of a pedal system but sometimes by lever(s) or handle(s). Includes vehicles with two wheels (the usual number) or more."},"indexTerm":[{"label":{"@language":"en","@value":"Pedal cycle as counterpart in land transport crash"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1463612101"],"source":"http://id.who.int/icd/entity/1206757646","title":{"@language":"en","@value":"Pedal cycle as counterpart in land transport crash"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/324760454": {"method":"GET","path":"icd/release/11/2026-01/mms/324760454","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/324760454","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#324760454","classKind":"category","code":"PA03","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1684490659","label":{"@language":"en","@value":"Unintentional land transport traffic event injuring an occupant of a low powered passenger vehicle"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1684490659"}],"indexTerm":[{"label":{"@language":"en","@value":"Unintentional land transport traffic event injuring a motor cyclist"}},{"label":{"@language":"en","@value":"Motorcycle accident NOS"}},{"label":{"@language":"en","@value":"motorbike accident"}},{"label":{"@language":"en","@value":"motorbike traffic accident"}},{"label":{"@language":"en","@value":"motorcycle rider injured in transport accident"}},{"label":{"@language":"en","@value":"unintentional land transport accident motorbike"}},{"foundationReference":"http://id.who.int/icd/entity/1884956738","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedestrian or animal"}},{"foundationReference":"http://id.who.int/icd/entity/29173194","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedestrian or animal, person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1918088798","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedestrian or animal, driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/387480520","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedestrian or animal, passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/517750389","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedestrian or animal, unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/353494488","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedal cycle"}},{"foundationReference":"http://id.who.int/icd/entity/491121993","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedal cycle : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1856732893","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedal cycle : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/199275337","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedal cycle : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/35976950","label":{"@language":"en","@value":"Motorcycle rider injured in collision with pedal cycle : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/1639757097","label":{"@language":"en","@value":"Motorcycle rider injured in collision with two- or three-wheeled motor vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/482495863","label":{"@language":"en","@value":"Motorcycle rider injured in collision with two- or three-wheeled motor vehicle : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1865211619","label":{"@language":"en","@value":"Motorcycle rider injured in collision with two- or three-wheeled motor vehicle : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/174527351","label":{"@language":"en","@value":"Motorcycle rider injured in collision with two- or three-wheeled motor vehicle : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/61036234","label":{"@language":"en","@value":"Motorcycle rider injured in collision with two- or three-wheeled motor vehicle : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/83327165","label":{"@language":"en","@value":"Motorcycle rider injured in collision with car, pick-up truck or van"}},{"foundationReference":"http://id.who.int/icd/entity/3835382","label":{"@language":"en","@value":"Motorcycle rider injured in collision with car, pick-up truck or van : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1943279202","label":{"@language":"en","@value":"Motorcycle rider injured in collision with car, pick-up truck or van : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/1943279202","label":{"@language":"en","@value":"operator of motorcycle injured in collision with car, pick-up truck or van: driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/379575288","label":{"@language":"en","@value":"Motorcycle rider injured in collision with car, pick-up truck or van : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/526097995","label":{"@language":"en","@value":"Motorcycle rider injured in collision with car, pick-up truck or van : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/1998187305","label":{"@language":"en","@value":"Motorcycle rider injured in collision with heavy transport vehicle or bus"}},{"foundationReference":"http://id.who.int/icd/entity/994309304","label":{"@language":"en","@value":"Motorcycle rider injured in collision with heavy transport vehicle or bus : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1219323684","label":{"@language":"en","@value":"Motorcycle rider injured in collision with heavy transport vehicle or bus : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/770091702","label":{"@language":"en","@value":"Motorcycle rider injured in collision with heavy transport vehicle or bus : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/606269195","label":{"@language":"en","@value":"Motorcycle rider injured in collision with heavy transport vehicle or bus : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/1728017988","label":{"@language":"en","@value":"Motorcycle rider injured in collision with other nonmotor vehicle"}},{"foundationReference":"http://id.who.int/icd/entity/641506313","label":{"@language":"en","@value":"Motorcycle rider injured in collision with other nonmotor vehicle : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1439829917","label":{"@language":"en","@value":"Motorcycle rider injured in collision with other nonmotor vehicle : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/815383049","label":{"@language":"en","@value":"Motorcycle rider injured in collision with other nonmotor vehicle : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/962430900","label":{"@language":"en","@value":"Motorcycle rider injured in collision with other nonmotor vehicle : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/62176214","label":{"@language":"en","@value":"Motorcycle rider injured in collision with fixed or stationary object"}},{"foundationReference":"http://id.who.int/icd/entity/985945224","label":{"@language":"en","@value":"Motorcycle rider injured in collision with fixed or stationary object : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/1227540252","label":{"@language":"en","@value":"Motorcycle rider injured in collision with fixed or stationary object : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/744557194","label":{"@language":"en","@value":"Motorcycle rider injured in collision with fixed or stationary object : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/631590709","label":{"@language":"en","@value":"Motorcycle rider injured in collision with fixed or stationary object : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/2128457364","label":{"@language":"en","@value":"Motorcycle rider injured in noncollision transport accident"}},{"foundationReference":"http://id.who.int/icd/entity/1950385974","label":{"@language":"en","@value":"Motorcycle rider injured in noncollision transport accident : person injured while boarding or alighting"}},{"foundationReference":"http://id.who.int/icd/entity/128849058","label":{"@language":"en","@value":"Motorcycle rider injured in noncollision transport accident : driver injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/1659230516","label":{"@language":"en","@value":"Motorcycle rider injured in noncollision transport accident : passenger injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/1797364873","label":{"@language":"en","@value":"Motorcycle rider injured in noncollision transport accident : unspecified motorcycle rider injured in traffic accident"}},{"foundationReference":"http://id.who.int/icd/entity/462840578","label":{"@language":"en","@value":"Motorcycle rider injured in other and unspecified transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/551166421","label":{"@language":"en","@value":"Motorcycle rider injured by being trapped by part of motorcycle"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1710329660"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/324760454/postcoordinationScale/activityWhenInjured","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/activityWhenInjured","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2071638841","http://id.who.int/icd/release/11/2026-01/mms/1107435129","http://id.who.int/icd/release/11/2026-01/mms/1428847289","http://id.who.int/icd/release/11/2026-01/mms/821249273","http://id.who.int/icd/release/11/2026-01/mms/160164281"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/324760454/postcoordinationScale/placeOfOccurrence","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/placeOfOccurrence","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/713258542"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/324760454/postcoordinationScale/transportEventDescriptor","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/transportEventDescriptor","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/542554339","http://id.who.int/icd/release/11/2026-01/mms/1075090949","http://id.who.int/icd/release/11/2026-01/mms/1463612101"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/324760454/postcoordinationScale/alcoholUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/alcoholUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1993515327","http://id.who.int/icd/release/11/2026-01/mms/1336544383","http://id.who.int/icd/release/11/2026-01/mms/1484941503","http://id.who.int/icd/release/11/2026-01/mms/1029396223","http://id.who.int/icd/release/11/2026-01/mms/712192575"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/324760454/postcoordinationScale/psychoactiveDrugUseInInjury","allowMultipleValues":"AllowedExceptFromSameBlock","axisName":"http://id.who.int/icd/schema/psychoactiveDrugUseInInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1848703062","http://id.who.int/icd/release/11/2026-01/mms/1464358166","http://id.who.int/icd/release/11/2026-01/mms/1080046038","http://id.who.int/icd/release/11/2026-01/mms/632885142","http://id.who.int/icd/release/11/2026-01/mms/848390998"]}],"source":"http://id.who.int/icd/entity/324760454","title":{"@language":"en","@value":"Unintentional land transport traffic event injuring a motor cyclist"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/NC72.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NC72.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NC72.Z","code":"NC72.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA03": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA03","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA03","code":"PA03","stemId":"http://id.who.int/icd/release/11/2026-01/mms/324760454"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PA03%26XE7ZZ": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PA03%26XE7ZZ","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PA03%26XE7ZZ","code":"PA03&XE7ZZ","stemCode":"PA03","stemId":"http://id.who.int/icd/release/11/2026-01/mms/324760454","transportEventDescriptor":["XE7ZZ"]},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/XE7ZZ": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/XE7ZZ","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/XE7ZZ","code":"XE7ZZ","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1206757646"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #7415e49a90": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P24Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NC72.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified\",\"Text\":\"Fractured thigh bone\"}]},{\"Conditions\":[{\"Code\":\"PA03&XE7ZZ\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/324760454 & http://id.who.int/icd/release/11/2026-01/mms/1206757646\",\"Text\":\"Motorbike rider injured\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #7415e49a90": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PA03&XE7ZZ/NC72.Z","error":null,"reject":false,"report":"SP3: PA03&XE7ZZ is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA03.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PA03&XE7ZZ is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PA03&XE7ZZ.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PA03&XE7ZZ.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA03.\n","stemCode":"PA03","stemURI":"http://id.who.int/icd/entity/324760454","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PA03&XE7ZZ;PA03&XE7ZZ;;;0;SP3: PA03&XE7ZZ is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PA03&XE7ZZ;;;;;0;SP6: is not applicable with the current TSP PA03&XE7ZZ.;;;;BER\nSP7;False;PA03&XE7ZZ;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PA03&XE7ZZ;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PA03&XE7ZZ;;;;;0;M1: There is no special instruction applicable with TUC PA03&XE7ZZ.;;;;BER\nM2;False;PA03&XE7ZZ;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PA03&XE7ZZ;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PA03&XE7ZZ/NC72.Z;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/324760454 & http://id.who.int/icd/release/11/mms/1206757646 / http://id.who.int/icd/release/11/mms/1810119958/unspecified","warning":"M4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P24Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NC72.Z\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified\",\"Text\":\"Fractured thigh bone\"}]},{\"Conditions\":[{\"Code\":\"PA03&XE7ZZ\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/324760454 & http://id.who.int/icd/release/11/2026-01/mms/1206757646\",\"Text\":\"Motorbike rider injured\"}]}]}","status":200}
+ }
+}

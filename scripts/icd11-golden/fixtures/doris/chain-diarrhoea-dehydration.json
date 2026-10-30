@@ -1,0 +1,158 @@
+{
+ "id": "chain-diarrhoea-dehydration",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P14M",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "5C70.0",
+       "Interval": "P1D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/578744597",
+       "Text": "Dehydration"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "1A40.Z",
+       "Interval": "P3D",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified",
+       "Text": "Diarrhoea"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "child",
+  "id": "chain-diarrhoea-dehydration",
+  "source": "VA cause VAs-01.04 Diarrhoeal diseases",
+  "why": "Two lines: dehydration due to acute diarrhoea in a child"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/5C70.0",
+    "GET icd/release/11/2026-01/mms/codeinfo/1A40.Z",
+    "POST icd/release/11/2026-01/doris #ae83444064",
+    "POST icd/release/11/2026-01/codedit #ae83444064"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P14M",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "5C70.0",
+          "Interval": "P1D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/578744597",
+          "Text": "Dehydration"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "1A40.Z",
+          "Interval": "P3D",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified",
+          "Text": "Diarrhoea"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "1A40.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: 1A40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 1A40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1A40.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1A40.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n",
+       "stemCode": "1A40.Z",
+       "stemURI": "http://id.who.int/icd/entity/1688127370/mms/unspecified",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;1A40.Z;1A40.Z;;;0;SP3: 1A40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1A40.Z;;;;;0;SP6: is not applicable with the current TSP 1A40.Z.;;;;BER\nSP7;False;1A40.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1A40.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1A40.Z;;;;;0;M1: There is no special instruction applicable with TUC 1A40.Z.;;;;BER\nM2;False;1A40.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1A40.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1688127370/unspecified",
+       "warning": null
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "1A40.Z",
+       "role": "stem",
+       "title": "Diarrhoea",
+       "uri": "http://id.who.int/icd/release/11/mms/1688127370/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P14M",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "5C70.0",
+         "Interval": "P1D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/578744597",
+         "Text": "Dehydration"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "1A40.Z",
+         "Interval": "P3D",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified",
+         "Text": "Diarrhoea"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/1A40.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/1A40.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1A40.Z","code":"1A40.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/5C70.0": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5C70.0","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5C70.0","code":"5C70.0","stemId":"http://id.who.int/icd/release/11/2026-01/mms/578744597"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #ae83444064": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P14M\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"5C70.0\",\"Interval\":\"P1D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/578744597\",\"Text\":\"Dehydration\"}]},{\"Conditions\":[{\"Code\":\"1A40.Z\",\"Interval\":\"P3D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified\",\"Text\":\"Diarrhoea\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #ae83444064": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"1A40.Z","error":null,"reject":false,"report":"SP3: 1A40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 1A40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 1A40.Z.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 1A40.Z.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\n","stemCode":"1A40.Z","stemURI":"http://id.who.int/icd/entity/1688127370/mms/unspecified","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;1A40.Z;1A40.Z;;;0;SP3: 1A40.Z is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;1A40.Z;;;;;0;SP6: is not applicable with the current TSP 1A40.Z.;;;;BER\nSP7;False;1A40.Z;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;1A40.Z;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;1A40.Z;;;;;0;M1: There is no special instruction applicable with TUC 1A40.Z.;;;;BER\nM2;False;1A40.Z;;;;;0;M2: is not applicable.;;;;BER\nM3;False;1A40.Z;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER","uri":"http://id.who.int/icd/release/11/mms/1688127370/unspecified","warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P14M\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"5C70.0\",\"Interval\":\"P1D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/578744597\",\"Text\":\"Dehydration\"}]},{\"Conditions\":[{\"Code\":\"1A40.Z\",\"Interval\":\"P3D\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified\",\"Text\":\"Diarrhoea\"}]}]}","status":200}
+ }
+}

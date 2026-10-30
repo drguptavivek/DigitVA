@@ -1,0 +1,129 @@
+{
+ "id": "rej-uncoded-two-lines",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P55Y",
+    "Sex": 2
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Text": "Stopped breathing"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Text": "Long illness"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "rej-uncoded-two-lines",
+  "source": "DORIS contract: uncoded text",
+  "why": "Two uncoded lines"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/doris #ac73158f3e",
+    "POST icd/release/11/2026-01/codedit #ac73158f3e"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P55Y",
+       "Sex": 2
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Text": "Stopped breathing"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Text": "Long illness"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": null,
+       "error": "No valid ICD-11 codes could be assigned. Manual check is needed\n",
+       "reject": true,
+       "report": null,
+       "stemCode": null,
+       "stemURI": null,
+       "tabularReport": "",
+       "uri": null,
+       "warning": null
+      },
+      "status": "rejected"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P55Y",
+      "Sex": 2
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Text": "Stopped breathing"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Text": "Long illness"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/codedit #ac73158f3e": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P55Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Text\":\"Stopped breathing\"}]},{\"Conditions\":[{\"Text\":\"Long illness\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #ac73158f3e": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":null,"error":"No valid ICD-11 codes could be assigned. Manual check is needed\n","reject":true,"report":null,"stemCode":null,"stemURI":null,"tabularReport":"","uri":null,"warning":null},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P55Y\",\"Sex\":2},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Text\":\"Stopped breathing\"}]},{\"Conditions\":[{\"Text\":\"Long illness\"}]}]}","status":200}
+ }
+}

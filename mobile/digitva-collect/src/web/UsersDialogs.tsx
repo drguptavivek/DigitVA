@@ -45,7 +45,7 @@ export function DialogFrame({ title, onClose, children }: { title: string; onClo
       <View style={s.backdrop}>
         <Pressable accessibilityRole="button" accessibilityLabel={t("usersCodeClose")} onPress={onClose} style={StyleSheet.absoluteFill} />
         <View style={s.dialog} accessibilityViewIsModal accessibilityLabel={title} role="dialog" aria-modal={true}>
-          <ScrollView contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
+          <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={s.body} keyboardShouldPersistTaps="handled">
             <Text style={styles.headline} accessibilityRole="header">{title}</Text>
             {children}
             <Button kind="secondary" label={t("usersCodeClose")} onPress={onClose} />

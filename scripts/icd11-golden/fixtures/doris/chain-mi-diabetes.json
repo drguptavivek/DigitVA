@@ -1,0 +1,202 @@
+{
+ "id": "chain-mi-diabetes",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P66Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "BA41.Z",
+       "Interval": "PT3H",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+       "Text": "Heart attack"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "BA52.Z",
+       "Interval": "P5Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+       "Text": "Blocked coronary arteries"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "5A11",
+       "Interval": "P12Y",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+       "Text": "Diabetes"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "chain-mi-diabetes",
+  "source": "VA cause VAs-04.01 Acute cardiac disease; VA cause VAs-03.03 Diabetes mellitus",
+  "why": "Three lines: MI due to coronary atherosclerosis due to diabetes"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/BA52.Z",
+    "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+    "POST icd/release/11/2026-01/doris #ca6fb6e937",
+    "POST icd/release/11/2026-01/codedit #ca6fb6e937"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P66Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "BA41.Z",
+          "Interval": "PT3H",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+          "Text": "Heart attack"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "BA52.Z",
+          "Interval": "P5Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+          "Text": "Blocked coronary arteries"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "5A11",
+          "Interval": "P12Y",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+          "Text": "Diabetes"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "5A11/BA41.Z/BA52.Z",
+       "error": null,
+       "reject": false,
+       "report": "SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nBA41.Z, BA52.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BA41.Z/BA52.Z.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nBA41.Z, BA52.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BA41.Z/BA52.Z.\n",
+       "stemCode": "5A11",
+       "stemURI": "http://id.who.int/icd/entity/119724091",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;5A11;5A11;;;0;SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/BA41.Z/BA52.Z;BA41.Z, BA52.Z;Substitution:2:5A11>5A11/BA41.Z/BA52.Z;;0;BA41.Z, BA52.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BA41.Z/BA52.Z.;;;1,\"The postcoordinations - BA41.Z, BA52.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/1334938734/unspecified / http://id.who.int/icd/release/11/mms/1280712786/unspecified",
+       "warning": "The postcoordinations - BA41.Z, BA52.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "5A11",
+       "role": "stem",
+       "title": "Diabetes",
+       "uri": "http://id.who.int/icd/release/11/mms/119724091"
+      },
+      {
+       "code": "BA41.Z",
+       "role": "postcoordinated",
+       "title": "Heart attack",
+       "uri": "http://id.who.int/icd/release/11/mms/1334938734/unspecified"
+      },
+      {
+       "code": "BA52.Z",
+       "role": "postcoordinated",
+       "title": "Blocked coronary arteries",
+       "uri": "http://id.who.int/icd/release/11/mms/1280712786/unspecified"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P66Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "BA41.Z",
+         "Interval": "PT3H",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified",
+         "Text": "Heart attack"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "BA52.Z",
+         "Interval": "P5Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified",
+         "Text": "Blocked coronary arteries"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "5A11",
+         "Interval": "P12Y",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/119724091",
+         "Text": "Diabetes"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/5A11": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/5A11","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/5A11","code":"5A11","stemId":"http://id.who.int/icd/release/11/2026-01/mms/119724091"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA41.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA41.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA41.Z","code":"BA41.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/BA52.Z": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/BA52.Z","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/BA52.Z","code":"BA52.Z","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #ca6fb6e937": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P66Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\",\"Interval\":\"PT3H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified\",\"Text\":\"Heart attack\"}]},{\"Conditions\":[{\"Code\":\"BA52.Z\",\"Interval\":\"P5Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified\",\"Text\":\"Blocked coronary arteries\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P12Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #ca6fb6e937": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"5A11/BA41.Z/BA52.Z","error":null,"reject":false,"report":"SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nBA41.Z, BA52.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BA41.Z/BA52.Z.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP 5A11.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC 5A11.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nBA41.Z, BA52.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BA41.Z/BA52.Z.\n","stemCode":"5A11","stemURI":"http://id.who.int/icd/entity/119724091","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;5A11;5A11;;;0;SP3: 5A11 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;5A11;;;;;0;SP6: is not applicable with the current TSP 5A11.;;;;BER\nSP7;False;5A11;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;5A11;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;5A11;;;;;0;M1: There is no special instruction applicable with TUC 5A11.;;;;BER\nM2;False;5A11;;;;;0;M2: is not applicable.;;;;BER\nM3;False;5A11;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;5A11;5A11/BA41.Z/BA52.Z;BA41.Z, BA52.Z;Substitution:2:5A11>5A11/BA41.Z/BA52.Z;;0;BA41.Z, BA52.Z are manifestations of the selected underlying cause of death 5A11 and it is added as a postcoordination - 5A11>5A11/BA41.Z/BA52.Z.;;;1,\"The postcoordinations - BA41.Z, BA52.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\",;BER","uri":"http://id.who.int/icd/release/11/mms/119724091 / http://id.who.int/icd/release/11/mms/1334938734/unspecified / http://id.who.int/icd/release/11/mms/1280712786/unspecified","warning":"The postcoordinations - BA41.Z, BA52.Z - were selected from conditions that are potential manifestations of the tentative underlying cause - 5A11, manual check of their validity is needed.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P66Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\",\"Interval\":\"PT3H\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1334938734/unspecified\",\"Text\":\"Heart attack\"}]},{\"Conditions\":[{\"Code\":\"BA52.Z\",\"Interval\":\"P5Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1280712786/unspecified\",\"Text\":\"Blocked coronary arteries\"}]},{\"Conditions\":[{\"Code\":\"5A11\",\"Interval\":\"P12Y\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/119724091\",\"Text\":\"Diabetes\"}]}]}","status":200}
+ }
+}

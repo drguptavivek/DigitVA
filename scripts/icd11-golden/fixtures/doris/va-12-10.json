@@ -1,0 +1,167 @@
+{
+ "id": "va-12-10",
+ "input": {
+  "certificate": {
+   "AdministrativeData": {
+    "EstimatedAge": "P48Y",
+    "Sex": 1
+   },
+   "ICDVersion": "ICD11",
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   },
+   "Part1": [
+    {
+     "Conditions": [
+      {
+       "Code": "NF08.4",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/866923038",
+       "Text": "Electric shock"
+      }
+     ]
+    },
+    {
+     "Conditions": [
+      {
+       "Code": "PJ00",
+       "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1295772309",
+       "Text": "Struck by lightning"
+      }
+     ]
+    }
+   ]
+  },
+  "group": "adult",
+  "id": "va-12-10",
+  "source": "VA cause VAs-12.10 Exposure to force of nature",
+  "why": "Exposure to force of nature: injury above its external cause, manner 1"
+ },
+ "kind": "doris",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NF08.4",
+    "GET icd/release/11/2026-01/mms/codeinfo/PJ00",
+    "POST icd/release/11/2026-01/doris #6028166dab",
+    "POST icd/release/11/2026-01/codedit #6028166dab"
+   ],
+   "name": "process",
+   "reply": {
+    "body": {
+     "certificate": {
+      "AdministrativeData": {
+       "EstimatedAge": "P48Y",
+       "Sex": 1
+      },
+      "ICDMinorVersion": "2026-01",
+      "ICDVersion": "ICD11",
+      "MannerOfDeath": {
+       "MannerOfDeath": 1
+      },
+      "Part1": [
+       {
+        "Conditions": [
+         {
+          "Code": "NF08.4",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/866923038",
+          "Text": "Electric shock"
+         }
+        ]
+       },
+       {
+        "Conditions": [
+         {
+          "Code": "PJ00",
+          "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1295772309",
+          "Text": "Struck by lightning"
+         }
+        ]
+       }
+      ]
+     },
+     "client_revision": 0,
+     "codedit": {
+      "result": {
+       "issueIds": "",
+       "report": "",
+       "tabularReport": ""
+      },
+      "status": "completed"
+     },
+     "doris": {
+      "result": {
+       "code": "PJ00/NF08.4",
+       "error": null,
+       "reject": false,
+       "report": "SP3: PJ00 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NF08.4 - as postcoordination for the current TUC - PJ00.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PJ00 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PJ00.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PJ00.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NF08.4 - as postcoordination for the current TUC - PJ00.\n",
+       "stemCode": "PJ00",
+       "stemURI": "http://id.who.int/icd/entity/1295772309",
+       "tabularReport": "SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PJ00;PJ00;;;0;SP3: PJ00 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PJ00;;;;;0;SP6: is not applicable with the current TSP PJ00.;;;;BER\nSP7;False;PJ00;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PJ00;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PJ00;;;;;0;M1: There is no special instruction applicable with TUC PJ00.;;;;BER\nM2;False;PJ00;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PJ00;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PJ00/NF08.4;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER",
+       "uri": "http://id.who.int/icd/release/11/mms/1295772309 / http://id.who.int/icd/release/11/mms/866923038",
+       "warning": "The selected underlying cause of death - PJ00 - is inconsistent with the reported manner of death - Accident\nM4 may have been applied.\n"
+      },
+      "status": "completed"
+     },
+     "icd_release": "2026-01",
+     "schema_version": 1,
+     "ucod_parts": [
+      {
+       "code": "PJ00",
+       "role": "stem",
+       "title": "Struck by lightning",
+       "uri": "http://id.who.int/icd/release/11/mms/1295772309"
+      },
+      {
+       "code": "NF08.4",
+       "role": "postcoordinated",
+       "title": "Electric shock",
+       "uri": "http://id.who.int/icd/release/11/mms/866923038"
+      }
+     ],
+     "who_notes": []
+    },
+    "http_status": 200
+   },
+   "request": {
+    "certificate": {
+     "AdministrativeData": {
+      "EstimatedAge": "P48Y",
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "MannerOfDeath": {
+      "MannerOfDeath": 1
+     },
+     "Part1": [
+      {
+       "Conditions": [
+        {
+         "Code": "NF08.4",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/866923038",
+         "Text": "Electric shock"
+        }
+       ]
+      },
+      {
+       "Conditions": [
+        {
+         "Code": "PJ00",
+         "LinearizationURI": "http://id.who.int/icd/release/11/2026-01/mms/1295772309",
+         "Text": "Struck by lightning"
+        }
+       ]
+      }
+     ]
+    },
+    "client_revision": 0,
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/codeinfo/NF08.4": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NF08.4","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NF08.4","code":"NF08.4","stemId":"http://id.who.int/icd/release/11/2026-01/mms/866923038"},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/PJ00": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/PJ00","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/PJ00","code":"PJ00","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1295772309"},"request_body":null,"status":200},
+  "POST icd/release/11/2026-01/codedit #6028166dab": {"method":"POST","path":"icd/release/11/2026-01/codedit","reply":{"issueIds":"","report":"","tabularReport":""},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P48Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NF08.4\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/866923038\",\"Text\":\"Electric shock\"}]},{\"Conditions\":[{\"Code\":\"PJ00\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1295772309\",\"Text\":\"Struck by lightning\"}]}]}","status":200},
+  "POST icd/release/11/2026-01/doris #6028166dab": {"method":"POST","path":"icd/release/11/2026-01/doris","reply":{"code":"PJ00/NF08.4","error":null,"reject":false,"report":"SP3: PJ00 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NF08.4 - as postcoordination for the current TUC - PJ00.\n\n\nFull report:\nSP1: is not applicable.\nSP2: is not applicable.\nSP3: PJ00 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).\nSP6: is not applicable with the current TSP PJ00.\nSP7: is not applicable.\nSP8: is not applicable.\nM1: There is no special instruction applicable with TUC PJ00.\nM2: is not applicable.\nM3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.\nM4: Adding the main injury - NF08.4 - as postcoordination for the current TUC - PJ00.\n","stemCode":"PJ00","stemURI":"http://id.who.int/icd/entity/1295772309","tabularReport":"SP1;False;;;;;;0;SP1: is not applicable.;;;;BER\nSP2;False;;;;;;0;SP2: is not applicable.;;;;BER\nSP3;True;;PJ00;PJ00;;;0;SP3: PJ00 is the first condition on the lowest used line causing all entries above, and is selected as the tentative starting point (TSP).;;;;BER\nSP6;False;PJ00;;;;;0;SP6: is not applicable with the current TSP PJ00.;;;;BER\nSP7;False;PJ00;;;;;0;SP7: is not applicable.;;;;BER\nSP8;False;PJ00;;;;;0;SP8: is not applicable.;;;;BER\nM1;False;PJ00;;;;;0;M1: There is no special instruction applicable with TUC PJ00.;;;;BER\nM2;False;PJ00;;;;;0;M2: is not applicable.;;;;BER\nM3;False;PJ00;;;;;0;M3: The tentative underlying cause is the same as the starting point selected in Steps SP1 to SP8.;;;;BER\nM4;True;PJ00/NF08.4;;;;;1;M4 may have been applied.;;;1,M4 may have been applied.,;BER","uri":"http://id.who.int/icd/release/11/mms/1295772309 / http://id.who.int/icd/release/11/mms/866923038","warning":"The selected underlying cause of death - PJ00 - is inconsistent with the reported manner of death - Accident\nM4 may have been applied.\n"},"request_body":"{\"AdministrativeData\":{\"EstimatedAge\":\"P48Y\",\"Sex\":1},\"ICDMinorVersion\":\"2026-01\",\"ICDVersion\":\"ICD11\",\"MannerOfDeath\":{\"MannerOfDeath\":1},\"Part1\":[{\"Conditions\":[{\"Code\":\"NF08.4\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/866923038\",\"Text\":\"Electric shock\"}]},{\"Conditions\":[{\"Code\":\"PJ00\",\"LinearizationURI\":\"http://id.who.int/icd/release/11/2026-01/mms/1295772309\",\"Text\":\"Struck by lightning\"}]}]}","status":200}
+ }
+}

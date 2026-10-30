@@ -1,0 +1,98 @@
+{
+ "id": "s017-falciparum-malaria",
+ "input": {
+  "id": "s017-falciparum-malaria",
+  "kind": "disease",
+  "query": "falciparum malaria",
+  "source": "VAs-01.05",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #6a6bc300ca"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 6,
+     "items": [
+      {
+       "code": "1F40.Z",
+       "has_coding_note": true,
+       "matching_text": "Malaria due to Plasmodium falciparum, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Malaria due to Plasmodium falciparum, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified"
+      },
+      {
+       "code": "KA64.20",
+       "has_coding_note": false,
+       "matching_text": "Congenital falciparum malaria",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Congenital falciparum malaria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1456330972"
+      },
+      {
+       "code": "KA64.21",
+       "has_coding_note": false,
+       "matching_text": "Congenital non-falciparum malaria",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Congenital non-falciparum malaria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/623070032"
+      },
+      {
+       "code": "MG55.0",
+       "has_coding_note": true,
+       "matching_text": "Artemisinin resistant Plasmodium falciparum",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Artemisinin resistant Plasmodium falciparum",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/716575694"
+      },
+      {
+       "code": "1F40.Y",
+       "has_coding_note": true,
+       "matching_text": "Other severe or complicated Plasmodium falciparum malaria",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Other severe or complicated Plasmodium falciparum malaria",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/579583286/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "falciparum malaria",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #6a6bc300ca": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/579583286","important":true,"label":"<em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/579583286","important":false,"label":"severe <em class='found'>malaria</em><em class='nonwbe'>l</em> <em class='found'>falciparum</em>","propertyId":"Synonym","propertyValueType":0,"score":-0.390817841104487},{"foundationUri":"http://id.who.int/icd/entity/579583286","important":false,"label":"<em class='found'>Malaria</em><em class='nonwbe'></em> due to Plasmodium <em class='found'>falciparum</em>","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":-0.6013408519990951},{"foundationUri":"http://id.who.int/icd/entity/579583286","important":false,"label":"severe plasmodium <em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.8430706618671234}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/579583286/unspecified","theCode":"1F40.Z","title":"<em class='found'>Malaria</em><em class='nonwbe'></em> due to Plasmodium <em class='found'>falciparum</em>, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1456330972","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.3478271012532129,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1456330972","theCode":"KA64.20","title":"Congenital <em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"19","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/623070032","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.6145390654188712,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/623070032","theCode":"KA64.21","title":"Congenital non-<em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/716575694","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/716575694","important":false,"label":"multidrug-resistant <em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.0441625433656876}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.0441625433656876,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/716575694","theCode":"MG55.0","title":"Artemisinin resistant Plasmodium <em class='found'>falciparum</em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/579583286/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.2605415744932578,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/579583286/other","theCode":"1F40.Y","title":"Other severe or complicated Plasmodium <em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"01","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1143114898","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.7435167891111378,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1143114898","theCode":"1F40.0","title":"Plasmodium <em class='found'>falciparum</em> <em class='found'>malaria</em><em class='nonwbe'></em> with cerebral complications","titleIsASearchResult":true,"titleIsTopScore":true}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=falciparum+malaria%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

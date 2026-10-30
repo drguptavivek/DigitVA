@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-30
 ---
 
 # DORIS COD Workflow
@@ -227,6 +227,144 @@ rows. An interval edit clears the clinical processor results and final UCOD.
 The server validates nonempty interval durations before WHO processing and
 final save; empty and WHO unknown markers remain accepted.
 
+**React picker (Collect Plus only, 2026-10-29).** The Collect Plus build does
+not load the web page: `IcdPickerModal` renders
+`mobile/digitva-collect/src/workspace/doris/picker/IcdPicker.tsx` when
+`isPlusVariant()` is true, online and offline. It sends the page's own
+messages (`req` with `terms`, `codeinfo`, `selection-check`, `postcoordination`,
+`postcoordination-options`, `hierarchy`, `related`, `details`; `select`;
+`uncoded`) to `pickerBridge.ts`, which keeps the verification rule (only a
+code and URI pair `checkDorisSelection` confirmed at the current certificate
+revision is handed on; stale replies are dropped). Offline, the same calls are
+answered by the offline `WorkspaceApi` and, for the five guidance routes, by
+the offline requester (see "Offline guidance" below). Search asks for at most 20
+terms and shows "refine the search" when `truncated`; no cursor pagination.
+Pure rules (code vs text, axis policies, expression order) are in
+`picker/expression.ts`.
+
+*Layout (round 2, 2026-10-30, digitva-9cll.2).* Title and search box stay
+fixed above the scroll; the keyboard's search key submits (there is no Search
+button; auto-search is still 3 characters / 500 ms) and "Add uncoded text" is a
+small link on the status line. A result is a flat two-line row with a hairline
+below. Line 1 is one tap target for the whole line (code and title): it stages
+the code, or opens the builder when postcoordination is mandatory (`stage()`
+routes mandatory stems, so the stem alone never reaches OK); a trailing 32 dp
+"ⓘ" (44 dp reach) opens Details, and moves under line 1 at font scale 1.5 or
+more. Line 2 exists only when there is something to show: 28 dp badge pills
+(mandatory shows "+ Build"), the "Matched:" caption on one line and the
+age-restricted tag. Phones have no row-level Use or Details buttons; Hierarchy
+is in the Details card. In the builder an option is a 40 dp row with a check
+circle, optional axes are folded on phones ("(optional) · n chosen"; an axis
+that already holds a choice starts open) and open on tablets, and a list over
+8 options shows 8 and "Show all N". On a tablet (`useUi().phone` false, width
+768 dp or more) the picker is a single pane with small inline Use and Details
+buttons until a card opens, then two panes inside the modal: results (40 % of
+the width, at least 320 dp) and the card (Details, builder, hierarchy,
+related), each with its own scroll; the footer spans the full width and there
+is no scroll-jump or "Back to results". `app.json` orientation is `default`
+(tablets rotate; the phone portrait lock is pending, see the design in
+`.tasks/2026-10-29-android-offline-doris-parity.md`).
+
+**Offline replies (Collect Plus, 2026-10-30, digitva-9cll.3).** With no
+server call, the offline `WorkspaceApi` answers `terms`, `codeinfo`,
+`selection-check` and `process` with the server's replies, field for field
+(`mobile/digitva-collect/src/workspace/offlineDoris.ts`). They are TypeScript
+ports of the server's rules over the on-phone WHO engine:
+`search_terms`, `search_context_from_entity` and `_codeinfo_item` in
+`dorisTerminology.ts`; `normalize_certificate`, `who_safe_certificate`,
+`expected_expression_uri` and `verify_certificate_codes` in
+`dorisCertificate.ts`; `process_certificate`, `_run_engine`, `ucod_parts` and
+`processing_extras` (the `{status, result}` envelope, the key checks, the
+year-only-date and "Internal system error" notes) in `dorisProcessing.ts`;
+the WHO calls in `whoEngineApi.ts` (search with the server's options and
+`limit` 20, `subtreeUris` as `subtreesFilter`, codeinfo, entity, never
+`include=descendant`; codeinfo, entity and title caches per open case). A
+refusal is an `ApiError` with the server's status, code, message and
+`{schema_version, error: {code, message, fields?}}` body (`INVALID_INPUT`,
+`CODE_NOT_FOUND`, `INVALID_SELECTION`, `WHO_API_UNAVAILABLE` for any engine
+failure), so the picker and `DorisPanel` show what they show for the server's.
+Before any engine call, `piiBoundary.ts` (the desktop host's Rule 6) refuses a
+text or certificate that holds a personal-data key or an Aadhaar-like or phone
+number: `INVALID_INPUT` with `error.reason: "pii_boundary"` and the path, never
+the value. What differs from the server: the process token is `local-<uuid>`;
+`certificate_digest` is the server's (SHA-256 of the canonical normalised
+certificate), `result_digest` binds the engine release instead of the WHO image
+digest; the engine has no timeout, so `timeout` never occurs; a title lookup
+outage skips the remaining titles of that reply only. Each offline save records
+`provenance.packVersions` (`icd11_engine` as pinned in
+`scripts/icd11-engine.env`, `doris_engine` 1.1.176, `doris_rules` 1.2.0,
+`icd_release` 2026-01); `src/sync.ts` sends it as the contract's
+`pack_versions`, not inside `provenance`, whose keys the server fixes
+(`app/services/offline_coding_import_service.py`). Proof:
+`__tests__/offline-who-golden.test.ts` replays `scripts/icd11-golden` (search,
+postcoordination codeinfo and selection-check, the guidance routes, DORIS) with
+a fake engine that answers only the WHO requests the fixture recorded.
+
+**Offline guidance (Collect Plus, 2026-10-30, digitva-9cll.4).** The picker's
+five guidance routes (`postcoordination` and its Build stem and axes,
+`postcoordination-options` "More choices", `hierarchy`, `related` for the
+maternal and perinatal chapters, `details`) are answered on the phone with the
+server's reply shapes. `offlineRequester` in `offlineCoding.native.tsx` is no
+longer a stub: `createGuidanceRequester` (`offlineDoris.ts`) answers a `POST` to
+`/api/v1/doris-clinical/<route>/<va_sid>` for the open case (after the same
+"still allowed" check as the other data calls) through
+`OfflineDorisEditor.onGuidance`, and every other request still throws
+`offline_server_unavailable`. `pickerBridge.ts`, `guidance.ts` and the picker
+components are unchanged. The ports are in `dorisGuidance.ts`, over the WHO
+client: `postcoordination`, `_stem`, `_axes`, `_option`,
+`postcoordination_options`, `hierarchy`, `related_terms`, `code_details`,
+`_resource` and `_check_budget` of `icd11_postcoordination.py`, and the body
+check of `_guidance_request`. The server's bounds hold (12 axes, 12 options per
+axis, 12 ancestors, siblings, children and related terms, 20 inclusions, 12
+exclusions, `truncated` when cut), as do its refusals (`INVALID_INPUT`,
+`INVALID_URI`, `INVALID_AXIS`, `INVALID_PARENT`, `CODE_NOT_FOUND`,
+`GUIDANCE_LIMIT` 503 after 48 reads or 10 seconds, `GUIDANCE_BUSY` 429 for a
+third concurrent request, `WHO_API_UNAVAILABLE` 503 "WHO ICD-11 guidance is
+unavailable."). Children are walked through each entity's `child` list; the
+engine is never asked for `include=descendant`. The personal-data boundary runs
+on every string of the request. Differences: a personal-data refusal is
+`INVALID_INPUT` with `error.reason: "pii_boundary"`; the 48-read budget counts
+each read the port asks for, as the server's does, even when the client's cache
+answers it (so the cache saves engine calls, not budget); a `related` request
+whose `chapter` is not a string is refused as `INVALID_INPUT` (the server's
+`dict.get` raises on an unhashable value); the 32 KB body limit is not applied
+(the picker bounds every field); a URI with a query or fragment is refused even
+when the query is empty.
+
+The layout follows the web page on a phone, at its density. The search box,
+Search button and status stay fixed above a scrolling area, and the footer
+stays below it (capped at 28% of the window, its text scrolling inside). A
+result is the title (44 dp tap target, code in the muted colour) and one
+wrapping line: the matched wording and the badges on the left, Use and
+Details on the right; the badges carry the web's five tints and an
+"age-restricted" warning tag with its note when a terms reply carries
+`age_restricted` and `restriction_note` (the server does not send them today,
+and the offline path has no source for them, so no tag shows yet). Cards a
+coder opens (Details, builder, hierarchy, related terms) sit below the rows,
+so opening one never shifts the list; a card opened by a tap scrolls into view
+and offers "Back to results", which returns to the row; the builder a search
+opens by itself for a mandatory first result neither scrolls nor offers it,
+and the details that load after Use appear without scrolling. While a build is open and nothing is
+staged the footer shows "BUILDING" with the live expression and the "Use
+complete expression" / "Use stem without extensions" buttons, as the web does.
+
+Rules that differ from a plain port. Hierarchy opens from a code's Details
+card, not from every result row. A stem whose postcoordination is mandatory
+never reaches OK: every way to stage a code (title, Use, hierarchy, related
+term, typed code, built expression) goes through one `stage` that opens the
+builder for such a stem, a hierarchy node is first checked with `codeinfo`,
+and OK re-checks the code `selection-check` returns and opens the builder
+instead of sending a mandatory stem. Auto-search follows the app's own rule
+(from 3 characters, 500 ms after the last keystroke, the same term not
+twice); Search and Enter run at 2 characters. A failure shows our own line for
+a known DORIS code (`CODE_NOT_FOUND`, `WHO_API_UNAVAILABLE`, `INVALID_INPUT`,
+`INVALID_SELECTION`, `NOT_AVAILABLE`) and a generic line otherwise; transport,
+parser and engine texts never reach the screen. A stale revision, or a new
+bridge (the host's request generation moved), restarts the search, closes
+the open cards and frees OK, because the old bridge never answers what it
+owed. Plain Collect, the Expo web build and the Flask website keep the shared
+page.
+
 The editor and picker look (native components, shadcn tokens, light and dark)
 is described in [DORIS Editor UI Tokens](doris-ui-tokens.md).
 
@@ -364,7 +502,18 @@ select (Date / Year-Month / Year) beside the input, which switches between a
 date, a month and a 4-digit year input and stores `YYYY-MM-DD`, `YYYY-MM` or
 `YYYY` (`doris_fields.js`; a saved value opens in its own precision). Date of
 death is a plain calendar input; a saved partial value shows in a text input
-until replaced. Every question in Administrative Data, Manner of death, Fetal
+until replaced. Expo layout rules (digitva-4x2y): Administrative fields are cells of
+one wrapping grid (`flexBasis` 240, a width in a row). React Native's Yoga runs with
+the legacy stretch errata (`YGErrataAll`): a child of a column that has `flexGrow`
+or `flex` fills the height its parent was offered, and a `flexBasis` there is a
+height. So no child of a cell may carry them unless it sits in a row: the
+field label (`FieldLabel`) has no `flexGrow` on native (it grew by hundreds of px
+and pushed the age, date and precision controls out of their card, over Frame A),
+and a plain date field sits in its own row. A chosen condition is a `condition-chip` row, "CODE - title"
+with a remove "×" at its right end (label "Remove CODE", 24px box, 44px by
+hit-slop); a Part I line header wraps its title and keeps 36px move and remove
+buttons (44px by hit-slop); a quick choice ("Use DORIS result ...") and its ⓘ
+share one non-wrapping row. Every question in Administrative Data, Manner of death, Fetal
 or infant death, Information on pregnancy, Surgery and Autopsy has a clear
 button (`data-doris-clear`, shown only with a value; clearing fires input and
 change, so rules, warnings and the "from interview" badge update). The line and

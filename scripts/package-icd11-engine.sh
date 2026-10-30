@@ -40,7 +40,9 @@ done < "$list"
 mkdir -p "$out_dir"
 archive="$out_dir/$name.tar.gz"
 # COPYFILE_DISABLE and --no-xattrs keep AppleDouble (._*) entries out; gzip -n keeps the gzip header free of a time.
-(cd "$tree" && COPYFILE_DISABLE=1 tar --no-xattrs --uid 0 --gid 0 --uname root --gname root --format ustar -cf - -T "$list") \
+# bsdtar (macOS) and GNU tar (the CI runner) spell the fixed owner differently.
+if tar --version | grep -q 'GNU tar'; then owner=(--owner=root --group=root); else owner=(--uid 0 --gid 0 --uname root --gname root); fi
+(cd "$tree" && COPYFILE_DISABLE=1 tar --no-xattrs "${owner[@]}" --format ustar -cf - -T "$list") \
   | gzip -n > "$archive"
 
 tar -tzf "$archive" > "$work/listing.txt"
@@ -49,7 +51,9 @@ if grep -Eq '(^|/)\._' "$work/listing.txt"; then
   exit 1
 fi
 
-(cd "$out_dir" && shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256")
+# macOS has shasum, a minimal Linux image only sha256sum; both write "<hash>  <file>".
+if command -v sha256sum >/dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
+(cd "$out_dir" && "${sum[@]}" "$name.tar.gz" > "$name.tar.gz.sha256")
 echo "archive: $archive"
 echo "sha256:  $(cut -d' ' -f1 "$out_dir/$name.tar.gz.sha256")"
 echo "bytes:   $(wc -c < "$archive" | tr -d ' ')"

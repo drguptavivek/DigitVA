@@ -1,0 +1,51 @@
+{
+ "id": "s227-syn-brain-fever",
+ "input": {
+  "concept": "meningitis",
+  "id": "s227-syn-brain-fever",
+  "kind": "synonym",
+  "query": "brain fever",
+  "source": "owner 2026-10-29",
+  "why": "common synonym, abbreviation or spelling variant for meningitis (owner 2026-10-29)"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #e150477f11"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 1,
+     "items": [
+      {
+       "code": "8D43.0Z",
+       "has_coding_note": false,
+       "matching_text": "Encephalopathy due to toxicity, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Encephalopathy due to toxicity, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/932482258/unspecified"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "brain fever",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #e150477f11": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"08","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/932482258/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/932482258","important":false,"label":"toxic <em class='found'>brain</em> <em class='found'>fever</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.24857485307055935}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.24857485307055935,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/932482258/unspecified","theCode":"8D43.0Z","title":"Encephalopathy due to toxicity, unspecified","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=brain+fever%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

@@ -1,0 +1,1008 @@
+{
+ "built": [],
+ "id": "pc-nc72",
+ "input": {
+  "category": "injury",
+  "id": "pc-nc72",
+  "source": "owner list 2026-10-29",
+  "stem": "NC72",
+  "why": "Fracture of femur (parent category): 11 children shown in hierarchy"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "NC72",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "NC72",
+      "has_coding_note": false,
+      "postcoordination": true,
+      "postcoordination_availability": 1,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC72",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958",
+    "GET icd/release/11/2026-01/mms/627678743",
+    "GET icd/release/11/2026-01/mms/271422288",
+    "GET icd/release/11/2026-01/mms/876572005",
+    "GET icd/release/11/2026-01/mms/1038788978",
+    "GET icd/release/11/2026-01/mms/1126329182",
+    "GET icd/release/11/2026-01/mms/1941319848",
+    "GET icd/release/11/2026-01/mms/1225495470",
+    "GET icd/release/11/2026-01/mms/1856452751",
+    "GET icd/release/11/2026-01/mms/2006159364",
+    "GET icd/release/11/2026-01/mms/56999138",
+    "GET icd/release/11/2026-01/mms/302675287",
+    "GET icd/release/11/2026-01/mms/39276591",
+    "GET icd/release/11/2026-01/mms/1210711974",
+    "GET icd/release/11/2026-01/mms/1451058270",
+    "GET icd/release/11/2026-01/mms/870613257",
+    "GET icd/release/11/2026-01/mms/1227306904",
+    "GET icd/release/11/2026-01/mms/1387112294",
+    "GET icd/release/11/2026-01/mms/1882092801",
+    "GET icd/release/11/2026-01/mms/676705630",
+    "GET icd/release/11/2026-01/mms/533107744",
+    "GET icd/release/11/2026-01/mms/983135600",
+    "GET icd/release/11/2026-01/mms/850137482",
+    "GET icd/release/11/2026-01/mms/856028269"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "laterality",
+       "instruction": "use additional code, if desired",
+       "label": "Laterality",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+         "code": "XK9J",
+         "has_children": false,
+         "title": "Bilateral",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/627678743"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+         "code": "XK8G",
+         "has_children": false,
+         "title": "Left",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/271422288"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+         "code": "XK9K",
+         "has_children": false,
+         "title": "Right",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/876572005"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978",
+         "code": "XK70",
+         "has_children": false,
+         "title": "Unilateral, unspecified",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/627678743",
+        "http://id.who.int/icd/release/11/2026-01/mms/271422288",
+        "http://id.who.int/icd/release/11/2026-01/mms/876572005",
+        "http://id.who.int/icd/release/11/2026-01/mms/1038788978"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "fractureSubtype",
+       "instruction": "use additional code, if desired",
+       "label": "Fracture subtype",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1126329182",
+         "code": "XJ36W",
+         "has_children": false,
+         "title": "Avulsion fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1126329182"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1941319848",
+         "code": "XJ2EL",
+         "has_children": false,
+         "title": "Bucket handle or corner fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1941319848"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1225495470",
+         "code": "XJ76E",
+         "has_children": false,
+         "title": "Buckle fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1225495470"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1856452751",
+         "code": "XJ7ZH",
+         "has_children": false,
+         "title": "Burst fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1856452751"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/2006159364",
+         "code": "XJ1Z6",
+         "has_children": false,
+         "title": "Comminuted fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/2006159364"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/56999138",
+         "code": "XJ778",
+         "has_children": false,
+         "title": "Compression fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/56999138"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/302675287",
+         "code": "XJ9UB",
+         "has_children": false,
+         "title": "Depressed fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/302675287"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/39276591",
+         "code": "XJ69V",
+         "has_children": false,
+         "title": "Dislocated fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/39276591"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1210711974",
+         "code": "XJ8PQ",
+         "has_children": false,
+         "title": "Displaced fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1210711974"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1451058270",
+         "code": "XJ0QE",
+         "has_children": false,
+         "title": "Elevated fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1451058270"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/870613257",
+         "code": "XJ5N9",
+         "has_children": false,
+         "title": "Fissured fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/870613257"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1227306904",
+         "code": "XJ45W",
+         "has_children": false,
+         "title": "Greenstick fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1227306904"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1126329182",
+        "http://id.who.int/icd/release/11/2026-01/mms/1941319848",
+        "http://id.who.int/icd/release/11/2026-01/mms/1225495470",
+        "http://id.who.int/icd/release/11/2026-01/mms/1856452751",
+        "http://id.who.int/icd/release/11/2026-01/mms/2006159364",
+        "http://id.who.int/icd/release/11/2026-01/mms/56999138",
+        "http://id.who.int/icd/release/11/2026-01/mms/302675287",
+        "http://id.who.int/icd/release/11/2026-01/mms/39276591",
+        "http://id.who.int/icd/release/11/2026-01/mms/1210711974",
+        "http://id.who.int/icd/release/11/2026-01/mms/1451058270",
+        "http://id.who.int/icd/release/11/2026-01/mms/870613257",
+        "http://id.who.int/icd/release/11/2026-01/mms/1227306904"
+       ],
+       "truncated": true
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "fractureOpenOrClosed",
+       "instruction": "use additional code, if desired",
+       "label": "Fracture open or closed",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1387112294",
+         "code": "XJ44E",
+         "has_children": false,
+         "title": "Closed fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1387112294"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/1882092801",
+         "code": "XJ7YM",
+         "has_children": false,
+         "title": "Open fracture",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1882092801"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/1387112294",
+        "http://id.who.int/icd/release/11/2026-01/mms/1882092801"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": false,
+       "allow_multiple_values": "NotAllowed",
+       "id": "jointInvolvementInFracture",
+       "instruction": "use additional code, if desired",
+       "label": "Joint involvement in fracture",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/676705630",
+         "code": "XJ5GS",
+         "has_children": true,
+         "title": "Fracture extends into joint",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/676705630"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/533107744",
+         "code": "XJ5VJ",
+         "has_children": false,
+         "title": "Fracture does not extend into joint",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/533107744"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/676705630",
+        "http://id.who.int/icd/release/11/2026-01/mms/533107744"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "specificAnatomy",
+       "instruction": "use additional code, if desired",
+       "label": "Specific anatomy",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+         "code": "XA6BA0",
+         "has_children": true,
+         "title": "Femur",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/983135600"
+       ],
+       "truncated": false
+      },
+      {
+       "allow_multiple": true,
+       "allow_multiple_values": "AllowAlways",
+       "id": "associatedWith",
+       "instruction": "use additional code, if desired",
+       "label": "Associated with",
+       "options": [
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+         "code": "23",
+         "has_children": true,
+         "title": "External causes of morbidity or mortality",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482"
+        },
+        {
+         "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/856028269",
+         "code": "",
+         "has_children": true,
+         "title": "Personal or family history or late effect of prior health problems",
+         "uri": "http://id.who.int/icd/release/11/2026-01/mms/856028269"
+        }
+       ],
+       "required": false,
+       "subtree_uris": [
+        "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+        "http://id.who.int/icd/release/11/2026-01/mms/856028269"
+       ],
+       "truncated": false
+      }
+     ],
+     "other_postcoordination": {
+      "subtree_uris": [
+       "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+      ]
+     },
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958",
+    "GET icd/release/11/2026-01/mms/676705630",
+    "GET icd/release/11/2026-01/mms/75909427",
+    "GET icd/release/11/2026-01/mms/873599689"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "jointInvolvementInFracture",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/676705630",
+       "code": "XJ5L7",
+       "has_children": false,
+       "title": "Fracture extends into joint and a portion of the articular part remains attached to the main part of the bone",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/75909427"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/676705630",
+       "code": "XJ92H",
+       "has_children": false,
+       "title": "Fracture extends into joint and the entire articular part is detached from the main part of the bone",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/873599689"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/676705630",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "jointInvolvementInFracture",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/676705630",
+    "stem_code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958",
+    "GET icd/release/11/2026-01/mms/983135600",
+    "GET icd/release/11/2026-01/mms/1879993545",
+    "GET icd/release/11/2026-01/mms/1730545673",
+    "GET icd/release/11/2026-01/mms/766579120",
+    "GET icd/release/11/2026-01/mms/1598049072",
+    "GET icd/release/11/2026-01/mms/65132592",
+    "GET icd/release/11/2026-01/mms/1715005040",
+    "GET icd/release/11/2026-01/mms/1896907440",
+    "GET icd/release/11/2026-01/mms/348765424",
+    "GET icd/release/11/2026-01/mms/1214787568"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "specificAnatomy",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA96S5",
+       "has_children": false,
+       "title": "Femoral head",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1879993545"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA1673",
+       "has_children": false,
+       "title": "Femoral neck",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1730545673"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA32G0",
+       "has_children": true,
+       "title": "Trochanter",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/766579120"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA9JB2",
+       "has_children": false,
+       "title": "Intertrochanteric crest of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1598049072"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA4AF2",
+       "has_children": false,
+       "title": "Femoral shaft",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/65132592"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA6UG0",
+       "has_children": false,
+       "title": "Femoral condyle",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1715005040"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA2BJ0",
+       "has_children": false,
+       "title": "Femoral epiphysis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1896907440"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA00N4",
+       "has_children": false,
+       "title": "Pertrochanter",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/348765424"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+       "code": "XA5EL8",
+       "has_children": false,
+       "title": "Subtrochanteric line of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1214787568"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "specificAnatomy",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/983135600",
+    "stem_code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958",
+    "GET icd/release/11/2026-01/mms/850137482",
+    "GET icd/release/11/2026-01/mms/980862652",
+    "GET icd/release/11/2026-01/mms/851395624",
+    "GET icd/release/11/2026-01/mms/73322695",
+    "GET icd/release/11/2026-01/mms/128104623",
+    "GET icd/release/11/2026-01/mms/1491356379",
+    "GET icd/release/11/2026-01/mms/491063206",
+    "GET icd/release/11/2026-01/mms/185842968",
+    "GET icd/release/11/2026-01/mms/2143219175",
+    "GET icd/release/11/2026-01/mms/558785723",
+    "GET icd/release/11/2026-01/mms/850137482/other",
+    "GET icd/release/11/2026-01/mms/850137482/unspecified"
+   ],
+   "name": "postcoordination-options",
+   "reply": {
+    "body": {
+     "axis_id": "associatedWith",
+     "items": [
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Unintentional causes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/980862652"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Intentional self-harm",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/851395624"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Assault",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/73322695"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Undetermined intent",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/128104623"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Exposure to extreme forces of nature",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1491356379"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Maltreatment",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/491063206"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Legal intervention",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/185842968"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Armed conflict",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2143219175"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "",
+       "has_children": true,
+       "title": "Causes of healthcare related harm or injury",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/558785723"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "PL2Y",
+       "has_children": false,
+       "title": "Other specified external causes of morbidity or mortality",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482/other"
+      },
+      {
+       "block_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+       "code": "PL2Z",
+       "has_children": false,
+       "title": "External causes of morbidity or mortality, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"
+      }
+     ],
+     "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "axis_id": "associatedWith",
+    "parent_uri": "http://id.who.int/icd/release/11/2026-01/mms/850137482",
+    "stem_code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958",
+    "GET icd/release/11/2026-01/mms/375360441",
+    "GET icd/release/11/2026-01/mms/435227771",
+    "GET icd/release/11/2026-01/mms/375360441",
+    "GET icd/release/11/2026-01/mms/2046992511",
+    "GET icd/release/11/2026-01/mms/524905963",
+    "GET icd/release/11/2026-01/mms/246411392",
+    "GET icd/release/11/2026-01/mms/2101437204",
+    "GET icd/release/11/2026-01/mms/403353218",
+    "GET icd/release/11/2026-01/mms/1822948991",
+    "GET icd/release/11/2026-01/mms/166474731",
+    "GET icd/release/11/2026-01/mms/1954883241",
+    "GET icd/release/11/2026-01/mms/271309016",
+    "GET icd/release/11/2026-01/mms/375360441/other",
+    "GET icd/release/11/2026-01/mms/375360441/unspecified",
+    "GET icd/release/11/2026-01/mms/1382371972",
+    "GET icd/release/11/2026-01/mms/263535387",
+    "GET icd/release/11/2026-01/mms/398412176",
+    "GET icd/release/11/2026-01/mms/1928627226",
+    "GET icd/release/11/2026-01/mms/106550501",
+    "GET icd/release/11/2026-01/mms/1662130545",
+    "GET icd/release/11/2026-01/mms/284986085",
+    "GET icd/release/11/2026-01/mms/1683085852",
+    "GET icd/release/11/2026-01/mms/423153498",
+    "GET icd/release/11/2026-01/mms/1810119958/other",
+    "GET icd/release/11/2026-01/mms/1810119958/unspecified"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [
+      {
+       "code": "22",
+       "title": "Injury, poisoning or certain other consequences of external causes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/435227771"
+      },
+      {
+       "code": "",
+       "title": "Injuries to the hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/375360441"
+      }
+     ],
+     "children": [
+      {
+       "code": "NC72.0",
+       "has_children": false,
+       "title": "Fracture of head of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1382371972"
+      },
+      {
+       "code": "NC72.1",
+       "has_children": false,
+       "title": "Fracture of upper epiphysis of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/263535387"
+      },
+      {
+       "code": "NC72.2",
+       "has_children": true,
+       "title": "Fracture of neck of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/398412176"
+      },
+      {
+       "code": "NC72.3",
+       "has_children": true,
+       "title": "Fracture of trochanteric section of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1928627226"
+      },
+      {
+       "code": "NC72.4",
+       "has_children": false,
+       "title": "Subtrochanteric fracture of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/106550501"
+      },
+      {
+       "code": "NC72.5",
+       "has_children": false,
+       "title": "Fracture of shaft of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1662130545"
+      },
+      {
+       "code": "NC72.6",
+       "has_children": true,
+       "title": "Fracture of lower end of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/284986085"
+      },
+      {
+       "code": "NC72.7",
+       "has_children": false,
+       "title": "Multiple fractures of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852"
+      },
+      {
+       "code": "NC72.8",
+       "has_children": false,
+       "title": "Fractures of other parts of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/423153498"
+      },
+      {
+       "code": "NC72.Y",
+       "has_children": false,
+       "title": "Other specified fracture of femur",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/other"
+      },
+      {
+       "code": "NC72.Z",
+       "has_children": false,
+       "title": "Fracture of femur, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"
+      }
+     ],
+     "matching_terms": [],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "selected_expression": null,
+     "siblings": [
+      {
+       "code": "NC70",
+       "has_children": true,
+       "title": "Superficial injury of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2046992511"
+      },
+      {
+       "code": "NC71",
+       "has_children": true,
+       "title": "Open wound of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/524905963"
+      },
+      {
+       "code": "NC73",
+       "has_children": true,
+       "title": "Dislocation or strain or sprain of joint or ligaments of hip",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/246411392"
+      },
+      {
+       "code": "NC74",
+       "has_children": true,
+       "title": "Injury of nerves at hip or thigh level",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2101437204"
+      },
+      {
+       "code": "NC75",
+       "has_children": true,
+       "title": "Injury of blood vessels at hip or thigh level",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/403353218"
+      },
+      {
+       "code": "NC76",
+       "has_children": true,
+       "title": "Injury of muscle, fascia, tendon or bursa at hip or thigh level",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1822948991"
+      },
+      {
+       "code": "NC77",
+       "has_children": true,
+       "title": "Crushing injury of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/166474731"
+      },
+      {
+       "code": "NC78",
+       "has_children": true,
+       "title": "Traumatic amputation of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1954883241"
+      },
+      {
+       "code": "NC79",
+       "has_children": false,
+       "title": "Multiple injuries of hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/271309016"
+      },
+      {
+       "code": "NC7Y",
+       "has_children": false,
+       "title": "Other specified injuries to the hip or thigh",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/375360441/other"
+      },
+      {
+       "code": "NC7Z",
+       "has_children": false,
+       "title": "Injuries to the hip or thigh, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/375360441/unspecified"
+      }
+     ],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "NC72"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/NC72",
+    "GET icd/release/11/2026-01/mms/1810119958"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "A break in the femur, longest and largest bone of the skeleton, situated between the hip and the knee.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "NC72",
+      "title": "Fracture of femur",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "NC72"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1038788978": {"method":"GET","path":"icd/release/11/2026-01/mms/1038788978","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1038788978","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1038788978","classKind":"category","code":"XK70","indexTerm":[{"label":{"@language":"en","@value":"Unilateral, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/1038788978","title":{"@language":"en","@value":"Unilateral, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/106550501": {"method":"GET","path":"icd/release/11/2026-01/mms/106550501","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/106550501","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#106550501","classKind":"category","code":"NC72.4","indexTerm":[{"label":{"@language":"en","@value":"Subtrochanteric fracture of femur"}},{"label":{"@language":"en","@value":"Subtrochanteric fracture NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1097923772","label":{"@language":"en","@value":"Subtrochanteric fracture of femur, displaced"}},{"foundationReference":"http://id.who.int/icd/entity/1848055723","label":{"@language":"en","@value":"Subtrochanteric fracture of femur, non-displaced"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/106550501/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/106550501/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/106550501/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/106550501/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/106550501/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/106550501","title":{"@language":"en","@value":"Subtrochanteric fracture of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1126329182": {"method":"GET","path":"icd/release/11/2026-01/mms/1126329182","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1126329182","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1126329182","classKind":"category","code":"XJ36W","indexTerm":[{"label":{"@language":"en","@value":"Avulsion fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1126329182","title":{"@language":"en","@value":"Avulsion fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1210711974": {"method":"GET","path":"icd/release/11/2026-01/mms/1210711974","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1210711974","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1210711974","classKind":"category","code":"XJ8PQ","indexTerm":[{"label":{"@language":"en","@value":"Displaced fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1210711974","title":{"@language":"en","@value":"Displaced fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1214787568": {"method":"GET","path":"icd/release/11/2026-01/mms/1214787568","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1214787568","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1214787568","classKind":"category","code":"XA5EL8","indexTerm":[{"label":{"@language":"en","@value":"Subtrochanteric line of femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/1214787568","title":{"@language":"en","@value":"Subtrochanteric line of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1225495470": {"method":"GET","path":"icd/release/11/2026-01/mms/1225495470","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1225495470","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1225495470","classKind":"category","code":"XJ76E","indexTerm":[{"label":{"@language":"en","@value":"Buckle fracture"}},{"label":{"@language":"en","@value":"torus fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1225495470","title":{"@language":"en","@value":"Buckle fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1227306904": {"method":"GET","path":"icd/release/11/2026-01/mms/1227306904","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1227306904","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1227306904","classKind":"category","code":"XJ45W","indexTerm":[{"label":{"@language":"en","@value":"Greenstick fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1227306904","title":{"@language":"en","@value":"Greenstick fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/128104623": {"method":"GET","path":"icd/release/11/2026-01/mms/128104623","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/128104623","blockId":"BlockL1-PF4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#128104623","child":["http://id.who.int/icd/release/11/2026-01/mms/238901123","http://id.who.int/icd/release/11/2026-01/mms/173760338","http://id.who.int/icd/release/11/2026-01/mms/1041697133","http://id.who.int/icd/release/11/2026-01/mms/1018874801","http://id.who.int/icd/release/11/2026-01/mms/225208565","http://id.who.int/icd/release/11/2026-01/mms/1054800896","http://id.who.int/icd/release/11/2026-01/mms/946967676","http://id.who.int/icd/release/11/2026-01/mms/817370856","http://id.who.int/icd/release/11/2026-01/mms/513624168","http://id.who.int/icd/release/11/2026-01/mms/128104623/other","http://id.who.int/icd/release/11/2026-01/mms/128104623/unspecified"],"classKind":"block","code":"","codeRange":"PF40-PH8Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/128104623","title":{"@language":"en","@value":"Undetermined intent"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1382371972": {"method":"GET","path":"icd/release/11/2026-01/mms/1382371972","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1382371972","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1382371972","classKind":"category","code":"NC72.0","indexTerm":[{"label":{"@language":"en","@value":"Fracture of head of femur"}},{"label":{"@language":"en","@value":"femoral head fracture"}},{"label":{"@language":"en","@value":"femoral head fracture dislocation"}},{"label":{"@language":"en","@value":"fracture of head of femur with depression"}},{"label":{"@language":"en","@value":"split fracture of head of femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1382371972/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1382371972/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1382371972/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1382371972/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1382371972/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/1382371972","title":{"@language":"en","@value":"Fracture of head of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1387112294": {"method":"GET","path":"icd/release/11/2026-01/mms/1387112294","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1387112294","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1387112294","classKind":"category","code":"XJ44E","indexTerm":[{"label":{"@language":"en","@value":"Closed fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1698596380"],"source":"http://id.who.int/icd/entity/1387112294","title":{"@language":"en","@value":"Closed fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1451058270": {"method":"GET","path":"icd/release/11/2026-01/mms/1451058270","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1451058270","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1451058270","classKind":"category","code":"XJ0QE","indexTerm":[{"label":{"@language":"en","@value":"Elevated fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1451058270","title":{"@language":"en","@value":"Elevated fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1491356379": {"method":"GET","path":"icd/release/11/2026-01/mms/1491356379","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1491356379","blockId":"BlockL1-PJ0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1491356379","child":["http://id.who.int/icd/release/11/2026-01/mms/1295772309","http://id.who.int/icd/release/11/2026-01/mms/700289973","http://id.who.int/icd/release/11/2026-01/mms/1837231441","http://id.who.int/icd/release/11/2026-01/mms/526124884","http://id.who.int/icd/release/11/2026-01/mms/395675088","http://id.who.int/icd/release/11/2026-01/mms/1444009771","http://id.who.int/icd/release/11/2026-01/mms/802885284","http://id.who.int/icd/release/11/2026-01/mms/1491356379/other","http://id.who.int/icd/release/11/2026-01/mms/1491356379/unspecified"],"classKind":"block","code":"","codeRange":"PJ00-PJ0Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/1491356379","title":{"@language":"en","@value":"Exposure to extreme forces of nature"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1598049072": {"method":"GET","path":"icd/release/11/2026-01/mms/1598049072","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1598049072","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1598049072","classKind":"category","code":"XA9JB2","indexTerm":[{"label":{"@language":"en","@value":"Intertrochanteric crest of femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/1598049072","title":{"@language":"en","@value":"Intertrochanteric crest of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1662130545": {"method":"GET","path":"icd/release/11/2026-01/mms/1662130545","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1662130545","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1662130545","classKind":"category","code":"NC72.5","indexTerm":[{"label":{"@language":"en","@value":"Fracture of shaft of femur"}},{"label":{"@language":"en","@value":"comminuted fracture of shaft of femur"}},{"label":{"@language":"en","@value":"femoral shaft fracture"}},{"label":{"@language":"en","@value":"oblique fracture of shaft of femur"}},{"foundationReference":"http://id.who.int/icd/entity/1978287166","label":{"@language":"en","@value":"Fracture of shaft of femur, simple"}},{"foundationReference":"http://id.who.int/icd/entity/1506183634","label":{"@language":"en","@value":"Greenstick fracture of shaft of femur"}},{"foundationReference":"http://id.who.int/icd/entity/1115252032","label":{"@language":"en","@value":"Fracture of shaft of femur, wedge"}},{"foundationReference":"http://id.who.int/icd/entity/1627043621","label":{"@language":"en","@value":"Fracture of shaft of femur, complex"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1662130545/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1662130545/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1662130545/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1662130545/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/1662130545","title":{"@language":"en","@value":"Fracture of shaft of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/166474731": {"method":"GET","path":"icd/release/11/2026-01/mms/166474731","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/166474731","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#166474731","child":["http://id.who.int/icd/release/11/2026-01/mms/834228337","http://id.who.int/icd/release/11/2026-01/mms/1425186277","http://id.who.int/icd/release/11/2026-01/mms/543149340","http://id.who.int/icd/release/11/2026-01/mms/166474731/unspecified"],"classKind":"category","code":"NC77","parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/166474731/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/166474731/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718","http://id.who.int/icd/release/11/2026-01/mms/421186462"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/166474731/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/166474731","title":{"@language":"en","@value":"Crushing injury of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1683085852": {"method":"GET","path":"icd/release/11/2026-01/mms/1683085852","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1683085852","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1683085852","classKind":"category","code":"NC72.7","codingNote":{"@language":"en","@value":"Each injury should be coded separately. This code should be used only when the detail of the specific injuries is unknown, or it is not possible to code each injury."},"indexTerm":[{"label":{"@language":"en","@value":"Multiple fractures of femur"}},{"label":{"@language":"en","@value":"multiple fractures of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683085852/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683085852/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683085852/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683085852/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1683085852/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/1683085852","title":{"@language":"en","@value":"Multiple fractures of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1715005040": {"method":"GET","path":"icd/release/11/2026-01/mms/1715005040","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1715005040","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1715005040","classKind":"category","code":"XA6UG0","indexTerm":[{"label":{"@language":"en","@value":"Femoral condyle"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/1715005040","title":{"@language":"en","@value":"Femoral condyle"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1730545673": {"method":"GET","path":"icd/release/11/2026-01/mms/1730545673","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1730545673","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1730545673","classKind":"category","code":"XA1673","indexTerm":[{"label":{"@language":"en","@value":"Femoral neck"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/1730545673","title":{"@language":"en","@value":"Femoral neck"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1810119958": {"method":"GET","path":"icd/release/11/2026-01/mms/1810119958","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1810119958","child":["http://id.who.int/icd/release/11/2026-01/mms/1382371972","http://id.who.int/icd/release/11/2026-01/mms/263535387","http://id.who.int/icd/release/11/2026-01/mms/398412176","http://id.who.int/icd/release/11/2026-01/mms/1928627226","http://id.who.int/icd/release/11/2026-01/mms/106550501","http://id.who.int/icd/release/11/2026-01/mms/1662130545","http://id.who.int/icd/release/11/2026-01/mms/284986085","http://id.who.int/icd/release/11/2026-01/mms/1683085852","http://id.who.int/icd/release/11/2026-01/mms/423153498","http://id.who.int/icd/release/11/2026-01/mms/1810119958/other","http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified"],"classKind":"category","code":"NC72","definition":{"@language":"en","@value":"A break in the femur, longest and largest bone of the skeleton, situated between the hip and the knee."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/983135600"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/856028269"]}],"source":"http://id.who.int/icd/entity/1810119958","title":{"@language":"en","@value":"Fracture of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1810119958/other": {"method":"GET","path":"icd/release/11/2026-01/mms/1810119958/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1810119958/other","classKind":"category","code":"NC72.Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified fracture of femur"}},{"foundationReference":"http://id.who.int/icd/entity/1767352820","label":{"@language":"en","@value":"Sequelae of fracture of femur"}},{"foundationReference":"http://id.who.int/icd/entity/1767352820","label":{"@language":"en","@value":"sequelae of; fracture, limb, lower, femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false"},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/856028269"]}],"title":{"@language":"en","@value":"Other specified fracture of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1810119958/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/1810119958/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1810119958/unspecified","classKind":"category","code":"NC72.Z","indexTerm":[{"label":{"@language":"en","@value":"Fracture of femur, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1810119958","label":{"@language":"en","@value":"Fracture of femur"}},{"foundationReference":"http://id.who.int/icd/entity/1810119958","label":{"@language":"en","@value":"femoral fracture"}},{"foundationReference":"http://id.who.int/icd/entity/1810119958","label":{"@language":"en","@value":"femoral fracture dislocation"}},{"foundationReference":"http://id.who.int/icd/entity/1810119958","label":{"@language":"en","@value":"fracture of thigh NOS"}},{"foundationReference":"http://id.who.int/icd/entity/1810119958","label":{"@language":"en","@value":"fracture of upper leg NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1810119958/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/856028269"]}],"title":{"@language":"en","@value":"Fracture of femur, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1822948991": {"method":"GET","path":"icd/release/11/2026-01/mms/1822948991","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1822948991","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1822948991","child":["http://id.who.int/icd/release/11/2026-01/mms/759273714","http://id.who.int/icd/release/11/2026-01/mms/1208636772","http://id.who.int/icd/release/11/2026-01/mms/1017578907","http://id.who.int/icd/release/11/2026-01/mms/1508689935","http://id.who.int/icd/release/11/2026-01/mms/1588530022","http://id.who.int/icd/release/11/2026-01/mms/1822948991/other","http://id.who.int/icd/release/11/2026-01/mms/1822948991/unspecified"],"classKind":"category","code":"NC76","parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1822948991/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1822948991/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/2041500561","http://id.who.int/icd/release/11/2026-01/mms/1377581424","http://id.who.int/icd/release/11/2026-01/mms/43412023","http://id.who.int/icd/release/11/2026-01/mms/492081930","http://id.who.int/icd/release/11/2026-01/mms/266150789","http://id.who.int/icd/release/11/2026-01/mms/1014624341"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1822948991/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/1822948991","title":{"@language":"en","@value":"Injury of muscle, fascia, tendon or bursa at hip or thigh level"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1856452751": {"method":"GET","path":"icd/release/11/2026-01/mms/1856452751","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1856452751","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1856452751","classKind":"category","code":"XJ7ZH","indexTerm":[{"label":{"@language":"en","@value":"Burst fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1856452751","title":{"@language":"en","@value":"Burst fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/185842968": {"method":"GET","path":"icd/release/11/2026-01/mms/185842968","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/185842968","blockId":"BlockL1-PJ4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#185842968","child":["http://id.who.int/icd/release/11/2026-01/mms/871056364","http://id.who.int/icd/release/11/2026-01/mms/683609750","http://id.who.int/icd/release/11/2026-01/mms/1195774739","http://id.who.int/icd/release/11/2026-01/mms/883458183","http://id.who.int/icd/release/11/2026-01/mms/947230496","http://id.who.int/icd/release/11/2026-01/mms/1453362810","http://id.who.int/icd/release/11/2026-01/mms/571334279","http://id.who.int/icd/release/11/2026-01/mms/1175172993","http://id.who.int/icd/release/11/2026-01/mms/185842968/other","http://id.who.int/icd/release/11/2026-01/mms/185842968/unspecified"],"classKind":"block","code":"","codeRange":"PJ40-PJ4Z","codingNote":{"@language":"en","@value":"Injuries inflicted by the police or other law-enforcing agents, including military on duty, in the course of arresting or attempting to arrest lawbreakers, suppressing disturbances, maintaining order, or other legal action."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/185842968","title":{"@language":"en","@value":"Legal intervention"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1879993545": {"method":"GET","path":"icd/release/11/2026-01/mms/1879993545","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1879993545","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1879993545","classKind":"category","code":"XA96S5","indexTerm":[{"label":{"@language":"en","@value":"Femoral head"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/1879993545","title":{"@language":"en","@value":"Femoral head"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1882092801": {"method":"GET","path":"icd/release/11/2026-01/mms/1882092801","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1882092801","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1882092801","classKind":"category","code":"XJ7YM","indexTerm":[{"label":{"@language":"en","@value":"Open fracture"}},{"label":{"@language":"en","@value":"compound fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1698596380"],"source":"http://id.who.int/icd/entity/1882092801","title":{"@language":"en","@value":"Open fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1896907440": {"method":"GET","path":"icd/release/11/2026-01/mms/1896907440","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1896907440","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1896907440","classKind":"category","code":"XA2BJ0","indexTerm":[{"label":{"@language":"en","@value":"Femoral epiphysis"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/1896907440","title":{"@language":"en","@value":"Femoral epiphysis"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1928627226": {"method":"GET","path":"icd/release/11/2026-01/mms/1928627226","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1928627226","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1928627226","child":["http://id.who.int/icd/release/11/2026-01/mms/1676881631","http://id.who.int/icd/release/11/2026-01/mms/846895412","http://id.who.int/icd/release/11/2026-01/mms/1928627226/other","http://id.who.int/icd/release/11/2026-01/mms/1928627226/unspecified"],"classKind":"category","code":"NC72.3","inclusion":[{"label":{"@language":"en","@value":"Trochanteric fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1928627226/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1928627226/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1928627226/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1928627226/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1928627226/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/1928627226","title":{"@language":"en","@value":"Fracture of trochanteric section of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1941319848": {"method":"GET","path":"icd/release/11/2026-01/mms/1941319848","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1941319848","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1941319848","classKind":"category","code":"XJ2EL","indexTerm":[{"label":{"@language":"en","@value":"Bucket handle or corner fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/1941319848","title":{"@language":"en","@value":"Bucket handle or corner fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1954883241": {"method":"GET","path":"icd/release/11/2026-01/mms/1954883241","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1954883241","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1954883241","child":["http://id.who.int/icd/release/11/2026-01/mms/2134737869","http://id.who.int/icd/release/11/2026-01/mms/915172357","http://id.who.int/icd/release/11/2026-01/mms/272566180","http://id.who.int/icd/release/11/2026-01/mms/443960921","http://id.who.int/icd/release/11/2026-01/mms/336576098","http://id.who.int/icd/release/11/2026-01/mms/1299127585","http://id.who.int/icd/release/11/2026-01/mms/1954883241/unspecified"],"classKind":"category","code":"NC78","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/507000791","label":{"@language":"en","@value":"traumatic amputation of leg, level unspecified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/507000791"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1954883241/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1954883241/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1188078244","http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/1954883241/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/1954883241","title":{"@language":"en","@value":"Traumatic amputation of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2006159364": {"method":"GET","path":"icd/release/11/2026-01/mms/2006159364","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2006159364","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2006159364","classKind":"category","code":"XJ1Z6","indexTerm":[{"label":{"@language":"en","@value":"Comminuted fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/2006159364","title":{"@language":"en","@value":"Comminuted fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2046992511": {"method":"GET","path":"icd/release/11/2026-01/mms/2046992511","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2046992511","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2046992511","child":["http://id.who.int/icd/release/11/2026-01/mms/932922082","http://id.who.int/icd/release/11/2026-01/mms/180363569","http://id.who.int/icd/release/11/2026-01/mms/53260422","http://id.who.int/icd/release/11/2026-01/mms/1871441061","http://id.who.int/icd/release/11/2026-01/mms/2033103525","http://id.who.int/icd/release/11/2026-01/mms/2046992511/other","http://id.who.int/icd/release/11/2026-01/mms/2046992511/unspecified"],"classKind":"category","code":"NC70","parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2046992511/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2046992511/postcoordinationScale/typeOfInjury","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/typeOfInjury","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/377475788","http://id.who.int/icd/release/11/2026-01/mms/1306914119","http://id.who.int/icd/release/11/2026-01/mms/2040998541","http://id.who.int/icd/release/11/2026-01/mms/1442982067","http://id.who.int/icd/release/11/2026-01/mms/1704055292","http://id.who.int/icd/release/11/2026-01/mms/2010469183","http://id.who.int/icd/release/11/2026-01/mms/1124176890"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2046992511/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2046992511/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/2046992511","title":{"@language":"en","@value":"Superficial injury of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2101437204": {"method":"GET","path":"icd/release/11/2026-01/mms/2101437204","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2101437204","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2101437204","child":["http://id.who.int/icd/release/11/2026-01/mms/809431119","http://id.who.int/icd/release/11/2026-01/mms/1433746907","http://id.who.int/icd/release/11/2026-01/mms/567831844","http://id.who.int/icd/release/11/2026-01/mms/1137730523","http://id.who.int/icd/release/11/2026-01/mms/2101437204/other","http://id.who.int/icd/release/11/2026-01/mms/2101437204/unspecified"],"classKind":"category","code":"NC74","parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2101437204/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2101437204/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1803577290","http://id.who.int/icd/release/11/2026-01/mms/2091385610","http://id.who.int/icd/release/11/2026-01/mms/1447555234","http://id.who.int/icd/release/11/2026-01/mms/1982293177","http://id.who.int/icd/release/11/2026-01/mms/1241214483","http://id.who.int/icd/release/11/2026-01/mms/1579641493","http://id.who.int/icd/release/11/2026-01/mms/2006905787","http://id.who.int/icd/release/11/2026-01/mms/1360607098","http://id.who.int/icd/release/11/2026-01/mms/1017156365","http://id.who.int/icd/release/11/2026-01/mms/1390958888","http://id.who.int/icd/release/11/2026-01/mms/1622579067","http://id.who.int/icd/release/11/2026-01/mms/1822250788","http://id.who.int/icd/release/11/2026-01/mms/660035538"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2101437204/postcoordinationScale/hasManifestation","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/hasManifestation","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/425464783"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/2101437204/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/2101437204","title":{"@language":"en","@value":"Injury of nerves at hip or thigh level"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/2143219175": {"method":"GET","path":"icd/release/11/2026-01/mms/2143219175","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/2143219175","blockId":"BlockL1-PJ6","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#2143219175","child":["http://id.who.int/icd/release/11/2026-01/mms/1857281413","http://id.who.int/icd/release/11/2026-01/mms/1462185542","http://id.who.int/icd/release/11/2026-01/mms/596278969","http://id.who.int/icd/release/11/2026-01/mms/440114554","http://id.who.int/icd/release/11/2026-01/mms/592240375","http://id.who.int/icd/release/11/2026-01/mms/1348791597","http://id.who.int/icd/release/11/2026-01/mms/617201106","http://id.who.int/icd/release/11/2026-01/mms/340856240","http://id.who.int/icd/release/11/2026-01/mms/1022059782","http://id.who.int/icd/release/11/2026-01/mms/2143219175/other","http://id.who.int/icd/release/11/2026-01/mms/2143219175/unspecified"],"classKind":"block","code":"","codeRange":"PJ60-PK6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/2143219175","title":{"@language":"en","@value":"Armed conflict"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/246411392": {"method":"GET","path":"icd/release/11/2026-01/mms/246411392","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/246411392","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#246411392","child":["http://id.who.int/icd/release/11/2026-01/mms/189235471","http://id.who.int/icd/release/11/2026-01/mms/1846299803"],"classKind":"category","code":"NC73","definition":{"@language":"en","@value":"A collective term for muscle and ligament injuries of the tissues associated with, or displacement of the bones of, the hip."},"indexTerm":[{"label":{"@language":"en","@value":"Dislocation or strain or sprain of joint or ligaments of hip"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/246411392/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/246411392/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1399556983","http://id.who.int/icd/release/11/2026-01/mms/1188078244","http://id.who.int/icd/release/11/2026-01/mms/1921980626"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/246411392/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/246411392","title":{"@language":"en","@value":"Dislocation or strain or sprain of joint or ligaments of hip"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/263535387": {"method":"GET","path":"icd/release/11/2026-01/mms/263535387","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/263535387","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#263535387","classKind":"category","code":"NC72.1","indexTerm":[{"label":{"@language":"en","@value":"Fracture of upper epiphysis of femur"}},{"label":{"@language":"en","@value":"epiphyseal femoral fracture"}},{"label":{"@language":"en","@value":"separation fracture of epiphysis of femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/263535387/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/263535387/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/263535387/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/263535387/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/263535387","title":{"@language":"en","@value":"Fracture of upper epiphysis of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271309016": {"method":"GET","path":"icd/release/11/2026-01/mms/271309016","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271309016","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271309016","classKind":"category","code":"NC79","codingNote":{"@language":"en","@value":"Each injury should be coded separately. This code should be used alone only when the detail of the specific injuries is unknown, or it is not possible to code each injury. This code may also be used in postcoordination to identify cases of complex trauma."},"indexTerm":[{"label":{"@language":"en","@value":"Multiple injuries of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/1223121037","label":{"@language":"en","@value":"Injury of multiple sites of hip"}},{"foundationReference":"http://id.who.int/icd/entity/380416112","label":{"@language":"en","@value":"Injury of multiple sites of thigh"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/271309016/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/271309016","title":{"@language":"en","@value":"Multiple injuries of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/271422288": {"method":"GET","path":"icd/release/11/2026-01/mms/271422288","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/271422288","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#271422288","classKind":"category","code":"XK8G","indexTerm":[{"label":{"@language":"en","@value":"Left"}},{"label":{"@language":"en","@value":"unilateral, left"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/271422288","title":{"@language":"en","@value":"Left"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/284986085": {"method":"GET","path":"icd/release/11/2026-01/mms/284986085","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/284986085","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#284986085","child":["http://id.who.int/icd/release/11/2026-01/mms/1289124555","http://id.who.int/icd/release/11/2026-01/mms/1930139578","http://id.who.int/icd/release/11/2026-01/mms/1264976889","http://id.who.int/icd/release/11/2026-01/mms/1584853218","http://id.who.int/icd/release/11/2026-01/mms/2009122933","http://id.who.int/icd/release/11/2026-01/mms/1170807924","http://id.who.int/icd/release/11/2026-01/mms/2048192769","http://id.who.int/icd/release/11/2026-01/mms/284986085/other","http://id.who.int/icd/release/11/2026-01/mms/284986085/unspecified"],"classKind":"category","code":"NC72.6","parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/284986085/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/284986085/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/284986085/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/284986085/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/284986085/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/284986085","title":{"@language":"en","@value":"Fracture of lower end of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/302675287": {"method":"GET","path":"icd/release/11/2026-01/mms/302675287","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/302675287","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#302675287","classKind":"category","code":"XJ9UB","indexTerm":[{"label":{"@language":"en","@value":"Depressed fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/302675287","title":{"@language":"en","@value":"Depressed fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/348765424": {"method":"GET","path":"icd/release/11/2026-01/mms/348765424","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/348765424","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#348765424","classKind":"category","code":"XA00N4","indexTerm":[{"label":{"@language":"en","@value":"Pertrochanter"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/348765424","title":{"@language":"en","@value":"Pertrochanter"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/375360441": {"method":"GET","path":"icd/release/11/2026-01/mms/375360441","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441","blockId":"BlockL1-NC7","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#375360441","child":["http://id.who.int/icd/release/11/2026-01/mms/2046992511","http://id.who.int/icd/release/11/2026-01/mms/524905963","http://id.who.int/icd/release/11/2026-01/mms/1810119958","http://id.who.int/icd/release/11/2026-01/mms/246411392","http://id.who.int/icd/release/11/2026-01/mms/2101437204","http://id.who.int/icd/release/11/2026-01/mms/403353218","http://id.who.int/icd/release/11/2026-01/mms/1822948991","http://id.who.int/icd/release/11/2026-01/mms/166474731","http://id.who.int/icd/release/11/2026-01/mms/1954883241","http://id.who.int/icd/release/11/2026-01/mms/271309016","http://id.who.int/icd/release/11/2026-01/mms/375360441/other","http://id.who.int/icd/release/11/2026-01/mms/375360441/unspecified"],"classKind":"block","code":"","codeRange":"NC70-NC7Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/163532889","label":{"@language":"en","@value":"Burns"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/163532889"},{"foundationReference":"http://id.who.int/icd/entity/152692065","label":{"@language":"en","@value":"Frostbite"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/152692065"},{"foundationReference":"http://id.who.int/icd/entity/507000791","label":{"@language":"en","@value":"Other injuries of leg, level unspecified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/507000791"},{"foundationReference":"http://id.who.int/icd/entity/1645464025","label":{"@language":"en","@value":"Insect bite or sting, venomous"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1119330136"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/435227771"],"source":"http://id.who.int/icd/entity/375360441","title":{"@language":"en","@value":"Injuries to the hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/375360441/other": {"method":"GET","path":"icd/release/11/2026-01/mms/375360441/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#375360441/other","classKind":"category","code":"NC7Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified injuries to the hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/298773309","label":{"@language":"en","@value":"Certain specified injuries of hip or thigh"}},{"foundationReference":"http://id.who.int/icd/entity/947556747","label":{"@language":"en","@value":"Sequelae of dislocation, sprain or strain of joint or ligaments of hip"}},{"foundationReference":"http://id.who.int/icd/entity/947556747","label":{"@language":"en","@value":"late effect of dislocation, sprain or strain of joint or ligaments of hip"}},{"foundationReference":"http://id.who.int/icd/entity/1222592289","label":{"@language":"en","@value":"Blunt hip trauma"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441/other/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441/other/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"title":{"@language":"en","@value":"Other specified injuries to the hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/375360441/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/375360441/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#375360441/unspecified","classKind":"category","code":"NC7Z","indexTerm":[{"label":{"@language":"en","@value":"Injuries to the hip or thigh, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/1058024243","label":{"@language":"en","@value":"Injury of thigh, unspecified"}},{"foundationReference":"http://id.who.int/icd/entity/84531109","label":{"@language":"en","@value":"Injury of hip, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441/unspecified/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/375360441/unspecified/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"title":{"@language":"en","@value":"Injuries to the hip or thigh, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/39276591": {"method":"GET","path":"icd/release/11/2026-01/mms/39276591","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/39276591","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#39276591","classKind":"category","code":"XJ69V","indexTerm":[{"label":{"@language":"en","@value":"Dislocated fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/39276591","title":{"@language":"en","@value":"Dislocated fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/398412176": {"method":"GET","path":"icd/release/11/2026-01/mms/398412176","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/398412176","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#398412176","child":["http://id.who.int/icd/release/11/2026-01/mms/1959350671","http://id.who.int/icd/release/11/2026-01/mms/1731752210","http://id.who.int/icd/release/11/2026-01/mms/1340072753","http://id.who.int/icd/release/11/2026-01/mms/1511994820","http://id.who.int/icd/release/11/2026-01/mms/398412176/other","http://id.who.int/icd/release/11/2026-01/mms/398412176/unspecified"],"classKind":"category","code":"NC72.2","parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/398412176/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/398412176/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/398412176/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/398412176/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/398412176/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/398412176","title":{"@language":"en","@value":"Fracture of neck of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/403353218": {"method":"GET","path":"icd/release/11/2026-01/mms/403353218","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/403353218","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#403353218","child":["http://id.who.int/icd/release/11/2026-01/mms/751188174","http://id.who.int/icd/release/11/2026-01/mms/1234040156","http://id.who.int/icd/release/11/2026-01/mms/1025549733","http://id.who.int/icd/release/11/2026-01/mms/1596500826","http://id.who.int/icd/release/11/2026-01/mms/403353218/other","http://id.who.int/icd/release/11/2026-01/mms/403353218/unspecified"],"classKind":"category","code":"NC75","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/598619951","label":{"@language":"en","@value":"Injury of popliteal artery"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/598619951"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/403353218/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/403353218/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/724989423","http://id.who.int/icd/release/11/2026-01/mms/1597018536","http://id.who.int/icd/release/11/2026-01/mms/347694696","http://id.who.int/icd/release/11/2026-01/mms/528217745","http://id.who.int/icd/release/11/2026-01/mms/1716010216","http://id.who.int/icd/release/11/2026-01/mms/988393448","http://id.who.int/icd/release/11/2026-01/mms/918712255","http://id.who.int/icd/release/11/2026-01/mms/1425146193","http://id.who.int/icd/release/11/2026-01/mms/937198040","http://id.who.int/icd/release/11/2026-01/mms/1008603439","http://id.who.int/icd/release/11/2026-01/mms/1209595240","http://id.who.int/icd/release/11/2026-01/mms/412263999","http://id.who.int/icd/release/11/2026-01/mms/767675176","http://id.who.int/icd/release/11/2026-01/mms/263897855","http://id.who.int/icd/release/11/2026-01/mms/1902139432","http://id.who.int/icd/release/11/2026-01/mms/951259663","http://id.who.int/icd/release/11/2026-01/mms/1517755559","http://id.who.int/icd/release/11/2026-01/mms/110459031","http://id.who.int/icd/release/11/2026-01/mms/2033733719"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/403353218/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/403353218","title":{"@language":"en","@value":"Injury of blood vessels at hip or thigh level"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/423153498": {"method":"GET","path":"icd/release/11/2026-01/mms/423153498","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#423153498","classKind":"category","code":"NC72.8","indexTerm":[{"label":{"@language":"en","@value":"Fractures of other parts of femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1810119958"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498/postcoordinationScale/fractureSubtype","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureSubtype","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1126329182","http://id.who.int/icd/release/11/2026-01/mms/1941319848","http://id.who.int/icd/release/11/2026-01/mms/1225495470","http://id.who.int/icd/release/11/2026-01/mms/1856452751","http://id.who.int/icd/release/11/2026-01/mms/2006159364","http://id.who.int/icd/release/11/2026-01/mms/56999138","http://id.who.int/icd/release/11/2026-01/mms/302675287","http://id.who.int/icd/release/11/2026-01/mms/39276591","http://id.who.int/icd/release/11/2026-01/mms/1210711974","http://id.who.int/icd/release/11/2026-01/mms/1451058270","http://id.who.int/icd/release/11/2026-01/mms/870613257","http://id.who.int/icd/release/11/2026-01/mms/1227306904","http://id.who.int/icd/release/11/2026-01/mms/750703299","http://id.who.int/icd/release/11/2026-01/mms/25495220","http://id.who.int/icd/release/11/2026-01/mms/718215016","http://id.who.int/icd/release/11/2026-01/mms/1801367926","http://id.who.int/icd/release/11/2026-01/mms/1274784063","http://id.who.int/icd/release/11/2026-01/mms/1157346122","http://id.who.int/icd/release/11/2026-01/mms/801921263","http://id.who.int/icd/release/11/2026-01/mms/517952894","http://id.who.int/icd/release/11/2026-01/mms/1331098173","http://id.who.int/icd/release/11/2026-01/mms/898974882","http://id.who.int/icd/release/11/2026-01/mms/1343005175","http://id.who.int/icd/release/11/2026-01/mms/804640573","http://id.who.int/icd/release/11/2026-01/mms/1520378894","http://id.who.int/icd/release/11/2026-01/mms/293807484"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498/postcoordinationScale/fractureOpenOrClosed","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/fractureOpenOrClosed","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1387112294","http://id.who.int/icd/release/11/2026-01/mms/1882092801"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498/postcoordinationScale/jointInvolvementInFracture","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/jointInvolvementInFracture","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/676705630","http://id.who.int/icd/release/11/2026-01/mms/533107744"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/1896907440"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/423153498/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"]}],"source":"http://id.who.int/icd/entity/423153498","title":{"@language":"en","@value":"Fractures of other parts of femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/435227771": {"method":"GET","path":"icd/release/11/2026-01/mms/435227771","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/435227771","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#435227771","child":["http://id.who.int/icd/release/11/2026-01/mms/452386362","http://id.who.int/icd/release/11/2026-01/mms/1842013215","http://id.who.int/icd/release/11/2026-01/mms/805284915","http://id.who.int/icd/release/11/2026-01/mms/1489212950","http://id.who.int/icd/release/11/2026-01/mms/1416283029","http://id.who.int/icd/release/11/2026-01/mms/592902578","http://id.who.int/icd/release/11/2026-01/mms/1633923486","http://id.who.int/icd/release/11/2026-01/mms/375360441","http://id.who.int/icd/release/11/2026-01/mms/2016483996","http://id.who.int/icd/release/11/2026-01/mms/252518591","http://id.who.int/icd/release/11/2026-01/mms/159081656","http://id.who.int/icd/release/11/2026-01/mms/1121827324","http://id.who.int/icd/release/11/2026-01/mms/1237810616","http://id.who.int/icd/release/11/2026-01/mms/163532889","http://id.who.int/icd/release/11/2026-01/mms/152692065","http://id.who.int/icd/release/11/2026-01/mms/1236563202","http://id.who.int/icd/release/11/2026-01/mms/383104340","http://id.who.int/icd/release/11/2026-01/mms/609351978","http://id.who.int/icd/release/11/2026-01/mms/435227771/other","http://id.who.int/icd/release/11/2026-01/mms/435227771/unspecified"],"classKind":"chapter","code":"22","definition":{"@language":"en","@value":"!markdown\nIn the ICD, injury means physical or physiological bodily harm resulting from interaction of the body with energy (mechanical, thermal, electrical, chemical or radiant, or due to extreme pressure) in an amount, or at a rate of transfer, that exceeds physical or physiological tolerance. Injury can also result from lack of vital elements, such as oxygen. Poisoning by and toxic effects of substances are included, as is damage of or due to implanted devices.  \n\nInjury usually has rapid onset in response to a well-defined event (e.g. a car crash, striking the ground after falling, drinking a strongly alkaline liquid, an overdose of a medication, a burn sustained during a surgical procedure). These events are often referred to as external causes of injury. The injurious energy can, however, originate from the injured person and/or from his or her immediate environment (e.g. a person running on a hot day sustains heat exhaustion), and injury can be caused by the injured person (i.e. intentional self-harm).\n\nInjury includes manifestations that are evident immediately after onset, which may persist or not, and manifestations that first become evident at a later date."},"exclusion":[{"foundationReference":"http://id.who.int/icd/entity/624443803","label":{"@language":"en","@value":"Birth injury"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/624443803"},{"foundationReference":"http://id.who.int/icd/entity/1146004591","label":{"@language":"en","@value":"Certain specified obstetric trauma"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1146004591"},{"foundationReference":"http://id.who.int/icd/entity/560404604","label":{"@language":"en","@value":"Malunion of fracture"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/560404604"},{"foundationReference":"http://id.who.int/icd/entity/1143789038","label":{"@language":"en","@value":"Nonunion of fracture"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1143789038"},{"foundationReference":"http://id.who.int/icd/entity/639949585","label":{"@language":"en","@value":"Pathological fracture"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/639949585"},{"foundationReference":"http://id.who.int/icd/entity/1439320197","label":{"@language":"en","@value":"Stress fracture, not elsewhere classified"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1439320197"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/435227771","title":{"@language":"en","@value":"Injury, poisoning or certain other consequences of external causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/491063206": {"method":"GET","path":"icd/release/11/2026-01/mms/491063206","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/491063206","blockId":"BlockL1-PJ2","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#491063206","child":["http://id.who.int/icd/release/11/2026-01/mms/282888955","http://id.who.int/icd/release/11/2026-01/mms/1192102653","http://id.who.int/icd/release/11/2026-01/mms/109729818","http://id.who.int/icd/release/11/2026-01/mms/491063206/other","http://id.who.int/icd/release/11/2026-01/mms/491063206/unspecified"],"classKind":"block","code":"","codeRange":"PJ20-PJ2Z","definition":{"@language":"en","@value":"Non-accidental acts of physical force, forced or coerced sexual acts, verbal or symbolic acts, or significant caregiving omissions that result in harm or have a reasonable potential for harm. These categories are applied to the victim of the maltreatment, not the perpetrator."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/491063206","title":{"@language":"en","@value":"Maltreatment"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/524905963": {"method":"GET","path":"icd/release/11/2026-01/mms/524905963","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#524905963","child":["http://id.who.int/icd/release/11/2026-01/mms/253966967","http://id.who.int/icd/release/11/2026-01/mms/951065353","http://id.who.int/icd/release/11/2026-01/mms/439601516","http://id.who.int/icd/release/11/2026-01/mms/895754877","http://id.who.int/icd/release/11/2026-01/mms/495169632","http://id.who.int/icd/release/11/2026-01/mms/1708554788","http://id.who.int/icd/release/11/2026-01/mms/524905963/other","http://id.who.int/icd/release/11/2026-01/mms/524905963/unspecified"],"classKind":"category","code":"NC71","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/1954883241","label":{"@language":"en","@value":"Traumatic amputation of hip or thigh"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1954883241"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/375360441"],"postcoordinationScale":[{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/postcoordinationScale/laterality","allowMultipleValues":"NotAllowed","axisName":"http://id.who.int/icd/schema/laterality","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/627678743","http://id.who.int/icd/release/11/2026-01/mms/271422288","http://id.who.int/icd/release/11/2026-01/mms/876572005","http://id.who.int/icd/release/11/2026-01/mms/1038788978"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/postcoordinationScale/specificAnatomy","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/specificAnatomy","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/238202718"]},{"@id":"http://id.who.int/icd/release/11/2026-01/mms/524905963/postcoordinationScale/associatedWith","allowMultipleValues":"AllowAlways","axisName":"http://id.who.int/icd/schema/associatedWith","requiredPostcoordination":"false","scaleEntity":["http://id.who.int/icd/release/11/2026-01/mms/850137482","http://id.who.int/icd/release/11/2026-01/mms/755612283"]}],"source":"http://id.who.int/icd/entity/524905963","title":{"@language":"en","@value":"Open wound of hip or thigh"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/533107744": {"method":"GET","path":"icd/release/11/2026-01/mms/533107744","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/533107744","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#533107744","classKind":"category","code":"XJ5VJ","definition":{"@language":"en","@value":"Fractures that do not involve an articular surface."},"indexTerm":[{"label":{"@language":"en","@value":"Fracture does not extend into joint"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/31690185"],"source":"http://id.who.int/icd/entity/533107744","title":{"@language":"en","@value":"Fracture does not extend into joint"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/558785723": {"method":"GET","path":"icd/release/11/2026-01/mms/558785723","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/558785723","blockId":"BlockL1-PK8","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#558785723","child":["http://id.who.int/icd/release/11/2026-01/mms/460401849","http://id.who.int/icd/release/11/2026-01/mms/1642025150","http://id.who.int/icd/release/11/2026-01/mms/1583926619","http://id.who.int/icd/release/11/2026-01/mms/2024436666","http://id.who.int/icd/release/11/2026-01/mms/1162198017","http://id.who.int/icd/release/11/2026-01/mms/431804121","http://id.who.int/icd/release/11/2026-01/mms/1323892810","http://id.who.int/icd/release/11/2026-01/mms/1669303982"],"classKind":"block","code":"","codeRange":"PK80-PL14.Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/558785723","title":{"@language":"en","@value":"Causes of healthcare related harm or injury"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/56999138": {"method":"GET","path":"icd/release/11/2026-01/mms/56999138","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/56999138","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#56999138","classKind":"category","code":"XJ778","indexTerm":[{"label":{"@language":"en","@value":"Compression fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/56999138","title":{"@language":"en","@value":"Compression fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/627678743": {"method":"GET","path":"icd/release/11/2026-01/mms/627678743","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/627678743","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#627678743","classKind":"category","code":"XK9J","indexTerm":[{"label":{"@language":"en","@value":"Bilateral"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/627678743","title":{"@language":"en","@value":"Bilateral"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/65132592": {"method":"GET","path":"icd/release/11/2026-01/mms/65132592","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/65132592","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#65132592","classKind":"category","code":"XA4AF2","indexTerm":[{"label":{"@language":"en","@value":"Femoral shaft"}},{"label":{"@language":"en","@value":"shaft of the femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/65132592","title":{"@language":"en","@value":"Femoral shaft"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/676705630": {"method":"GET","path":"icd/release/11/2026-01/mms/676705630","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/676705630","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#676705630","child":["http://id.who.int/icd/release/11/2026-01/mms/75909427","http://id.who.int/icd/release/11/2026-01/mms/873599689"],"classKind":"category","code":"XJ5GS","definition":{"@language":"en","@value":"Fracture involves articular surface or surfaces."},"indexTerm":[{"label":{"@language":"en","@value":"Fracture extends into joint"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/31690185"],"source":"http://id.who.int/icd/entity/676705630","title":{"@language":"en","@value":"Fracture extends into joint"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/73322695": {"method":"GET","path":"icd/release/11/2026-01/mms/73322695","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/73322695","blockId":"BlockL1-PD5","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#73322695","child":["http://id.who.int/icd/release/11/2026-01/mms/376636382","http://id.who.int/icd/release/11/2026-01/mms/447363203","http://id.who.int/icd/release/11/2026-01/mms/970723824","http://id.who.int/icd/release/11/2026-01/mms/743156834","http://id.who.int/icd/release/11/2026-01/mms/406207542","http://id.who.int/icd/release/11/2026-01/mms/1822125259","http://id.who.int/icd/release/11/2026-01/mms/1489018295","http://id.who.int/icd/release/11/2026-01/mms/1530721759","http://id.who.int/icd/release/11/2026-01/mms/1749521479","http://id.who.int/icd/release/11/2026-01/mms/73322695/other","http://id.who.int/icd/release/11/2026-01/mms/73322695/unspecified"],"classKind":"block","code":"","codeRange":"PD50-PF2Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/73322695","title":{"@language":"en","@value":"Assault"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/75909427": {"method":"GET","path":"icd/release/11/2026-01/mms/75909427","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/75909427","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#75909427","classKind":"category","code":"XJ5L7","inclusion":[{"label":{"@language":"en","@value":"partial articular fractures"}}],"indexTerm":[{"label":{"@language":"en","@value":"Fracture extends into joint and a portion of the articular part remains attached to the main part of the bone"}},{"label":{"@language":"en","@value":"partial articular fractures"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/676705630"],"source":"http://id.who.int/icd/entity/75909427","title":{"@language":"en","@value":"Fracture extends into joint and a portion of the articular part remains attached to the main part of the bone"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/766579120": {"method":"GET","path":"icd/release/11/2026-01/mms/766579120","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/766579120","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#766579120","child":["http://id.who.int/icd/release/11/2026-01/mms/1299250003","http://id.who.int/icd/release/11/2026-01/mms/1207786559"],"classKind":"category","code":"XA32G0","indexTerm":[{"label":{"@language":"en","@value":"Trochanter"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/983135600"],"source":"http://id.who.int/icd/entity/766579120","title":{"@language":"en","@value":"Trochanter"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482","child":["http://id.who.int/icd/release/11/2026-01/mms/980862652","http://id.who.int/icd/release/11/2026-01/mms/851395624","http://id.who.int/icd/release/11/2026-01/mms/73322695","http://id.who.int/icd/release/11/2026-01/mms/128104623","http://id.who.int/icd/release/11/2026-01/mms/1491356379","http://id.who.int/icd/release/11/2026-01/mms/491063206","http://id.who.int/icd/release/11/2026-01/mms/185842968","http://id.who.int/icd/release/11/2026-01/mms/2143219175","http://id.who.int/icd/release/11/2026-01/mms/558785723","http://id.who.int/icd/release/11/2026-01/mms/850137482/other","http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified"],"classKind":"chapter","code":"23","definition":{"@language":"en","@value":"!markdown\nThe WHO definition of an ‘injury’ is: ‘Injuries are caused by acute exposure to physical agents such as mechanical energy, heat, electricity, chemicals, and ionizing radiation interacting with the body in amounts or at rates that exceed the threshold of human tolerance. In some cases, (for example, drowning and frostbite), injuries result from the sudden lack of essential agents such as oxygen or heat.\nInjuries may be categorized in a number of ways. However, for most analytical purposes and for identifying intervention opportunities, it is especially useful to categorize injuries according to whether or not they were deliberately inflicted and by whom. Commonly used categories are:\n\n- unintentional (i.e. accidental)\n- intentional (i.e. deliberate):\n- interpersonal (e.g. assault and homicide)\n- self-harm (e.g. abuse of drugs and alcohol, self-mutilation, suicide)\n- legal intervention (e.g. action by police or other law enforcement personnel)\n- war, civil insurrection and disturbances (e.g. demonstrations and riots)\n- undetermined intent\n\nRegarding the collection of events that cause injuries, a set of definitions apply. See ICD-11 Reference guide sections 2.21.8.9 'Coding of transport injury events', and 2.23.19 'Standards and coding instructions for injury events'."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/850137482","title":{"@language":"en","@value":"External causes of morbidity or mortality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482/other": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482/other","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482/other","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482/other","classKind":"category","code":"PL2Y","indexTerm":[{"label":{"@language":"en","@value":"Other specified external causes of morbidity or mortality"}},{"foundationReference":"http://id.who.int/icd/entity/173320128","label":{"@language":"en","@value":"Sequelae of external causes of morbidity and mortality"}},{"foundationReference":"http://id.who.int/icd/entity/173320128","label":{"@language":"en","@value":"late effect of external causes of morbidity or mortality"}},{"foundationReference":"http://id.who.int/icd/entity/551890744","label":{"@language":"en","@value":"Sequelae of transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/551890744","label":{"@language":"en","@value":"late effect of transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/2095825097","label":{"@language":"en","@value":"Sequelae of motor-vehicle accident"}},{"foundationReference":"http://id.who.int/icd/entity/2095825097","label":{"@language":"en","@value":"late effect of motor vehicle accident"}},{"foundationReference":"http://id.who.int/icd/entity/388467595","label":{"@language":"en","@value":"Sequelae of other or unspecified transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/388467595","label":{"@language":"en","@value":"late effect of other or unspecified transport accidents"}},{"foundationReference":"http://id.who.int/icd/entity/1414037447","label":{"@language":"en","@value":"Sequelae of other accidents"}},{"foundationReference":"http://id.who.int/icd/entity/1414037447","label":{"@language":"en","@value":"late effect of other accidents"}},{"foundationReference":"http://id.who.int/icd/entity/822325843","label":{"@language":"en","@value":"Sequelae of intentional self-harm, assault or events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/822325843","label":{"@language":"en","@value":"late effect of intentional self-harm, assault or events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/1637132408","label":{"@language":"en","@value":"Sequelae of intentional self-harm"}},{"foundationReference":"http://id.who.int/icd/entity/1637132408","label":{"@language":"en","@value":"late effect of self inflicted injury"}},{"foundationReference":"http://id.who.int/icd/entity/1637132408","label":{"@language":"en","@value":"late effects of self-inflicted injury"}},{"foundationReference":"http://id.who.int/icd/entity/81749474","label":{"@language":"en","@value":"Sequelae of assault"}},{"foundationReference":"http://id.who.int/icd/entity/81749474","label":{"@language":"en","@value":"late effect of assault"}},{"foundationReference":"http://id.who.int/icd/entity/1886532893","label":{"@language":"en","@value":"Sequelae of events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/1886532893","label":{"@language":"en","@value":"late effect of events of undetermined intent"}},{"foundationReference":"http://id.who.int/icd/entity/1282058001","label":{"@language":"en","@value":"Sequelae with surgical or medical care as external cause"}},{"foundationReference":"http://id.who.int/icd/entity/1282058001","label":{"@language":"en","@value":"late effect with surgical or medical care as external cause"}},{"foundationReference":"http://id.who.int/icd/entity/789609418","label":{"@language":"en","@value":"Sequelae of adverse effects caused by drugs, medicaments or biological substances in therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/789609418","label":{"@language":"en","@value":"late effect of adverse effects caused by drugs, medicaments or biological substances in therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/1247524448","label":{"@language":"en","@value":"Sequelae of misadventures to patients during surgical or medical procedures"}},{"foundationReference":"http://id.who.int/icd/entity/1247524448","label":{"@language":"en","@value":"late effect of misadventures to patients during surgical or medical procedures"}},{"foundationReference":"http://id.who.int/icd/entity/1056368289","label":{"@language":"en","@value":"Sequelae of adverse incidents associated with medical devices in diagnostic or therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/1056368289","label":{"@language":"en","@value":"late effect of adverse incidents associated with medical devices in diagnostic or therapeutic use"}},{"foundationReference":"http://id.who.int/icd/entity/1539124021","label":{"@language":"en","@value":"Sequelae of surgical or medical procedures as the cause of abnormal reaction of the patient, or of later complication, without mention of misadventure at the time of the procedure"}},{"foundationReference":"http://id.who.int/icd/entity/1539124021","label":{"@language":"en","@value":"late effect of surgical or medical procedures as the cause of abnormal reaction of the patient, or of later complication, without mention of misadventure at the time of the procedure"}},{"foundationReference":"http://id.who.int/icd/entity/690055813","label":{"@language":"en","@value":"Sequelae of other external causes"}},{"foundationReference":"http://id.who.int/icd/entity/690055813","label":{"@language":"en","@value":"late effect of other external causes"}},{"foundationReference":"http://id.who.int/icd/entity/870888267","label":{"@language":"en","@value":"Sequelae of legal intervention"}},{"foundationReference":"http://id.who.int/icd/entity/870888267","label":{"@language":"en","@value":"late effects of injuries due to legal intervention"}},{"foundationReference":"http://id.who.int/icd/entity/870888267","label":{"@language":"en","@value":"late effects of injury due to legal intervention"}},{"foundationReference":"http://id.who.int/icd/entity/1453555423","label":{"@language":"en","@value":"Sequelae of war operations"}},{"foundationReference":"http://id.who.int/icd/entity/1453555423","label":{"@language":"en","@value":"late effect of injury due to war operations"}},{"foundationReference":"http://id.who.int/icd/entity/1453555423","label":{"@language":"en","@value":"late effects of injury due to war operations"}},{"foundationReference":"http://id.who.int/icd/entity/1478817801","label":{"@language":"en","@value":"Sequelae of unspecified external cause"}},{"foundationReference":"http://id.who.int/icd/entity/1478817801","label":{"@language":"en","@value":"late effect of unspecified external cause"}},{"foundationReference":"http://id.who.int/icd/entity/1478817801","label":{"@language":"en","@value":"sequelae NOS"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"title":{"@language":"en","@value":"Other specified external causes of morbidity or mortality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/850137482/unspecified": {"method":"GET","path":"icd/release/11/2026-01/mms/850137482/unspecified","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/850137482/unspecified","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#850137482/unspecified","classKind":"category","code":"PL2Z","indexTerm":[{"label":{"@language":"en","@value":"External causes of morbidity or mortality, unspecified"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"title":{"@language":"en","@value":"External causes of morbidity or mortality, unspecified"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/851395624": {"method":"GET","path":"icd/release/11/2026-01/mms/851395624","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/851395624","blockId":"BlockL1-PB8","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#851395624","child":["http://id.who.int/icd/release/11/2026-01/mms/1268872746","http://id.who.int/icd/release/11/2026-01/mms/1578494278","http://id.who.int/icd/release/11/2026-01/mms/477124011","http://id.who.int/icd/release/11/2026-01/mms/1576273742","http://id.who.int/icd/release/11/2026-01/mms/1798532905","http://id.who.int/icd/release/11/2026-01/mms/242787005","http://id.who.int/icd/release/11/2026-01/mms/102325528","http://id.who.int/icd/release/11/2026-01/mms/248569732","http://id.who.int/icd/release/11/2026-01/mms/916346088","http://id.who.int/icd/release/11/2026-01/mms/851395624/other","http://id.who.int/icd/release/11/2026-01/mms/851395624/unspecified"],"classKind":"block","code":"","codeRange":"PB80-PD3Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/851395624","title":{"@language":"en","@value":"Intentional self-harm"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/856028269": {"method":"GET","path":"icd/release/11/2026-01/mms/856028269","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/856028269","blockId":"BlockL2-QC4","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#856028269","child":["http://id.who.int/icd/release/11/2026-01/mms/2142880493","http://id.who.int/icd/release/11/2026-01/mms/755612283","http://id.who.int/icd/release/11/2026-01/mms/1143554706","http://id.who.int/icd/release/11/2026-01/mms/856028269/other","http://id.who.int/icd/release/11/2026-01/mms/856028269/unspecified"],"classKind":"block","code":"","codeRange":"QC40-QC8Z","exclusion":[{"foundationReference":"http://id.who.int/icd/entity/688906622","label":{"@language":"en","@value":"Special screening examination for neoplasms"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/688906622"},{"foundationReference":"http://id.who.int/icd/entity/1279536364","label":{"@language":"en","@value":"Special screening examination for other diseases or disorders"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1279536364"},{"foundationReference":"http://id.who.int/icd/entity/334423054","label":{"@language":"en","@value":"Mental, behavioural or neurodevelopmental disorders"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/334423054"},{"foundationReference":"http://id.who.int/icd/entity/815543898","label":{"@language":"en","@value":"Occupational exposure to risk-factors"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/815543898"},{"foundationReference":"http://id.who.int/icd/entity/1319316338","label":{"@language":"en","@value":"follow-up examination"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1319316338"},{"foundationReference":"http://id.who.int/icd/entity/1144088229","label":{"@language":"en","@value":"Convalescence"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1144088229"},{"foundationReference":"http://id.who.int/icd/entity/1570943361","label":{"@language":"en","@value":"Special screening examination for infectious diseases"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1570943361"},{"foundationReference":"http://id.who.int/icd/entity/949403359","label":{"@language":"en","@value":"Maternal care for fetal abnormality or damage"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/949403359"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1206995198"],"source":"http://id.who.int/icd/entity/856028269","title":{"@language":"en","@value":"Personal or family history or late effect of prior health problems"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/870613257": {"method":"GET","path":"icd/release/11/2026-01/mms/870613257","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/870613257","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#870613257","classKind":"category","code":"XJ5N9","indexTerm":[{"label":{"@language":"en","@value":"Fissured fracture"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/576712805"],"source":"http://id.who.int/icd/entity/870613257","title":{"@language":"en","@value":"Fissured fracture"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/873599689": {"method":"GET","path":"icd/release/11/2026-01/mms/873599689","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/873599689","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#873599689","classKind":"category","code":"XJ92H","indexTerm":[{"label":{"@language":"en","@value":"Fracture extends into joint and the entire articular part is detached from the main part of the bone"}},{"label":{"@language":"en","@value":"complete articular fractures"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/676705630"],"source":"http://id.who.int/icd/entity/873599689","title":{"@language":"en","@value":"Fracture extends into joint and the entire articular part is detached from the main part of the bone"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/876572005": {"method":"GET","path":"icd/release/11/2026-01/mms/876572005","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/876572005","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#876572005","classKind":"category","code":"XK9K","indexTerm":[{"label":{"@language":"en","@value":"Right"}},{"label":{"@language":"en","@value":"unilateral, right"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/1435602785"],"source":"http://id.who.int/icd/entity/876572005","title":{"@language":"en","@value":"Right"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/980862652": {"method":"GET","path":"icd/release/11/2026-01/mms/980862652","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/980862652","blockId":"BlockL1-PA0","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#980862652","child":["http://id.who.int/icd/release/11/2026-01/mms/1609069486","http://id.who.int/icd/release/11/2026-01/mms/134290789","http://id.who.int/icd/release/11/2026-01/mms/1054699166","http://id.who.int/icd/release/11/2026-01/mms/138214015","http://id.who.int/icd/release/11/2026-01/mms/497764339","http://id.who.int/icd/release/11/2026-01/mms/1546589464","http://id.who.int/icd/release/11/2026-01/mms/615802413","http://id.who.int/icd/release/11/2026-01/mms/746448055","http://id.who.int/icd/release/11/2026-01/mms/425728062","http://id.who.int/icd/release/11/2026-01/mms/980862652/other","http://id.who.int/icd/release/11/2026-01/mms/980862652/unspecified"],"classKind":"block","code":"","codeRange":"PA00-PB6Z","parent":["http://id.who.int/icd/release/11/2026-01/mms/850137482"],"source":"http://id.who.int/icd/entity/980862652","title":{"@language":"en","@value":"Unintentional causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/983135600": {"method":"GET","path":"icd/release/11/2026-01/mms/983135600","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/983135600","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#983135600","child":["http://id.who.int/icd/release/11/2026-01/mms/1879993545","http://id.who.int/icd/release/11/2026-01/mms/1730545673","http://id.who.int/icd/release/11/2026-01/mms/766579120","http://id.who.int/icd/release/11/2026-01/mms/1598049072","http://id.who.int/icd/release/11/2026-01/mms/65132592","http://id.who.int/icd/release/11/2026-01/mms/1715005040","http://id.who.int/icd/release/11/2026-01/mms/1896907440","http://id.who.int/icd/release/11/2026-01/mms/348765424","http://id.who.int/icd/release/11/2026-01/mms/1214787568"],"classKind":"category","code":"XA6BA0","indexTerm":[{"label":{"@language":"en","@value":"Femur"}}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/805764304"],"source":"http://id.who.int/icd/entity/983135600","title":{"@language":"en","@value":"Femur"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/NC72": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/NC72","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/NC72","code":"NC72","stemId":"http://id.who.int/icd/release/11/2026-01/mms/1810119958"},"request_body":null,"status":200}
+ }
+}

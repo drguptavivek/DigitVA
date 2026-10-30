@@ -1,0 +1,310 @@
+{
+ "built": [],
+ "id": "pc-err-chapter-x",
+ "input": {
+  "category": "error",
+  "id": "pc-err-chapter-x",
+  "source": "KB rule 6",
+  "stem": "X",
+  "why": "The extension chapter itself: not a code"
+ },
+ "kind": "postcoordination",
+ "operations": [
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586"
+   ],
+   "name": "codeinfo",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "X",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "X"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586"
+   ],
+   "name": "selection-check",
+   "reply": {
+    "body": {
+     "item": {
+      "code": "X",
+      "has_coding_note": false,
+      "postcoordination": false,
+      "postcoordination_availability": 0,
+      "related_maternal": false,
+      "related_perinatal": false,
+      "release": "2026-01",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "schema_version": 1
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "X",
+    "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586"
+   ],
+   "name": "postcoordination",
+   "reply": {
+    "body": {
+     "axes": [],
+     "other_postcoordination": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "stem": {
+      "code": "X",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "X"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586",
+    "GET icd/release/11/2026-01/mms/815889539",
+    "GET icd/release/11/2026-01/mms/614922797",
+    "GET icd/release/11/2026-01/mms/71556738",
+    "GET icd/release/11/2026-01/mms/1413523709",
+    "GET icd/release/11/2026-01/mms/1154280071",
+    "GET icd/release/11/2026-01/mms/411368752",
+    "GET icd/release/11/2026-01/mms/870996432",
+    "GET icd/release/11/2026-01/mms/1004338415",
+    "GET icd/release/11/2026-01/mms/69327534",
+    "GET icd/release/11/2026-01/mms/1321407960",
+    "GET icd/release/11/2026-01/mms/1897222875",
+    "GET icd/release/11/2026-01/mms/1693181075"
+   ],
+   "name": "hierarchy",
+   "reply": {
+    "body": {
+     "ancestors": [],
+     "children": [
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Severity Scale Value",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/815889539"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Temporality",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/614922797"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Aetiology",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/71556738"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Topology Scale Value",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1413523709"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Anatomy and topography",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1154280071"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Histopathology",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/411368752"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Dimensions of injury",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/870996432"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Dimensions of external causes",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1004338415"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Consciousness",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/69327534"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Substances",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1321407960"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Diagnosis code descriptors",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1897222875"
+      },
+      {
+       "code": "",
+       "has_children": true,
+       "title": "Capacity or context",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1693181075"
+      }
+     ],
+     "matching_terms": [],
+     "related_maternal": [],
+     "related_perinatal": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "X",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "selected_expression": null,
+     "siblings": [],
+     "truncated": true
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "X"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586"
+   ],
+   "name": "related-maternal",
+   "reply": {
+    "body": {
+     "chapter": "maternal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "X",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "maternal",
+    "code": "X"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586"
+   ],
+   "name": "related-perinatal",
+   "reply": {
+    "body": {
+     "chapter": "perinatal",
+     "composite": null,
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "X",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "terms": [],
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "chapter": "perinatal",
+    "code": "X"
+   }
+  },
+  {
+   "calls": [
+    "GET icd/release/11/2026-01/mms/codeinfo/X",
+    "GET icd/release/11/2026-01/mms/979408586"
+   ],
+   "name": "details",
+   "reply": {
+    "body": {
+     "coding_note": "",
+     "definition": "!markdown\nExtension codes should never be used in primary classification coding or tabulation. \n- They are provided for use as supplementary or additional codes when desired to identify more detail in statistical categories classified elsewhere. \n- Extension codes may be used alone in other contexts.",
+     "exclusions": [],
+     "fully_specified_name": "",
+     "inclusions": [],
+     "release": "2026-01",
+     "schema_version": 1,
+     "selected": {
+      "code": "X",
+      "title": "Extension Codes",
+      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     },
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "code": "X"
+   }
+  }
+ ],
+ "who": {
+  "GET icd/release/11/2026-01/mms/1004338415": {"method":"GET","path":"icd/release/11/2026-01/mms/1004338415","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1004338415","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1004338415","child":["http://id.who.int/icd/release/11/2026-01/mms/847623771","http://id.who.int/icd/release/11/2026-01/mms/1465681947","http://id.who.int/icd/release/11/2026-01/mms/1241761605","http://id.who.int/icd/release/11/2026-01/mms/632148635","http://id.who.int/icd/release/11/2026-01/mms/1847862619","http://id.who.int/icd/release/11/2026-01/mms/2030846363","http://id.who.int/icd/release/11/2026-01/mms/1564873651","http://id.who.int/icd/release/11/2026-01/mms/571191390","http://id.who.int/icd/release/11/2026-01/mms/1465428633","http://id.who.int/icd/release/11/2026-01/mms/1923949781","http://id.who.int/icd/release/11/2026-01/mms/368291343","http://id.who.int/icd/release/11/2026-01/mms/64892918","http://id.who.int/icd/release/11/2026-01/mms/167726698","http://id.who.int/icd/release/11/2026-01/mms/1502396257","http://id.who.int/icd/release/11/2026-01/mms/455455236","http://id.who.int/icd/release/11/2026-01/mms/1648962279","http://id.who.int/icd/release/11/2026-01/mms/816331286","http://id.who.int/icd/release/11/2026-01/mms/1433065969","http://id.who.int/icd/release/11/2026-01/mms/760752670","http://id.who.int/icd/release/11/2026-01/mms/2007913667"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1004338415","title":{"@language":"en","@value":"Dimensions of external causes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1154280071": {"method":"GET","path":"icd/release/11/2026-01/mms/1154280071","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1154280071","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1154280071","child":["http://id.who.int/icd/release/11/2026-01/mms/1644747126","http://id.who.int/icd/release/11/2026-01/mms/687250607","http://id.who.int/icd/release/11/2026-01/mms/1509166126"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1154280071","title":{"@language":"en","@value":"Anatomy and topography"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1321407960": {"method":"GET","path":"icd/release/11/2026-01/mms/1321407960","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1321407960","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1321407960","child":["http://id.who.int/icd/release/11/2026-01/mms/1170065830","http://id.who.int/icd/release/11/2026-01/mms/332114775","http://id.who.int/icd/release/11/2026-01/mms/1991139272"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1321407960","title":{"@language":"en","@value":"Substances"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1413523709": {"method":"GET","path":"icd/release/11/2026-01/mms/1413523709","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1413523709","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1413523709","child":["http://id.who.int/icd/release/11/2026-01/mms/137775722","http://id.who.int/icd/release/11/2026-01/mms/169306432","http://id.who.int/icd/release/11/2026-01/mms/1435602785","http://id.who.int/icd/release/11/2026-01/mms/1529645872","http://id.who.int/icd/release/11/2026-01/mms/112199345"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1413523709","title":{"@language":"en","@value":"Topology Scale Value"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1693181075": {"method":"GET","path":"icd/release/11/2026-01/mms/1693181075","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1693181075","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1693181075","child":["http://id.who.int/icd/release/11/2026-01/mms/1223079449","http://id.who.int/icd/release/11/2026-01/mms/1069182691"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1693181075","title":{"@language":"en","@value":"Capacity or context"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/1897222875": {"method":"GET","path":"icd/release/11/2026-01/mms/1897222875","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/1897222875","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#1897222875","child":["http://id.who.int/icd/release/11/2026-01/mms/987454771","http://id.who.int/icd/release/11/2026-01/mms/1318021776","http://id.who.int/icd/release/11/2026-01/mms/206915863","http://id.who.int/icd/release/11/2026-01/mms/1904105685","http://id.who.int/icd/release/11/2026-01/mms/1526228230","http://id.who.int/icd/release/11/2026-01/mms/22660186","http://id.who.int/icd/release/11/2026-01/mms/421060964"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/1897222875","title":{"@language":"en","@value":"Diagnosis code descriptors"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/411368752": {"method":"GET","path":"icd/release/11/2026-01/mms/411368752","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/411368752","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#411368752","child":["http://id.who.int/icd/release/11/2026-01/mms/1255450803","http://id.who.int/icd/release/11/2026-01/mms/1401592171","http://id.who.int/icd/release/11/2026-01/mms/1286751171","http://id.who.int/icd/release/11/2026-01/mms/493891342","http://id.who.int/icd/release/11/2026-01/mms/59671317","http://id.who.int/icd/release/11/2026-01/mms/1603120779","http://id.who.int/icd/release/11/2026-01/mms/1041548506","http://id.who.int/icd/release/11/2026-01/mms/1052315868","http://id.who.int/icd/release/11/2026-01/mms/1414907749","http://id.who.int/icd/release/11/2026-01/mms/162852828","http://id.who.int/icd/release/11/2026-01/mms/1978867629","http://id.who.int/icd/release/11/2026-01/mms/1025049113","http://id.who.int/icd/release/11/2026-01/mms/8987040","http://id.who.int/icd/release/11/2026-01/mms/218746635","http://id.who.int/icd/release/11/2026-01/mms/1079699653","http://id.who.int/icd/release/11/2026-01/mms/1983715813","http://id.who.int/icd/release/11/2026-01/mms/1878363789","http://id.who.int/icd/release/11/2026-01/mms/332064829","http://id.who.int/icd/release/11/2026-01/mms/578851160","http://id.who.int/icd/release/11/2026-01/mms/1716858530","http://id.who.int/icd/release/11/2026-01/mms/546679566","http://id.who.int/icd/release/11/2026-01/mms/854107677","http://id.who.int/icd/release/11/2026-01/mms/1260174985","http://id.who.int/icd/release/11/2026-01/mms/726115988","http://id.who.int/icd/release/11/2026-01/mms/2049079851","http://id.who.int/icd/release/11/2026-01/mms/79274524","http://id.who.int/icd/release/11/2026-01/mms/2022905621","http://id.who.int/icd/release/11/2026-01/mms/928474622","http://id.who.int/icd/release/11/2026-01/mms/108819171","http://id.who.int/icd/release/11/2026-01/mms/410618845","http://id.who.int/icd/release/11/2026-01/mms/1308280814","http://id.who.int/icd/release/11/2026-01/mms/1550841006","http://id.who.int/icd/release/11/2026-01/mms/1219462764","http://id.who.int/icd/release/11/2026-01/mms/521514084","http://id.who.int/icd/release/11/2026-01/mms/226408345","http://id.who.int/icd/release/11/2026-01/mms/358536454","http://id.who.int/icd/release/11/2026-01/mms/1083553185","http://id.who.int/icd/release/11/2026-01/mms/2108039829","http://id.who.int/icd/release/11/2026-01/mms/428602671","http://id.who.int/icd/release/11/2026-01/mms/2128446983","http://id.who.int/icd/release/11/2026-01/mms/1965497047","http://id.who.int/icd/release/11/2026-01/mms/1826383387","http://id.who.int/icd/release/11/2026-01/mms/1024952760","http://id.who.int/icd/release/11/2026-01/mms/2065413738","http://id.who.int/icd/release/11/2026-01/mms/1891884932","http://id.who.int/icd/release/11/2026-01/mms/1488076383","http://id.who.int/icd/release/11/2026-01/mms/732271914","http://id.who.int/icd/release/11/2026-01/mms/1792010545","http://id.who.int/icd/release/11/2026-01/mms/496794681","http://id.who.int/icd/release/11/2026-01/mms/1295816090"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/411368752","title":{"@language":"en","@value":"Histopathology"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/614922797": {"method":"GET","path":"icd/release/11/2026-01/mms/614922797","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/614922797","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#614922797","child":["http://id.who.int/icd/release/11/2026-01/mms/1770621312","http://id.who.int/icd/release/11/2026-01/mms/639052684","http://id.who.int/icd/release/11/2026-01/mms/920837303"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/614922797","title":{"@language":"en","@value":"Temporality"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/69327534": {"method":"GET","path":"icd/release/11/2026-01/mms/69327534","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/69327534","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#69327534","child":["http://id.who.int/icd/release/11/2026-01/mms/675177168","http://id.who.int/icd/release/11/2026-01/mms/212709569","http://id.who.int/icd/release/11/2026-01/mms/487286823","http://id.who.int/icd/release/11/2026-01/mms/769489725"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/69327534","title":{"@language":"en","@value":"Consciousness"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/71556738": {"method":"GET","path":"icd/release/11/2026-01/mms/71556738","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/71556738","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#71556738","child":["http://id.who.int/icd/release/11/2026-01/mms/1698138964","http://id.who.int/icd/release/11/2026-01/mms/437215757"],"classKind":"block","code":"","foundationChildElsewhere":[{"foundationReference":"http://id.who.int/icd/entity/1991139272","label":{"@language":"en","@value":"Allergens"},"linearizationReference":"http://id.who.int/icd/release/11/2026-01/mms/1991139272"}],"parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/71556738","title":{"@language":"en","@value":"Aetiology"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/815889539": {"method":"GET","path":"icd/release/11/2026-01/mms/815889539","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/815889539","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#815889539","child":["http://id.who.int/icd/release/11/2026-01/mms/146631584","http://id.who.int/icd/release/11/2026-01/mms/36752588"],"classKind":"block","code":"","parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/815889539","title":{"@language":"en","@value":"Severity Scale Value"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/870996432": {"method":"GET","path":"icd/release/11/2026-01/mms/870996432","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/870996432","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#870996432","child":["http://id.who.int/icd/release/11/2026-01/mms/1846961966","http://id.who.int/icd/release/11/2026-01/mms/31690185","http://id.who.int/icd/release/11/2026-01/mms/1698596380","http://id.who.int/icd/release/11/2026-01/mms/576712805","http://id.who.int/icd/release/11/2026-01/mms/1092879018"],"classKind":"block","code":"","definition":{"@language":"en","@value":"A grouping for dimensions of injury that are supplementary to the fully specified injury chapter codes, i.e. concepts that can not, or are likely to not be able to be used as a standalone code in mortality or morbidity-coded data."},"parent":["http://id.who.int/icd/release/11/2026-01/mms/979408586"],"source":"http://id.who.int/icd/entity/870996432","title":{"@language":"en","@value":"Dimensions of injury"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/979408586": {"method":"GET","path":"icd/release/11/2026-01/mms/979408586","reply":{"@context":"http://id.who.int/icd/contexts/contextForLinearizationEntity.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/979408586","browserUrl":"https://icd.who.int/browse/2026-01/mms/en#979408586","child":["http://id.who.int/icd/release/11/2026-01/mms/815889539","http://id.who.int/icd/release/11/2026-01/mms/614922797","http://id.who.int/icd/release/11/2026-01/mms/71556738","http://id.who.int/icd/release/11/2026-01/mms/1413523709","http://id.who.int/icd/release/11/2026-01/mms/1154280071","http://id.who.int/icd/release/11/2026-01/mms/411368752","http://id.who.int/icd/release/11/2026-01/mms/870996432","http://id.who.int/icd/release/11/2026-01/mms/1004338415","http://id.who.int/icd/release/11/2026-01/mms/69327534","http://id.who.int/icd/release/11/2026-01/mms/1321407960","http://id.who.int/icd/release/11/2026-01/mms/1897222875","http://id.who.int/icd/release/11/2026-01/mms/1693181075","http://id.who.int/icd/release/11/2026-01/mms/1597357976","http://id.who.int/icd/release/11/2026-01/mms/1948746454"],"classKind":"chapter","code":"X","definition":{"@language":"en","@value":"!markdown\nExtension codes should never be used in primary classification coding or tabulation. \n- They are provided for use as supplementary or additional codes when desired to identify more detail in statistical categories classified elsewhere. \n- Extension codes may be used alone in other contexts."},"parent":["http://id.who.int/icd/release/11/2026-01/mms"],"source":"http://id.who.int/icd/entity/979408586","title":{"@language":"en","@value":"Extension Codes"}},"request_body":null,"status":200},
+  "GET icd/release/11/2026-01/mms/codeinfo/X": {"method":"GET","path":"icd/release/11/2026-01/mms/codeinfo/X","reply":{"@context":"http://id.who.int/icd/contexts/contextForCodeInfo.json","@id":"http://id.who.int/icd/release/11/2026-01/mms/codeinfo/X","code":"X","stemId":"http://id.who.int/icd/release/11/2026-01/mms/979408586"},"request_body":null,"status":200}
+ }
+}

@@ -14,7 +14,7 @@ function fakeNative(overrides: Partial<NativeEngine> = {}): NativeEngine {
     isAvailable: async () => true,
     init: async () => ({ ok: true, copyMs: 5, initMs: 20, ms: 26, cached: false }),
     updateWhoFiles: async () => ({ ok: false, error: "no_connection", copyMs: 0, initMs: 0, ms: 0, cached: false }),
-    call: async (op) => ({ ok: true, status: 200, text: JSON.stringify({ op, destinationEntities: [1, 2], code: "BC42.Z", Code: "BA41.Z" }), nativeMs: 3 }),
+    call: async (op) => ({ ok: true, status: 200, text: JSON.stringify({ op, destinationEntities: [1, 2], code: "BC42.Z" }), nativeMs: 3 }),
     ...overrides,
   };
 }
@@ -35,6 +35,9 @@ describe("offlineEngine without the native module (plain build, web)", () => {
     expect(await engine.codeinfo("BA41.Z")).toEqual({ ok: false, error: "unavailable", ms: 0 });
     expect(await engine.doris({})).toEqual({ ok: false, error: "unavailable", ms: 0 });
     expect(await engine.codedit({})).toEqual({ ok: false, error: "unavailable", ms: 0 });
+    expect(await engine.entity("1334938734")).toEqual({ ok: false, error: "unavailable", ms: 0 });
+    expect(await engine.foundationEntity("1334938734")).toEqual({ ok: false, error: "unavailable", ms: 0 });
+    expect(await engine.call("search", { q: "x" })).toEqual({ ok: false, error: "unavailable", ms: 0 });
   });
 
   it("makes the check stop at the first step", async () => {
@@ -51,10 +54,44 @@ describe("offlineEngine with a native module", () => {
     expect((result as { data: { op: string } }).data.op).toBe("search");
   });
 
-  it("sends a certificate as JSON text", async () => {
+  it("sends a certificate as the `certificate` argument", async () => {
     const call = jest.fn(fakeNative().call);
-    await createOfflineEngine(fakeNative({ call })).doris(CHECK_CERTIFICATE);
-    expect(call).toHaveBeenCalledWith("doris", JSON.stringify(CHECK_CERTIFICATE));
+    const engine = createOfflineEngine(fakeNative({ call }));
+    await engine.doris(CHECK_CERTIFICATE);
+    await engine.codedit(CHECK_CERTIFICATE);
+    expect(call).toHaveBeenNthCalledWith(1, "doris", JSON.stringify({ certificate: CHECK_CERTIFICATE }));
+    expect(call).toHaveBeenNthCalledWith(2, "codedit", JSON.stringify({ certificate: CHECK_CERTIFICATE }));
+  });
+
+  it("sends each op's named arguments as one JSON object and leaves out options that are not set", async () => {
+    const call = jest.fn(fakeNative().call);
+    const engine = createOfflineEngine(fakeNative({ call }));
+    await engine.search("heart");
+    await engine.search("heart%", { subtreesFilter: "http://id.who.int/icd/release/11/2026-01/mms/979408586", medicalCodingMode: true, chapterFilter: undefined });
+    await engine.codeinfo("BA41.Z");
+    await engine.codeinfo("BA41.Z", { flexiblemode: true });
+    await engine.entity("1334938734");
+    await engine.entity("1334938734", { residual: "unspecified", include: "ancestor" });
+    await engine.foundationEntity("1334938734", { include: "diagnosticCriteria" });
+    await engine.search("heart%", { limit: 20 });
+    await engine.call("search", { q: "x" });
+    expect(call.mock.calls).toEqual([
+      ["search", '{"q":"heart"}'],
+      ["search", '{"q":"heart%","subtreesFilter":"http://id.who.int/icd/release/11/2026-01/mms/979408586","medicalCodingMode":true}'],
+      ["codeinfo", '{"code":"BA41.Z"}'],
+      ["codeinfo", '{"code":"BA41.Z","flexiblemode":true}'],
+      ["entity", '{"id":"1334938734"}'],
+      ["entity", '{"id":"1334938734","residual":"unspecified","include":"ancestor"}'],
+      ["foundation_entity", '{"id":"1334938734","include":"diagnosticCriteria"}'],
+      ["search", '{"q":"heart%","limit":20}'],
+      ["search", '{"q":"x"}'],
+    ]);
+  });
+
+  it("returns the parsed WHO reply of an entity call", async () => {
+    const native = fakeNative({ call: async () => ({ ok: true, status: 200, text: JSON.stringify({ "@id": "http://id.who.int/icd/release/11/2026-01/mms/1334938734", title: { "@value": "Acute myocardial infarction" } }), nativeMs: 2 }) });
+    const result = await createOfflineEngine(native).entity("1334938734");
+    expect(result).toMatchObject({ ok: true, status: 200, data: { title: { "@value": "Acute myocardial infarction" } } });
   });
 
   it("times init and passes the split through", async () => {
@@ -87,7 +124,9 @@ describe("offlineEngine with a native module", () => {
     const steps = await runEngineCheck(createOfflineEngine(fakeNative()));
     expect(steps.map((step) => step.name)).toEqual(["init", "search", "codeinfo BC42.Z", "doris", "doris (warm)", "codedit"]);
     expect(steps.every((step) => step.ok)).toBe(true);
-    expect(steps.find((step) => step.name === "doris")?.note).toBe("underlying BA41.Z");
+    expect(steps.find((step) => step.name === "doris")?.note).toBe("underlying BC42.Z");
+    const pascal = await runEngineCheck(createOfflineEngine(fakeNative({ call: async () => ({ ok: true, status: 200, text: JSON.stringify({ Code: "BA41.Z" }), nativeMs: 1 }) })));
+    expect(pascal.find((step) => step.name === "doris")?.note).toBe("underlying ?"); // the engine writes camelCase; PascalCase is not read
     const failed = await runEngineCheck(createOfflineEngine(fakeNative({ init: async () => ({ ok: false, error: "load_failed", copyMs: 0, initMs: 0, ms: 1, cached: false }) })));
     expect(failed.map((step) => step.name)).toEqual(["init"]);
     expect(failed[0]).toMatchObject({ ok: false, note: "load_failed" });
@@ -103,6 +142,9 @@ it("keeps the production engine inert while the device ICD-11 preference is off"
 
   expect(await engine.init()).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
   expect(await engine.search("BC42.Z")).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
+  expect(await engine.entity("1334938734")).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
+  expect(await engine.foundationEntity("1334938734")).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
+  expect(await engine.call("search", { q: "x" })).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
   expect(await engine.updateWhoFiles()).toEqual({ ok: false, error: "icd11_doris_disabled", ms: 0 });
   expect(init).not.toHaveBeenCalled();
   expect(call).not.toHaveBeenCalled();

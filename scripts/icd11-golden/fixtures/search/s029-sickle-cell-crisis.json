@@ -1,0 +1,86 @@
+{
+ "id": "s029-sickle-cell-crisis",
+ "input": {
+  "id": "s029-sickle-cell-crisis",
+  "kind": "disease",
+  "query": "sickle cell crisis",
+  "source": "VAs-04.03",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #df8ecd7a5e"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 4,
+     "items": [
+      {
+       "code": "3A51.2",
+       "has_coding_note": false,
+       "matching_text": "Sickle cell disease with crisis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Sickle cell disease with crisis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/55071409"
+      },
+      {
+       "code": "3A51.1",
+       "has_coding_note": false,
+       "matching_text": "Sickle cell disease without crisis",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Sickle cell disease without crisis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1711513381"
+      },
+      {
+       "code": "3A51.4",
+       "has_coding_note": false,
+       "matching_text": "Compound heterozygous sickling disorders with crisis",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Compound heterozygous sickling disorders with crisis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/125581497"
+      },
+      {
+       "code": "3A51.3",
+       "has_coding_note": false,
+       "matching_text": "Compound heterozygous sickling disorders without crisis",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": true,
+       "release": "2026-01",
+       "title": "Compound heterozygous sickling disorders without crisis",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/313446364"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "sickle cell crisis",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #df8ecd7a5e": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/55071409","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/55071409","important":true,"label":"<em class='found'>sickle</em> <em class='found'>cell</em> <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/55071409","important":false,"label":"<em class='found'>sickle</em>-<em class='found'>cell</em> disorder with <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.5075560327579595},{"foundationUri":"http://id.who.int/icd/entity/55071409","important":false,"label":"<em class='found'>sickle</em>-<em class='found'>cell</em> anaemia with <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.150038077972324},{"foundationUri":"http://id.who.int/icd/entity/1279199454","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> disease with <em class='found'>crisis</em><em class='nonwbe'></em> with fever","propertyId":"Title","propertyValueType":1,"score":-0.23762954874056835},{"foundationUri":"http://id.who.int/icd/entity/1108294030","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> disease with <em class='found'>crisis</em><em class='nonwbe'></em> with acute chest syndrome","propertyId":"Title","propertyValueType":1,"score":-0.30530374919989883},{"foundationUri":"http://id.who.int/icd/entity/1216519906","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> disease with <em class='found'>crisis</em><em class='nonwbe'></em> with splenic sequestration","propertyId":"Title","propertyValueType":1,"score":-0.42131297139304485}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/55071409","theCode":"3A51.2","title":"<em class='found'>Sickle</em> <em class='found'>cell</em> disease with <em class='found'>crisis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1711513381","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1711513381","important":false,"label":"<em class='found'>Sickle</em>-<em class='found'>cell</em> anaemia without <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.34289820607081883}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.3021733930371842,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1711513381","theCode":"3A51.1","title":"<em class='found'>Sickle</em> <em class='found'>cell</em> disease without <em class='found'>crisis</em><em class='nonwbe'></em>","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/125581497","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/579580361","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> thalassaemia with <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.4598745884860065},{"foundationUri":"http://id.who.int/icd/entity/43465573","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> Hb-C disease with <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.7300887727045487},{"foundationUri":"http://id.who.int/icd/entity/579580361","important":false,"label":"<em class='found'>sickle</em>-<em class='found'>cell</em> beta thalassaemia with <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.7689068320022034},{"foundationUri":"http://id.who.int/icd/entity/1367362159","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> thalassaemia with <em class='found'>crisis</em><em class='nonwbe'></em> with fever","propertyId":"Title","propertyValueType":1,"score":-1.1925376583622538},{"foundationUri":"http://id.who.int/icd/entity/1906098371","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> thalassaemia with <em class='found'>crisis</em><em class='nonwbe'></em> with acute chest syndrome","propertyId":"Title","propertyValueType":1,"score":-1.2602118588215845},{"foundationUri":"http://id.who.int/icd/entity/2064738223","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> thalassaemia with <em class='found'>crisis</em><em class='nonwbe'></em> with splenic sequestration","propertyId":"Title","propertyValueType":1,"score":-1.3762210810147306},{"foundationUri":"http://id.who.int/icd/entity/1199136402","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> Hb-C disease with <em class='found'>crisis</em><em class='nonwbe'></em> with fever","propertyId":"Title","propertyValueType":1,"score":-1.4627518425807957},{"foundationUri":"http://id.who.int/icd/entity/919993519","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> Hb-C disease with <em class='found'>crisis</em><em class='nonwbe'></em> with acute chest syndrome","propertyId":"Title","propertyValueType":1,"score":-1.5304260430401262},{"foundationUri":"http://id.who.int/icd/entity/581104423","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> Hb-C disease with <em class='found'>crisis</em><em class='nonwbe'></em> with splenic sequestration","propertyId":"Title","propertyValueType":1,"score":-1.6464352652332725}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.4598745884860065,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/125581497","theCode":"3A51.4","title":"Compound heterozygous <em class='found'>sickling</em> disorders with <em class='found'>crisis</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"03","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/313446364","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/671487653","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> thalassaemia without <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.6527347165845013},{"foundationUri":"http://id.who.int/icd/entity/135961609","important":false,"label":"<em class='found'>Sickle</em> <em class='found'>cell</em> Hb-C disease without <em class='found'>crisis</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.9229489008030434}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.6527347165845013,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/313446364","theCode":"3A51.3","title":"Compound heterozygous <em class='found'>sickling</em> disorders without <em class='found'>crisis</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=sickle+cell+crisis%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

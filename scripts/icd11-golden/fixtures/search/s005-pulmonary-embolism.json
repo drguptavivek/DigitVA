@@ -1,0 +1,98 @@
+{
+ "id": "s005-pulmonary-embolism",
+ "input": {
+  "id": "s005-pulmonary-embolism",
+  "kind": "disease",
+  "query": "pulmonary embolism",
+  "source": "VAs-04.01",
+  "why": "common disease name a medical officer types"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #2f4e0ea094"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 14,
+     "items": [
+      {
+       "code": "BB00.Z",
+       "has_coding_note": false,
+       "matching_text": "Pulmonary thromboembolism, unspecified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Pulmonary thromboembolism, unspecified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified"
+      },
+      {
+       "code": "BB00.0",
+       "has_coding_note": false,
+       "matching_text": "Acute pulmonary thromboembolism",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Acute pulmonary thromboembolism",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/74279006"
+      },
+      {
+       "code": "JB42.2",
+       "has_coding_note": false,
+       "matching_text": "Obstetric blood-clot embolism",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Obstetric blood-clot embolism",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1208599769"
+      },
+      {
+       "code": "NF0A.0",
+       "has_coding_note": false,
+       "matching_text": "Air embolism, traumatic, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Air embolism, traumatic, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2079097589"
+      },
+      {
+       "code": "NF0A.1",
+       "has_coding_note": false,
+       "matching_text": "Fat embolism, traumatic, not elsewhere classified",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Fat embolism, traumatic, not elsewhere classified",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/514281313"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "pulmonary embolism",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #2f4e0ea094": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":true,"label":"<em class='found'>pulmonary</em> emboli","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":true,"label":"<em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em> NOS","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":true,"label":"<em class='found'>pulmonary</em> embolus","propertyId":"Synonym","propertyValueType":0,"score":1},{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":false,"label":"embolic <em class='found'>lung</em> infarction","propertyId":"Synonym","propertyValueType":0,"score":0.2106541405207896},{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":false,"label":"<em class='found'>Pulmonary</em> thromboembolism","propertyId":"TitleOfOtherEntity","propertyValueType":0,"score":0.12128271319674222},{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":false,"label":"iatrogenic <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.07022755228449973},{"foundationUri":"http://id.who.int/icd/entity/1014964218","important":false,"label":"PE - [<em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>] NOS","propertyId":"Synonym","propertyValueType":0,"score":0.012498494339787605}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":1,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified","theCode":"BB00.Z","title":"<em class='found'>Pulmonary</em> thromboembolism, unspecified","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/74279006","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/74279006","important":false,"label":"acute <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.3478937056719645},{"foundationUri":"http://id.who.int/icd/entity/734141809","important":false,"label":"Subacute <em class='found'>pulmonary</em> thromboembolism","propertyId":"Title","propertyValueType":1,"score":-0.9899641819656301}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.3478937056719645,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/74279006","theCode":"BB00.0","title":"Acute <em class='found'>pulmonary</em> thromboembolism","titleIsASearchResult":true,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1208599769","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1983458616","important":false,"label":"puerperal <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":0.21421997002143373},{"foundationUri":"http://id.who.int/icd/entity/1983458616","important":false,"label":"obstetric <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":0.15146243840552445},{"foundationUri":"http://id.who.int/icd/entity/1983458616","important":false,"label":"obstetric <em class='found'>pulmonary</em> embolus","propertyId":"Synonym","propertyValueType":1,"score":0.15146243840552445},{"foundationUri":"http://id.who.int/icd/entity/1983458616","important":false,"label":"Obstetric blood-clot <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.8105283568153644}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":0.21421997002143373,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1208599769","theCode":"JB42.2","title":"Obstetric blood-clot <em class='found'>embolism</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2079097589","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2079097589","important":false,"label":"<em class='found'>pulmonary</em> air <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":0.20030812612372406}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":0.20030812612372406,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2079097589","theCode":"NF0A.0","title":"Air <em class='found'>embolism</em><em class='nonwbe'></em>, traumatic, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"22","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/514281313","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/191161000","important":false,"label":"<em class='found'>Pulmonary</em> fat <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Title","propertyValueType":1,"score":-0.11474419569847218}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.11474419569847218,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/514281313","theCode":"NF0A.1","title":"Fat <em class='found'>embolism</em><em class='nonwbe'></em>, traumatic, not elsewhere classified","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/653179449","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1028740777","important":false,"label":"Chronic <em class='found'>pulmonary</em> thromboembolism without <em class='found'>pulmonary</em> hypertension","propertyId":"Title","propertyValueType":1,"score":-1.6451109395134913}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.1294672901917251,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/653179449","theCode":"BB00.1","title":"Chronic <em class='found'>pulmonary</em> thromboembolism","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1508858290","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1508858290","important":false,"label":"obstetric air <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.24237355172274516}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.24237355172274516,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1508858290","theCode":"JB42.0","title":"Obstetric air <em class='found'>embolism</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified & http://id.who.int/icd/release/11/2026-01/mms/2036696624","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.29670603787508276,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified","theCode":"BB00.Z&XA4U64","title":"<em class='found'>Pulmonary</em> artery thromboembolism","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":1,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified & http://id.who.int/icd/release/11/2026-01/mms/1210083104","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.39679762692207804,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1014964218/unspecified","theCode":"BB00.Z&XA8FY4","title":"<em class='found'>Pulmonary</em> vein thromboembolism","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2146411734/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/717713722","important":false,"label":"obstetrical <em class='found'>pulmonary</em> fat <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-0.5574258735449414}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.5574258735449414,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2146411734/other","theCode":"JB42.Y","title":"Other specified obstetric <em class='found'>embolism</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1017418792","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1017418792","important":false,"label":"amniotic fluid <em class='found'>pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-1.3311663394965827}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.3311663394965827,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1017418792","theCode":"JB42.1","title":"Amniotic fluid <em class='found'>embolism</em><em class='nonwbe'></em>","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":true,"id":"http://id.who.int/icd/release/11/2026-01/mms/1567490107","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1567490107","important":false,"label":"<em class='found'>Pulmonary</em> hypertension with chronic thromboembolism","propertyId":"Synonym","propertyValueType":0,"score":-1.3822064669630014},{"foundationUri":"http://id.who.int/icd/entity/1567490107","important":false,"label":"CTEPH - [chronic thromboembolic <em class='found'>pulmonary</em> hypertension]","propertyId":"Synonym","propertyValueType":0,"score":-2.7216883096358204}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.3822064669630014,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1567490107","theCode":"BB01.3","title":"Chronic thromboembolic <em class='found'>pulmonary</em> hypertension","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"11","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/847963591","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.614575522508398,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/847963591","theCode":"BA60.5","title":"<em class='found'>Pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em> as current complication following acute myocardial infarction","titleIsASearchResult":true,"titleIsTopScore":true},{"chapter":"18","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/925311663","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/255755423","important":false,"label":"<em class='found'>Pulmonary</em> <em class='found'>embolism</em><em class='nonwbe'></em> following pregnancy with abortive outcome","propertyId":"Title","propertyValueType":1,"score":-2.212859101494509}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-2.212859101494509,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/925311663","theCode":"JA05.2","title":"<em class='found'>Embolism</em><em class='nonwbe'></em> following abortion, ectopic or molar pregnancy","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=pulmonary+embolism%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

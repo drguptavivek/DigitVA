@@ -1,0 +1,98 @@
+{
+ "id": "s060-old-age",
+ "input": {
+  "id": "s060-old-age",
+  "kind": "lay",
+  "query": "old age",
+  "source": "VAs-99; scripts/icd11-parity/queries.json",
+  "why": "lay wording used in verbal autopsy narratives"
+ },
+ "kind": "search",
+ "operations": [
+  {
+   "calls": [
+    "POST icd/release/11/2026-01/mms/search #46c5038d17"
+   ],
+   "name": "terms",
+   "reply": {
+    "body": {
+     "item_count": 6,
+     "items": [
+      {
+       "code": "MG2A",
+       "has_coding_note": false,
+       "matching_text": "Ageing associated decline in intrinsic capacity",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Ageing associated decline in intrinsic capacity",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/835503193"
+      },
+      {
+       "code": "9D00.3",
+       "has_coding_note": false,
+       "matching_text": "Presbyopia",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Presbyopia",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/22794400"
+      },
+      {
+       "code": "6D8Z",
+       "has_coding_note": true,
+       "matching_text": "Dementia, unknown or unspecified cause",
+       "postcoordination": true,
+       "postcoordination_availability": 1,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Dementia, unknown or unspecified cause",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/546689346/unspecified"
+      },
+      {
+       "code": "QA01.2",
+       "has_coding_note": false,
+       "matching_text": "Examination for admission to residential institutions",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": false,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Examination for admission to residential institutions",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/2062261766"
+      },
+      {
+       "code": "5B3Y",
+       "has_coding_note": false,
+       "matching_text": "Other specified endocrine diseases",
+       "postcoordination": false,
+       "postcoordination_availability": 0,
+       "related_maternal": true,
+       "related_perinatal": false,
+       "release": "2026-01",
+       "title": "Other specified endocrine diseases",
+       "uri": "http://id.who.int/icd/release/11/2026-01/mms/461716838/other"
+      }
+     ],
+     "next_cursor": null,
+     "schema_version": 1,
+     "truncated": false
+    },
+    "http_status": 200
+   },
+   "request": {
+    "limit": 20,
+    "query": "old age",
+    "schema_version": 1
+   }
+  }
+ ],
+ "who": {
+  "POST icd/release/11/2026-01/mms/search #46c5038d17": {"method":"POST","path":"icd/release/11/2026-01/mms/search","reply":{"destinationEntities":[{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/835503193","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"<em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> atrophy","propertyId":"Synonym","propertyValueType":0,"score":-0.3357291048875296},{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"<em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> (deprecated)","propertyId":"Synonym","propertyValueType":0,"score":-0.41169868030482515},{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"atrophic changes of <em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.6812061379385452},{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"<em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> exhaustion","propertyId":"Synonym","propertyValueType":0,"score":-1.4786969041332727},{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"<em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> without mention of psychosis","propertyId":"Synonym","propertyValueType":0,"score":-1.5646966684443162},{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"<em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> cachexia","propertyId":"Synonym","propertyValueType":0,"score":-1.6621619812283666},{"foundationUri":"http://id.who.int/icd/entity/835503193","important":false,"label":"frailty of <em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-2.0039226937281662}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-0.3357291048875296,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/835503193","theCode":"MG2A","title":"<em class='found'>Age</em><em class='nonwbe'>ing</em> associated decline in intrinsic capacity","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"09","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/22794400","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/22794400","important":false,"label":"accommodation insufficiency of <em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":0,"score":-0.8956095934188919}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-0.8956095934188919,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/22794400","theCode":"9D00.3","title":"Presbyopia","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"06","descendants":[],"entityType":0,"hasCodingNote":true,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/546689346/unspecified","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":true,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/759326836","important":false,"label":"<em class='found'>Old</em> <em class='found'>age</em><em class='nonwbe'></em> dementia","propertyId":"Title","propertyValueType":1,"score":-1.0798314379638458}],"postcoordinationAvailability":1,"propertiesTruncated":false,"score":-1.0798314379638458,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/546689346/unspecified","theCode":"6D8Z","title":"Dementia, unknown or unspecified cause","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"24","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/2062261766","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/2062261766","important":false,"label":"medical examination for admission to <em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> home","propertyId":"Synonym","propertyValueType":0,"score":-1.6240012152370615}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-1.6240012152370615,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/2062261766","theCode":"QA01.2","title":"Examination for admission to residential institutions","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"05","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":true,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/461716838/other","important":false,"isLeaf":true,"isResidualOther":true,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/361556686","important":false,"label":"physiologically <em class='found'>old</em> for <em class='found'>age</em><em class='nonwbe'></em>","propertyId":"Synonym","propertyValueType":1,"score":-3.284190167502568}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.284190167502568,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/461716838/other","theCode":"5B3Y","title":"Other specified endocrine diseases","titleIsASearchResult":false,"titleIsTopScore":false},{"chapter":"21","descendants":[],"entityType":0,"hasCodingNote":false,"hasMaternalChapterLink":false,"hasPerinatalChapterLink":false,"id":"http://id.who.int/icd/release/11/2026-01/mms/1093196899","important":false,"isLeaf":true,"isResidualOther":false,"isResidualUnspecified":false,"matchingPVs":[{"foundationUri":"http://id.who.int/icd/entity/1093196899","important":false,"label":"Tendency to fall because of <em class='found'>old</em> <em class='found'>age</em><em class='nonwbe'></em> or other unclear health problems","propertyId":"Synonym","propertyValueType":0,"score":-3.4846346592993482}],"postcoordinationAvailability":0,"propertiesTruncated":false,"score":-3.4846346592993482,"stemId":"http://id.who.int/icd/release/11/2026-01/mms/1093196899","theCode":"MB47.C","title":"Tendency to fall","titleIsASearchResult":false,"titleIsTopScore":false}],"error":false,"errorMessage":null,"guessType":1,"resultChopped":false,"wordSuggestionsChopped":false,"words":null},"request_body":"q=old+age%25&includePostcoordination=true&flatResults=true&highlightingEnabled=true&medicalCodingMode=true","status":200}
+ }
+}

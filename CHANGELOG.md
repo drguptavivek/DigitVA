@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-30
 
+- **Collect and Collect Plus 0.3.16** (version bump for the release that carries
+  the standalone interview gate, the language menu, the picker badge fix and
+  the VA cause bucket below). **Technical note for WHO** on offline ICD-11 and
+  DORIS in Collect Plus: `docs/manuscript/who-technical-note-offline-icd11-doris.md`
+  (draft).
 - **Standalone interviews start only with a complete profile**
   (`digitva-0vz7`; policy `docs/policy/field-data-collection.md` interview
   start gate, `docs/policy/smartva-generation-policy.md`). Collect Plus

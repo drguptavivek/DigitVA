@@ -16,7 +16,7 @@ and physician coding with ICD-10 and ICD-11.
 ![Rust](https://img.shields.io/badge/rust-SmartVA%20%2B%20ICD--11-000000?logo=rust&logoColor=white)
 ![ICD-11](https://img.shields.io/badge/WHO-ICD--11%20%2B%20DORIS-0093D5)
 
-[Features](#features) · [Components](#components) · [How it works](#how-it-works) · [Organisation](#organisation-units-and-workers) · [Quick start](#quick-start) · [Documentation](#documentation) · [Changelog](CHANGELOG.md)
+[Features](#features) · [Components](#components) · [How it works](#how-it-works) · [Organisation](#organisation-units-and-workers) · [Getting started](#getting-started) · [Quick start](#quick-start) · [Documentation](#documentation) · [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -170,9 +170,26 @@ tests/               pytest suite
 deploy/ docker/      Ingress, TLS and container configuration
 ```
 
-## Quick start
+## Getting started
+
+| I want to | Start here |
+| --- | --- |
+| Collect interviews on a phone | Install **DigitVA Collect** from the [latest `android-v*` release](https://github.com/drguptavivek/DigitVA/releases) (`arm64-v8a` for most phones, `armeabi-v7a` for older 32-bit ones), or from your server's `/download/android` page. Scan the enrolment QR code your data manager gives you, set a PIN, then sign in. |
+| Code causes of death offline on a phone | **DigitVA Collect Plus** (experimental prerelease, arm64 only) is on the [`collect-plus-v*` releases](https://github.com/drguptavivek/DigitVA/releases). It runs WHO's ICD-11 and DORIS engine on the phone; coding is off until you turn it on. See the [technical note](docs/manuscript/who-technical-note-offline-icd11-doris.md). |
+| Code or review in the browser | Sign in to your DigitVA server and open `/app/`. Your role (coder, reviewer, data manager, ...) decides what the home screen offers. |
+| Run DigitVA locally | The [Quick start](#quick-start) below: Docker, one seed command, then sign in. |
+| Work on the code | Read [AGENTS.md](AGENTS.md) and [handoff.md](handoff.md), then the [current state index](docs/current-state/README.md). Every command runs inside the `minerva_app_service` container. |
+
+### Quick start
 
 Everything runs in Docker. You need Docker with Compose.
+
+Copy the environment template and fill in the secrets it marks (each one says how to
+generate it):
+
+```bash
+cp .env.example .env
+```
 
 ```bash
 docker compose up -d
@@ -182,8 +199,14 @@ docker compose up -d
 docker compose exec minerva_app_service uv run flask seed run
 ```
 
-That seeds an admin account and the WHO 2022 VA mapping, with no test data. The app is served at
-<http://localhost:8051>.
+That seeds an admin account (`testadmin@digitva.com`) and the WHO 2022 VA mapping, with no test
+data. The app is served at <http://localhost:8051>; the development password for the seeded
+accounts is in [AGENTS.md](AGENTS.md#dev-environment).
+
+The mobile app lives in `mobile/digitva-collect`. After `npm install` there, `npm run web:hmr`
+serves the web app with hot reload, and `npm run android:plus:dev` builds and runs a debug Collect
+Plus on an Android emulator or a USB phone. Release APKs are built only on GitHub Actions; see
+[Release process](docs/current-state/release-process.md).
 
 Optional extras:
 
@@ -198,7 +221,7 @@ make test-projects
 The first seeds the test projects and accounts; the second restores the baseline test dataset.
 Run `make help` for every target.
 
-### Running tests
+#### Running tests
 
 ```bash
 make test-parallel

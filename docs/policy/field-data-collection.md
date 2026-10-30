@@ -722,7 +722,11 @@ access rule below.
 
 #### Export and backup (owner decision 2026-10-27, `digitva-5bzf`)
 
-Both acts are allowed on a standalone account. Enrolled phones: encrypted
+Both acts are allowed on a standalone account, from Settings > "Export and
+backup" (owner 2026-10-30, `digitva-axim`; the standalone home shows only the
+backup reminder, which opens Settings). Its record list has three tabs (In progress, Pending coding, Coded;
+owner 2026-10-30, `digitva-31ci`) and titles each record with the deceased's name, age and sex, behind the PIN on
+the encrypted store. Enrolled phones: encrypted
 backup of unsent work, no CSV export (owner decision 2026-10-27,
 `digitva-5bzf.14`), so "the device is not an archive" stays true for Path B.
 The enrolled backup holds only the signed-in account's unsent drafts, their

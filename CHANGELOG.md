@@ -5,6 +5,23 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-30
 
+- **Collect and Collect Plus 0.3.17.** **Standalone home** (`digitva-axim`,
+  `digitva-31ci`; `docs/current-state/expo-client.md`,
+  `docs/policy/field-data-collection.md`): records sit in In progress, Pending
+  coding and Coded tabs with counts, each row titled by the deceased's name,
+  age (the form's calculated age) and sex, with the UUID beneath; coded rows
+  offer only Revise coding. The list re-reads on every return, which 0.3.16
+  did not: a new draft or a just-finalized interview stayed hidden or "In
+  progress" until Lock and unlock. Export, Back up, Restore and Enrol moved
+  to Settings; the backup reminder opens Settings, Lock now stays on the
+  home, and crash-leftover export files are still swept when the home opens.
+  **DORIS picker** (`digitva-9cll.22.1`): Use, Build, Details, related chips,
+  staging and OK hide the keyboard, so the coder sees the pick take effect.
+  Found in the phone proof (`digitva-9cll.5`) and filed: finalize error after
+  completion (`digitva-ljx2`), coding parity across web, Collect and Collect
+  Plus (`digitva-9cll.22` and children), standalone direct coding
+  (`digitva-9cll.23`), coded-case View and Revise (`digitva-9cll.24`).
+
 - **Collect and Collect Plus 0.3.16** (version bump for the release that carries
   the standalone interview gate, the language menu, the picker badge fix and
   the VA cause bucket below). **Technical note for WHO** on offline ICD-11 and

@@ -54,7 +54,11 @@ let mockPlay = false;
 let mockPlus = false;
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus, isPlayDistribution: () => mockPlay }));
 let mockUnlocked = true;
-jest.mock("../src/interviewerDb", () => ({ ...jest.requireActual("../src/interviewerDb"), isUnlocked: () => mockUnlocked }));
+jest.mock("../src/interviewerDb", () => ({ ...jest.requireActual("../src/interviewerDb"), isUnlocked: () => mockUnlocked, openInterviewerDb: async () => ({}) }));
+// A marker for the export, backup and restore panel; exportAllowed shows which variant a section renders.
+jest.mock("../src/standalone/DataActions", () => ({
+  DataActions: ({ exportAllowed = true }: { exportAllowed?: boolean }) => require("react").createElement("data-actions", { exportAllowed }),
+}));
 const mockCheckForUpdate = jest.fn<Promise<UpdateResult>, [server?: string]>(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
 const mockCheckServerCompatibility = jest.fn(async (_server: string) => ({ status: "compatible", buildRevision: "abcdef0123456789abcdef0123456789abcdef01" }));
 jest.mock("../src/updateCheck", () => ({ checkForUpdate: (server?: string) => mockCheckForUpdate(server), checkServerCompatibility: (server: string) => mockCheckServerCompatibility(server) }));
@@ -456,6 +460,42 @@ it("standalone shows no project access lines or refresh check, keeps device perm
     expect(text).not.toContain(en.permissionsCollectionAccess.split("{")[0]);
     expect(text).not.toContain(en.permissionsCodingAccess.split("{")[0]);
     expect(tree.root.findAll((n) => n.props.accessibilityLabel === en.permissionsCheck)).toHaveLength(0);
+  } finally {
+    mockAccounts[0] = original;
+    shell.server = "https://digitvav3.causeofdeathindia.com";
+  }
+});
+
+it("gives an unlocked standalone account Enrol this phone and Export and backup, and an enrolled one only the unsent-work backup", async () => {
+  const original = mockAccounts[0];
+  mockPlus = true;
+  const labelled = (tree: ReactTestRenderer, label: string) => tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function");
+  const panels = (tree: ReactTestRenderer) => tree.root.findAllByType("data-actions" as never);
+  try {
+    mockAccounts[0] = { user_id: "a", name: "Asha", standalone: true };
+    shell.server = undefined;
+    const tree = await render();
+    expect(out(tree)).toContain(en.standaloneDataSection);
+    expect(panels(tree)).toHaveLength(1);
+    expect(panels(tree)[0].props.exportAllowed).toBe(true);
+    expect(out(tree)).not.toContain(en.settingsBackup);
+    await pressLabel(tree, en.standaloneEnrol);
+    expect(mockRouter.push).toHaveBeenCalledWith("/enrol");
+
+    mockUnlocked = false;
+    const locked = await render();
+    expect(labelled(locked, en.standaloneEnrol)).toHaveLength(1);
+    expect(panels(locked)).toHaveLength(0);
+
+    mockUnlocked = true;
+    mockAccounts[0] = { user_id: "a", name: "Asha" };
+    shell.server = "https://digitvav3.causeofdeathindia.com";
+    const enrolled = await render();
+    expect(out(enrolled)).toContain(en.settingsBackup);
+    expect(panels(enrolled)).toHaveLength(1);
+    expect(panels(enrolled)[0].props.exportAllowed).toBe(false);
+    expect(labelled(enrolled, en.standaloneEnrol)).toHaveLength(0);
+    expect(out(enrolled)).not.toContain(en.standaloneDataSection);
   } finally {
     mockAccounts[0] = original;
     shell.server = "https://digitvav3.causeofdeathindia.com";

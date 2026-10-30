@@ -664,6 +664,16 @@ the device while unenrolled.
   `undetermined`); drafts started earlier keep no locks. Completion freezes
   SmartVA settings from the interview's own Id10002/Id10003 when none are
   frozen (`source: "interview"`).
+- **Standalone home and Settings** (`src/nativeRoutes/standalone.tsx`, `settings.tsx`, `digitva-axim`): the home
+  keeps the account name, the clock notice, the backup reminder card (its "Open Settings to back up" button opens
+  Settings), New interview, the interview list, Settings and Lock now. The list is split into three tabs with
+  counts (digitva-31ci): In progress (drafts), Pending coding (completed, not coded; the default when it has
+  records) and Coded. Each row is titled with the deceased's name, age and sex (read from the draft answers by
+  `listStandaloneRecords` in one query; the UUID titles a nameless record and sits under the name otherwise). Coded
+  rows offer Revise coding only. Enrol this phone sits in Settings > Account;
+  an unlocked standalone account's Settings > "Export and backup" holds Export my records, Back up this phone and
+  Restore from a backup (`src/standalone/DataActions.tsx`). The home re-reads the last backup time on every focus,
+  so a backup made in Settings clears the reminder.
 - **Offline coding** (Settings > Collect Plus > "Offline coding";
   `src/nativeRoutes/offlineCoding.native.tsx`): lists completed-unsent
   interviews (metadata only, no PII in the list), opens a case with the

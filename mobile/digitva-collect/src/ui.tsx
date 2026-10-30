@@ -134,6 +134,7 @@ export function Button({
   loading = false,
   accessibilityLabel,
   expanded,
+  selected,
   style
 }: {
   label: string;
@@ -146,6 +147,8 @@ export function Button({
   accessibilityLabel?: string;
   /** Set on a button that shows or hides a section, so screen readers hear its state. */
   expanded?: boolean;
+  /** Set on a button that is one tab of a tablist, so screen readers hear it as a tab and whether it is selected. */
+  selected?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
@@ -155,9 +158,9 @@ export function Button({
   const tone = buttonTone(theme.ui, variant);
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={selected === undefined ? "button" : "tab"}
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: disabledOrBusy, busy: loading, expanded }}
+      accessibilityState={{ disabled: disabledOrBusy, busy: loading, expanded, selected }}
       disabled={disabledOrBusy}
       hitSlop={spacing.xxs}
       onPress={onPress}

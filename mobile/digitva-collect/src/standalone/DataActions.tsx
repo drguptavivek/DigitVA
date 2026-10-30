@@ -1,5 +1,5 @@
 /**
- * Export, backup and restore actions. The standalone home renders all three (dataActionsAllowed). An enrolled
+ * Export, backup and restore actions. A standalone account's Settings renders all three (dataActionsAllowed). An enrolled
  * account's Settings renders backup and restore only (`exportAllowed` off): CSV/JSON export is standalone-only.
  * The policy warning is shown before every action.
  */

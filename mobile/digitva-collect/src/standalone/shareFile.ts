@@ -13,7 +13,7 @@ const GRANT_READ_URI_PERMISSION = 1;
 /** A handle on a file in the app's private cache (not created). */
 export const cacheFile = (name: string) => new File(Paths.cache, name);
 
-/** Delete leftover export and backup files (a crash between write and share); run when the standalone home mounts. */
+/** Delete leftover export and backup files (a crash between write and share); run when the standalone home or the export panel mounts. */
 export function sweepExportLeftovers(): void {
   try {
     for (const entry of new Directory(Paths.cache).list()) {

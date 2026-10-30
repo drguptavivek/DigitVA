@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { DorisCodeInfoReply, DorisTermsReply } from "../../contracts";
@@ -159,6 +159,8 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
   // with children never reaches it at all (WHO's CoDEdit and DORIS would object after processing): a category opens
   // its hierarchy to choose under it.
   const stage = (item: PickerItem) => {
+    // Whatever stages a code (a row, Build, the hierarchy) hides the keyboard, so the footer shows the pick.
+    Keyboard.dismiss();
     const refused = notFinal(item);
     if (refused) {
       setSelection(null);
@@ -255,6 +257,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
 
   const confirm = async () => {
     if (!selection) return;
+    Keyboard.dismiss();
     setVerifying(true);
     setFooter({ text: `Verifying ${selection.code}…` });
     try {
@@ -316,7 +319,9 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
     void resolveAndStage(node.code);
   };
   // Each row control remembers its row for "Back to results" before it acts.
-  const fromRow = (item: PickerItem, act: () => void) => () => { setFrom(rowKey(item)); act(); };
+  // A row action hides the keyboard so its result (the staged code, Build, Details) is not left under it; tapping
+  // the search box brings the keyboard back.
+  const fromRow = (item: PickerItem, act: () => void) => () => { Keyboard.dismiss(); setFrom(rowKey(item)); act(); };
   const back = from === null ? null : () => scrollTo(rowY.current[from] ?? 0);
   const reveal = (card: Slot) => (card.scroll ? scrollTo : null);
   // An error is an alert of its own; the plain status shares a line with "Add uncoded text".
@@ -362,7 +367,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
           {items.map((item) => (
             <ResultRow key={rowKey(item)} item={item} inline={!phone && !twoPane} onLayout={(event) => { rowY.current[rowKey(item)] = event.nativeEvent.layout.y; }}
               onTitle={fromRow(item, () => stage(item))} onUse={fromRow(item, () => stage(item))} onDetails={fromRow(item, () => showDetails(item, true))}
-              onRelated={(chapter) => { setFrom(rowKey(item)); setRelated({ item, chapter, ...slot(true) }); }} onBuild={fromRow(item, () => openStem(item))} />
+              onRelated={(chapter) => { Keyboard.dismiss(); setFrom(rowKey(item)); setRelated({ item, chapter, ...slot(true) }); }} onBuild={fromRow(item, () => openStem(item))} />
           ))}
           {twoPane ? null : cards}
         </ScrollView>

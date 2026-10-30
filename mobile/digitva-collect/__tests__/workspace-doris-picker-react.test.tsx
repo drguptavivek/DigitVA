@@ -1,5 +1,5 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
-import { Platform } from "react-native";
+import { Keyboard, Platform } from "react-native";
 
 import { ApiError } from "../src/api";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
@@ -428,8 +428,12 @@ describe("result rows and badges", () => {
     const order = (code: string) => metaOf(code).children.map((child) => typeof child === "string" ? child : child.props.testID ?? child.props.accessibilityLabel ?? "badges");
     expect(order("NC72.7").slice(0, 3)).toEqual(["Use NC72.7", "use-divider", "badges"]);
     expect(metaOf("CA40").findAll((node) => node.props.testID === "use-divider")).toHaveLength(0);
+    const dismiss = jest.spyOn(Keyboard, "dismiss");
     await press(h, "Use CA40");
     expect(text(h)).toContain("CA40 — Pneumonia");
+    // The staged code shows in the footer, so the keyboard must not stay over it.
+    expect(dismiss).toHaveBeenCalled();
+    dismiss.mockRestore();
     // The title is bold at 700 (Samsung's font has no 600, which drew it regular); the code is not bold.
     const titleOf = h.tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "CA40 Pneumonia")[0];
     const weights = titleOf.findAll((node) => typeof node.type === "string" && typeof node.props.children === "string").map((node) => `${node.props.children}:${Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)).fontWeight ?? ""}`);
@@ -443,6 +447,11 @@ describe("result rows and badges", () => {
     expect(has(h, "Use CA40")).toBe(true);
     expect(has(h, "Hierarchy of BD54")).toBe(false);
     expect(h.tree.root.findAll((node) => node.props.children === "Details" && typeof node.type === "string")).toHaveLength(0);
+    // Details (like Build) also hides the keyboard so the card it opens is in view.
+    const dismissed = jest.spyOn(Keyboard, "dismiss");
+    await press(h, "Details of BD54");
+    expect(dismissed).toHaveBeenCalled();
+    dismissed.mockRestore();
   });
 
   it("shows small Use and Details buttons at the right on a tablet, and withholds Use while postcoordination is mandatory unless the code is a complete expression", async () => {

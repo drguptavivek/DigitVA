@@ -1,6 +1,6 @@
 {
   "name": "digitva-collect",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {

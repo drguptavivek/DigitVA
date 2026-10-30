@@ -9,6 +9,7 @@ import { createWhoVa2022Instrument, createWhoVaSession } from "@drguptavivek/who
 
 const mockProfile: { value: unknown } = { value: null };
 const mockPush = jest.fn();
+const mockBackupAt: { value: string | null } = { value: new Date().toISOString() };
 jest.mock("expo-secure-store", () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
   getItemAsync: jest.fn(async () => (mockProfile.value ? JSON.stringify(mockProfile.value) : null)),
@@ -28,25 +29,35 @@ jest.mock("expo-crypto", () => ({
   ...jest.requireActual("expo-crypto"),
   randomUUID: () => "44444444-4444-4444-8444-444444444444",
 }));
+const mockLockNow = jest.fn();
 const mockAppState = {
   accounts: [{ user_id: "standalone-1", name: "Asha", standalone: true }],
   lockVersion: 0,
-  lockNow: jest.fn(),
+  lockNow: mockLockNow,
   uiLocale: "en",
 };
 jest.mock("../src/AppState", () => ({ useAppState: () => mockAppState }));
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true, openInterviewerDb: jest.fn(async () => ({})) }));
 jest.mock("../src/drafts", () => ({ retryHeldDraft: jest.fn() }));
+const baseRecord: Record<string, unknown> & { id: string } = {
+  id: "draft-1", completed: false, started_at: "2026-10-30T00:00:00Z", updated_at: "2026-10-30T00:00:00Z",
+  completed_at: null, coding_status: null, upload_issue: null, refusal_code: null, name: "", age_years: null, sex: null,
+};
+const mockRecords: { value: Array<typeof baseRecord> } = { value: [] };
 jest.mock("../src/standalone/records", () => ({
-  listStandaloneRecords: jest.fn(async () => [{
-    id: "draft-1", completed: false, started_at: "2026-10-30T00:00:00Z", updated_at: "2026-10-30T00:00:00Z",
-    completed_at: null, coding_status: null, upload_issue: null, refusal_code: null,
-  }]),
-  lastBackupAt: jest.fn(async () => "2026-10-30T00:00:00Z"),
+  listStandaloneRecords: jest.fn(async () => mockRecords.value),
+  lastBackupAt: jest.fn(async () => mockBackupAt.value),
 }));
-jest.mock("../src/standalone/DataActions", () => ({ DataActions: () => null }));
-jest.mock("../src/standalone/export", () => ({ dataActionsAllowed: () => false }));
-jest.mock("../src/i18n", () => ({ t: (key: string, values?: Record<string, string>) => (values?.fields ? `${key}:${values.fields}` : key) }));
+// The home no longer renders DataActions; a marker lets the test prove it stays off the home.
+jest.mock("../src/standalone/DataActions", () => ({ DataActions: () => require("react").createElement("data-actions") }));
+jest.mock("../src/standalone/export", () => ({ dataActionsAllowed: () => true }));
+const mockSweep = jest.fn();
+jest.mock("../src/standalone/shareFile", () => ({ sweepExportLeftovers: () => mockSweep() }));
+const WORDS: Record<string, string> = { sexMale: "Male", sexFemale: "Female" };
+jest.mock("../src/i18n", () => ({
+  t: (key: string, values?: Record<string, string | number>) => WORDS[key]
+    ?? (key === "standaloneTabCount" ? `${values!.label} (${values!.count})` : key === "metaAgeYears" ? `${values!.value} y` : values?.fields ? `${key}:${values.fields}` : key),
+}));
 jest.mock("../src/ui", () => {
   const R = jest.requireActual("react") as typeof React;
   return {
@@ -163,7 +174,12 @@ describe("standalone home gate", () => {
   }
   const button = (tree: ReactTestRenderer, label: string) => tree.root.findAllByProps({ "data-label": label })[0];
 
-  beforeEach(() => mockPush.mockClear());
+  beforeEach(() => {
+    mockPush.mockClear();
+    mockLockNow.mockClear();
+    mockRecords.value = [{ ...baseRecord }];
+    mockBackupAt.value = new Date().toISOString();
+  });
 
   it("disables New interview, names what is missing and opens the profile, but keeps drafts open", async () => {
     mockProfile.value = { ...ready, sex: null, malaria_mortality: null };
@@ -189,5 +205,114 @@ describe("standalone home gate", () => {
     await act(async () => { start.props.onClick(); });
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/form", params: expect.objectContaining({ draftId: "44444444-4444-4444-8444-444444444444" }) });
     await act(async () => tree.unmount());
+  });
+
+  it("keeps Settings and Lock now on the home but moves export, backup, restore and enrol to Settings", async () => {
+    mockProfile.value = ready;
+    const tree = await render();
+    await act(async () => { button(tree, "lockNow").props.onClick(); });
+    expect(mockLockNow).toHaveBeenCalledTimes(1);
+    await act(async () => { button(tree, "settings").props.onClick(); });
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/settings", params: { userId: "standalone-1" } });
+    expect(tree.root.findAllByType("data-actions" as never)).toHaveLength(0);
+    expect(tree.root.findAllByProps({ "data-label": "standaloneEnrol" })).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("shows the backup reminder with a button that opens Settings, and no reminder after a recent backup", async () => {
+    mockProfile.value = ready;
+    mockSweep.mockClear();
+    const recent = await render();
+    expect(button(recent, "lockNow")).toBeDefined();
+    expect(mockSweep).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(recent.toJSON())).not.toContain("standaloneBackup");
+    await act(async () => recent.unmount());
+
+    mockBackupAt.value = "2020-01-01T00:00:00Z";
+    const tree = await render();
+    expect(JSON.stringify(tree.toJSON())).toContain("standaloneBackupReminder");
+    await act(async () => { button(tree, "standaloneBackupOpenSettings").props.onClick(); });
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/settings", params: { userId: "standalone-1" } });
+    await act(async () => tree.unmount());
+  });
+
+  describe("record tabs (digitva-31ci)", () => {
+    const done = { ...baseRecord, completed: true, completed_at: "2026-10-29T00:00:00Z" };
+    const tabLabels = (tree: ReactTestRenderer) => tree.root.findAllByType("button" as never)
+      .map((node) => node.props["data-label"] as string).filter((label) => /\(\d+\)$/.test(label));
+    const text = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
+
+    beforeEach(() => {
+      mockProfile.value = ready;
+      mockRecords.value = [
+        { ...baseRecord, id: "d-1", name: "Ravi Kumar", age_years: 62, sex: "male" },
+        { ...done, id: "p-1", name: "Sita Devi", age_years: 41, sex: "female", coding_status: null },
+        { ...done, id: "p-2", name: "", coding_status: "pending" },
+        { ...done, id: "c-1", name: "Mohan Lal", age_years: 70, sex: "male", coding_status: "coded" },
+      ];
+    });
+
+    it("counts each tab and opens on Pending coding when it has records", async () => {
+      const tree = await render();
+      expect(tabLabels(tree).sort()).toEqual(["standaloneCoded (1)", "standaloneDraft (1)", "standaloneTabPending (2)"]);
+      const out = text(tree);
+      expect(out).toContain("Sita Devi · 41 y · Female");
+      expect(out).not.toContain("Ravi Kumar");
+      expect(out).not.toContain("Mohan Lal");
+      await act(async () => tree.unmount());
+    });
+
+    it("falls back to In progress when nothing is pending, and switches tabs on press", async () => {
+      mockRecords.value = mockRecords.value.filter((r) => r.id !== "p-1" && r.id !== "p-2");
+      const tree = await render();
+      expect(text(tree)).toContain("Ravi Kumar · 62 y · Male");
+      expect(tree.root.findAllByProps({ "data-label": "standaloneTabPending (0)" })).toHaveLength(1);
+      await act(async () => { button(tree, "standaloneTabPending (0)").props.onClick(); });
+      expect(text(tree)).toContain("standaloneNoPending");
+      expect(text(tree)).not.toContain("Ravi Kumar");
+      await act(async () => { button(tree, "standaloneCoded (1)").props.onClick(); });
+      expect(text(tree)).toContain("Mohan Lal · 70 y · Male");
+      await act(async () => tree.unmount());
+    });
+
+    it("stays on Pending coding after its last record is coded, so the empty tab says so", async () => {
+      mockRecords.value = mockRecords.value.filter((r) => r.id !== "p-2");
+      const tree = await render();
+      expect(text(tree)).toContain("Sita Devi · 41 y · Female");
+      // Coded on the coding screen; the home reloads (focus or lock change) with the record now coded.
+      mockRecords.value = mockRecords.value.map((r) => (r.id === "p-1" ? { ...r, coding_status: "coded" } : r));
+      mockAppState.lockVersion += 1;
+      await act(async () => { tree.update(<StandaloneHome />); });
+      await act(async () => { await Promise.resolve(); });
+      expect(tabLabels(tree)).toContain("standaloneCoded (2)");
+      expect(text(tree)).toContain("standaloneNoPending");
+      expect(text(tree)).not.toContain("Ravi Kumar");
+      mockAppState.lockVersion = 0;
+      await act(async () => tree.unmount());
+    });
+
+    it("titles a nameless record with its UUID and shows the UUID under a named one", async () => {
+      const tree = await render();
+      const out = text(tree);
+      // Pending tab: the nameless record is titled by its UUID; the named one shows its UUID under the name.
+      expect(out).toContain('"p-2"');
+      expect(out).toContain('"Sita Devi · 41 y · Female"');
+      expect(out).toContain('"p-1"');
+      await act(async () => tree.unmount());
+    });
+
+    it("offers Revise coding only on a coded row, routed to offline coding", async () => {
+      const tree = await render();
+      await act(async () => { button(tree, "standaloneCoded (1)").props.onClick(); });
+      const revise = button(tree, "standaloneReviseCoding");
+      expect(revise).toBeDefined();
+      expect(tree.root.findAllByProps({ "data-label": "standaloneCodeIt" })).toHaveLength(0);
+      await act(async () => { revise.props.onClick(); });
+      expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/offline-coding", params: { userId: "standalone-1", caseId: "c-1" } });
+      await act(async () => { button(tree, "standaloneTabPending (2)").props.onClick(); });
+      expect(tree.root.findAllByProps({ "data-label": "standaloneCodeIt" })).toHaveLength(2);
+      expect(tree.root.findAllByProps({ "data-label": "standaloneReviseCoding" })).toHaveLength(0);
+      await act(async () => tree.unmount());
+    });
   });
 });

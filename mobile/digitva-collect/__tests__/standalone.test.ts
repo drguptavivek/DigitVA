@@ -52,7 +52,7 @@ import { backupReminder, isOverAgeLimit } from "../src/standalone/age";
 import { BACKUP_REMINDER_DAYS, STANDALONE_AGE_WARNING_DAYS } from "../src/standalone/config";
 import { standaloneConsentConfig } from "../src/standalone/consent";
 import { isStandaloneId, STANDALONE_SITE_ID, standaloneDefinition, standaloneProject, standaloneProjectId } from "../src/standalone/project";
-import { listStandaloneRecords } from "../src/standalone/records";
+import { deceasedIdentity, listStandaloneRecords } from "../src/standalone/records";
 import { interviewConsentGate } from "../src/consentStore";
 
 const profile = (over: Record<string, unknown> = {}) => ({
@@ -169,6 +169,34 @@ describe("project-less interview", () => {
     expect(records.map((r) => r.id)).toEqual(["d1"]);
     expect(records[0].completed).toBe(false);
     expect(await listStandaloneRecords(db, "42")).toEqual([]);
+  });
+
+  it("reads the deceased's name, the form's calculated age (not a stale hidden age_adult) and sex in the same query", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const projectId = standaloneProjectId(userId);
+    const store = createDraftStore(db, { projectId, siteId: STANDALONE_SITE_ID });
+    await store.save({ ...draft("named"), data: { Id10017: " Asha ", Id10018: "Devi", Id10019: "female", age_adult: 70, ageInYears: null, ageInYears2: 41 } as WhoVaDraft["data"] });
+    await store.save(draft("blank"));
+    const byId = Object.fromEntries((await listStandaloneRecords(db, projectId)).map((r) => [r.id, r]));
+    expect(byId.named).toMatchObject({ name: "Asha Devi", age_years: 41, sex: "female" });
+    expect(byId.blank).toMatchObject({ name: "", age_years: null, sex: null });
+  });
+});
+
+describe("deceasedIdentity", () => {
+  const none = { given: null, surname: null, sex: null, age_in_years: null, age_in_years2: null };
+
+  it("joins the trimmed name parts and keeps the raw sex", () => {
+    expect(deceasedIdentity({ ...none, given: " Asha ", surname: "Devi", sex: "female" })).toEqual({ name: "Asha Devi", age_years: null, sex: "female" });
+    expect(deceasedIdentity(none)).toEqual({ name: "", age_years: null, sex: null });
+  });
+
+  it("takes the form's age from the dates first, else from the entered age of the current age group", () => {
+    expect(deceasedIdentity({ ...none, age_in_years: 75, age_in_years2: 70 }).age_years).toBe(75);
+    expect(deceasedIdentity({ ...none, age_in_years2: "8" }).age_years).toBe(8);
+    expect(deceasedIdentity({ ...none, age_in_years2: 0 }).age_years).toBe(0);
+    expect(deceasedIdentity({ ...none, age_in_years2: "abc" }).age_years).toBeNull();
   });
 });
 

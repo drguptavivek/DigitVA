@@ -5,7 +5,9 @@
  * language is chosen in the form's menu. Account also has Delete my account and the privacy and data-requests
  * links (docs/policy/public-privacy-and-data-requests.md section 8): on the Demo slot it deletes the account at
  * once after the password; otherwise it sends a deletion request the programme team confirms.
- * Server controls belong only to the selected server account; standalone ignores retained enrolment.
+ * Server controls belong only to the selected server account; standalone ignores retained enrolment. A standalone
+ * account's Account section also has Enrol this phone, and an unlocked one gets Export and backup (export, back up,
+ * restore: src/standalone/DataActions.tsx), which moved off the standalone home (digitva-axim).
  */
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -19,6 +21,7 @@ import { useAppState } from "../AppState";
 import type { Db } from "../drafts";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { DataActions } from "../standalone/DataActions";
+import { dataActionsAllowed } from "../standalone/export";
 import StandaloneConsentNoticeSettings from "../standalone/StandaloneConsentNoticeSettings";
 import { APP_VERSION } from "../appVersion";
 import { isPlayDistribution, isPlusVariant } from "../appVariant";
@@ -143,9 +146,11 @@ export default function NativeSettings() {
       active = false;
     };
   }, []);
-  // Encrypted backup of unsent work for an enrolled account (Plus); the standalone home has its own actions.
+  // Encrypted backup of unsent work for an enrolled account (Plus), and export, backup and restore of a standalone
+  // account's records; each needs the unlocked interviewer database.
   const [backupDb, setBackupDb] = useState<Db>();
-  const backupUserId = isPlusVariant() && account && !account.standalone && isUnlocked(account.user_id) ? account.user_id : undefined;
+  const standaloneData = unlocked && dataActionsAllowed(account);
+  const backupUserId = account && unlocked && (standaloneData || (isPlusVariant() && !account.standalone)) ? account.user_id : undefined;
   useEffect(() => {
     setBackupDb(undefined);
     if (backupUserId) void openInterviewerDb(backupUserId).then(setBackupDb).catch(() => undefined);
@@ -450,6 +455,7 @@ export default function NativeSettings() {
     <Screen title={t("settings")}>
       <Section title={t("settingsAccount")}>
         {account ? <Text style={styles.text}>{account.name}</Text> : accounts.map((item) => <Text key={item.user_id} style={styles.text}>{item.name}</Text>)}
+        {account?.standalone ? <Button kind="secondary" label={t("standaloneEnrol")} onPress={() => router.push("/enrol")} /> : null}
         {unlocked && shell.userId ? <Button kind="secondary" label={t("profileAccessTitle")} onPress={() => router.push({ pathname: "/profile-access", params: { userId: shell.userId } })} /> : null}
         {shell.server && device ? (
           <>
@@ -645,10 +651,16 @@ export default function NativeSettings() {
         </Section>
       ) : null}
       {backupDb && backupUserId ? (
-        <Section title={t("settingsBackup")}>
-          <Text style={styles.muted}>{t("dataBackupUnsentNote")}</Text>
-          <DataActions db={backupDb} userId={backupUserId} exportAllowed={false} onChanged={() => undefined} />
-        </Section>
+        standaloneData ? (
+          <Section title={t("standaloneDataSection")}>
+            <DataActions db={backupDb} userId={backupUserId} onChanged={() => undefined} />
+          </Section>
+        ) : (
+          <Section title={t("settingsBackup")}>
+            <Text style={styles.muted}>{t("dataBackupUnsentNote")}</Text>
+            <DataActions db={backupDb} userId={backupUserId} exportAllowed={false} onChanged={() => undefined} />
+          </Section>
+        )
       ) : null}
       {isPlusVariant() ? (
         <Section title={t("collectPlusSection")}>

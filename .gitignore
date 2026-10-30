@@ -90,3 +90,6 @@ app/static/expo-client/
 deploy/maintenance/on
 .serena/project.yml
 cur.png
+
+# Local Collect Plus build output and work/cache dirs (scripts/collect-plus-local)
+build/collect-plus-local/

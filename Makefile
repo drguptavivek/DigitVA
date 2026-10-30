@@ -29,7 +29,7 @@ COMPOSE_HMR = docker compose -f docker-compose.yml -f docker-compose.override.ym
         prod prod-build prod-rebuild prod-down prod-pull prod-rollback \
         logs logs-app ps shell \
         migrate db-head test test-parallel test-projects \
-        restart-celery backup-db ensure-secrets ensure-secrets-prod help
+        restart-celery backup-db ensure-secrets ensure-secrets-prod help collect-plus-local
 
 .DEFAULT_GOAL := help
 
@@ -54,6 +54,9 @@ help:
 	@echo "  make prod-build      DEV/EMERGENCY ONLY: build on this host, then start prod"
 	@echo "  make prod-rebuild    DEV/EMERGENCY ONLY: forced full build on this host"
 	@echo "  make prod-down       Stop prod stack"
+	@echo ""
+	@echo "Collect Plus"
+	@echo "  make collect-plus-local [SRC=git REF=<branch|sha>]  Local verification build of the Collect Plus arm64 APK in Docker (12 GB RAM); NOT for distribution, releases come only from CI"
 	@echo ""
 	@echo "Logs"
 	@echo "  make logs            Tail all container logs"
@@ -240,6 +243,11 @@ test:
 test-parallel:
 	$(COMPOSE) exec -T $(if $(TEST_DATABASE_URL),-e TEST_DATABASE_URL=$(TEST_DATABASE_URL)) $(APP_SERVICE) \
 		uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4
+
+# Every step to the Collect Plus arm64 APK in a pinned amd64 container (scripts/collect-plus-local/run.sh): default the working tree,
+# SRC=git REF=<branch|sha> a clean clone. DRY_RUN=1 prepares inputs only, SKIP_CHECKS=1 skips tests. Debug-signed, local use only.
+collect-plus-local:
+	SRC="$(SRC)" REF="$(REF)" DRY_RUN="$(DRY_RUN)" SKIP_CHECKS="$(SKIP_CHECKS)" scripts/collect-plus-local/run.sh
 
 # Jest mocks native-only modules, so only a real export proves the web bundle
 # still builds (a phone-only import once broke it). Writes to a temp dir, never

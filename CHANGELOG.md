@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-31
 
+- **`make collect-plus-local`** (`docs/current-state/expo-client.md`): every
+  step to the Collect Plus arm64 APK in a pinned linux/amd64 container, from
+  the working tree or `SRC=git REF=…`, with versions read from the release
+  workflows and WHO inputs checked by sha256. Debug-signed, for local
+  verification only; release APKs still come only from CI. First full run
+  not yet made.
+
 - **ICD-11 parity kit as one evaluation** (`digitva-9cll.22.7`;
   `scripts/icd11-parity/README.md`, `docs/current-state/icd11-android-engine-interface.md`).
   `scripts/icd11-parity/eval.sh quick|full` runs the phone engine and WHO's

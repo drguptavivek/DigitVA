@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-10-31
 ---
 
 # Expo Client Hosting And Access
@@ -646,6 +646,24 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   fails and every init skips the WHO fetches.
 - Local `npm run android:plus:*` scripts remain in `package.json` but are not run
   under the owner rule; the Expo web bundle comes from `expo-web-release.yml`.
+- **Local Collect Plus build** (owner request 2026-10-31): `make collect-plus-local`
+  (`scripts/collect-plus-local/`) runs every step to the arm64 release APK in a pinned
+  linux/amd64 Docker container, so nothing runs on the Mac itself and the engine, WHO
+  inputs and app come from code and WHO's public files only: the engine compile
+  (`engine-src/build.sh`), WHO data checked by sha256, vendor build, `npm ci`, typecheck,
+  Jest, SmartVA, `expo prebuild`, the engine export check, the module's JVM tests and
+  `assembleRelease`, as `collect-plus-release.yml` and `icd11-engine-build.yml` do.
+  Versions are read from those workflows and `engine-src/global.json`. The default source
+  is the working tree (tracked and untracked-not-ignored files, never `private/`);
+  `SRC=git REF=<branch|sha>` builds a clean clone. WHO's assemblies are copied out of the
+  pinned image on the host, so the container has no `docker.sock`. Docker needs about
+  12 GB of memory (the script refuses less). The first run builds the toolchain image and
+  warms named volume caches (`digitva-cp-*`); output is `build/collect-plus-local/` (APK,
+  `digitva_icd11.so`, `SHA256SUMS`, `SOURCE.txt` with the commit and dirty flag,
+  `SIGNER.txt`). **It is a verification build, not for distribution:** without
+  `DIGITVA_ANDROID_RELEASE_BUILD=1` the plus APK keeps the Expo template's debug signing
+  (`with-android-release-signing.js`); the release key exists only in CI, and release
+  APKs come only from CI.
 
 ### Pure offline mode (digitva-zjqq, 2026-10-26)
 

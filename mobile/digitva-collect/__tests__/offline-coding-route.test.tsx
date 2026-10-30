@@ -114,7 +114,11 @@ jest.mock("../src/icd11DorisPreference", () => ({
 jest.mock("../src/offlineIdentity", () => ({ getOrCreatePlusDeviceIdentity: jest.fn(async () => ({ uuid: "plus-install" })) }));
 const mockGetProfile = jest.fn(async (): Promise<Record<string, unknown> | null> => null);
 const mockSaveProfile = jest.fn(async (_profile?: unknown) => undefined);
-jest.mock("../src/offlineProfile", () => ({ getOfflineProfile: () => mockGetProfile(), saveOfflineProfile: (profile: unknown) => mockSaveProfile(profile) }));
+jest.mock("../src/offlineProfile", () => ({
+  getOfflineProfile: () => mockGetProfile(),
+  saveOfflineProfile: (profile: unknown) => mockSaveProfile(profile),
+  standaloneProfileMissing: jest.requireActual("../src/offlineProfile").standaloneProfileMissing,
+}));
 const mockSetUpStandaloneAccount = jest.fn(async (_profile?: unknown) => ({ user_id: "standalone-1" }));
 jest.mock("../src/standalone/account", () => ({ setUpStandaloneAccount: (profile: unknown) => mockSetUpStandaloneAccount(profile) }));
 const mockEngineInit = jest.fn<ReturnType<OfflineEngine["init"]>, Parameters<OfflineEngine["init"]>>(
@@ -475,6 +479,28 @@ describe("the offline coding screen", () => {
     expect(mockPersistSmartVa).toHaveBeenCalledTimes(1);
   });
 
+  it("fills missing standalone SmartVA settings from the interview's own HIV and malaria answers", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    mockAccounts.splice(0, mockAccounts.length, { user_id: "coder-1", name: "Coder", standalone: true });
+    mockGetProfile.mockResolvedValue({ name: "Coder", country: "India", hiv_mortality: null, malaria_mortality: null });
+    (require("../src/drafts").getOfflineCodingCase as jest.Mock).mockResolvedValue({
+      client_draft_id: "draft-7", org_unit_id: null, started_at: null, completed_at: "2026-10-26T09:30:00.000+05:30",
+      envelope: JSON.stringify({ instrumentId: "VA", instrumentVersion: "1", data: { Id10002: "veryl", Id10003: "high" } }),
+    });
+    (require("../src/drafts").getMeta as jest.Mock).mockResolvedValue({ projectId: "SELF", smartva: null });
+    const root = await render(<OfflineCoding />);
+    const repair = root.root.find((node) => node.props.accessibilityLabel === "localSmartVaUseCurrentSettings");
+    await act(async () => { await repair.props.onPress(); });
+
+    expect(require("../src/drafts").setMeta).toHaveBeenCalledWith(mockDb, "draft-config:draft-7", {
+      projectId: "SELF",
+      smartva: expect.objectContaining({ source: "interview", options: expect.objectContaining({ country: "India", hiv: false, malaria: true }) }),
+    });
+    expect(labels(root)).toContain("localSmartVaRun");
+  });
+
   it.each<[string, () => void]>([
     ["logout", () => { mockAccounts.length = 0; }],
     ["selected-mode switch", () => { mockSelectedSlot = "demo"; mockIdentitySelected.mockResolvedValue(false); }],
@@ -602,6 +628,20 @@ describe("the offline profile screen", () => {
     const save = root.root.find((node) => node.props.accessibilityLabel === "offlineProfileSave");
     await act(async () => { save.props.onPress(); });
     expect(mockSaveProfile).toHaveBeenCalledWith(expect.objectContaining({ name: "Edited Coder", country: "India", org_code: "UNIT7" }));
+  });
+
+  it("asks every interview field up front and names what a standalone account still needs", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockSetUpStandaloneAccount.mockRejectedValue(new Error("standalone_profile_incomplete"));
+    const root = await render(<StandaloneSetup />);
+    expect(labels(root)).not.toContain("offlineProfileShowOptional");
+    expect(root.root.findAllByType(TextInput).map((node) => node.props.accessibilityLabel)).toContain("offlineProfileAge");
+    expect(labels(root)).toEqual(expect.arrayContaining(["offlineProfileFemale", "offlineProfileLevelHigh"]));
+    const create = root.root.find((node) => node.props.accessibilityLabel === "standaloneCreate");
+    await act(async () => { create.props.onPress(); });
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(root.root.find((node) => node.props.accessibilityRole === "alert").props.children).toBe("standaloneProfileIncomplete");
   });
 
   it("does not navigate when standalone profile/account setup fails", async () => {

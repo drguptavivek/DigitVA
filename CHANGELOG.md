@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-30
 
+- **Standalone interviews start only with a complete profile**
+  (`digitva-0vz7`; policy `docs/policy/field-data-collection.md` interview
+  start gate, `docs/policy/smartva-generation-policy.md`). Collect Plus
+  standalone setup, Home and the form route refuse a new interview until
+  interviewer name, age, sex, country and HIV/malaria levels are complete; the
+  form prefills and locks Id10010/a/b and Id10002/Id10003 from the profile, so
+  nothing blocks once an interview has started. An interview with no frozen
+  SmartVA settings takes them from its own Id10002/Id10003 at completion.
+  Drafts started before this keep opening as they were.
 - **The 文A button opens a language menu** on Collect and Collect Plus,
   with the current language ticked, instead of switching on one tap; a stray
   tap no longer changes the language. **DORIS picker badges stay on one line**:

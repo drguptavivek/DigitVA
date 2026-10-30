@@ -654,7 +654,16 @@ the device while unenrolled.
 - **Offline profile** (`src/offlineProfile.ts`, Settings > Collect Plus >
   "Offline profile"): coder name, age, sex, designation, facility/org, country,
   state, and the SmartVA HIV/malaria mortality levels; name and country are
-  required; SecureStore `offline_profile`.
+  required; SecureStore `offline_profile`. A standalone account also needs
+  age (18-89 or 99), sex and both mortality levels before any interview starts
+  (`standaloneProfileMissing`): setup refuses without them, Home disables
+  "New interview" with a "Complete profile" button, and the form route refuses
+  a new draft before writing anything. A new standalone draft stores
+  `standalonePrefill(profile)` in `drafts.prefill`, which fills and locks
+  Id10010/Id10010a/Id10010b/Id10002/Id10003 (none -> `veryl`, other ->
+  `undetermined`); drafts started earlier keep no locks. Completion freezes
+  SmartVA settings from the interview's own Id10002/Id10003 when none are
+  frozen (`source: "interview"`).
 - **Offline coding** (Settings > Collect Plus > "Offline coding";
   `src/nativeRoutes/offlineCoding.native.tsx`): lists completed-unsent
   interviews (metadata only, no PII in the list), opens a case with the

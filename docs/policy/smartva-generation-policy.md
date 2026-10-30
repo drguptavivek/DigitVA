@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-30
 ---
 
 # SmartVA Generation Policy
@@ -47,8 +47,12 @@ unit, with the server's country precedence and inherited HIV/malaria presets.
 Missing or ambiguous configuration disables local SmartVA without blocking
 collection. A resumed draft retains its original options. Standalone uses the
 local profile's country and explicit mortality values, with HCE and free-text
-enabled explicitly, matching the existing form defaults. Missing mortality
-values require profile completion and are never guessed from interview answers.
+enabled explicitly, matching the existing form defaults. A standalone
+interview cannot start without them (`docs/policy/field-data-collection.md`,
+interview start gate); a standalone interview whose frozen settings are still
+empty (started before that gate) takes them from its own Id10002/Id10003
+answers at completion, marked `source: "interview"`, and stays empty when an
+answer or the country is missing.
 
 Cache only the sanitized result and provenance in SQLCipher, keyed by draft,
 answer hash, options digest and engine version. Changes make the result stale;

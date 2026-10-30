@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
 import { t, type StringKey } from "./i18n";
-import type { OfflineProfile } from "./offlineProfile";
+import type { OfflineProfile, StandaloneProfileField } from "./offlineProfile";
 import { Button, useUiStyles } from "./ui";
 
 type Sex = NonNullable<OfflineProfile["sex"]>;
@@ -17,6 +17,8 @@ export interface OfflineProfileFormProps {
   onSubmit: (profile: OfflineProfile) => void | Promise<void>;
   onCancel?: () => void;
   cancelLabel?: string;
+  /** Standalone setup: every field an interview prefills is asked up front, not under "Optional details". */
+  allRequired?: boolean;
 }
 
 interface Draft {
@@ -56,6 +58,20 @@ const LEVEL_OPTIONS: Array<{ value: Level; labelKey: StringKey }> = [
   { value: "low", labelKey: "offlineProfileLevelLow" },
   { value: "high", labelKey: "offlineProfileLevelHigh" },
 ];
+
+const MISSING_LABELS: Record<StandaloneProfileField, StringKey> = {
+  name: "standaloneProfileNameField",
+  age_years: "standaloneProfileAgeField",
+  sex: "offlineProfileSex",
+  country: "offlineProfileCountry",
+  hiv_mortality: "offlineProfileHiv",
+  malaria_mortality: "offlineProfileMalaria",
+};
+
+/** "Complete your profile ... Missing: ..." for the standalone start gate (standaloneProfileMissing). */
+export function standaloneProfileMissingText(missing: readonly StandaloneProfileField[]): string {
+  return t("standaloneProfileIncomplete", { fields: missing.map((field) => t(MISSING_LABELS[field])).join(", ") });
+}
 
 function draftFromProfile(profile: OfflineProfile): Draft {
   return {
@@ -132,10 +148,11 @@ export function OfflineProfileForm({
   onSubmit,
   onCancel,
   cancelLabel,
+  allRequired = false,
 }: OfflineProfileFormProps) {
   const styles = useUiStyles();
   const [draft, setDraft] = useState<Draft>(() => initialProfile ? draftFromProfile(initialProfile) : EMPTY_DRAFT);
-  const [optionalOpen, setOptionalOpen] = useState(Boolean(initialProfile));
+  const [optionalOpen, setOptionalOpen] = useState(Boolean(initialProfile) || allRequired);
 
   useEffect(() => {
     if (initialProfile) {
@@ -169,12 +186,14 @@ export function OfflineProfileForm({
     <View style={{ gap: 8 }}>
       <Field label={t("offlineProfileName")} value={draft.name} onChange={(value) => update("name", value)} />
       <Field label={t("offlineProfileCountry")} value={draft.country} onChange={(value) => update("country", value)} />
-      <Button
-        kind="secondary"
-        label={t(optionalOpen ? "offlineProfileHideOptional" : "offlineProfileShowOptional")}
-        expanded={optionalOpen}
-        onPress={() => setOptionalOpen((open) => !open)}
-      />
+      {allRequired ? null : (
+        <Button
+          kind="secondary"
+          label={t(optionalOpen ? "offlineProfileHideOptional" : "offlineProfileShowOptional")}
+          expanded={optionalOpen}
+          onPress={() => setOptionalOpen((open) => !open)}
+        />
+      )}
       {optionalOpen ? (
         <View style={{ gap: 8 }}>
           <Field label={t("offlineProfileAge")} value={draft.ageYears} onChange={(value) => update("ageYears", value)} keyboard="numeric" />

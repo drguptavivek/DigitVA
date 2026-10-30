@@ -9,6 +9,8 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 import { isPlusVariant } from "./appVariant";
+import type { Prefill } from "./cases";
+import { interviewerNameFromAccount } from "./interviewerRecall";
 
 export interface OfflineProfile {
   /** Coder name. */
@@ -117,4 +119,55 @@ export async function saveOfflineProfile(input: OfflineProfile): Promise<void> {
     updated_at: new Date().toISOString(),
   };
   await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(profile), OPTIONS);
+}
+
+/** The profile fields a standalone interview needs before it starts (docs/policy/field-data-collection.md, Path C). */
+export type StandaloneProfileField = "name" | "age_years" | "sex" | "country" | "hiv_mortality" | "malaria_mortality";
+
+/** Interviewer age as the WHO form's Id10010a constraint accepts it: (. >= 18 and . < 90) or . = 99. */
+const formAcceptsAge = (age: number | null | undefined): age is number =>
+  typeof age === "number" && Number.isInteger(age) && ((age >= 18 && age < 90) || age === 99);
+
+/**
+ * The fields a standalone interview still lacks, in form order; empty means ready (owner decision 2026-10-30,
+ * digitva-0vz7). Stricter than saveOfflineProfile, which enrolled offline coding shares: the values must be ones the
+ * form accepts once prefilled and locked (a name with A-Z letters left, an age of 18 to 89 or 99), so no locked
+ * answer can trap the interviewer.
+ */
+export function standaloneProfileMissing(profile: OfflineProfile | null | undefined): StandaloneProfileField[] {
+  const missing: StandaloneProfileField[] = [];
+  if (!interviewerNameFromAccount(profile?.name ?? "")) missing.push("name");
+  if (!formAcceptsAge(profile?.age_years)) missing.push("age_years");
+  if (!profile?.sex) missing.push("sex");
+  if (!profile?.country?.trim()) missing.push("country");
+  if (!profile?.hiv_mortality) missing.push("hiv_mortality");
+  if (!profile?.malaria_mortality) missing.push("malaria_mortality");
+  return missing;
+}
+
+const FORM_SEX = { male: "male", female: "female", other: "undetermined" } as const;
+/** HIGH_LOW_VERY choice values (who-va-2022.instrument.json): high, low, veryl ("Very low"). */
+const FORM_LEVEL = { high: "high", low: "low", none: "veryl" } as const;
+const LOCKED = ["Id10010", "Id10010a", "Id10010b", "Id10002", "Id10003"];
+
+/**
+ * A new standalone interview's prefill from the profile: the interviewer's name, age and sex and the area HIV and
+ * malaria levels, locked. The same shape the server builds for an enrolled case (interviewer, answers for the area
+ * presets, lockedQuestionNames), so the form fills and locks them the same way. A value the form would not accept is
+ * left out, and the engine only locks a question that holds an answer.
+ */
+export function standalonePrefill(profile: OfflineProfile): Prefill {
+  const answers: Record<string, string> = {};
+  if (profile.hiv_mortality) answers.Id10002 = FORM_LEVEL[profile.hiv_mortality];
+  if (profile.malaria_mortality) answers.Id10003 = FORM_LEVEL[profile.malaria_mortality];
+  const name = interviewerNameFromAccount(profile.name);
+  return {
+    interviewer: {
+      ...(name ? { name } : {}),
+      ...(formAcceptsAge(profile.age_years) ? { age: profile.age_years } : {}),
+      ...(profile.sex ? { sex: FORM_SEX[profile.sex] } : {}),
+    },
+    answers,
+    lockedQuestionNames: [...LOCKED],
+  };
 }

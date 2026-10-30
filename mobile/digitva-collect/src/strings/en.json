@@ -1910,5 +1910,9 @@
   "dataRestoreNewer": "{count} records on this phone are newer than the backup. Restoring replaces them with the backup's version.",
   "dataRestoreReplace": "Replace and restore",
   "homeUnsentFiles": "Attached files also waiting: {count}",
-  "revisionsNeedConnection": "Revisions need a connection."
+  "revisionsNeedConnection": "Revisions need a connection.",
+  "standaloneProfileIncomplete": "Complete your profile before starting an interview. Missing: {fields}",
+  "standaloneProfileComplete": "Complete profile",
+  "standaloneProfileNameField": "Name (letters A to Z and spaces)",
+  "standaloneProfileAgeField": "Age (18 to 89, or 99 if not stated)"
 }

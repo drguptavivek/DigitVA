@@ -10,6 +10,12 @@ export interface SmartVaOptionsSnapshot {
   formUpdatedAt: string;
   options: SmartVaOptions;
   optionsDigest: string;
+  /**
+   * "interview": HIV and malaria came from the interview's own Id10002/Id10003 answers because nothing was frozen at
+   * first save (standaloneSmartVaSnapshotFromAnswers). Absent: frozen from the profile or the project target. Outside
+   * `options`, so the digest and the engine input are unchanged.
+   */
+  source?: "interview";
 }
 
 export interface SmartVaTarget {
@@ -79,5 +85,36 @@ export async function standaloneSmartVaSnapshot(
     formUpdatedAt,
     options,
     optionsDigest: await digestSmartVaOptions(options),
+  };
+}
+
+/** Id10002/Id10003 (HIGH_LOW_VERY) as a SmartVA flag: "high" is high, "low" and "veryl" are not; anything else is unknown. */
+function highFromAnswer(value: unknown): boolean | null {
+  if (value === "high") return true;
+  return value === "low" || value === "veryl" ? false : null;
+}
+
+/**
+ * A standalone interview with no frozen settings (digitva-0vz7): HIV and malaria from its own Id10002/Id10003
+ * answers, country from the profile. Null when either answer or the country is missing, so SmartVA still asks.
+ */
+export async function standaloneSmartVaSnapshotFromAnswers(
+  profile: OfflineProfile | null,
+  answers: Record<string, unknown> | undefined,
+  formId: string,
+  formUpdatedAt: string,
+): Promise<SmartVaOptionsSnapshot | null> {
+  const country = profile?.country.trim();
+  const hiv = highFromAnswer(answers?.Id10002);
+  const malaria = highFromAnswer(answers?.Id10003);
+  if (!country || hiv === null || malaria === null) return null;
+  const options: SmartVaOptions = { country, hiv, malaria, ...STANDALONE_SMARTVA_DEFAULTS };
+  return {
+    schemaVersion: 1,
+    formId,
+    formUpdatedAt,
+    options,
+    optionsDigest: await digestSmartVaOptions(options),
+    source: "interview",
   };
 }

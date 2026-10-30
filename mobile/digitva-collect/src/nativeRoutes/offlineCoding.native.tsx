@@ -50,7 +50,14 @@ import { recordCodingTimeline } from "../draftSync";
 import { acquireLocalCodingEditor } from "../localCodingLeases";
 import { localDateTimeWithOffset } from "../client/localDateTime";
 import { appendWorkflowEvent, workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
-import { isSmartVaOptionsSnapshot, projectSmartVaSnapshot, standaloneSmartVaSnapshot, type SmartVaOptionsSnapshot, type SmartVaTarget } from "../smartva/options";
+import {
+  isSmartVaOptionsSnapshot,
+  projectSmartVaSnapshot,
+  standaloneSmartVaSnapshot,
+  standaloneSmartVaSnapshotFromAnswers,
+  type SmartVaOptionsSnapshot,
+  type SmartVaTarget,
+} from "../smartva/options";
 import { getLocalSmartVa, isLocalSmartVaCurrent, type LocalSmartVaRow } from "../smartva/localStore";
 import { runLocalSmartVa } from "../smartva/localApi";
 import { ensureLocalSmartVa } from "../smartva/ensureLocal";
@@ -447,7 +454,10 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       if (!draft || draft.project_id !== loaded.projectId) throw new Error("offline_case_access_revoked");
       let options: SmartVaOptionsSnapshot | null;
       if (accountRef.current.standalone) {
-        options = await standaloneSmartVaSnapshot(await getOfflineProfile(), loaded.draft.instrumentId, loaded.draft.instrumentVersion);
+        // The interview's own Id10002/Id10003 answers first (digitva-0vz7), else the current profile as before.
+        const profile = await getOfflineProfile();
+        options = await standaloneSmartVaSnapshotFromAnswers(profile, loaded.draft.data, loaded.draft.instrumentId, loaded.draft.instrumentVersion) ??
+          await standaloneSmartVaSnapshot(profile, loaded.draft.instrumentId, loaded.draft.instrumentVersion);
       } else {
         const references = await getCachedReferenceData(db);
         const project = references?.projects.find((item) => item.project.project_id === draft.project_id)?.project;

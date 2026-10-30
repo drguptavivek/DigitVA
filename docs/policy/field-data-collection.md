@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-10-30
 ---
 
 # Field Data Collection Policy
@@ -612,8 +612,9 @@ access rule below.
   device identity below).
 - **Entry flow (owner decision 2026-10-27, `digitva-5bzf`).** The first-run
   screen offers "Use without a server" beside enrolment. It creates, on the
-  phone alone: an **offline profile** (name and country required; the other
-  profile fields as the app defines them), a **local account** with its own
+  phone alone: an **offline profile** (name, age, sex, country, HIV and
+  malaria mortality level required for a standalone account, see "Interview
+  start gate" below; the other profile fields as the app defines them), a **local account** with its own
   PIN and its own encrypted store under the Path B rules (SQLCipher, Keystore
   secret plus PIN, auto-lock, five wrong PINs wipe that store only), and a
   **project-less form path**: the interview runs from the instrument bundled in
@@ -622,6 +623,34 @@ access rule below.
   a server account: it holds no grants, never calls the server, and is
   skipped by token refresh, notification polling and sync.
   Informant details are saved only after the standalone consent below.
+- **Interview start gate (owner decision 2026-10-30, `digitva-0vz7`).** No
+  blocker may appear once a standalone interview has started, so the
+  interviewer's name, age, sex, the country, and the HIV and malaria
+  mortality levels must all be in the offline profile before one starts.
+  - *Start gate.* "New interview" on the standalone home is disabled until
+    the profile holds all six, names what is missing and offers "Complete
+    profile". Standalone account setup refuses a profile without them, and
+    the interview screen refuses to create a new standalone draft without
+    them. The values must be ones the form accepts: a name with letters A-Z
+    and spaces left after accents and other characters are removed (as for
+    an account name), and an age of 18 to 89, or 99 for "not stated".
+  - *Prefill and lock.* A new standalone interview starts with the
+    interviewer's name (`Id10010`), age (`Id10010a`), sex (`Id10010b`) and
+    the HIV (`Id10002`) and malaria (`Id10003`) levels filled from the
+    profile (profile "none" is the form's "very low"; "other" sex is
+    "intersex/ambiguous") and locked, through the same prefill and locked
+    questions an enrolled case uses. The interviewer details recalled from
+    the last interview never override them.
+  - *SmartVA fallback.* A standalone interview whose frozen SmartVA settings
+    are empty takes HIV and malaria from its own `Id10002`/`Id10003` answers
+    (high is high; low or very low is not high) and the country from the
+    profile, frozen at completion and marked as coming from the interview.
+    With either answer or the country missing it stays empty and SmartVA
+    asks for settings, as before.
+  - *Drafts already started* (a saved row) are never blocked: they open,
+    continue and complete as before, without new locks.
+  - *Enrolled accounts* are unchanged: their offline profile still needs only
+    name and country, and their prefill comes from the server.
 - **Device identity (owner decision 2026-10-27, `digitva-5bzf`).** On first run
   the phone mints a device UUID, kept in the Keystore-backed secure store,
   never regenerated, and stamped on every standalone interview and coding
@@ -686,6 +715,8 @@ access rule below.
   the existing Rust engine and embedded models in Plus. Local profile mortality
   settings now supply explicit local SmartVA inputs. This supersedes the
   2026-10-27 exclusion; see [SmartVA Generation Policy](smartva-generation-policy.md).
+  An interview with no frozen settings falls back to its own answers
+  (owner decision 2026-10-30, `digitva-0vz7`; "Interview start gate" above).
 - **Plus-only.** Everything here requires the Plus variant on Android
   (arm64); the plain build is unchanged.
 

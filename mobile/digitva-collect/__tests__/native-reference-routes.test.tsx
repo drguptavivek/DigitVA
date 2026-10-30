@@ -433,6 +433,11 @@ jest.mock("../src/platform", () => ({ platformServices: {} }));
 jest.mock("../src/attachmentServices", () => ({ useAttachmentServices: () => ({}) }));
 jest.mock("../src/smartva/ensureLocal", () => ({ ensureLocalSmartVa: jest.fn(async () => undefined) }));
 jest.mock("../src/prefill", () => ({ initialDataFromPrefill: jest.fn(() => ({})) }));
+let mockOfflineProfile: unknown = null;
+jest.mock("../src/offlineProfile", () => ({
+  ...jest.requireActual("../src/offlineProfile"),
+  getOfflineProfile: jest.fn(async () => mockOfflineProfile),
+}));
 jest.mock(
   "@drguptavivek/who-2022-va/native",
   () => ({
@@ -503,6 +508,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAccount.user_id = "u1";
   mockAccount.standalone = false;
+  mockOfflineProfile = null;
   mockDb.getFirstAsync.mockReset().mockResolvedValue(null);
   (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockReset().mockResolvedValue(null);
   mockParams = { userId: "u1", view: "interviews" };
@@ -1813,6 +1819,104 @@ describe("immersive interview form", () => {
     expect(mockFormProps.locale).toBe("en");
     expect(jest.requireMock("../src/auth").authedRawRequest).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
+  });
+
+  describe("standalone start gate and prefill (digitva-0vz7)", () => {
+    const READY = {
+      name: "Asha Devi", age_years: 34, sex: "female", designation: "", facility_name: "", country: "India", state: "",
+      hiv_mortality: "high", malaria_mortality: "none", updated_at: "2026-10-30T00:00:00Z",
+    };
+    const LOCKED = ["Id10010", "Id10010a", "Id10010b", "Id10002", "Id10003"];
+    const grantConsent = async () => {
+      const notice = (mockConsentProps!.config as { notice_versions: Array<{ notice_version_id: string }> }).notice_versions[0]!;
+      await act(async () => {
+        (mockConsentProps!.onDecision as (envelope: unknown) => void)({
+          client_id: "standalone-consent", client_draft_id: FORM_ID, notice_version_id: notice.notice_version_id, decision: "granted",
+        });
+      });
+      await settle();
+    };
+    const draftConfigWrites = () => (jest.requireMock("../src/drafts").setMeta as jest.Mock).mock.calls
+      .filter(([, key]) => key === `draft-config:${FORM_ID}`);
+    beforeEach(() => {
+      mockAccount.user_id = "standalone-device";
+      mockAccount.standalone = true;
+      mockConsentProps = undefined;
+    });
+
+    it("refuses a new interview without a ready profile and writes nothing for it", async () => {
+      mockOfflineProfile = { ...READY, sex: null, age_years: 17 };
+      const tree = await open("standalone-device");
+      expect(JSON.stringify(tree.toJSON())).toContain("standaloneProfileIncomplete");
+      expect(mockFormProps.instrument).toBeUndefined();
+      expect(mockConsentProps).toBeUndefined();
+      expect(draftConfigWrites()).toHaveLength(0);
+      expect(jest.requireMock("../src/drafts").createDraftStore).not.toHaveBeenCalled();
+      await act(async () => { tree.root.findByProps({ "data-label": "cancel" }).props.onClick(); });
+      expect(mockRouter.back).toHaveBeenCalled();
+      await act(async () => tree.unmount());
+    });
+
+    it("prefills and locks a new interview from a ready profile and keeps the prefill with the draft", async () => {
+      mockOfflineProfile = READY;
+      const tree = await open("standalone-device");
+      await grantConsent();
+      const prefill = {
+        interviewer: { name: "Asha Devi", age: 34, sex: "female" },
+        answers: { Id10002: "high", Id10003: "veryl" },
+        lockedQuestionNames: LOCKED,
+      };
+      expect(jest.requireMock("../src/prefill").initialDataFromPrefill).toHaveBeenCalledWith(prefill);
+      expect(mockFormProps.lockedQuestionNames).toEqual(LOCKED);
+      expect(jest.requireMock("../src/drafts").createDraftStore).toHaveBeenCalledWith(mockDb, expect.objectContaining({
+        binding: { projectId: expect.any(String), prefill },
+      }));
+      expect(draftConfigWrites()[0]![2]).toMatchObject({ smartva: { options: { country: "India", hiv: true, malaria: false } } });
+      await act(async () => tree.unmount());
+    });
+
+    it("opens a started draft without a ready profile, with the locks it started with", async () => {
+      mockOfflineProfile = null;
+      (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValue({ completed: false });
+      (mockDb.getFirstAsync as jest.Mock).mockResolvedValueOnce({
+        envelope: JSON.stringify({ locale: "en" }),
+        prefill: JSON.stringify({ answers: { Id10002: "low" }, lockedQuestionNames: ["Id10002"] }),
+      });
+      const tree = await open("standalone-device");
+      expect(JSON.stringify(tree.toJSON())).not.toContain("standaloneProfileIncomplete");
+      await grantConsent();
+      expect(mockFormProps.instrument).toBeTruthy();
+      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10002"]);
+      await act(async () => tree.unmount());
+    });
+
+    it("freezes SmartVA settings from the interview's answers at completion when none were frozen", async () => {
+      mockOfflineProfile = { ...READY, hiv_mortality: null, malaria_mortality: null };
+      const savedConfig = { projectId: "standalone-device-project", locale: "en", enabledExtensions: [], instrumentCode: "WHO_2022_VA", smartva: null };
+      (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValue({ completed: false });
+      (mockDb.getFirstAsync as jest.Mock).mockResolvedValueOnce({ envelope: JSON.stringify({ locale: "en" }) });
+      savedConfig.projectId = (jest.requireActual("../src/standalone/project") as typeof import("../src/standalone/project"))
+        .standaloneProjectId("standalone-device");
+      (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) => (key === `draft-config:${FORM_ID}` ? savedConfig : undefined));
+      const tree = await open("standalone-device");
+      await grantConsent();
+      const saveDraft = jest.fn(async () => undefined);
+      await act(async () => {
+        (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft, showProblems: jest.fn() });
+      });
+      await act(async () => {
+        await (mockFormProps.onComplete as (r: unknown) => Promise<void>)({
+          valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02", Id10002: "low", Id10003: "high" },
+        });
+      });
+      await settle();
+      const frozen = draftConfigWrites().at(-1)![2] as { smartva: { source: string; options: Record<string, unknown> } };
+      expect(frozen.smartva).toMatchObject({ source: "interview", options: { country: "India", hiv: false, malaria: true } });
+      const ensure = jest.requireMock("../src/smartva/ensureLocal").ensureLocalSmartVa as jest.Mock;
+      const setMetaMock = jest.requireMock("../src/drafts").setMeta as jest.Mock;
+      expect(setMetaMock.mock.invocationCallOrder.at(-1)).toBeLessThan(ensure.mock.invocationCallOrder[0]);
+      await act(async () => tree.unmount());
+    });
   });
 
   it("runs Save now, Finish as incomplete and Back through their handlers", async () => {

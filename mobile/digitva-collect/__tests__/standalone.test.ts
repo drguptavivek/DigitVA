@@ -56,8 +56,8 @@ import { listStandaloneRecords } from "../src/standalone/records";
 import { interviewConsentGate } from "../src/consentStore";
 
 const profile = (over: Record<string, unknown> = {}) => ({
-  name: " Asha ", country: "India", facility_name: "PHC 1", org_code: "UNIT7", age_years: null, sex: null,
-  designation: "", state: "", hiv_mortality: null, malaria_mortality: null, updated_at: "", ...over,
+  name: " Asha ", country: "India", facility_name: "PHC 1", org_code: "UNIT7", age_years: 34, sex: "female",
+  designation: "", state: "", hiv_mortality: "low", malaria_mortality: "none", updated_at: "", ...over,
 }) as Parameters<typeof setUpStandaloneAccount>[0];
 
 function memoryDb(): Db {
@@ -89,8 +89,17 @@ describe("local standalone account", () => {
   });
 
   it("is refused without a name or country, and leaves no account", async () => {
-    await expect(setUpStandaloneAccount(profile({ name: " " }))).rejects.toThrow("offline_profile_name_required");
-    await expect(setUpStandaloneAccount(profile({ country: "" }))).rejects.toThrow("offline_profile_country_required");
+    await expect(setUpStandaloneAccount(profile({ name: " " }))).rejects.toThrow("standalone_profile_incomplete");
+    await expect(setUpStandaloneAccount(profile({ country: "" }))).rejects.toThrow("standalone_profile_incomplete");
+    expect(await loadAccounts()).toEqual([]);
+  });
+
+  // digitva-0vz7: a standalone interview prefills and locks these, so the account needs them before it exists.
+  it.each([
+    { age_years: null }, { age_years: 17 }, { sex: null }, { hiv_mortality: null }, { malaria_mortality: null }, { name: "आशा" },
+  ])("is refused without every field an interview prefills (%o), and saves no profile or account", async (over) => {
+    await expect(setUpStandaloneAccount(profile(over))).rejects.toThrow("standalone_profile_incomplete");
+    expect(await getOfflineProfile()).toBeNull();
     expect(await loadAccounts()).toEqual([]);
   });
 

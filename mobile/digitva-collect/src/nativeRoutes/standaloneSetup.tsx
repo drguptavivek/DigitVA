@@ -1,5 +1,6 @@
 /**
- * Path C first run: the complete offline profile (name and country required) then the local standalone account.
+ * Path C first run: the complete offline profile (name, age, sex, country, HIV and malaria levels required: an
+ * interview prefills them, digitva-0vz7) then the local standalone account.
  * No network. On success the person goes to the ordinary PIN setup, which creates the encrypted store, so PIN and
  * lock behave exactly as for an enrolled account.
  */
@@ -10,8 +11,8 @@ import { Platform, Text } from "react-native";
 import { useAppState } from "../AppState";
 import { isPlusVariant } from "../appVariant";
 import { t } from "../i18n";
-import { OfflineProfileForm } from "../offlineProfileForm";
-import { getOfflineProfile, type OfflineProfile } from "../offlineProfile";
+import { OfflineProfileForm, standaloneProfileMissingText } from "../offlineProfileForm";
+import { getOfflineProfile, standaloneProfileMissing, type OfflineProfile } from "../offlineProfile";
 import { setUpStandaloneAccount } from "../standalone/account";
 import { errorText, Screen, useUiStyles } from "../ui";
 
@@ -46,6 +47,7 @@ export default function StandaloneSetup() {
       const code = caught instanceof Error ? caught.message : "";
       setError(
         code === "standalone_server_session_active" ? t("standaloneLogoutRequired")
+        : code === "standalone_profile_incomplete" ? standaloneProfileMissingText(standaloneProfileMissing(profile))
         : code === "offline_profile_name_required" ? t("offlineProfileNeedName")
         : code === "offline_profile_country_required" ? t("offlineProfileNeedCountry")
         : code === "offline_profile_age_invalid" ? t("offlineProfileNeedAge")
@@ -68,6 +70,7 @@ export default function StandaloneSetup() {
         onSubmit={create}
         onCancel={() => router.back()}
         cancelLabel={t("cancel")}
+        allRequired
       />
     </Screen>
   );

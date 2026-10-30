@@ -32,7 +32,8 @@ import { ActivityIndicator, AppState, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
-import { getOfflineProfile } from "../offlineProfile";
+import { getOfflineProfile, standaloneProfileMissing, standalonePrefill } from "../offlineProfile";
+import { standaloneProfileMissingText } from "../offlineProfileForm";
 import { standaloneConsentConfigWithSavedNotice } from "../standalone/noticeSettings";
 import { STANDALONE_DEFAULT_EXTENSIONS } from "../standalone/config";
 import { STANDALONE_SITE_ID, standaloneDefinition, standaloneProject, standaloneProjectId } from "../standalone/project";
@@ -116,7 +117,14 @@ import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
 import { coalesceLatest } from "../coalesceSaves";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { useWhoFormTheme } from "../whoWebTheme";
-import { isSmartVaOptionsSnapshot, projectSmartVaSnapshot, standaloneSmartVaSnapshot, type SmartVaOptionsSnapshot, type SmartVaTarget } from "../smartva/options";
+import {
+  isSmartVaOptionsSnapshot,
+  projectSmartVaSnapshot,
+  standaloneSmartVaSnapshot,
+  standaloneSmartVaSnapshotFromAnswers,
+  type SmartVaOptionsSnapshot,
+  type SmartVaTarget,
+} from "../smartva/options";
 import { RefusalPanel } from "../RefusalPanel";
 import { isRefused, refusalAnswers } from "../refusalBoundary";
 import { runInTransaction } from "../dbTransaction";
@@ -412,17 +420,31 @@ export default function Form() {
             : { projectId, locale: "en", enabledExtensions: [...STANDALONE_DEFAULT_EXTENSIONS], instrumentCode: "WHO_2022_VA" };
           const definition = standaloneDefinition(config.enabledExtensions);
           const needsSmartVaSnapshot = !Object.prototype.hasOwnProperty.call(config, "smartva");
+          const profile = !row || needsSmartVaSnapshot ? await getOfflineProfile().catch(() => null) : null;
+          // A new interview starts only from a complete profile, which it prefills and locks (digitva-0vz7);
+          // nothing is written for it. A draft with a row opens as before, with the prefill it started from.
+          let prefill: Prefill | undefined;
+          if (!row) {
+            const missing = standaloneProfileMissing(profile);
+            if (missing.length) {
+              if (!active || generation !== loadGeneration.current) return;
+              setBlockedReferenceData(true);
+              setMessage(standaloneProfileMissingText(missing));
+              return;
+            }
+            prefill = standalonePrefill(profile!);
+          }
           if (needsSmartVaSnapshot) {
-            const profile = await getOfflineProfile().catch(() => null);
             config = {
               ...config,
               smartva: await standaloneSmartVaSnapshot(profile, config.instrumentCode, definition.instrument.version),
             };
           }
           if (row) {
-            const stored = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
+            const stored = await db.getFirstAsync<{ envelope: string; prefill?: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [draftId]);
             if (!stored) throw new Error("draft_missing");
             config = withEnvelopeLocale(config, JSON.parse(stored.envelope));
+            prefill = stored.prefill ? (JSON.parse(stored.prefill) as Prefill) : undefined;
           }
           if (!row || needsSmartVaSnapshot) await setMeta(db, draftConfigKey(draftId), config);
           if (!active || generation !== loadGeneration.current) return;
@@ -438,7 +460,8 @@ export default function Form() {
             standalone: true,
             projectId,
             siteId: STANDALONE_SITE_ID,
-            binding: { projectId },
+            prefill,
+            binding: { projectId, ...(prefill ? { prefill } : {}) },
           });
           setLocale(config.locale);
         } catch (error) {
@@ -1268,6 +1291,7 @@ export default function Form() {
         // The answer save is already durable; a concurrent milestone write must not strand it.
       }
       await markCompleted(loaded.db, draftId, completion);
+      if (loaded.standalone && loaded.config.smartva === null) await freezeSmartVaFromAnswers(result.data);
       if (autoRunSmartVa && completion.valid && !isRefused(result.data, consentView.kind === "ready" ? consentView.decision : undefined)) {
         void ensureLocalSmartVa({ db: loaded.db, userId: account!.user_id, draftId }).catch(() => undefined);
       }
@@ -1279,6 +1303,26 @@ export default function Form() {
     }
     leaveGuard.release();
     router.back();
+  }
+
+  /**
+   * A standalone interview frozen with no SmartVA settings (its profile lacked them at first save) takes HIV and
+   * malaria from its own Id10002/Id10003 answers and the country from the profile (digitva-0vz7). Best effort: the
+   * interview is already complete, and SmartVA asks for settings when this leaves them empty.
+   */
+  async function freezeSmartVaFromAnswers(data: SubmissionValidationResult["data"]) {
+    if (!loaded || !draftId) return;
+    try {
+      const profile = await getOfflineProfile().catch(() => null);
+      const smartva = await standaloneSmartVaSnapshotFromAnswers(profile, data, loaded.config.instrumentCode, loaded.definition.instrument.version);
+      if (!smartva) return;
+      const stored = await getMeta<DraftConfig>(loaded.db, draftConfigKey(draftId));
+      if (!isDraftConfig(stored) || stored.smartva != null) return;
+      loaded.config = { ...stored, smartva };
+      await setMeta(loaded.db, draftConfigKey(draftId), loaded.config);
+    } catch {
+      // Left empty: SmartVA reports config_needed, as before.
+    }
   }
 
   /** Finish without the form's own "complete": allowed for an incomplete outcome only. */

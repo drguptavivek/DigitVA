@@ -1,10 +1,11 @@
 /**
  * Path C home: the standalone account's local interviews and offline coding, an age warning on records older than
  * STANDALONE_AGE_WARNING_DAYS, a backup reminder every BACKUP_REMINDER_DAYS, and the export, backup and restore
- * actions (src/standalone/DataActions.tsx). Standalone work remains local after enrollment too.
+ * actions (src/standalone/DataActions.tsx). Standalone work remains local after enrollment too. "New interview" waits
+ * for a complete offline profile (standaloneProfileMissing, digitva-0vz7); existing records are never gated.
  */
 import { randomUUID } from "expo-crypto";
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
@@ -12,6 +13,8 @@ import { useAppState } from "../AppState";
 import { retryHeldDraft, type Db } from "../drafts";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { t } from "../i18n";
+import { getOfflineProfile, standaloneProfileMissing, type StandaloneProfileField } from "../offlineProfile";
+import { standaloneProfileMissingText } from "../offlineProfileForm";
 import { backupReminder, isOverAgeLimit } from "../standalone/age";
 import { heldText } from "../standalone/adopt";
 import { DataActions } from "../standalone/DataActions";
@@ -32,6 +35,15 @@ export default function StandaloneHome() {
   const [backupAt, setBackupAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => new Date());
+  // Undefined until read; re-read on every return to this screen (from "Complete profile" or Settings).
+  const [profileMissing, setProfileMissing] = useState<StandaloneProfileField[]>();
+  useFocusEffect(useCallback(() => {
+    let live = true;
+    void getOfflineProfile().catch(() => null).then((profile) => {
+      if (live) setProfileMissing(standaloneProfileMissing(profile));
+    });
+    return () => { live = false; };
+  }, []));
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(timer);
@@ -77,7 +89,17 @@ export default function StandaloneHome() {
         </View>
       ) : null}
       {dataActionsAllowed(account) ? <DataActions db={db} userId={account.user_id} onChanged={() => void load()} /> : null}
-      <Button label={t("standaloneNewInterview")} onPress={() => router.push({ pathname: "/form", params: formParams(randomUUID()) })} />
+      <Button
+        label={t("standaloneNewInterview")}
+        disabled={profileMissing?.length !== 0}
+        onPress={() => router.push({ pathname: "/form", params: formParams(randomUUID()) })}
+      />
+      {profileMissing?.length ? (
+        <View style={[styles.card, { gap: 8 }]}>
+          <Text accessibilityRole="alert" style={styles.error}>{standaloneProfileMissingText(profileMissing)}</Text>
+          <Button kind="secondary" label={t("standaloneProfileComplete")} onPress={() => router.push("/offline-profile")} />
+        </View>
+      ) : null}
       {records.length === 0 ? <Text style={styles.muted}>{t("standaloneNoRecords")}</Text> : null}
       {records.map((record) => (
         <View key={record.id} style={[styles.card, { gap: 8 }]}>

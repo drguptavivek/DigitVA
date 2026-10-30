@@ -1910,5 +1910,9 @@
   "dataRestoreNewer": "इस फ़ोन के {count} रिकॉर्ड बैकअप से नए हैं। बहाल करने पर वे बैकअप वाले संस्करण से बदल जाएँगे।",
   "dataRestoreReplace": "बदलें और बहाल करें",
   "homeUnsentFiles": "प्रतीक्षा में संलग्न फ़ाइलें: {count}",
-  "revisionsNeedConnection": "संशोधनों के लिए कनेक्शन चाहिए।"
+  "revisionsNeedConnection": "संशोधनों के लिए कनेक्शन चाहिए।",
+  "standaloneProfileIncomplete": "साक्षात्कार शुरू करने से पहले अपनी प्रोफ़ाइल पूरी करें। बाकी: {fields}",
+  "standaloneProfileComplete": "प्रोफ़ाइल पूरी करें",
+  "standaloneProfileNameField": "नाम (अंग्रेज़ी अक्षर A से Z और स्पेस)",
+  "standaloneProfileAgeField": "उम्र (18 से 89, या न बताने पर 99)"
 }

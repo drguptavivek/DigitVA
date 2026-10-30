@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "KD3B.1",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": false,
@@ -50,7 +52,9 @@
     "body": {
      "item": {
       "code": "KD3B.1",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": false,

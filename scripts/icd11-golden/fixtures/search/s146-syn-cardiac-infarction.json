@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BA41.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute myocardial infarction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "BA43",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Coronary thrombosis not resulting in myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "8B11.20",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Cerebral ischaemic stroke due to cardiac embolism",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "BA60.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cardiac rupture as current complication following acute myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,

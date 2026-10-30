@@ -13,7 +13,7 @@ import { HierarchyCard } from "./HierarchyCard";
 import { Reveal } from "./Panel";
 import { RelatedCard, type RelatedTerm } from "./RelatedCard";
 import { ResultRow, type Chapter } from "./ResultRow";
-import { isComplete, isMandatory, looksCode, splitExpression, type PickerItem } from "./expression";
+import { isComplete, isMandatory, looksCode, notFinal, splitExpression, type PickerItem } from "./expression";
 import { errorMessage, Notice, usePost } from "./transport";
 
 const MAX_QUERY = 80;
@@ -47,7 +47,7 @@ const rowKey = (item: PickerItem): string => `${item.code}:${item.uri}`;
  * the buttons stay in view. On a tablet the buttons sit beside the text, one row, so landscape keeps its height for the
  * cards. Nothing leaves the picker until OK has the server verify the pair.
  */
-function Footer({ selection, building, message, verifying, onConfirm, onUseBuilt }: { selection: PickerItem | null; building: BuildPreview | null; message: Message; verifying: boolean; onConfirm: () => void; onUseBuilt: (item: PickerItem) => void }) {
+function Footer({ selection, building, message, verifying, onConfirm, onClear, onUseBuilt }: { selection: PickerItem | null; building: BuildPreview | null; message: Message; verifying: boolean; onConfirm: () => void; onClear: () => void; onUseBuilt: (item: PickerItem) => void }) {
   const { t, phone } = useUi();
   const bottom = useSafeAreaInsets().bottom;
   const { height } = useWindowDimensions();
@@ -61,7 +61,7 @@ function Footer({ selection, building, message, verifying, onConfirm, onUseBuilt
           <View testID={selection ? "picker-selection" : "picker-building"}>
             <Text style={{ fontSize: font.caption, fontWeight: "600", letterSpacing: 1, color: t.mutedForeground }}>{caption}</Text>
             <Text style={{ fontSize: font.title, lineHeight: 22, color: t.accentForeground }}>
-              <Text testID={selection ? undefined : "build-preview"} style={{ fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", color: t.primary }}>{shown.code}</Text> — <Text style={{ fontWeight: "600" }}>{shown.title}</Text>
+              <Text testID={selection ? undefined : "build-preview"} style={{ fontWeight: "700", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", color: t.primary }}>{shown.code}</Text> — <Text style={{ fontWeight: "700" }}>{shown.title}</Text>
             </Text>
           </View>
         ) : <Text style={{ fontSize: font.body, color: t.mutedForeground }}>No code selected</Text>}
@@ -74,7 +74,13 @@ function Footer({ selection, building, message, verifying, onConfirm, onUseBuilt
             <Button label="Use complete expression" size="sm" disabled={!building.complete} onPress={() => onUseBuilt(building.built)} />
             {building.stemAlone ? <Button label="Use stem without extensions" variant="outline" size="sm" onPress={() => onUseBuilt(building.stem)} /> : null}
           </>
-        ) : <Button label="OK" accessibilityLabel="Use the selected code" disabled={!selection || verifying} onPress={onConfirm} style={phone ? { flexGrow: 1 } : { minWidth: 160 }} />}
+        ) : (
+          <>
+            <Button label="OK" accessibilityLabel="Use the selected code" disabled={!selection || verifying} onPress={onConfirm} style={phone ? { flexGrow: 1 } : { minWidth: 160 }} />
+            {/* Apart from OK, so a thumb aimed at OK does not land on it. Clears only the staged code; the results stay. */}
+            <Button label="Clear" variant="outline" accessibilityLabel="Clear the selected code" disabled={!selection || verifying} onPress={onClear} style={{ marginLeft: gap.md, minWidth: 96 }} />
+          </>
+        )}
       </View>
     </View>
   );
@@ -144,9 +150,22 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
     if (!finalMode) showDetails(item, false);
     openBuild(item.code, [], scroll);
   };
+  const openHierarchy = (code: string) => {
+    setBuild(null);
+    setHierarchy({ code, ...slot(true) });
+  };
   // A staged choice waits in the footer until OK, so the coder can read Details first. Every way to stage a code
-  // ends here, so a mandatory stem never reaches OK without its builder.
+  // ends here, so a mandatory stem never reaches OK without its builder, and an extension code alone or a category
+  // with children never reaches it at all (WHO's CoDEdit and DORIS would object after processing): a category opens
+  // its hierarchy to choose under it.
   const stage = (item: PickerItem) => {
+    const refused = notFinal(item);
+    if (refused) {
+      setSelection(null);
+      setFooter({ text: refused.message });
+      if (refused.kind === "category") openHierarchy(refused.stem);
+      return;
+    }
     if (needsBuild(item)) {
       routeToBuild(item);
       return;
@@ -183,7 +202,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
       setStatus({ text: cut ? "Showing the first 20 matches. Refine the search to see others." : found.length ? "Choose a result." : "No matching conditions." });
       // A first result that needs postcoordination opens its builder without a tap, and without moving the list.
       const first = found[0];
-      if (first && needsBuild(first)) routeToBuild(first, false);
+      if (first && needsBuild(first) && !notFinal(first)) routeToBuild(first, false);
     } catch (error) {
       if (mine === token.current) setStatus({ text: errorMessage(error), error: true });
     }
@@ -309,7 +328,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
     : <Reveal key={key} scrollTo={reveal(card)} onBack={back}>{content}</Reveal>;
 
   const cards = [
-    details ? place(`details-${details.n}`, details, <DetailsCard item={details.item} post={post} onHierarchy={() => { setBuild(null); setHierarchy({ code: details.item.code, ...slot(true) }); }} onClose={() => setDetails(null)} />) : null,
+    details ? place(`details-${details.n}`, details, <DetailsCard item={details.item} post={post} onHierarchy={() => openHierarchy(details.item.code)} onClose={() => setDetails(null)} />) : null,
     build ? place(`build-${build.n}`, build, <BuildCard stemCode={build.stem} preselect={build.preselect} post={post} inFooter={!selection} onPreview={setBuilding} onUse={useBuilt} onCancel={() => setBuild(null)} />) : null,
     hierarchy ? place(`hierarchy-${hierarchy.n}`, hierarchy, <HierarchyCard code={hierarchy.code} post={post} onNode={(node) => setHierarchy({ ...hierarchy, code: node.code })} onUse={useHierarchyNode} onBuild={(node) => openBuild(node.code)} onClose={() => setHierarchy(null)} />) : null,
     related ? place(`related-${related.n}`, related, <RelatedCard item={related.item} chapter={related.chapter} post={post} onCode={pickRelated} onChapter={(chapter) => setRelated({ ...related, chapter, ...slot(true) })} onClose={() => setRelated(null)} />) : null,
@@ -349,7 +368,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
         </ScrollView>
         {twoPane ? <ScrollView testID="picker-detail" style={{ flex: 1 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={{ padding: gap.md, gap: gap.sm }}>{cards}</ScrollView> : null}
       </View>
-      <Footer selection={selection} building={building} message={footer} verifying={verifying} onConfirm={() => void confirm()} onUseBuilt={useBuilt} />
+      <Footer selection={selection} building={building} message={footer} verifying={verifying} onConfirm={() => void confirm()} onClear={() => { setSelection(null); setFooter({ text: "" }); }} onUseBuilt={useBuilt} />
     </KeyboardAvoidingView>
   );
 }

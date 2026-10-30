@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BA6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ischaemic heart diseases, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "JA24.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Pre-eclampsia, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "KA00.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fetus or newborn affected by maternal hypertensive disorders",
        "postcoordination": false,
        "postcoordination_availability": 0,

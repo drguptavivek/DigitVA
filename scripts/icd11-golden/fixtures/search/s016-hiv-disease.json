@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1C62.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "QC90.6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Contact with or exposure to human immunodeficiency virus",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1C60.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Human immunodeficiency virus disease associated with tuberculosis, clinical stage unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "1C62.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "HIV disease clinical stage 3 without mention of tuberculosis or malaria",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1C62.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "HIV disease clinical stage 1 without mention of tuberculosis or malaria",
        "postcoordination": true,
        "postcoordination_availability": 1,

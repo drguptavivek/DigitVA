@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "KB23.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory distress syndrome of newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "9C81.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Third nerve palsy, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "NA04.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Injury of oculomotor nerve",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "LA6Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified structural developmental anomalies of the neck",
        "postcoordination": false,
        "postcoordination_availability": 0,

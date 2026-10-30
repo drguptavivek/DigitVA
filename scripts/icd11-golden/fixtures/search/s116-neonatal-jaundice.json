@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "KA87.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal hyperbilirubinaemia, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "KA87.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal hyperbilirubinaemia due to breast milk inhibitor of bilirubin conjugation",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA87.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified neonatal hyperbilirubinaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KA87.6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal hyperbilirubinaemia from other or unspecified hepatocellular damage",
        "postcoordination": false,
        "postcoordination_availability": 0,

@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MH11.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sudden infant death syndrome, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,

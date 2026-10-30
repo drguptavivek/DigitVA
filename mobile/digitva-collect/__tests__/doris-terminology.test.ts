@@ -1,6 +1,6 @@
 /** Terms search and code information (dorisTerminology.ts): the server's search_terms, search_context_from_entity and _codeinfo_item. */
 import {
-  codeinfoItem, postcoordinationAvailability, searchContextFromEntity, searchTerms, validSubtreeUris,
+  codeinfoItem, postcoordinationAvailability, searchContextFromEntity, searchTerms, selectionRefusal, validSubtreeUris,
 } from "../src/workspace/dorisTerminology";
 import { WhoUnavailableError, type EntityRead, type WhoEngineApi } from "../src/workspace/whoEngineApi";
 
@@ -77,9 +77,19 @@ describe("searchTerms", () => {
       items: [{
         code: "BA41.Z", title: "Acute myocardial infarction", uri: "http://id.who.int/icd/release/11/2026-01/mms/1", release: "2026-01",
         matching_text: "Acute myocardial infarction", postcoordination: true, postcoordination_availability: 1,
-        related_maternal: true, related_perinatal: false, has_coding_note: true,
+        related_maternal: true, related_perinatal: false, has_coding_note: true, extension: false,
       }],
     });
+  });
+
+  it("flags an extension by WHO's chapter, else by an X code, and passes isLeaf on only when WHO sent a boolean", async () => {
+    const reply = await search([
+      entity({ theCode: "XK8G", chapter: "X", isLeaf: true }),
+      entity({ theCode: "NC72", chapter: "22", isLeaf: false }),
+      entity({ theCode: "XA0001", isLeaf: "false" }),
+    ]);
+    expect(reply.items.map((item) => [item.code, item.extension, item.leaf])).toEqual([["XK8G", true, true], ["NC72", false, false], ["XA0001", true, undefined]]);
+    expect(reply.items[2]).not.toHaveProperty("leaf");
   });
 
   it("falls back across code, uri and title fields, and skips what has no code, uri or title", async () => {
@@ -154,6 +164,7 @@ describe("codeinfoItem", () => {
     await expect(codeinfoItem(client(entity), "BA41.Z")).resolves.toEqual({
       code: "BA41.Z", title: "Acute myocardial infarction, unspecified", uri: stemUri, release: "2026-01",
       postcoordination: true, postcoordination_availability: 1, related_maternal: true, related_perinatal: false, has_coding_note: true,
+      leaf: true, extension: false,
     });
   });
 
@@ -165,7 +176,7 @@ describe("codeinfoItem", () => {
     expect((await codeinfoItem(withLabel, "BA41.Z"))?.title).toBe("Own label");
     expect((await codeinfoItem(client(ok({ label: "Entity label" })), "BA41.Z"))?.title).toBe("Entity label");
     await expect(codeinfoItem(client(entity), "1B12.2&XA0G74")).resolves.toEqual({
-      code: "1B12.2&XA0G74", title: "Entity title", release: "2026-01", postcoordination: false,
+      code: "1B12.2&XA0G74", title: "Entity title", release: "2026-01", postcoordination: false, leaf: true, extension: false,
       uri: "http://id.who.int/icd/release/11/2026-01/mms/2 & http://id.who.int/icd/release/11/2026-01/mms/3",
     });
     const slash = await codeinfoItem(client(entity, { ...record, "1B12.2/XA0G74": { code: "1B12.2/XA0G74", stemId: stemUri } }), "1B12.2/XA0G74");
@@ -189,5 +200,43 @@ describe("codeinfoItem", () => {
     await expect(codeinfoItem(who({ codeinfo: boom }), "BA41.Z")).rejects.toThrow(WhoUnavailableError);
     await expect(codeinfoItem(who({ codeinfo: async () => record["BA41.Z"], entity: boom }), "BA41.Z")).rejects.toThrow(WhoUnavailableError);
     await expect(codeinfoItem(client(ok({ title: "T", postcoordinationScale: "bad" })), "BA41.Z")).rejects.toThrow(WhoUnavailableError);
+  });
+});
+
+describe("selectionRefusal", () => {
+  const EXTENSION = (code: string) => `${code} is an extension code. It cannot be used alone: add it to a stem through + Build.`;
+  const CATEGORY = (code: string) => `${code} is a category, not a final code. Choose a more specific code under it.`;
+  const item = (code: string, leaf: boolean) => ({ code, title: "t", uri: "u", release: "2026-01", postcoordination: false, leaf, extension: code.startsWith("X") });
+  const stems: Record<string, Json> = { BD54: {}, NC72: { child: ["c"] }, MC85: { child: [] } };
+  const client = () => {
+    const codeinfo = jest.fn(async (code: string) => (code in stems ? { code, stemId: `http://id.who.int/${code}` } : null));
+    const entity = jest.fn(async (uri: string): Promise<EntityRead> => {
+      const code = uri.split("/").pop() as string;
+      return { kind: "ok", entity: { code, ...stems[code] } };
+    });
+    return { api: who({ codeinfo, entity }), codeinfo, entity };
+  };
+
+  it("refuses an extension alone and a category from the item's own flags, without calling WHO", async () => {
+    const { api, codeinfo } = client();
+    await expect(selectionRefusal(api, item("XK8G", true))).resolves.toBe(EXTENSION("XK8G"));
+    await expect(selectionRefusal(api, item("NC72", false))).resolves.toBe(CATEGORY("NC72"));
+    await expect(selectionRefusal(api, item("NC72&XK8G", false))).resolves.toBe(CATEGORY("NC72"));
+    await expect(selectionRefusal(api, item("NC72.7&XK8G", true))).resolves.toBeNull();
+    expect(codeinfo).not.toHaveBeenCalled();
+  });
+
+  it("reads each further cluster stem with one codeinfo and one entity", async () => {
+    const { api, codeinfo, entity } = client();
+    await expect(selectionRefusal(api, item("JB64.4/BD54/MC85", true))).resolves.toBeNull();
+    expect(codeinfo.mock.calls.map(([code]) => code)).toEqual(["BD54", "MC85"]);
+    expect(entity).toHaveBeenCalledTimes(2);
+    await expect(selectionRefusal(api, item("JB64.4/NC72&XK8G", true))).resolves.toBe(CATEGORY("NC72"));
+    await expect(selectionRefusal(api, item("JB64.4/XK8G", true))).resolves.toBe(EXTENSION("XK8G"));
+  });
+
+  it("is unavailable when WHO cannot read a further stem", async () => {
+    const { api } = client();
+    await expect(selectionRefusal(api, item("JB64.4/ZZ99", true))).rejects.toBeInstanceOf(WhoUnavailableError);
   });
 });

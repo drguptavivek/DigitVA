@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "EH1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal skin infection, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "KA65.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal infections of other specified sites",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "KA63.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal candidosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "1A2Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified viral intestinal infections",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "1A0Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified bacterial intestinal infections",
        "postcoordination": true,
        "postcoordination_availability": 1,

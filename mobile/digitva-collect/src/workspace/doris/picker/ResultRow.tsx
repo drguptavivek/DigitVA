@@ -3,8 +3,8 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions, type LayoutChan
 
 import { controlText } from "../../../theme";
 import { Button, font, gap, uiRadius, useUi } from "../ui";
-import { isComplete, isMandatory, type PickerItem } from "./expression";
-import { MaternalIcon, PerinatalIcon } from "./icons";
+import { isComplete, isMandatory, notFinal, type PickerItem } from "./expression";
+import { MaternalIcon, PerinatalIcon, UseIcon } from "./icons";
 
 export type Chapter = "maternal" | "perinatal";
 
@@ -32,8 +32,10 @@ const TINTS = {
   note: [2, "soft"],
 } as const;
 
+/** "+ Build" only for a code that can be a stem: never an extension alone or a category with children. */
+const buildable = (item: PickerItem): boolean => Boolean(item.postcoordination) && !notFinal(item);
 /** Whether a result has any badge to draw. */
-const hasBadges = (item: PickerItem): boolean => Boolean(item.postcoordination || item.related_maternal || item.related_perinatal || item.has_coding_note);
+const hasBadges = (item: PickerItem): boolean => Boolean(buildable(item) || item.related_maternal || item.related_perinatal || item.has_coding_note);
 
 /** The pill box: 28 dp tall (hit-slop 8 brings the reach to 44), grows with its text. */
 function pillBox(borderColor: string, backgroundColor: string) {
@@ -62,9 +64,10 @@ export function ContextBadges({ item, onRelated, onBuild, onDetails }: BadgeProp
   const tint = (index: number) => pillText(t.chart[index].foreground);
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: gap.xs }}>
-      {item.postcoordination ? (
+      {buildable(item) ? (
         <Tag label={mandatory ? "Mandatory postcoordination" : "Postcoordination available"} kind={mandatory ? "required" : "post"} onPress={onBuild}>
-          <Text maxFontSizeMultiplier={PILL_SCALE} style={tint(1)}>{onBuild ? "+ Build" : "+"}</Text>
+          {/* "required" says in words what the web says only by leaving out Use: this code cannot be used as it is. */}
+          <Text maxFontSizeMultiplier={PILL_SCALE} style={tint(1)}>{onBuild ? (mandatory && !isComplete(item.code) ? "+ Build (required)" : "+ Build") : "+"}</Text>
         </Tag>
       ) : null}
       {item.related_maternal ? (
@@ -91,7 +94,7 @@ const AGE_NOTE = "Usually used only for certain age groups.";
 
 export interface ResultRowProps {
   item: PickerItem;
-  /** Tap on line 1: stages the code, or opens the builder when postcoordination is mandatory (the picker's `stage`). */
+  /** Tap on line 1: stages the code, or opens the builder when postcoordination is mandatory (the picker's `stage`); also the "Choose specific" pill. */
   onTitle: () => void;
   onUse: () => void;
   onDetails: () => void;
@@ -106,23 +109,26 @@ export interface ResultRowProps {
 /**
  * One search result as a flat two-line row with a hairline below (no card). Line 1 is a single tap target for the
  * whole line (code and title; the picker's `stage` decides between Use and Build) with a trailing "ⓘ" for Details.
- * Line 2 exists only when there is something to show: the badge pills, the matched wording on one line, and the
- * age-restricted tag. Hierarchy is in the Details card. At a font scale of 1.5 or more the Details control moves
- * under line 1 so the title keeps the width.
+ * Line 2 exists only when there is something to show: a "Use" pill when the code can be used as it is (the web's
+ * rule; in its place "Choose specific ▸" for a category and an "Extension" marker for an extension code), the badge pills, the matched wording on one line, and the age-restricted tag. Hierarchy is in the Details
+ * card. At a font scale of 1.5 or more the Details control moves under line 1 so the title keeps the width.
  */
 export function ResultRow({ item, onTitle, onUse, onDetails, onRelated, onBuild, inline, onLayout }: ResultRowProps) {
   const { t } = useUi();
   const stacked = useWindowDimensions().fontScale >= STACK_FONT_SCALE;
-  const showUse = isComplete(item.code) || !isMandatory(item);
+  const refused = notFinal(item);
+  const showUse = !refused && (isComplete(item.code) || !isMandatory(item));
   const matched = item.matching_text && item.matching_text !== item.title ? item.matching_text : "";
-  const hasMeta = Boolean(matched || item.age_restricted || hasBadges(item));
+  // Narrow rows have no Use button on line 1, so a code usable as it is gets a Use pill first on line 2 (the web's rule).
+  const usePill = showUse && !inline;
+  const hasMeta = Boolean(matched || item.age_restricted || hasBadges(item) || usePill || refused);
   const needsBuild = isMandatory(item) && !isComplete(item.code);
   return (
     <View onLayout={onLayout} style={{ paddingVertical: 2, paddingHorizontal: gap.xs, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border }}>
       <View testID="result-line" style={{ flexDirection: stacked ? "column" : "row", alignItems: stacked ? "stretch" : "center", gap: gap.xs }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${item.code} ${item.title}`} accessibilityHint={needsBuild ? "Opens the builder, because postcoordination is mandatory" : "Selects this code"} onPress={onTitle} style={[{ minHeight: 44, justifyContent: "center" }, stacked ? null : { flex: 1 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${item.code} ${item.title}`} accessibilityHint={refused?.kind === "category" ? "Opens the hierarchy to choose a more specific code" : refused ? "Explains how to use an extension code" : needsBuild ? "Opens the builder, because postcoordination is mandatory" : "Selects this code"} onPress={onTitle} style={[{ minHeight: 44, justifyContent: "center" }, stacked ? null : { flex: 1 }]}>
           <Text style={{ fontSize: font.title, lineHeight: 24, color: t.foreground }}>
-            <Text style={{ color: t.mutedForeground, fontVariant: ["tabular-nums"] }}>{item.code}</Text> — <Text style={{ fontWeight: "600" }}>{item.title}</Text>
+            <Text style={{ fontWeight: "400", color: t.mutedForeground, fontVariant: ["tabular-nums"] }}>{item.code}</Text> — <Text style={{ fontWeight: "700" }}>{item.title}</Text>
           </Text>
         </Pressable>
         {inline ? (
@@ -143,6 +149,22 @@ export function ResultRow({ item, onTitle, onUse, onDetails, onRelated, onBuild,
       </View>
       {hasMeta ? (
         <View testID="result-meta" style={{ flexDirection: "row", flexWrap: stacked ? "wrap" : "nowrap", alignItems: "center", columnGap: gap.xs, rowGap: gap.xs, paddingBottom: gap.xs }}>
+          {usePill ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Use ${item.code}`} hitSlop={8} onPress={onUse} style={pillBox(t.primary, t.background)}>
+              <UseIcon color={t.primary} size={16} /><Text maxFontSizeMultiplier={PILL_SCALE} style={pillText(t.primary)}>Use</Text>
+            </Pressable>
+          ) : null}
+          {refused?.kind === "category" ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Choose a more specific code under ${item.code}`} hitSlop={8} onPress={onTitle} style={pillBox(t.primary, t.background)}>
+              <Text maxFontSizeMultiplier={PILL_SCALE} style={pillText(t.primary)}>Choose specific ▸</Text>
+            </Pressable>
+          ) : refused ? (
+            <View accessible accessibilityLabel={`Extension code ${item.code}: add it to a stem`} style={pillBox(t.border, t.muted)}>
+              <Text maxFontSizeMultiplier={PILL_SCALE} style={pillText(t.mutedForeground)}>Extension</Text>
+            </View>
+          ) : null}
+          {/* A hairline sets Use apart from the pills that open something (Build, J, K, coding note). */}
+          {(usePill || refused) && hasBadges(item) ? <View testID="use-divider" style={{ width: StyleSheet.hairlineWidth * 2, alignSelf: "stretch", marginVertical: 4, marginHorizontal: gap.xs, backgroundColor: t.border }} /> : null}
           <ContextBadges item={item} onRelated={onRelated} onBuild={onBuild} onDetails={onDetails} />
           {item.age_restricted ? (
             <View accessible accessibilityRole="image" accessibilityLabel={`Age-restricted: ${item.restriction_note || AGE_NOTE}`} style={{ minHeight: 28, justifyContent: "center", paddingHorizontal: gap.sm, borderRadius: uiRadius.full, borderWidth: 1, borderColor: t.warningBorder, backgroundColor: t.warning }}>

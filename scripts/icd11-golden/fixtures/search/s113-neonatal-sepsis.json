@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "KA60",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sepsis of fetus or newborn",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "KA60&XN6LP",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sepsis of fetus or newborn due to streptococcus, group A",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA60&XN2M1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sepsis of fetus or newborn due to streptococcus, group B",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KA60&XN6BM",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sepsis of fetus or newborn due to Staphylococcus aureus infection",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KA60&XN6P4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sepsis of fetus or newborn due to Escherichia coli infection",
        "postcoordination": true,
        "postcoordination_availability": 1,

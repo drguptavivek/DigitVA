@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "LA8Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Structural developmental anomaly of heart or great vessels, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1A60.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other late congenital syphilis, symptomatic",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "LA8Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified structural developmental anomaly of heart or great vessels",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "BB01.0/LA8Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Pulmonary arterial hypertension associated with congenital heart disease",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KA00.Y",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Fetus or newborn affected by other specified maternal condition that may be unrelated to present pregnancy",
        "postcoordination": false,
        "postcoordination_availability": 0,

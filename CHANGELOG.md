@@ -19,6 +19,28 @@ What landed, newest first. Details live in the commits and the linked docs;
   there is no migration. Old APKs keep working: the API keeps its old keys and
   still returns 404 for an unmapped code.
 
+- **Only final ICD-11 codes reach a DORIS certificate** (`digitva-9cll.12`,
+  policy `docs/policy/doris-cod-workflow.md`). An extension code alone or a
+  category with children, including as a `/` cluster part, is refused at
+  selection with `422 INVALID_SELECTION` on the server, the offline port and
+  both pickers; WHO flags these only after Process (CoDEdit) or recodes them to
+  `.Z` (DORIS). Both pickers show "Choose specific ▸" or an "Extension" marker
+  in place of Use on such rows; the Collect Plus rows also gain a "Use" pill
+  with a tick, "+ Build (required)" for mandatory stems, bold titles, and
+  Clear after OK. The certificate editor puts Estimated age after the dates,
+  as WHO's workspace does. Golden corpora approved by the owner and
+  re-recorded (455 fixtures: 238 search, 44 postcoordination, 173 DORIS).
+  Every check from search to final save is catalogued in
+  `docs/current-state/doris-validation-checks.md`, with its known gaps (seven
+  filed as beads). The phone now refuses a blank Part I line between causes
+  with the web's words; it already refused, with other words.
+- **Web interview: an empty locked question stays editable** (`digitva-k7m4`).
+  A new web interview opened the interviewer name (Id10010) locked and empty;
+  the draft store now keeps the pre-fill on first open, and the form engine
+  (`vendor/who-va-2022`) locks a question only once it has a value. The server
+  still restores the profile's value on save and submit.
+- **`/app/doris-demo` reloads on the web** instead of returning 404: the route
+  added with Try DORIS was missing from the Flask SPA allowlist.
 - **Collect Plus codes completely offline, the way the web does** (epic
   `digitva-9cll`; design `.tasks/2026-10-29-android-offline-doris-parity.md`,
   as-built interface `docs/current-state/icd11-android-engine-interface.md`).

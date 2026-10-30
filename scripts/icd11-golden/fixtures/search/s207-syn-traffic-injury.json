@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PB80",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self-harm by land transport road traffic injury event",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "PD50",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Assault by land transport road traffic injury event",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "PF40",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Land transport traffic injury event of undetermined intent injuring a pedestrian",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "PF4Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Land transport traffic injury event of undetermined intent injuring a user of other specified land transport",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "PF44",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Land transport traffic injury event of undetermined intent injuring a car occupant",
        "postcoordination": true,
        "postcoordination_availability": 1,

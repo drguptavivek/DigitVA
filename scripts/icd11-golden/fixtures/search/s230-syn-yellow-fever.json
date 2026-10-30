@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1D47",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Yellow fever",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "NE60",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of drugs, medicaments or biological substances, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "QA08.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Special screening examination for other viral diseases",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "QC01.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Need for immunization against yellow fever",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -69,7 +77,9 @@
       },
       {
        "code": "PB28&XM0N24",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional exposure to or harmful effects of yellow fever vaccines",
        "postcoordination": true,
        "postcoordination_availability": 1,

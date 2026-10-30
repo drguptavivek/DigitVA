@@ -23,6 +23,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "death-registration",
         "data",
         "demo",
+        "doris-demo",
         "enrol",
         "engine-check",
         "form",

@@ -55,7 +55,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private readonly csrf: ClientCsrf;
   private readonly sectionOf: ReadonlyMap<string, string>;
   private readonly initialData?: SubmissionData;
-  private readonly initialDataVersion?: string;
+  private initialDataVersion?: string;
   private readonly identity?: ServerDraftStoreOptions["identity"];
   private definitionPin: DefinitionPin | null;
   private readonly onError?: (error: unknown) => void;
@@ -178,8 +178,9 @@ export class ServerDraftStore implements WhoVaDraftStore {
     // completed without ever replacing an answer already stored on the server.
     // Answers kept on this tab after a dead session come back over the server's (digitva-fvbc).
     const kept = readKeptDraft(id, response.draft.updated_at);
+    const prefillApplies = Boolean(this.initialData) && (!this.initialDataVersion || this.initialDataVersion === response.draft.updated_at);
     const mergedData = {
-      ...(this.initialData && (!this.initialDataVersion || this.initialDataVersion === response.draft.updated_at) ? (this.initialData as Record<string, unknown>) : {}),
+      ...(prefillApplies ? (this.initialData as Record<string, unknown>) : {}),
       ...savedData,
       ...(kept ?? {}),
     };
@@ -212,6 +213,10 @@ export class ServerDraftStore implements WhoVaDraftStore {
         { ...pinnedEnvelope, data: savedData as SubmissionData, currentSection: serverCurrentSection },
         { isPinOnly: true }
       );
+      // That write moved updated_at but changed no answer: the form's own load
+      // must still find the prefill current, or every prefilled answer is lost
+      // while its lock stays (Id10010 read-only and empty, digitva-k7m4).
+      if (prefillApplies && this.initialDataVersion) this.initialDataVersion = this.serverUpdatedAt;
     }
     return pinnedEnvelope;
   }

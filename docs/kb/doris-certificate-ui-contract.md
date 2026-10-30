@@ -3,7 +3,7 @@ title: DORIS Certificate UI and API Contract for DigitVA
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-30
 ---
 
 # DORIS Certificate UI and API Contract for DigitVA
@@ -127,7 +127,7 @@ precomputed processor responses.
 | Add/remove condition | Keep each selected complete expression as one removable item; allow several items in one line and in Part II |
 | Enter interval | Show a value and time-unit selector after each line's code entry; convert single-unit answers to ISO 8601 for every condition on that line; preserve an existing ISO value until the coder edits it; omit unused blank lines from the request |
 | Search by term or code | Show compact rows with code and plain title, inline actions, relevant match and any coding/postcoordination detail; do not render WHO-provided highlight HTML unsanitized; indicate incomplete/truncated results |
-| Select code | A guided picker may assemble a stem and WHO-allowed extension choices; retain the complete expression and URI; call server selection-check before marking the chip verified; keep the typed text separate from the selected canonical title |
+| Select code | A guided picker may assemble a stem and WHO-allowed extension choices; retain the complete expression and URI; offer only final codes (an extension code alone, or a category with children, is refused by selection-check with `INVALID_SELECTION`: [DORIS COD Workflow Policy](../policy/doris-cod-workflow.md)); call server selection-check before marking the chip verified; keep the typed text separate from the selected canonical title |
 | See in hierarchy | Show the selected stem within its WHO ancestor path, with bounded sibling and child navigation; keep the selected expression unchanged until the user explicitly confirms a code |
 | Edit any input | Increment `client_revision`; clear the displayed DORIS/CoDEdit results and, in clinical coding, clear the selected final UCOD and disable Save |
 | Process | Send the current bounded certificate to both processors through DigitVA; show independent loading/error/reject states; accept the response only if its echoed `client_revision` matches the editor's current revision. The server returns a signed process token for clinical finalization. |

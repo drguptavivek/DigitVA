@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "2B5F.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sarcoma, not elsewhere classified, primary site unknown",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "2C35",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cutaneous sarcoma",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "2A60.39",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Myeloid sarcoma",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "2B30.1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Classical Hodgkin lymphoma, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "2B5F.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Sarcoma, not elsewhere classified of other specified sites",
        "postcoordination": true,
        "postcoordination_availability": 1,

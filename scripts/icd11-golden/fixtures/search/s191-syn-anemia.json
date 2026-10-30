@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "3A9Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Anaemias or other erythrocyte disorders, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "KA8Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified haemorrhagic or haematological disorders of fetus or newborn",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "3A0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Nutritional or metabolic anaemias, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "3A70.11",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Aplastic anaemia due to other external agents",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "JB64.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Anaemia complicating pregnancy, childbirth or the puerperium",
        "postcoordination": true,
        "postcoordination_availability": 1,

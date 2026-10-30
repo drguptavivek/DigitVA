@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1A40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Infectious gastroenteritis or colitis without specification of infectious agent",
        "postcoordination": true,
        "postcoordination_availability": 1,

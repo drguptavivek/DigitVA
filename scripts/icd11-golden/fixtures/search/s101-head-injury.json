@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "NA0Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Injuries to the head, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "NA0A.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified injuries of head",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "NA0A.3",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Multiple injuries of head",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "NA00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Superficial injury of unspecified part of head",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "NA0A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "Certain specified injuries of head",
        "postcoordination": true,
        "postcoordination_availability": 1,

@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BD10",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congestive heart failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "BD10&XT5R",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute congestive heart failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BD10&XT8W",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic congestive heart failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -56,7 +62,9 @@
       },
       {
        "code": "BD11.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Left ventricular failure with preserved ejection fraction",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -68,7 +76,9 @@
       },
       {
        "code": "BD14",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Biventricular failure",
        "postcoordination": true,
        "postcoordination_availability": 2,

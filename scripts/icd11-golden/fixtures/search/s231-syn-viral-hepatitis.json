@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1E5Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Viral hepatitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "KA62.9",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congenital viral hepatitis",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "1E50.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute viral hepatitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "1E51.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic viral hepatitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "QC90.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Contact with or exposure to viral hepatitis",
        "postcoordination": false,
        "postcoordination_availability": 0,

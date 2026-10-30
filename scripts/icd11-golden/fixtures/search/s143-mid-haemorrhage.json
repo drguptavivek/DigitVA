@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MG27",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Haemorrhage, not elsewhere classified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "3B6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Coagulation defects, purpura or other haemorrhagic or related conditions, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "9B78.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Retinal haemorrhage",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "NA07.86",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Multiple traumatic haemorrhages",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "FB32.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified disorders of muscles",
        "postcoordination": true,
        "postcoordination_availability": 1,

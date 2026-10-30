@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA4Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Lung infections, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

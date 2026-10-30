@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "NE6Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of unspecified substance",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "NE61",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1A10",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Foodborne staphylococcal intoxication",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "NE60&XM7UN8",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of substances, Drugs, medicaments or biological substances, Psychostimulants, Cocaine",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1A09.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Salmonella enteritis",
        "postcoordination": true,
        "postcoordination_availability": 1,

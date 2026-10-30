@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1B1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculosis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1B11.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculous meningitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1C8G.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Central European tick-borne encephalitis",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "NA07.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intracranial injury, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1B12.7",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculosis of the digestive system",
        "postcoordination": true,
        "postcoordination_availability": 1,

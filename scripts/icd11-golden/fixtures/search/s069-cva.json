@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "8B20",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Stroke not known if ischaemic or haemorrhagic",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "8B11.5Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Cerebral ischaemic stroke, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "8B25.4",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Late effects of stroke not known if ischaemic or haemorrhagic",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "8B00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intracerebral haemorrhage, site unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,

@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "8A68.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Type of seizure, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "MB46.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified abnormal involuntary movements",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KB06",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal seizures",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "8A63.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Febrile seizures, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "8A66.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Convulsive status epilepticus",
        "postcoordination": false,
        "postcoordination_availability": 0,

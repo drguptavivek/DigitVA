@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "1B12.2&XA0G74",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Tuberculosis of ear",
@@ -45,6 +47,8 @@
       "body": {
        "item": {
         "code": "1B12.2&XA0G74",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Tuberculosis of ear",
@@ -368,6 +372,8 @@
       "body": {
        "item": {
         "code": "1B12.2&XA0G74&XK8G",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Tuberculosis of ear",
@@ -399,6 +405,8 @@
       "body": {
        "item": {
         "code": "1B12.2&XA0G74&XK8G",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Tuberculosis of ear",
@@ -721,6 +729,8 @@
       "body": {
        "item": {
         "code": "1B12.2/MG52.0",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Tuberculosis of ear",
@@ -743,21 +753,20 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
       "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
-      "GET icd/release/11/2026-01/mms/883140666"
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
+      "GET icd/release/11/2026-01/mms/672063490"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
-       "item": {
-        "code": "1B12.2/MG52.0",
-        "postcoordination": false,
-        "release": "2026-01",
-        "title": "Tuberculosis of ear",
-        "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 / http://id.who.int/icd/release/11/2026-01/mms/672063490"
+       "error": {
+        "code": "INVALID_SELECTION",
+        "message": "MG52.0 is a category, not a final code. Choose a more specific code under it."
        },
        "schema_version": 1
       },
-      "http_status": 200
+      "http_status": 422
      },
      "request": {
       "code": "1B12.2/MG52.0",
@@ -1092,7 +1101,9 @@
     "body": {
      "item": {
       "code": "1B12.2",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,
@@ -1121,7 +1132,9 @@
     "body": {
      "item": {
       "code": "1B12.2",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,

@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "KA21.0Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Extremely low birth weight of newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "KA21.2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Low birth weight of newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA21.1Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Very low birth weight of newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "4A01.0Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified immunodeficiencies with predominantly antibody defects",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KA21",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": false,
        "matching_text": "Disorders of newborn related to short gestation or low birth weight, not elsewhere classified",
        "postcoordination": false,
        "postcoordination_availability": 0,

@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "DB93.1/1E51",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Hepatic cirrhosis",
@@ -38,21 +40,20 @@
       "GET icd/release/11/2026-01/mms/codeinfo/DB93.1%2F1E51",
       "GET icd/release/11/2026-01/mms/codeinfo/DB93.1",
       "GET icd/release/11/2026-01/mms/codeinfo/1E51",
-      "GET icd/release/11/2026-01/mms/1781315693"
+      "GET icd/release/11/2026-01/mms/1781315693",
+      "GET icd/release/11/2026-01/mms/codeinfo/1E51",
+      "GET icd/release/11/2026-01/mms/1469571641"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
-       "item": {
-        "code": "DB93.1/1E51",
-        "postcoordination": false,
-        "release": "2026-01",
-        "title": "Hepatic cirrhosis",
-        "uri": "http://id.who.int/icd/release/11/2026-01/mms/1781315693 / http://id.who.int/icd/release/11/2026-01/mms/1469571641"
+       "error": {
+        "code": "INVALID_SELECTION",
+        "message": "1E51 is a category, not a final code. Choose a more specific code under it."
        },
        "schema_version": 1
       },
-      "http_status": 200
+      "http_status": 422
      },
      "request": {
       "code": "DB93.1/1E51",
@@ -388,7 +389,9 @@
       "body": {
        "item": {
         "code": "DB93.1",
+        "extension": false,
         "has_coding_note": false,
+        "leaf": true,
         "postcoordination": true,
         "postcoordination_availability": 2,
         "related_maternal": true,
@@ -417,7 +420,9 @@
       "body": {
        "item": {
         "code": "DB93.1",
+        "extension": false,
         "has_coding_note": false,
+        "leaf": true,
         "postcoordination": true,
         "postcoordination_availability": 2,
         "related_maternal": true,
@@ -775,7 +780,9 @@
     "body": {
      "item": {
       "code": "DB93.1",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": true,
@@ -804,7 +811,9 @@
     "body": {
      "item": {
       "code": "DB93.1",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": true,

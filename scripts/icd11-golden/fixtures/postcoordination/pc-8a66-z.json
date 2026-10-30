@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "8A66.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": true,
@@ -50,7 +52,9 @@
     "body": {
      "item": {
       "code": "8A66.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": true,

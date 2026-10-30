@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "JB64.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Anaemia complicating pregnancy, childbirth or the puerperium",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "3A00.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acquired iron deficiency anaemia due to increased requirement",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KA00.B",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fetus or newborn affected by maternal anaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "3A02.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Folate deficiency anaemia due to increased requirements",
        "postcoordination": false,
        "postcoordination_availability": 0,

@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "2A01.0Y&XA6HA2",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Other specified meningiomas",
@@ -45,6 +47,8 @@
       "body": {
        "item": {
         "code": "2A01.0Y&XA6HA2",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Other specified meningiomas",
@@ -253,6 +257,8 @@
       "body": {
        "item": {
         "code": "2A01.0Y&XA6HA2/MG30.10",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Other specified meningiomas",
@@ -277,13 +283,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
       "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
       "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
-      "GET icd/release/11/2026-01/mms/672106711/other"
+      "GET icd/release/11/2026-01/mms/672106711/other",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
+      "GET icd/release/11/2026-01/mms/322466810"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "2A01.0Y&XA6HA2/MG30.10",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Other specified meningiomas",
@@ -507,7 +517,9 @@
     "body": {
      "item": {
       "code": "2A01.0Y",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -536,7 +548,9 @@
     "body": {
      "item": {
       "code": "2A01.0Y",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

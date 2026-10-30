@@ -56,6 +56,10 @@ export interface DorisTerm {
   /** Optional: the web picker shows an "age-restricted" tag for it. The server's terms reply does not send it yet. */
   age_restricted?: boolean;
   restriction_note?: string;
+  /** WHO chapter X. Absent from older servers: the picker then treats the code as usable and the selection check decides. */
+  extension?: boolean;
+  /** WHO's isLeaf; absent when WHO or an older server did not say (unknown, not false). */
+  leaf?: boolean;
 }
 
 export interface DorisTermsReply {
@@ -71,6 +75,7 @@ export interface DorisCodeInfoItem extends JsonObject {
   uri: string;
   release: string;
   postcoordination: boolean;
+  // `leaf` and `extension` (booleans, of the first stem) ride in the index signature; older servers leave them out.
   // The server's reply has no `primary_stem`. The offline VA definition asks the editor's primaryStem() instead.
 }
 
@@ -933,6 +938,8 @@ export function parseDorisTerms(value: unknown): DorisTermsReply {
         code: string(term.code, `${field}.code`), title: string(term.title, `${field}.title`), uri: string(term.uri, `${field}.uri`), release: string(term.release, `${field}.release`), matching_text: string(term.matching_text, `${field}.matching_text`), postcoordination: boolean(term.postcoordination, `${field}.postcoordination`), postcoordination_availability: parseJsonValue(term.postcoordination_availability, `${field}.postcoordination_availability`), related_maternal: boolean(term.related_maternal, `${field}.related_maternal`), related_perinatal: boolean(term.related_perinatal, `${field}.related_perinatal`), has_coding_note: boolean(term.has_coding_note, `${field}.has_coding_note`),
         ...(term.age_restricted === true ? { age_restricted: true } : {}),
         ...(typeof term.restriction_note === "string" && term.restriction_note ? { restriction_note: term.restriction_note } : {}),
+        ...(typeof term.extension === "boolean" ? { extension: term.extension } : {}),
+        ...(typeof term.leaf === "boolean" ? { leaf: term.leaf } : {}),
       };
     }),
     truncated: boolean(source.truncated, "doris.terms.truncated"),

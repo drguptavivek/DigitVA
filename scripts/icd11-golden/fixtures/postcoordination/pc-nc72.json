@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "NC72",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": false,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -48,20 +50,13 @@
    "name": "selection-check",
    "reply": {
     "body": {
-     "item": {
-      "code": "NC72",
-      "has_coding_note": false,
-      "postcoordination": true,
-      "postcoordination_availability": 1,
-      "related_maternal": false,
-      "related_perinatal": false,
-      "release": "2026-01",
-      "title": "Fracture of femur",
-      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "NC72 is a category, not a final code. Choose a more specific code under it."
      },
      "schema_version": 1
     },
-    "http_status": 200
+    "http_status": 422
    },
    "request": {
     "code": "NC72",

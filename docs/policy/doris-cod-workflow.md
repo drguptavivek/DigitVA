@@ -3,10 +3,12 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-30
 ---
 
 # DORIS COD Workflow Policy
+
+Every check from search to final save, with known gaps: [DORIS Validation Checks](../current-state/doris-validation-checks.md).
 
 ## Cause reference presentation
 
@@ -117,6 +119,21 @@ The same picker is available for coder, reviewer and synthetic Help entry.
 The completed expression goes through the existing server selection check
 before it is added. Changing a chosen extension has the same invalidation
 effect as any other certificate edit.
+
+Only final codes reach the certificate (owner decision 2026-10-30,
+`digitva-9cll.12`). The stem of a condition, and the stem after each `/`, must
+be a final MMS code: an extension code (WHO chapter X) alone, or a category
+that has children in the MMS linearization, is refused at selection with
+`422 INVALID_SELECTION` and these words: "XK8G is an extension code. It cannot
+be used alone: add it to a stem through + Build." and "NC72 is a category, not
+a final code. Choose a more specific code under it." WHO objects to both only
+after processing: CoDEdit flags an extension alone (FER-CE-883) and a category
+("not a terminal code", BER-CE-10), and DORIS silently recodes NC72 to NC72.Z. The pickers (web and Collect Plus) offer no Use and
+no + Build on such a result: a category shows "Choose specific", which opens
+its hierarchy, and an extension shows an "Extension" marker. Extension codes
+stay choosable as parts of an expression in the builder. The server's
+selection check holds the rule for older apps and for codes the search did
+not flag.
 
 Extension axes follow WHO's presentation: required axes come first, each
 axis is its own section in WHO order with WHO's instruction wording, and

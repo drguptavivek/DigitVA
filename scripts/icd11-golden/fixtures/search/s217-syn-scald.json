@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "NE2Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Burns, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "NE11",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Burn of unspecified body region",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "FB82.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Osteochondrosis or osteochondritis dissecans",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "ND9Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Burns of external body surface, unspecified site",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "QD85",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Burnout",
        "postcoordination": false,
        "postcoordination_availability": 0,

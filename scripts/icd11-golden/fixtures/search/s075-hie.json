@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "AB52",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Deafness not otherwise specified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "NA0Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Injuries to the head, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "4A01.34",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hyperimmunoglobulin E syndromes",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KB04",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypoxic ischaemic encephalopathy of newborn",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1C11.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Trench fever",
        "postcoordination": false,
        "postcoordination_availability": 0,

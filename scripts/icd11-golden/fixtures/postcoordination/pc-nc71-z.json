@@ -17,6 +17,8 @@
       "body": {
        "item": {
         "code": "NC71.Z&XK8G&XA5S78",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Open wound of hip or thigh, unspecified",
@@ -48,6 +50,8 @@
       "body": {
        "item": {
         "code": "NC71.Z&XK8G&XA5S78",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Open wound of hip or thigh, unspecified",
@@ -289,7 +293,9 @@
     "body": {
      "item": {
       "code": "NC71.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -318,7 +324,9 @@
     "body": {
      "item": {
       "code": "NC71.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

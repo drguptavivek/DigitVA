@@ -101,6 +101,7 @@ describe("onTerms", () => {
       items: [{
         code: "5A11", title: "Type 2 diabetes", uri: `${MMS}/9`, release: "2026-01", matching_text: "Type 2 diabetes",
         postcoordination: true, postcoordination_availability: 1, related_maternal: false, related_perinatal: false, has_coding_note: true,
+        extension: false,
       }],
     });
   });
@@ -164,6 +165,7 @@ describe("onCodeInfo", () => {
       item: {
         code: "BA41.Z", title: "Title 1334938734", uri: BA41, release: "2026-01", postcoordination: true,
         postcoordination_availability: 2, related_maternal: false, related_perinatal: false, has_coding_note: false,
+        leaf: true, extension: false,
       },
     });
     expect(reply.item).not.toHaveProperty("primary_stem");
@@ -171,7 +173,7 @@ describe("onCodeInfo", () => {
 
   it("joins the part URIs of an expression and gives it no badges", async () => {
     const reply = await createOfflineDorisEditor(fakeEngine(knownWho).engine, memoryStore()).onCodeInfo("1B12.2&XA0G74");
-    expect(reply.item).toEqual({ code: "1B12.2&XA0G74", title: "Title 2", uri: `${MMS}/2 & ${MMS}/3`, release: "2026-01", postcoordination: false });
+    expect(reply.item).toEqual({ code: "1B12.2&XA0G74", title: "Title 2", uri: `${MMS}/2 & ${MMS}/3`, release: "2026-01", postcoordination: false, leaf: true, extension: false });
   });
 
   it("refuses an empty or over-long code (422 INVALID_INPUT), an unknown one (422 CODE_NOT_FOUND) and personal data", async () => {
@@ -205,6 +207,20 @@ describe("onSelectionCheck", () => {
       status: 422, code: "INVALID_SELECTION", message: "The selected code does not match its WHO URI.", body: errorBody("INVALID_SELECTION", "The selected code does not match its WHO URI."),
     });
     await expect(refusal(editor.onSelectionCheck("ZZ99.9", BA41))).resolves.toMatchObject({ code: "INVALID_SELECTION" });
+  });
+
+  it("refuses an extension code alone and a category with children (422 INVALID_SELECTION, the server's words)", async () => {
+    const editor = createOfflineDorisEditor(fakeEngine({
+      ...knownWho,
+      entity: async (id: string) => ok({ title: { "@value": `Title ${id}` }, ...(id === "1334938734" ? { child: [`${MMS}/5`] } : {}) }),
+    }).engine, memoryStore());
+    const category = "BA41.Z is a category, not a final code. Choose a more specific code under it.";
+    await expect(refusal(editor.onSelectionCheck("BA41.Z", BA41))).resolves.toEqual({
+      status: 422, code: "INVALID_SELECTION", message: category, body: errorBody("INVALID_SELECTION", category),
+    });
+    const extension = "XA0G74 is an extension code. It cannot be used alone: add it to a stem through + Build.";
+    await expect(refusal(editor.onSelectionCheck("XA0G74", `${MMS}/3`))).resolves.toMatchObject({ code: "INVALID_SELECTION", message: extension });
+    await expect(editor.onSelectionCheck("1B12.2&XA0G74", `${MMS}/2 & ${MMS}/3`)).resolves.toMatchObject({ item: { leaf: true, extension: false } });
   });
 
   it("refuses a missing or over-long code or URI (422 INVALID_INPUT) and personal data in either", async () => {

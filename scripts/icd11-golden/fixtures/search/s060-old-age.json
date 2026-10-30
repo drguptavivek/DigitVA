@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MG2A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ageing associated decline in intrinsic capacity",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "9D00.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Presbyopia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "6D8Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Dementia, unknown or unspecified cause",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "QA01.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Examination for admission to residential institutions",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "5B3Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified endocrine diseases",
        "postcoordination": false,
        "postcoordination_availability": 0,

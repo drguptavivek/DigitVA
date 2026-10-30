@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "ME10.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unspecified jaundice",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "DC10.02",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Obstruction of bile duct",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "3A2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acquired haemolytic anaemia, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KA87.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified neonatal hyperbilirubinaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KA86",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Neonatal kernicterus",
        "postcoordination": false,
        "postcoordination_availability": 0,

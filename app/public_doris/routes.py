@@ -20,6 +20,7 @@ from app.services.icd11_postcoordination import (
     guidance_request,
     search_context_from_entity,
     search_terms,
+    selection_refusal,
     valid_subtree_uris,
 )
 from app.services.icd11_postcoordination import code_details as get_code_details
@@ -103,6 +104,9 @@ def _codeinfo_item(code: str) -> dict | None:
         "uri": uri,
         "release": DEFAULT_ICD11_RELEASE,
         "postcoordination": False,
+        # The first stem only: selection_refusal checks any further "/" stems.
+        "leaf": not entity.get("child"),
+        "extension": code.startswith("X"),
     }
     if "&" not in code and "/" not in code:
         item.update(search_context_from_entity(entity))
@@ -219,10 +223,13 @@ def selection_check():
         return _error("INVALID_INPUT", "The selected ICD-11 code is invalid.", 422)
     try:
         item = _codeinfo_item(code.strip())
+        if item is None or item["uri"] != uri.strip():
+            return _error("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
+        refusal = selection_refusal(item)
     except (WhoIcdApiUnavailable, ValueError):
         return _error("WHO_UNAVAILABLE", "ICD-11 terminology is unavailable.", 503)
-    if item is None or item["uri"] != uri.strip():
-        return _error("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
+    if refusal:
+        return _error("INVALID_SELECTION", refusal, 422)
     return jsonify(schema_version=1, item=item)
 
 

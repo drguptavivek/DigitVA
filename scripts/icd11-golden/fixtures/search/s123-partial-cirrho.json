@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "DB93.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hepatic cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "DB96.1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Primary biliary cholangitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "DB98.8",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Passive congestion of liver",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "DB93.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "Certain specified fibrosis or cirrhosis of liver",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "DB93.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified hepatic fibrosis or cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 1,

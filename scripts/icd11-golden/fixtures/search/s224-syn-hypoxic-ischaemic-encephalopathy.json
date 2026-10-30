@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "8B24.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypoxic-ischaemic encephalopathy, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "8B24.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified hypoxic-ischaemic encephalopathy",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "KB04",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypoxic ischaemic encephalopathy of newborn",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "8A60.01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Epilepsy due to neonatal hypoxic ischemic encephalopathy",
        "postcoordination": false,
        "postcoordination_availability": 0,

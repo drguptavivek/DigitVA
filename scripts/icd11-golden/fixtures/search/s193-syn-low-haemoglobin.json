@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "MA18.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Low haemoglobin",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "3A51.8",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Low affinity haemoglobin",
        "postcoordination": false,
        "postcoordination_availability": 0,

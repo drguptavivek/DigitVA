@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "8A6Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Epilepsy or seizures, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "8A68.Z/8A63.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Type of seizure, unspecified [Seizure due to unspecified acute cause]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -45,7 +49,9 @@
       },
       {
        "code": "8A68.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified type of seizure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -57,7 +63,9 @@
       },
       {
        "code": "8A63.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Seizure due to unspecified acute cause",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -69,7 +77,9 @@
       },
       {
        "code": "8A68.Y/8A63.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified type of seizure [Seizure due to unspecified acute cause]",
        "postcoordination": true,
        "postcoordination_availability": 2,

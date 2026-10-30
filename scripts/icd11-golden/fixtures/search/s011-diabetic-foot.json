@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BD54",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Diabetic foot ulcer",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "FA38.10",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Diabetic Charcot arthropathy",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BD54/MC85",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Diabetic foot ulcer with gangrene",
        "postcoordination": true,
        "postcoordination_availability": 2,

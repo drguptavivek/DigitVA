@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1A00",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cholera",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "QC90.00",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Exposure to cholera",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1A00&XN8P1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cholera due to Vibrio cholerae O1, biovar cholerae",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "QD01.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified carrier of intestinal infectious agents",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "NE61",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,

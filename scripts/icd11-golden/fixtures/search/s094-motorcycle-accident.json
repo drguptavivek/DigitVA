@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "PA03",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport traffic event injuring a motor cyclist",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "PA13",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport nontraffic event injuring a motor cyclist",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "PA03&XE7ZZ&XE9EE",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Motorcycle rider injured in collision with pedal cycle : unspecified motorcycle rider injured in traffic accident",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "PA13&XE7ZZ",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Motorcycle rider injured in collision with pedal cycle : unspecified motorcycle rider injured in nontraffic accident",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "PA03&XE6K0&XE9EE",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Motorcycle rider injured in collision with pedestrian or animal, unspecified motorcycle rider injured in traffic accident",
        "postcoordination": true,
        "postcoordination_availability": 1,

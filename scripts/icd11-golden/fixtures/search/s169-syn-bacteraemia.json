@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "MA15.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Bacteraemia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "1C1C.2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Meningococcaemia, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,

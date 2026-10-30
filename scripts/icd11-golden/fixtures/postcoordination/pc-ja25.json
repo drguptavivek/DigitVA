@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "JA25",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": false,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": false,
@@ -48,20 +50,13 @@
    "name": "selection-check",
    "reply": {
     "body": {
-     "item": {
-      "code": "JA25",
-      "has_coding_note": false,
-      "postcoordination": false,
-      "postcoordination_availability": 0,
-      "related_maternal": false,
-      "related_perinatal": false,
-      "release": "2026-01",
-      "title": "Eclampsia",
-      "uri": "http://id.who.int/icd/release/11/2026-01/mms/1759760659"
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "JA25 is a category, not a final code. Choose a more specific code under it."
      },
      "schema_version": 1
     },
-    "http_status": 200
+    "http_status": 422
    },
    "request": {
     "code": "JA25",

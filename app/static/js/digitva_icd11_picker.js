@@ -209,12 +209,37 @@ export function createIcd11Picker(options) {
 
   // ---- selection verification (owned by the picker) -----------------
 
+  // WHO's DORIS and CoDEdit take only final codes: never an extension code
+  // alone, never a category with children. Only the reply's flags count
+  // (absent = unknown, e.g. a built expression or an older server); the
+  // selection check on OK decides the rest, in these same words
+  // (selection_refusal in app/services/icd11_postcoordination.py).
+  function notFinal(item) {
+    var stem = text(item.code).split(/[&/]/)[0];
+    if (item.extension === true) return {kind: 'extension', stem: stem, message: stem + ' is an extension code. It cannot be used alone: add it to a stem through + Build.'};
+    if (item.leaf === false) return {kind: 'category', stem: stem, message: stem + ' is a category, not a final code. Choose a more specific code under it.'};
+    return null;
+  }
+  function openCategory(container, stem, trigger) {
+    openPostcoordination(container, {mode: 'hierarchy', item: {code: stem}}, trigger);
+  }
+
   // Stage a choice for confirmation. When `container` currently owns the
   // open search modal, the choice waits in the modal footer until the
   // user clicks OK (giving them a chance to check Details/Related first).
   // Otherwise (a standalone container, e.g. a "confirm final UCOD" panel
-  // with no modal) the choice is verified immediately.
-  function stage(container, item, statusEl) {
+  // with no modal) the choice is verified immediately. Every path stages
+  // through here, so an extension or a category is refused before OK; a
+  // category opens its hierarchy to choose under it (`trigger`, optional,
+  // is the control that asked, for focus and Back to results).
+  function stage(container, item, statusEl, trigger) {
+    var refused = notFinal(item);
+    if (refused) {
+      if (active && active.line === container) { clearSelection(container); setFooterMessage(refused.message); }
+      else if (statusEl) statusEl.textContent = refused.message;
+      if (refused.kind === 'category') openCategory(container, refused.stem, trigger || null);
+      return false;
+    }
     if (active && active.line === container) {
       active.selection = item;
       setFooterChoice('SELECTED', item.code, item.title);
@@ -365,7 +390,9 @@ export function createIcd11Picker(options) {
   }
 
   function addContextIcons(parent, item, onRelated, onBuild, onDetails) {
-    if (!item.postcoordination && !item.related_maternal && !item.related_perinatal && !item.has_coding_note) return null;
+    // "+ Build" only for a code that can be a stem (see notFinal).
+    var buildable = item.postcoordination && !notFinal(item);
+    if (!buildable && !item.related_maternal && !item.related_perinatal && !item.has_coding_note) return null;
     var icons = document.createElement('span');
     icons.className = 'doris-context-icons';
     var buildButton = null;
@@ -386,7 +413,7 @@ export function createIcd11Picker(options) {
       node.setAttribute('aria-label', description);
       icons.appendChild(node);
     }
-    if (item.postcoordination) icon('+', item.postcoordination_availability === 2 ? 'Mandatory postcoordination' : 'Postcoordination available', item.postcoordination_availability === 2 ? 'required' : 'post');
+    if (buildable) icon('+', item.postcoordination_availability === 2 ? 'Mandatory postcoordination' : 'Postcoordination available', item.postcoordination_availability === 2 ? 'required' : 'post');
     if (item.related_maternal && onRelated) icon('J', 'Open pregnancy related terms', 'maternal', 'maternal');
     if (item.related_perinatal && onRelated) icon('K', 'Open perinatal related terms', 'perinatal', 'perinatal');
     if (item.has_coding_note) {
@@ -844,11 +871,14 @@ export function createIcd11Picker(options) {
         if (!list(entry[1]).length) return;
         var p = document.createElement('p'); p.className = 'small mb-1'; p.textContent = entry[0] + ': ' + list(entry[1]).map(function (item) { return text(item.title || item); }).join('; '); panel.appendChild(p);
       });
+      // Only a final code is offered: a node with children is drilled into
+      // (click a child), an extension code is added through + Build.
+      var usable = Boolean(text(selected.code) && text(selected.uri)) && !list(data.children).length && !/^X/.test(text(selected.code));
       var use = button('Use this code', 'btn btn-sm btn-primary mt-2');
-      use.disabled = !text(selected.code) || !text(selected.uri);
+      use.disabled = !usable;
       use.addEventListener('click', function () { stage(container, {code: text(selected.code), uri: text(selected.uri), title: text(selected.title), selected_text: text(selected.title)}, statusElementFor(container)); closePanel(); });
       panel.appendChild(use);
-      if (text(selected.code) && text(selected.uri)) {
+      if (usable) {
         var build = button('Build expression for this stem', 'btn btn-sm btn-outline-primary mt-2 ms-2');
         build.addEventListener('click', function () { openStem(selected, build); });
         panel.appendChild(build);
@@ -977,11 +1007,12 @@ export function createIcd11Picker(options) {
       var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = item.code || '';
       var titleNode = document.createElement('span'); titleNode.className = 'doris-search-name fw-semibold'; titleNode.textContent = item.title || '';
       title.append(codeNode, ' — ', titleNode);
+      var refused = notFinal(item);
       title.addEventListener('click', function () {
-        if (item.postcoordination_availability === 2 && !isCompleteExpression(item.code)) {
+        if (!refused && item.postcoordination_availability === 2 && !isCompleteExpression(item.code)) {
           if (!finalMode) showDetails(container, item);
           openPostcoordination(container, item, title);
-        } else stage(container, item, statusEl);
+        } else stage(container, item, statusEl, title);
       });
       header.appendChild(title);
       var meta = document.createElement('div'); meta.className = 'doris-search-meta';
@@ -1007,7 +1038,16 @@ export function createIcd11Picker(options) {
         openPostcoordination(container, stem, button);
       } : null, function (event) { showDetails(container, item, event.currentTarget); });
       var actions = document.createElement('div'); actions.className = 'doris-search-actions';
-      if (complete || item.postcoordination_availability !== 2) {
+      if (refused && refused.kind === 'category') {
+        var choose = button('Choose specific ▸', 'btn btn-sm btn-outline-primary');
+        choose.setAttribute('aria-label', 'Choose a more specific code under ' + item.code);
+        choose.addEventListener('click', function () { stage(container, item, statusEl, choose); });
+        actions.appendChild(choose);
+      } else if (refused) {
+        var marker = document.createElement('span'); marker.className = 'badge text-bg-secondary align-self-center'; marker.textContent = 'Extension';
+        marker.setAttribute('role', 'img'); marker.setAttribute('aria-label', 'Extension code ' + item.code + ': add it to a stem');
+        actions.appendChild(marker);
+      } else if (complete || item.postcoordination_availability !== 2) {
         var use = document.createElement('button'); use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
         use.title = 'Select this code';
         use.addEventListener('click', function () { stage(container, item, statusEl); });

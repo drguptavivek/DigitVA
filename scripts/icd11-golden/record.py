@@ -193,10 +193,13 @@ class Server:
     def selection_check(self, code, uri):
         try:
             item = self.route._codeinfo_item(code.strip())
+            if item is None or item["uri"] != uri.strip():
+                return _err("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
+            refusal = self.pc.selection_refusal(item)
         except (self.who.WhoIcdApiUnavailable, ValueError):
             return self._unavailable()
-        if item is None or item["uri"] != uri.strip():
-            return _err("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
+        if refusal:
+            return _err("INVALID_SELECTION", refusal, 422)
         return _ok({"schema_version": 1, "item": item})
 
     def guidance(self, operation):

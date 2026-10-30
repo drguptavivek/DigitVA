@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "PG5Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fall or jump of undetermined intent, height unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "PA6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall from unspecified height",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "PA60",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall on the same level or from less than 1 metre",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "PA61",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall from a height of 1 metre or more",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "PE0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Assault by causing a fall or jump from unspecified height",
        "postcoordination": true,
        "postcoordination_availability": 1,

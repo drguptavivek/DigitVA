@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "8B20",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Stroke not known if ischaemic or haemorrhagic",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "8B11.5Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Cerebral ischaemic stroke, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "8B25.4",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Late effects of stroke not known if ischaemic or haemorrhagic",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "6D81/8B20",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Dementia due to cerebrovascular disease [Stroke not known if ischaemic or haemorrhagic]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -69,7 +77,9 @@
       },
       {
        "code": "8B26.Z/8B20",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Vascular syndromes of brain in cerebrovascular diseases, unspecified [Stroke not known if ischaemic or haemorrhagic]",
        "postcoordination": true,
        "postcoordination_availability": 2,

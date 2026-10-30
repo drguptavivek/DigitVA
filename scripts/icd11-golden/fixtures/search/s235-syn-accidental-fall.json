@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PA6Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall from unspecified height",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "PA61&XE9P7",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall from ladder",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "PA61&XE7RK",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall on or from scaffolding",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "PA60&XE6JS",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall involving playground equipment",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "PA60&XE8PK",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional fall involving bed",
        "postcoordination": true,
        "postcoordination_availability": 1,

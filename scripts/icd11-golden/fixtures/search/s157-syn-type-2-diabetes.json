@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "5A11",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Type 2 diabetes mellitus",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "GB61.1/5A11",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 2 [Type 2 diabetes mellitus]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -45,7 +49,9 @@
       },
       {
        "code": "GB61.1/5A10",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 2 [Type 1 diabetes mellitus]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -57,7 +63,9 @@
       },
       {
        "code": "GB61.1/5A14",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 2 [Diabetes mellitus, type unspecified]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -69,7 +77,9 @@
       },
       {
        "code": "GB61.1/5A13",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 2 [Diabetes mellitus, other specified type]",
        "postcoordination": true,
        "postcoordination_availability": 2,

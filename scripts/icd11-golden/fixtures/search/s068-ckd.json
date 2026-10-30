@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "GB61.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "GB61.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 2",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "GB61.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 1",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -56,7 +62,9 @@
       },
       {
        "code": "GB61.4",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 4",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -68,7 +76,9 @@
       },
       {
        "code": "GB61.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic kidney disease, stage 5",
        "postcoordination": true,
        "postcoordination_availability": 2,

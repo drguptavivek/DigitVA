@@ -23,6 +23,8 @@
     "body": {
      "item": {
       "code": "BD54&XK9J",
+      "extension": false,
+      "leaf": true,
       "postcoordination": false,
       "release": "2026-01",
       "title": "Diabetic foot ulcer",
@@ -52,6 +54,8 @@
     "body": {
      "item": {
       "code": "BD54&XK9J",
+      "extension": false,
+      "leaf": true,
       "postcoordination": false,
       "release": "2026-01",
       "title": "Diabetic foot ulcer",

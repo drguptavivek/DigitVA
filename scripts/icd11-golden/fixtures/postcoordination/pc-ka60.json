@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "KA60&XN74M",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Sepsis of fetus or newborn",
@@ -45,6 +47,8 @@
       "body": {
        "item": {
         "code": "KA60&XN74M",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Sepsis of fetus or newborn",
@@ -298,7 +302,9 @@
     "body": {
      "item": {
       "code": "KA60",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -327,7 +333,9 @@
     "body": {
      "item": {
       "code": "KA60",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

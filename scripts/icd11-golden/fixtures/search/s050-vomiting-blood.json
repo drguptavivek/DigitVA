@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "ME24.A5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Haematemesis",
        "postcoordination": true,
        "postcoordination_availability": 1,

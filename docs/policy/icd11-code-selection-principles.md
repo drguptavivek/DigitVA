@@ -3,7 +3,7 @@ title: ICD-11 Code Selection Principles
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-10-30
 ---
 
 # ICD-11 Code Selection Principles
@@ -67,6 +67,12 @@ a finding, not a rule.
 - **Basis.** (W) RG 2.8: stem codes can be used alone. RG 2.9: extension codes
   "can never be used without a stem code for statistical purposes".
   RG 2.9 also says an extension can never be first in a cluster.
+- **Final codes only.** (D, owner 2026-10-30, `digitva-9cll.12`) A certificate
+  condition's stem, and the stem after each `/`, must be a final code: an
+  extension alone, or a category with children, is refused at selection with
+  422 `INVALID_SELECTION`. Words and picker behaviour:
+  `docs/policy/doris-cod-workflow.md`; the checks:
+  `docs/current-state/doris-validation-checks.md`.
 - **Source.** RG 2.8, 2.9.
 
 ### 2. Cluster syntax: `/` joins stems, `&` adds extensions
@@ -97,9 +103,10 @@ a finding, not a rule.
   nor a mapping rule (`FB80.B` alone and `FB80.B` with its causing condition
   map to the same VA cause, by first stem). It came from how the picker reads
   WHO's required flag, modelled on WHO's DORIS web tool.
-  **Owner decision 2026-10-26 (`digitva-xmpx`): follow WHO.** The picker will
-  offer an explicit "causing condition not known" choice on a required axis,
-  which completes the stem alone and is recorded with the final.
+  **Owner decision 2026-10-26 (`digitva-xmpx`): follow WHO.** The picker
+  offers an explicit "Causing condition not known" choice on a required axis,
+  which completes the stem alone and is recorded with the final
+  (`causing_condition_unknown`).
 - **Basis.** WHO: (W) RG 2.10 (table): the causing condition is "mandatory"
   for primary tabulation when known. RG 2.7.2.1: a "code also" category must
   be clustered with its aetiology. Optional detail is marked as additional
@@ -267,8 +274,9 @@ a finding, not a rule.
 
 | Point | Basis | Rationale |
 | --- | --- | --- |
-| Required axis must be filled (picker) | W (owner 2026-10-26) | Follow WHO: the stem may stand alone when the causing condition is not known (RG 2.7.2.1, 2.21.4); picker change pending (`digitva-xmpx`). |
+| Required axis must be filled (picker) | W (owner 2026-10-26) | Follow WHO: the stem may stand alone when the causing condition is not known (RG 2.7.2.1, 2.21.4); the picker offers "Causing condition not known" (`digitva-xmpx`). |
 | Allowability applies to final cause only | D | Certificate conditions are checked against WHO terminology only (DORIS contracts). |
+| Certificate stem must be a final code | D | Owner 2026-10-30: WHO objects to a category (BER-CE-10) or an extension alone (FER-CE-883) only after processing; the picker and selection-check refuse it first. |
 | Chapters 24, 26, V, X not selectable | W (24, X), D (26, V) | Chapter 24 and X are WHO-excluded; 26 and V are not diseases or are optional. |
 | Chapter 25 only `RA01`-`RA03` | D | Owner 2026-09-29; WHO uses ch. 25 only by special instruction. |
 | `KD3B`, `KD3B.Z` refused | D | Owner decision 18, 2026-09-25: force fresh or macerated VA cause. |

@@ -21,7 +21,8 @@ bytes, the WHO image digest and release.
 
 `REVIEW.md` lists every corpus item for approval; regenerate it with
 `python3 scripts/icd11-golden/review.py`. `status` in each corpus file is
-`draft` until the owner approves and the set is frozen.
+`approved`: the owner approved all three sets on 2026-10-30 and they are frozen.
+A change sets it back to `draft` until the owner approves again.
 
 ## Re-record
 

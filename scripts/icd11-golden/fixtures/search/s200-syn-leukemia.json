@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "2B33.4",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Leukaemia, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "QC40.6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Personal history of leukaemia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "2B33.0",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Acute leukaemia, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "2B33.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Myeloid leukaemia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "2E08",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Malignant neoplasm metastasis in skin",
        "postcoordination": true,
        "postcoordination_availability": 1,

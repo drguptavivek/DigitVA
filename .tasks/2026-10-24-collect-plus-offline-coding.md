@@ -1,6 +1,13 @@
 # Collect Plus: experimental offline coding on Android
 
-- **Status:** phase A in progress
+- **Status:** done and superseded (bead digitva-hs7e is still open; its children
+  `.15` and `.15.2` carry the remaining work). The engine interface,
+  picker and on-phone DigitVA rules were rebuilt under `digitva-9cll`
+  (`.tasks/2026-10-29-android-offline-doris-parity.md`); Collect Plus 0.3.15,
+  with fully offline DORIS coding, is released (2026-10-30). Where this page names
+  the spike's `digitva_icd11_{init,search,codeinfo,doris,codedit,free}` exports or
+  a Plus APK never pinned in `docker-compose.yml`, the parity page and the
+  current compose pins (`PLUS_ANDROID_APK_*`) are right.
 - **Priority:** high (owner request 2026-10-24)
 - **Created:** 2026-10-24
 - **Bead:** digitva-hs7e

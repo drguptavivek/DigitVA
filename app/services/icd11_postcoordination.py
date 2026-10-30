@@ -523,6 +523,32 @@ def search_context_from_entity(entity: dict) -> dict:
     }
 
 
+def selection_refusal(item: dict) -> str | None:
+    """Why a certificate cannot take ``item`` (a codeinfo item), or None.
+
+    WHO's DORIS and CoDEdit accept only final MMS codes: every stem of the
+    expression (the first token, and the first token after each "/") must
+    not be an extension code (chapter X, told by its leading X) and must be
+    a leaf. The first stem's leaf answer is ``item["leaf"]``, read from the
+    entity ``_codeinfo_item`` already fetched; each further "/" stem costs
+    one codeinfo and one entity read (``_stem``).
+    """
+    for index, part in enumerate(item["code"].split("/")):
+        stem = part.split("&", 1)[0]
+        if stem.startswith("X"):
+            return (
+                f"{stem} is an extension code. It cannot be used alone: "
+                "add it to a stem through + Build."
+            )
+        leaf = item["leaf"] if index == 0 else not _stem(stem)[1].get("child")
+        if not leaf:
+            return (
+                f"{stem} is a category, not a final code. "
+                "Choose a more specific code under it."
+            )
+    return None
+
+
 def valid_subtree_uris(value: object) -> bool:
     """Format-check the optional WHO subtree scope for a terms search.
 
@@ -545,7 +571,12 @@ def valid_subtree_uris(value: object) -> bool:
 
 
 def search_terms(query: str, *, limit: int = 20, subtree_uris: list[str] | None = None) -> dict:
-    """Bounded WHO MMS term search shared by the public and clinical routes."""
+    """Bounded WHO MMS term search shared by the public and clinical routes.
+
+    Each item says whether it is an ``extension`` code (WHO chapter X) and,
+    when WHO's reply carries ``isLeaf``, whether it is a ``leaf``; the
+    pickers offer Use only for a leaf that is not an extension.
+    """
     params = {
         "q": f"{query.strip()}%",
         "includePostcoordination": "true",
@@ -582,6 +613,9 @@ def search_terms(query: str, *, limit: int = 20, subtree_uris: list[str] | None 
         available, raw_availability = postcoordination_availability(
             entity.get("postcoordinationAvailability")
         )
+        chapter = entity.get("chapter")
+        # Absent isLeaf leaves `leaf` out: the picker reads that as unknown.
+        leaf = entity.get("isLeaf")
         items.append(
             {
                 "code": code,
@@ -594,6 +628,8 @@ def search_terms(query: str, *, limit: int = 20, subtree_uris: list[str] | None 
                 "related_maternal": entity.get("hasMaternalChapterLink") is True,
                 "related_perinatal": entity.get("hasPerinatalChapterLink") is True,
                 "has_coding_note": entity.get("hasCodingNote") is True,
+                "extension": chapter == "X" if isinstance(chapter, str) else code.startswith("X"),
+                **({"leaf": leaf} if isinstance(leaf, bool) else {}),
             }
         )
         if len(items) == limit:

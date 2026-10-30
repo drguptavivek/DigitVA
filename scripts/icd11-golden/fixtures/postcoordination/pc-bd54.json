@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "BD54/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -38,13 +40,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54%2F5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BD54/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -316,6 +322,8 @@
       "body": {
        "item": {
         "code": "BD54&XK9J/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -340,13 +348,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BD54&XK9J/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -619,6 +631,8 @@
       "body": {
        "item": {
         "code": "BD54&XK9J&XA47V8/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -645,13 +659,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
       "GET icd/release/11/2026-01/mms/codeinfo/XA47V8",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BD54&XK9J&XA47V8/5A11",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -923,6 +941,8 @@
       "body": {
        "item": {
         "code": "BD54/5A11/MC85",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -947,13 +967,19 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/MC85",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091",
+      "GET icd/release/11/2026-01/mms/codeinfo/MC85",
+      "GET icd/release/11/2026-01/mms/188156827"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BD54/5A11/MC85",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -1222,7 +1248,9 @@
       "body": {
        "item": {
         "code": "BD54",
+        "extension": false,
         "has_coding_note": true,
+        "leaf": true,
         "postcoordination": true,
         "postcoordination_availability": 2,
         "related_maternal": true,
@@ -1251,7 +1279,9 @@
       "body": {
        "item": {
         "code": "BD54",
+        "extension": false,
         "has_coding_note": true,
+        "leaf": true,
         "postcoordination": true,
         "postcoordination_availability": 2,
         "related_maternal": true,
@@ -1518,6 +1548,8 @@
       "body": {
        "item": {
         "code": "BD54&XK9J",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -1547,6 +1579,8 @@
       "body": {
        "item": {
         "code": "BD54&XK9J",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -1817,6 +1851,8 @@
       "body": {
        "item": {
         "code": "BD54/MC85",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -1839,13 +1875,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54%2FMC85",
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/MC85",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/MC85",
+      "GET icd/release/11/2026-01/mms/188156827"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "BD54/MC85",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Diabetic foot ulcer",
@@ -2422,7 +2462,9 @@
     "body": {
      "item": {
       "code": "BD54",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": true,
@@ -2451,7 +2493,9 @@
     "body": {
      "item": {
       "code": "BD54",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": true,

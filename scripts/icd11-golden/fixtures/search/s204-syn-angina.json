@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BA40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Angina pectoris, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "BA40.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unstable angina",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "CA09.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic pharyngitis",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "BA85.Y/BA40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Coronary vasospastic disease with angina",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "1B51",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Streptococcal pharyngitis",
        "postcoordination": true,
        "postcoordination_availability": 1,

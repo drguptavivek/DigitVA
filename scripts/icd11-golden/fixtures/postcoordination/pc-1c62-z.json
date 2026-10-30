@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "1C62.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,
@@ -50,7 +52,9 @@
     "body": {
      "item": {
       "code": "1C62.Z",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": true,

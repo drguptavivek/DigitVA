@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BA00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Essential hypertension, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "9C61.01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ocular hypertension",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BB01.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Pulmonary hypertension, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "DB98.7Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Portal hypertension, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "8D60.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified increased intracranial pressure",
        "postcoordination": false,
        "postcoordination_availability": 0,

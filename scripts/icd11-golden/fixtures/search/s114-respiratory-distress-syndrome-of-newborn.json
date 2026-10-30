@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "KB23.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory distress syndrome of newborn, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -32,7 +34,9 @@
       },
       {
        "code": "KB23.0Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified respiratory distress syndrome of newborn",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -44,7 +48,9 @@
       },
       {
        "code": "KB23.00",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory distress syndrome of the newborn, altered by maternal corticosteroid therapy",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "KB23.01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory distress syndrome of the newborn, altered by pulmonary surfactant replacement therapy",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "KB23.02",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Respiratory distress syndrome of the newborn, altered by maternal corticosteroid therapy or pulmonary surfactant replacement therapy",
        "postcoordination": false,
        "postcoordination_availability": 0,

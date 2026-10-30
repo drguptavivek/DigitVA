@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "3A00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Iron deficiency anaemia, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "3A00.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified iron deficiency anaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "3A00.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acquired iron deficiency anaemia due to low intake",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "3A00.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acquired iron deficiency anaemia due to decreased absorption",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -69,7 +77,9 @@
       },
       {
        "code": "3A00.01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic posthaemorrhagic anaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,

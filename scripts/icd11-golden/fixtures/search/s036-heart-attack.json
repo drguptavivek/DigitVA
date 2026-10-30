@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BA41.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute myocardial infarction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "MG24.5",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fear of heart disease",
        "postcoordination": false,
        "postcoordination_availability": 0,

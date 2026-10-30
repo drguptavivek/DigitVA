@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "DB94.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Alcoholic cirrhosis of liver without hepatitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "DB94.10",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Alcoholic hepatitis with cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "DB94.1Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified alcoholic hepatitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "DB92.1/DB93.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Non-alcoholic steatohepatitis with cirrhosis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "DB92.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Non-alcoholic steatohepatitis",
        "postcoordination": true,
        "postcoordination_availability": 1,

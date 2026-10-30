@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BA41.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute myocardial infarction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "BA41.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute ST elevation myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BA60.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ventricular septal defect as current complication following acute myocardial infarction",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "BA60.6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Rupture of papillary muscle or chordae tendineae as current complication following acute myocardial infarction",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "BA60.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified current complications following acute myocardial infarction",
        "postcoordination": false,
        "postcoordination_availability": 0,

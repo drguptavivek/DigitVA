@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "X",
+      "extension": true,
       "has_coding_note": false,
+      "leaf": false,
       "postcoordination": false,
       "postcoordination_availability": 0,
       "related_maternal": false,
@@ -48,20 +50,13 @@
    "name": "selection-check",
    "reply": {
     "body": {
-     "item": {
-      "code": "X",
-      "has_coding_note": false,
-      "postcoordination": false,
-      "postcoordination_availability": 0,
-      "related_maternal": false,
-      "related_perinatal": false,
-      "release": "2026-01",
-      "title": "Extension Codes",
-      "uri": "http://id.who.int/icd/release/11/2026-01/mms/979408586"
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "X is an extension code. It cannot be used alone: add it to a stem through + Build."
      },
      "schema_version": 1
     },
-    "http_status": 200
+    "http_status": 422
    },
    "request": {
     "code": "X",

@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "MG2A",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Ageing associated decline in intrinsic capacity",
        "postcoordination": false,
        "postcoordination_availability": 0,

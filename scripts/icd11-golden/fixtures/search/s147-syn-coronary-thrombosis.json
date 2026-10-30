@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BA41.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute myocardial infarction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "NB31.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified injury of heart",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "BA43",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Coronary thrombosis not resulting in myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,

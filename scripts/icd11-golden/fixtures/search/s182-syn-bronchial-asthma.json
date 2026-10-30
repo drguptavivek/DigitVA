@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "CA23.32",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unspecified asthma, uncomplicated",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "CA23.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "Allergic asthma",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "CA23.31",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unspecified asthma with status asthmaticus",
        "postcoordination": true,
        "postcoordination_availability": 1,

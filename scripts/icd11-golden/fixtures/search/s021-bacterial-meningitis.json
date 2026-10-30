@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "1D01.0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Bacterial meningitis, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "1D01.0Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified bacterial meningitis",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "1B11.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Tuberculous meningitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "CA40.0Z/1C1A.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Bacterial pneumonia, unspecified [Listerial meningitis or meningoencephalitis]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -68,7 +76,9 @@
       },
       {
        "code": "1B53",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Meningitis due to Streptococcus",
        "postcoordination": true,
        "postcoordination_availability": 1,

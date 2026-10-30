@@ -16,6 +16,8 @@
       "body": {
        "item": {
         "code": "NE61&XM0231",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
@@ -45,6 +47,8 @@
       "body": {
        "item": {
         "code": "NE61&XM0231",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
@@ -268,7 +272,9 @@
     "body": {
      "item": {
       "code": "NE61",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -297,7 +303,9 @@
     "body": {
      "item": {
       "code": "NE61",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,

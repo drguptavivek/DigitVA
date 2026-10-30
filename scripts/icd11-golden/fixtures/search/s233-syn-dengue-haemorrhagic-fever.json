@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1D22",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Severe dengue",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "1D21",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Dengue with warning signs",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -45,7 +49,9 @@
       },
       {
        "code": "1D20",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Dengue without warning signs",
        "postcoordination": false,
        "postcoordination_availability": 0,

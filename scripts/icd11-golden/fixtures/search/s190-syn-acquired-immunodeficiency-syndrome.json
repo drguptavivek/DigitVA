@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "1C62.3Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "HIV disease clinical stage 4 without mention of tuberculosis or malaria, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "1C62.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Human immunodeficiency virus disease without mention of tuberculosis or malaria, clinical stage unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "DC13",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Cholangitis",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "1C62.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "HIV disease clinical stage 3 without mention of tuberculosis or malaria",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "QC90.6",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Contact with or exposure to human immunodeficiency virus",
        "postcoordination": false,
        "postcoordination_availability": 0,

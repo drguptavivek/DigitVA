@@ -2,6 +2,7 @@
  * Terms search and code information for the offline picker: ports of the server's
  * - `search_terms`, `valid_subtree_uris`, `postcoordination_availability`, `search_context_from_entity`
  *   (app/services/icd11_postcoordination.py), and
+ * - `selection_refusal` (the same file), which the selection-check routes apply to that item,
  * - `_codeinfo_item` (app/routes/api/doris_clinical.py), which the codeinfo and selection-check routes share,
  * over the WHO client (whoEngineApi.ts). They build the reply bodies the routes send, field for field.
  */
@@ -72,6 +73,9 @@ export async function searchTerms(
       related_maternal: entity.hasMaternalChapterLink === true,
       related_perinatal: entity.hasPerinatalChapterLink === true,
       has_coding_note: entity.hasCodingNote === true,
+      extension: typeof entity.chapter === "string" ? entity.chapter === "X" : (code as string).startsWith("X"),
+      // Absent isLeaf leaves `leaf` out: the picker reads that as unknown.
+      ...(typeof entity.isLeaf === "boolean" ? { leaf: entity.isLeaf } : {}),
     });
     if (items.length === limit) break;
   }
@@ -95,6 +99,33 @@ export async function codeinfoItem(who: WhoEngineApi, code: string): Promise<Dor
   if (read.kind !== "ok") return null;
   if (!title) title = plainText(or(read.entity.title, read.entity.label));
   if (!title) return null;
-  const item: DorisCodeInfoItem = { code, title, uri, release: WHO_RELEASE, postcoordination: false };
+  // The first stem only: selectionRefusal checks any further "/" stems.
+  const item: DorisCodeInfoItem = { code, title, uri, release: WHO_RELEASE, postcoordination: false, leaf: !truthy(read.entity.child), extension: code.startsWith("X") };
   return code.includes("&") || code.includes("/") ? item : { ...item, ...searchContextFromEntity(read.entity) };
+}
+
+/**
+ * Why a certificate cannot take a codeinfo item, or null (`selection_refusal`): every stem of the expression (the
+ * first token, and the first token after each "/") must not be an extension code and must be a leaf. The first stem's
+ * answer is on the item; each further "/" stem costs one codeinfo and one entity read (`_stem`). Throws
+ * WhoUnavailableError when WHO cannot say, as the server's 503.
+ */
+export async function selectionRefusal(who: WhoEngineApi, item: DorisCodeInfoItem): Promise<string | null> {
+  const parts = item.code.split("/");
+  for (const [index, part] of parts.entries()) {
+    const stem = part.split("&", 1)[0];
+    if (stem.startsWith("X")) return `${stem} is an extension code. It cannot be used alone: add it to a stem through + Build.`;
+    const leaf = index === 0 ? item.leaf === true : await stemIsLeaf(who, stem);
+    if (!leaf) return `${stem} is a category, not a final code. Choose a more specific code under it.`;
+  }
+  return null;
+}
+
+/** `_stem(code)[1]` has no `child`: codeinfo, then the stem entity, which must carry the same code. */
+async function stemIsLeaf(who: WhoEngineApi, code: string): Promise<boolean> {
+  const info = await who.codeinfo(code);
+  if (!info || info.code !== code || typeof info.stemId !== "string") throw new WhoUnavailableError("stem_not_found");
+  const read = await who.entity(info.stemId);
+  if (read.kind !== "ok" || read.entity.code !== code) throw new WhoUnavailableError("stem_unusable");
+  return !truthy(read.entity.child);
 }

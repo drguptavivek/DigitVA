@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "PH2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Threat to breathing with undetermined intent, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "PC71",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Intentional self-harm by threat to breathing by hanging",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "PH21",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Threat to breathing by hanging with undetermined intent",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "MG49",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hangover",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "PE61",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Assault by threat to breathing by hanging",
        "postcoordination": true,
        "postcoordination_availability": 1,

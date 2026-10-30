@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "5A22.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetic ketoacidosis without coma",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "5A22.3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetic ketoacidosis with coma",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -44,7 +48,9 @@
       },
       {
        "code": "5A22.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified diabetic acidosis",
        "postcoordination": true,
        "postcoordination_availability": 2,

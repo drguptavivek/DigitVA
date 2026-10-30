@@ -44,9 +44,9 @@ def main():
     search = json.loads((HERE / "corpus/search.json").read_text())["items"]
     built = sum(len(i.get("built", [])) for i in pcs)
     parts = [
-        "# Golden corpora: draft for owner review\n",
-        "All three sets are `\"status\": \"draft\"`. Edit the JSON in `corpus/` (or tell the writer what to add or "
-        "drop), then re-record (README.md) and regenerate this file with `python3 scripts/icd11-golden/review.py`.\n",
+        "# Golden corpora: approved by the owner\n",
+        "All three sets are `\"status\": \"approved\"` (owner, 2026-10-30) and frozen. A change goes back to the owner: edit the "
+        "JSON in `corpus/`, set it to `draft`, then re-record (README.md) and regenerate this file with `python3 scripts/icd11-golden/review.py`.\n",
         f"Counts: DORIS {len(doris)} certificates, postcoordination {len(pcs)} stems with {built} built expressions, "
         f"search {len(search)} terms.\n",
         table("DORIS certificates", "Input is `group, sex, age or dates: Part I lines (top = immediate cause), Part II, blocks`.",

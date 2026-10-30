@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BD10",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Congestive heart failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -33,7 +35,9 @@
       },
       {
        "code": "BD1Z&XT8W",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Chronic heart failure",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -45,7 +49,9 @@
       },
       {
        "code": "1D49",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Crimean-Congo haemorrhagic fever",
        "postcoordination": false,
        "postcoordination_availability": 0,

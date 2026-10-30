@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "PA2Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport injury event unknown whether traffic or nontraffic injuring a user of unspecified transport",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "PA1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport nontraffic event injuring a user of unknown or unspecified land transport",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "QA04.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Examination or observation following transport accident",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "PA1D",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport nontraffic event injuring a user of an all-terrain vehicle",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "PA0Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Unintentional land transport traffic event injuring a user of unspecified land transport",
        "postcoordination": true,
        "postcoordination_availability": 1,

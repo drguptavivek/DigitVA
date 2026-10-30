@@ -21,7 +21,9 @@
     "body": {
      "item": {
       "code": "2A01",
+      "extension": false,
       "has_coding_note": false,
+      "leaf": false,
       "postcoordination": true,
       "postcoordination_availability": 1,
       "related_maternal": false,
@@ -48,20 +50,13 @@
    "name": "selection-check",
    "reply": {
     "body": {
-     "item": {
-      "code": "2A01",
-      "has_coding_note": false,
-      "postcoordination": true,
-      "postcoordination_availability": 1,
-      "related_maternal": false,
-      "related_perinatal": false,
-      "release": "2026-01",
-      "title": "Primary neoplasms of meninges",
-      "uri": "http://id.who.int/icd/release/11/2026-01/mms/220111447"
+     "error": {
+      "code": "INVALID_SELECTION",
+      "message": "2A01 is a category, not a final code. Choose a more specific code under it."
      },
      "schema_version": 1
     },
-    "http_status": 200
+    "http_status": 422
    },
    "request": {
     "code": "2A01",

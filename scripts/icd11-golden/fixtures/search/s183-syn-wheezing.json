@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "MD11.C",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Wheezing",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -33,7 +35,9 @@
       },
       {
        "code": "4A80.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Bronchospasm provoked by allergy to food substance",
        "postcoordination": false,
        "postcoordination_availability": 0,

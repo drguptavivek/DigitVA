@@ -8,6 +8,8 @@ last_updated: 2026-10-30
 
 # DORIS COD Workflow
 
+Every check from search to final save, with known gaps: [DORIS Validation Checks](doris-validation-checks.md).
+
 ## Native coding receipts and reference data
 
 Offline uploads return a `coding_sha256` identifying the complete submitted
@@ -259,10 +261,17 @@ below. Line 1 is one tap target for the whole line (code and title): it stages
 the code, or opens the builder when postcoordination is mandatory (`stage()`
 routes mandatory stems, so the stem alone never reaches OK); a trailing 32 dp
 "ⓘ" (44 dp reach) opens Details, and moves under line 1 at font scale 1.5 or
-more. Line 2 exists only when there is something to show: 28 dp badge pills
-(mandatory shows "+ Build"), the "Matched:" caption on one line and the
-age-restricted tag. Phones have no row-level Use or Details buttons; Hierarchy
-is in the Details card. In the builder an option is a 40 dp row with a check
+more. The title is bold (weight 700: Samsung's system font has no 600 and drew
+it regular) and the code is not. Line 2 exists only when there is something to
+show: on a phone or in the narrow pane, a 28 dp "Use" pill with a tick first,
+whenever the code can be used as it is (the web's rule: complete, or
+postcoordination not mandatory), then a divider and the 28 dp badge pills (a
+mandatory stem shows "+ Build (required)" and no Use), the "Matched:" caption
+on one line and the age-restricted tag. The footer has Clear after OK, set
+apart, which empties the staged code and keeps the results. A refused "Other
+postcoordination" pick shows its message under the axis search box, above the
+matches. Phones have no row-level Details button; Hierarchy is in the Details
+card. In the builder an option is a 40 dp row with a check
 circle, optional axes are folded on phones ("(optional) · n chosen"; an axis
 that already holds a choice starts open) and open on tablets, and a list over
 8 options shows 8 and "Show all N". On a tablet (`useUi().phone` false, width
@@ -273,6 +282,29 @@ related), each with its own scroll; the footer spans the full width and there
 is no scroll-jump or "Back to results". `app.json` orientation is `default`
 (tablets rotate; the phone portrait lock is pending, see the design in
 `.tasks/2026-10-29-android-offline-doris-parity.md`).
+
+**Final codes only (2026-10-30, digitva-9cll.12).** Terms items carry
+`extension` (WHO `chapter` is `X`, else the code starts with X) and, when WHO
+sent `isLeaf`, `leaf`; codeinfo and selection-check items carry both for the
+first stem, read from the stem entity `_codeinfo_item` already fetches (no
+`child` list means leaf). `selection_refusal` in
+`app/services/icd11_postcoordination.py` refuses an extension or a non-leaf
+stem with `INVALID_SELECTION` (doris-clinical and doris-demo routes, the golden
+recorder); a single code or an `&` expression costs no extra WHO call, each
+further `/` stem one codeinfo and one entity read. `dorisTerminology.ts`
+(`selectionRefusal`) ports it for the offline editor. Both pickers funnel every
+staging path through `stage()`, which refuses the same items from the reply's
+flags (absent flags pass, and OK's selection check decides): a category opens
+its hierarchy, an extension shows the message in the footer. Result rows show
+"Choose specific ▸" or an "Extension" marker in place of Use and no + Build;
+the hierarchy card disables "Use this code" and hides "Build expression" for a
+node with children or an extension code. The Collect Plus picker shows the
+server's not-final refusal text (only that exact wording) for
+`INVALID_SELECTION`; any other text stays "The selected code does not match
+its WHO URI.", which older APKs show for every refusal. The WHO ECT
+assessment's `/api/v1/icd11/selection-check` is unchanged: it refuses through
+the local catalogue's `is_coding_selectable`, which already excludes chapter X
+but allows 2,077 non-leaf categories.
 
 **Offline replies (Collect Plus, 2026-10-30, digitva-9cll.3).** With no
 server call, the offline `WorkspaceApi` answers `terms`, `codeinfo`,
@@ -470,7 +502,7 @@ CoDEdit issue IDs and the Help rule trace sit in a collapsed "Technical details"
 section at the bottom, after Step 2. Both editors are two steps.
 "Step 1: DORIS" holds the certificate in the WHO DORIS screen's wording and
 order, in the web editor and the Expo app alike: "Administrative Data" (sex,
-estimated age and age unit, date of birth, date of death), "Frame A: Medical
+date of birth, date of death, estimated age and age unit, as in WHO's DORIS workspace), "Frame A: Medical
 data" with "Part 1: Cause of death" (lines lettered A to E; our "Immediate
 cause" / "Due to" titles stay, each line has "Interval" and "Time unit"),
 "Part 2: Other significant conditions contributing to death" (one heading,

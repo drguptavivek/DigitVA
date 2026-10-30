@@ -17,6 +17,8 @@
       "body": {
        "item": {
         "code": "JB40.0&XN74M/JB40.2",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Puerperal sepsis",
@@ -41,13 +43,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
       "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
       "GET icd/release/11/2026-01/mms/codeinfo/JB40.2",
-      "GET icd/release/11/2026-01/mms/325070079"
+      "GET icd/release/11/2026-01/mms/325070079",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.2",
+      "GET icd/release/11/2026-01/mms/1859686171"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "JB40.0&XN74M/JB40.2",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Puerperal sepsis",
@@ -288,6 +294,8 @@
       "body": {
        "item": {
         "code": "JB40.0/JB40.3",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Puerperal sepsis",
@@ -310,13 +318,17 @@
       "GET icd/release/11/2026-01/mms/codeinfo/JB40.0%2FJB40.3",
       "GET icd/release/11/2026-01/mms/codeinfo/JB40.0",
       "GET icd/release/11/2026-01/mms/codeinfo/JB40.3",
-      "GET icd/release/11/2026-01/mms/325070079"
+      "GET icd/release/11/2026-01/mms/325070079",
+      "GET icd/release/11/2026-01/mms/codeinfo/JB40.3",
+      "GET icd/release/11/2026-01/mms/443932646"
      ],
      "name": "selection-check",
      "reply": {
       "body": {
        "item": {
         "code": "JB40.0/JB40.3",
+        "extension": false,
+        "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
         "title": "Puerperal sepsis",
@@ -573,7 +585,9 @@
     "body": {
      "item": {
       "code": "JB40.0",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": false,
@@ -602,7 +616,9 @@
     "body": {
      "item": {
       "code": "JB40.0",
+      "extension": false,
       "has_coding_note": true,
+      "leaf": true,
       "postcoordination": true,
       "postcoordination_availability": 2,
       "related_maternal": false,

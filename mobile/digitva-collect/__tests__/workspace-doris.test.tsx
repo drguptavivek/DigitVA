@@ -341,6 +341,16 @@ it("parses and serializes ISO 8601 intervals like the web editor", () => {
   expect(serializeInterval("", UNKNOWN_UNIT)).toEqual({ value: "", error: "" });
 });
 
+it("refuses Process when a blank Part I line separates causes, as the web does", async () => {
+  const cause = (text: string) => ({ Conditions: [{ Text: text, Code: "CA40", LinearizationURI: "https://who.int/CA40", Interval: "P2D" }] });
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, Part1: [cause("Pneumonia"), { Conditions: [] }, cause("Sepsis")] } }), api);
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(JSON.stringify(tree.toJSON())).toContain("Fill or remove Part I line 2 before processing; blank lines cannot separate causes.");
+  expect(api.processDoris).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
+});
+
 it("starts with three Part I lines and processes with trailing empty lines", async () => {
   const api = apiFor();
   const { tree } = renderPanel(makeWorkspace(), api);
@@ -350,7 +360,7 @@ it("starts with three Part I lines and processes with trailing empty lines", asy
   expect(byLabel(tree, "Move Part I line 3 down").props.disabled).toBe(true);
   await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
   expect(api.processDoris).toHaveBeenCalledTimes(1);
-  expect(JSON.stringify(tree.toJSON())).not.toContain("Complete each Part I line");
+  expect(JSON.stringify(tree.toJSON())).not.toContain("blank lines cannot separate causes");
   await act(async () => byLabel(tree, "Remove Part I line 3").props.onPress());
   expect(() => byLabel(tree, "Remove Part I line 3")).toThrow();
   await act(async () => tree.unmount());

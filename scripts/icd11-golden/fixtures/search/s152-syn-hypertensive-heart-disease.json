@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "BA01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypertensive heart disease",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "BA01/BD1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypertensive heart disease with heart failure",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "BA00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Essential hypertension, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -57,7 +63,9 @@
       },
       {
        "code": "BA03/BA01",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypertensive crisis [Hypertensive heart disease]",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -69,7 +77,9 @@
       },
       {
        "code": "BA03/BA00.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Hypertensive crisis [Hypertensive heart and renal disease, unspecified]",
        "postcoordination": true,
        "postcoordination_availability": 2,

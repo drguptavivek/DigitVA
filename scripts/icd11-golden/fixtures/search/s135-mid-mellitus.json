@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "5A14",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetes mellitus, type unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "JA63.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetes mellitus in pregnancy, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "5A13",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": false,
        "matching_text": "Diabetes mellitus, other specified type",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "JA63.2",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Diabetes mellitus arising in pregnancy",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -68,7 +76,9 @@
       },
       {
        "code": "5A11",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Type 2 diabetes mellitus",
        "postcoordination": true,
        "postcoordination_availability": 1,

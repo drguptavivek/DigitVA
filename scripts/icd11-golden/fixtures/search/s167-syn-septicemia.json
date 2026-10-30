@@ -21,7 +21,9 @@
      "items": [
       {
        "code": "MA15.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Bacteraemia",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -33,7 +35,9 @@
       },
       {
        "code": "JB40.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Infections in the puerperium, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -45,7 +49,9 @@
       },
       {
        "code": "MA15.1",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Fungaemia",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -57,7 +63,9 @@
       },
       {
        "code": "JB0D.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified complications of labour or delivery, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -69,7 +77,9 @@
       },
       {
        "code": "1C1C.20",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute meningococcaemia",
        "postcoordination": true,
        "postcoordination_availability": 1,

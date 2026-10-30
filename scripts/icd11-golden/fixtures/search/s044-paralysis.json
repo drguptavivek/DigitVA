@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "MB5Z",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Paralytic symptoms, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 2,
@@ -32,7 +34,9 @@
       },
       {
        "code": "DA93.0",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Paralytic ileus",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "8C74.1Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Periodic paralysis, unspecified",
        "postcoordination": false,
        "postcoordination_availability": 0,
@@ -56,7 +62,9 @@
       },
       {
        "code": "NE61",
+       "extension": false,
        "has_coding_note": true,
+       "leaf": true,
        "matching_text": "Harmful effects of or exposure to noxious substances, chiefly nonmedicinal as to source, not elsewhere classified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "MD11.Y",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Other specified abnormalities of breathing",
        "postcoordination": false,
        "postcoordination_availability": 0,

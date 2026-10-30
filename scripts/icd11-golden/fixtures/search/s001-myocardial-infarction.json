@@ -20,7 +20,9 @@
      "items": [
       {
        "code": "BA41.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute myocardial infarction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -32,7 +34,9 @@
       },
       {
        "code": "BA42.Z",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Subsequent myocardial infarction, unspecified",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -44,7 +48,9 @@
       },
       {
        "code": "BA50",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Old myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -56,7 +62,9 @@
       },
       {
        "code": "BA41.Z&XY6K",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Acute periprocedural myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,
@@ -68,7 +76,9 @@
       },
       {
        "code": "BA41.Z&XA7RE3",
+       "extension": false,
        "has_coding_note": false,
+       "leaf": true,
        "matching_text": "Anterolateral myocardial infarction",
        "postcoordination": true,
        "postcoordination_availability": 1,

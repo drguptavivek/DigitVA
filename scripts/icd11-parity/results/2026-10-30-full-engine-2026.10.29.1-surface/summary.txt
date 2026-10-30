@@ -1,0 +1,18 @@
+requests: phone 30783, container 30783, only on one side 0
+section     total   same  refused  mismatch
+call          118     90       28         0
+codeinfo       57     49        8         0
+edge           10     10        0         0
+golden       1592   1586        6         0
+malformed       5      1        4         0
+ours        10000  10000        0         0
+search         92     91        1         0
+suite       10000  10000        0         0
+sweep        8909   8261      648         0
+DORIS      phone median 3.4, p95 5.3, max 143.8 ms | container (REST, same machine) median 2.8, p95 8.9, max 288.2 ms
+search     phone median 3.7, p95 78.1, max 656.6 ms | container (REST, same machine) median 2.3, p95 14.6, max 106.7 ms
+code info  phone median 0.0, p95 3.8, max 276.6 ms | container (REST, same machine) median 0.9, p95 4.5, max 10.1 ms
+generic    phone median 0.5, p95 14.5, max 75.9 ms | container (REST, same machine) median 1.2, p95 5.3, max 9.8 ms
+golden     phone median 0.4, p95 8.5, max 673.2 ms | container (REST, same machine) median 1.2, p95 6.1, max 131.3 ms
+sweep      phone median 0.2, p95 7.2, max 501.5 ms | container (REST, same machine) median 1.0, p95 4.6, max 181.0 ms
+CoDEdit    phone median 4.4, p95 5.5, max 346.5 ms | container (REST, same machine) median 2.1, p95 7.5, max 93.6 ms

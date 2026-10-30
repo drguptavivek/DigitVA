@@ -3,7 +3,7 @@ title: Offline ICD-11 and DORIS in DigitVA Collect Plus - Technical Note for WHO
 doc_type: reference
 status: draft
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-10-31
 ---
 
 # Offline ICD-11 and DORIS in DigitVA Collect Plus
@@ -18,8 +18,10 @@ on the phone; they are compiled to native code with .NET NativeAOT. Nothing is
 reimplemented. For every request that does not use the two bounds our bridge
 adds (section 5), the phone gives the same answers as the `whoicd/icd-api`
 container our servers use. We found three small differences, listed in
-section 5. On 30 October 2026, 472 recorded requests matched on the current
-engine. On 29 October, 20,164 requests matched on the engine library of the
+section 5. On 30 October 2026, all 30,783 requests of our full evaluation
+matched on the current engine, including every ICD-11 read the coding screen
+makes (search, code info, entities, postcoordination, DORIS and CoDEdit). On
+29 October, 20,164 requests matched on the engine library of the
 published 0.3.14 app. We ask WHO for one written line on licensing (section 8)
 and welcome review of the build.
 
@@ -167,6 +169,8 @@ archive bytes.
 | Check | What it compares | Result |
 | --- | --- | --- |
 | Large parity run, 29 Oct 2026, Samsung SM-E146B, engine library of Collect Plus 0.3.14 (engine release `icd11-engine-v2026.10.25.1`) | 20,164 requests sent to the phone engine and to the `whoicd/icd-api:2.6.0` container | below |
+| Full evaluation (`scripts/icd11-parity/eval.sh full`), Samsung SM-E146B, engine 2026.10.29.1, 30 Oct 2026 | 30,783 requests: the 20,010 certificates and the request sets below, plus every WHO request recorded in the golden corpora (1,592) and 8,909 coding-screen reads over 401 codes | 30,783 of 30,783 matched: 30,088 identical replies, 695 refused by both, none different or one-sided (below) |
+| Clean-room rebuild, 30 Oct 2026: the engine library compiled in a fresh Ubuntu 24.04 container from our public repository and WHO's public inputs only, run on the same phone (`eval.sh quick`) | 2,064 requests, including every WHO request recorded in the golden corpora | 2,064 of 2,064 matched: 2,017 identical, 47 refused by both |
 | Phone parity kit (`scripts/icd11-parity/run_phone.sh`), Samsung SM-E146B, engine 2026.10.29.1, 30 Oct 2026 | the same requests sent to the phone engine and to the container; 28 rows test the bridge's bounds (below) | 472 of 472 matched: 431 identical replies, 41 refused with the same status class, none one-sided |
 | Golden corpora, frozen 30 Oct 2026 (`scripts/icd11-golden/`) | the app's TypeScript layer against recorded WHO replies | 455 fixtures (DORIS 173, postcoordination 44, search 238); 173/173 DORIS, 238/238 search, 485/485 guidance operations identical |
 | JNI smoke tests (`jni_smoke.sh`) | the native bridge on the phone | run 29 Oct 2026 (bead `digitva-9cll.6`): 0 failures; no run recorded against 2026.10.29.1 |
@@ -182,6 +186,33 @@ These checks establish that the phone reproduces WHO's software; they do not
 measure clinical accuracy. Not yet covered: the Android service's Binder paths
 (`digitva-9cll.6`), and an end-to-end run of the complete offline coding
 journey on a phone with a published Plus build (`digitva-9cll.5`).
+
+### The 30 October full evaluation: 30,783 requests
+
+Same phone, container and data as the 29 October run below, on the current
+engine (2026.10.29.1) and its single call interface, which takes the same
+options the server sends. Field names are now compared case-sensitively.
+
+| Request set | Requests | Identical | Refused by both | Different |
+| --- | --: | --: | --: | --: |
+| Synthetic certificates (DORIS, then CoDEdit) | 10,000 | 10,000 | 0 | 0 |
+| Earlier DigitVA suite | 10,000 | 10,000 | 0 | 0 |
+| Erroneous certificates | 10 | 10 | 0 | 0 |
+| Malformed requests | 5 | 1 | 4 | 0 |
+| ICD-11 search texts | 92 | 91 | 1 | 0 |
+| Code info: stem, postcoordinated and malformed codes | 57 | 49 | 8 | 0 |
+| Search, code info, entity and foundation options, and the bridge's bounds | 118 | 90 | 28 | 0 |
+| Golden: every WHO request recorded for the golden corpora (search, code info, entities, residual categories, foundation, DORIS and CoDEdit) | 1,592 | 1,586 | 6 | 0 |
+| Sweep: the coding screen's reads for 401 codes (code info in three modes, entities and their `unspecified`/`other` residuals, hierarchy, related and details reads, postcoordination axes and composed `&`/`/` expressions, picker and subtree searches) | 8,909 | 8,261 | 648 | 0 |
+| **Total** | **30,783** | **30,088** | **695** | **0** |
+
+Most refusals are reads of residual categories that do not exist (404 on both
+sides). The empty search text, which differed on 29 October, is now refused on
+both sides. The app's TypeScript layer is tested against the golden replies
+(table above), so with the golden requests matching on the phone, the phone's
+coding screen answers as the server's does for these inputs. The inputs,
+results and `run.json` (engine, phone, container digest, dataset hashes) are in
+`scripts/icd11-parity/results/2026-10-30-full-engine-2026.10.29.1-surface/`.
 
 ### The 29 October run: 20,164 requests
 
@@ -237,7 +268,9 @@ errors differently.
   postcoordination included). The 92 texts were compared with default options
   on both sides.
 
-**Reproducing it.** The kit is in our repository (`scripts/icd11-parity`): a
+**Reproducing it.** The kit is in our repository (`scripts/icd11-parity`);
+`scripts/icd11-parity/eval.sh quick|full` runs it from committed datasets and
+writes each run to `results/` (`scripts/icd11-parity/README.md`). It holds a
 fixed condition list, the certificate generator, a fixed query list, the phone
 harness in C, a container runner, a comparison script and one script that
 downloads the pinned engine and APK, checks their SHA-256 and runs everything.

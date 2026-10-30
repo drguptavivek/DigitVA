@@ -12,6 +12,13 @@ What landed, newest first. Details live in the commits and the linked docs;
   verification only; release APKs still come only from CI. First full run
   not yet made.
 
+- **Full ICD-11 parity run and clean-room engine check**
+  (`scripts/icd11-parity/results/`, WHO technical note section 5): `eval.sh full`
+  on the SM-E146B with engine 2026.10.29.1 matched 30,783 of 30,783 request lines
+  (30,088 identical, 695 refused on both sides, case-sensitive field names). An
+  engine library rebuilt in a fresh Ubuntu container from the GitHub clone and
+  WHO's public inputs matched 2,064 of 2,064 in `eval.sh quick`.
+
 - **ICD-11 parity kit as one evaluation** (`digitva-9cll.22.7`;
   `scripts/icd11-parity/README.md`, `docs/current-state/icd11-android-engine-interface.md`).
   `scripts/icd11-parity/eval.sh quick|full` runs the phone engine and WHO's

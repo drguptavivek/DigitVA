@@ -39,15 +39,12 @@ has neither, and its coding is one direct step with SmartVA visible.
    right for standalone; check enrolled before closing). Capture:
    `private/engine-measurements/20261030-coding-journey` (icd11 PSS max 819 MB,
    no LMK).
-4. `eval.sh full surface` (30,783 request lines incl. `golden` and `sweep`) was
-   running on the Samsung at the 2026-10-31 commits: commit its
-   `scripts/icd11-parity/results/` folder and add its row to the kit README.
-   `make collect-plus-local` (debug-signed local verification build, not for
-   distribution) is committed but only its dry run and toolchain image are
-   tested: run it once end to end (`build/collect-plus-local/`), needs Docker
-   memory of 12 GB or more (24 GB set 2026-10-31). The clean-room rebuild
-   (scratchpad `build.sh`, same steps from a GitHub clone) passed the engine
-   compile at 24 GB; its APK result was pending.
+4. `make collect-plus-local` (debug-signed local verification build, not for
+   distribution): the container mode is committed but untested end to end
+   (Docker needs 12 GB or more; 24 GB set 2026-10-31); `NATIVE=1` (build on
+   the Mac, no emulation) was being written. The clean-room rebuild it grew
+   from passed on 2026-10-31 and its engine library matched the container in
+   `eval.sh quick` (results `2026-10-30-quick-engine-local-cleanroom`).
 5. `digitva-9cll.22` coding parity (P1), children ranked: `.22.2` online phone
    attachments never load (likely one prop), `.22.4` enrolled offline NQA/SA
    ignore the project and import skips the gates, `.22.3` native category view

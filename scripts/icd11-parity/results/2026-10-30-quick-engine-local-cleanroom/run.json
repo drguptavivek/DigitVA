@@ -1,0 +1,45 @@
+{
+  "date_utc": "2026-10-30",
+  "profile": "quick",
+  "requests": 2064,
+  "requests_by_section": {
+    "ours": 200,
+    "malformed": 5,
+    "search": 92,
+    "codeinfo": 57,
+    "call": 118,
+    "golden": 1592
+  },
+  "kit_commit": "8ff44355429b43012f56a95471bec2315ccfffce",
+  "kit_tree_dirty": true,
+  "compare_commit": "e3bc4a227e6459bee147c9e0496e6707c099293f",
+  "engine": {
+    "version": "local",
+    "tag": null,
+    "archive_sha256": null,
+    "local_so_sha256": "30fc17daaadb0e6b740b76e398f12c41feecd18f680ec8d922d4a44f538407b0"
+  },
+  "openssl_libcxx_libs": {
+    "source": "STAGED",
+    "path": "/data/local/tmp/icd11-nofb-staged"
+  },
+  "phone": {
+    "model": "SM-E146B",
+    "android": "15"
+  },
+  "container_image": "whoicd/icd-api@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c",
+  "datasets_sha256": {
+    "hash-synthetic-10k/certificates.jsonl": "aa1eea021f3f7ddf389978600a43b374805ec1fb7f2d641b4afdb2575b15b9b4",
+    "certificates sent": "fe33d74976a242d633a8bd9ad0846373d117f57c9ad1308b7fb1f25575fbb9f5",
+    "queries.json": "10a1933c2ae027508722bc9cb055b17d6b67c81834b70188300ef231afc208aa",
+    "calls.json": "2afb04a681c7912a22adc98c96b8a5c495df04658c9c2f6d69d2e2ee6315b4d8",
+    "golden (scripts/icd11-golden/fixtures)": {
+      "requests_sha256": "7d6541ee87a2d0f32e59e3bf08bf6176dfde3ca1ebf36ec0a70e540f29605b9a",
+      "calls": 1431,
+      "certificates": 161,
+      "manifest_sha256": "814f23df5ad35eaf089513455ac73c95db46f6074f351e348dcb51d1c2abedfc"
+    }
+  },
+  "compare_exit_status": 0,
+  "backfilled": false
+}

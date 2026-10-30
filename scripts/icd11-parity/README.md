@@ -114,6 +114,8 @@ One directory per run, `<date>-<profile>-engine-<engine version or local>[-<RUN_
 | 2026-10-29 | full (before the one-call interface; no `calls.json`) | 2026.10.25.1 | 20,164 | 1 mismatch: `search/091`, empty text (phone 200, container 400); codeinfo 8 and malformed 4 refused on both sides; case-insensitive comparer. Backfilled |
 | 2026-10-30 | quick | 2026.10.29.1 | 472 | no mismatch: 431 same, 41 refused on both sides (28 calls, 8 code info, 4 malformed, 1 search). Backfilled |
 | 2026-10-30 | quick (`eval-kit`, first run of `eval.sh`, engine archive from the release) | 2026.10.29.1 | 472 | no mismatch: 431 same, 41 refused on both sides, as above |
+| 2026-10-30 | full (`surface`, first run with `golden` and `sweep`) | 2026.10.29.1 | 30,783 | no mismatch: 30,088 same, 695 refused on both sides (648 sweep, 28 calls, 8 code info, 6 golden, 4 malformed, 1 search) |
+| 2026-10-30 | quick (`cleanroom`: engine library from a clean-room build in a fresh Ubuntu container from the GitHub clone and WHO's public inputs, sha256 `30fc17da…`) | local | 2,064 | no mismatch: 2,017 same, 47 refused on both sides |
 
 Each row is a folder in `results/`; `run.json` of each says what is unknown (null). The 2026-10-29 `summary.txt` must be read with the comparer of
 commit `0e2b603d1`.

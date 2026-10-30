@@ -1,0 +1,13 @@
+requests: phone 20164, container 20164, only on one side 0
+section     total   same  refused  mismatch
+codeinfo       57     49        8         0
+edge           10     10        0         0
+malformed       5      1        4         0
+ours        10000  10000        0         0
+search         92     91        0         1
+suite       10000  10000        0         0
+  search/091: one side refused (phone 200, container 400)
+DORIS      phone median 3.5, p95 5.5, max 64.2 ms | container (REST, same machine) median 1.1, p95 1.7, max 33.4 ms
+search     phone median 3.5, p95 74.8, max 614.4 ms | container (REST, same machine) median 1.9, p95 16.5, max 162.7 ms
+code info  phone median 0.0, p95 0.8, max 275.5 ms | container (REST, same machine) median 0.7, p95 1.4, max 2.2 ms
+CoDEdit    phone median 4.1, p95 5.3, max 270.0 ms | container (REST, same machine) median 0.8, p95 1.4, max 31.4 ms

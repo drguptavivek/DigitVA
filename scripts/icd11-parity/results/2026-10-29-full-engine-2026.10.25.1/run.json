@@ -1,0 +1,39 @@
+{
+  "date_utc": "2026-10-29",
+  "profile": "full (pre one-call format)",
+  "backfilled": true,
+  "requests": 20164,
+  "requests_by_section": {
+    "ours": 10000,
+    "suite": 10000,
+    "edge": 10,
+    "malformed": 5,
+    "search": 92,
+    "codeinfo": 57
+  },
+  "kit_commit": "0e2b603d1b04b8621882e50feda0c78596459713",
+  "kit_tree_dirty": null,
+  "compare_commit": "0e2b603d1b04b8621882e50feda0c78596459713",
+  "engine": {
+    "version": "2026.10.25.1",
+    "tag": "icd11-engine-v2026.10.25.1",
+    "archive_sha256": null,
+    "local_so_sha256": null,
+    "note": "library of Collect Plus 0.3.14"
+  },
+  "openssl_libcxx_libs": null,
+  "phone": {
+    "model": "SM-E146B",
+    "android": "15"
+  },
+  "container_image": "whoicd/icd-api@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c",
+  "datasets_sha256": {
+    "hash-synthetic-10k/certificates.jsonl": "aa1eea021f3f7ddf389978600a43b374805ec1fb7f2d641b4afdb2575b15b9b4",
+    "clinical-variants-10k": {
+      "edge_inputs.jsonl": "3d17ac57b3fcfe349f32031583be6fd9710c7c0a22049b7cb8ea8142bcc89c2f",
+      "inputs_all.jsonl": "7d374562b6149dcd0a06454bc859e3cd1a08d3286a8089ea9ef43106527ee0ae"
+    }
+  },
+  "compare_exit_status": 1,
+  "note": "Made before the engine's one-call interface: no calls.json section, DORIS and CoDEdit requested separately. summary.txt comes from compare.py of commit 0e2b603d1 (JSON field names compared case-insensitively); the current compare.py compares them case-sensitively and cannot read these files' expectations. The one mismatch is search/091 (empty text: phone 200, container 400)."
+}

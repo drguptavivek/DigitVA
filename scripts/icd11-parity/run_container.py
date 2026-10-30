@@ -57,34 +57,45 @@ def chop(status, body, limit):
     return json.dumps(reply, ensure_ascii=False, separators=(",", ":"))
 
 
+RELEASE = "icd/release/11/2026-01"
+
+
+def rest(op, args):
+    """The single WHO REST request of the engine call `op` with `args`: (method, path, body, content type), the path relative to the
+    container root. search is the server's POST with a form body, codeinfo and the entities are GETs with the arguments as query
+    parameters, doris and codedit POST the certificate. The bounds (limit, refused include) are not here: call_op applies them."""
+    if op == "search":
+        form = {k: str(v).lower() if isinstance(v, bool) else v for k, v in args.items() if v is not None}
+        return "POST", f"{RELEASE}/mms/search", urllib.parse.urlencode(form).encode(), "application/x-www-form-urlencoded"
+    if op == "codeinfo":
+        return "GET", f"{RELEASE}/mms/codeinfo/" + urllib.parse.quote(args.get("code", ""), safe="") + query(args, ["flexiblemode", "convertToTerminalCodes"]), None, None
+    if op == "entity":
+        residual = "/" + urllib.parse.quote(args["residual"], safe="") if args.get("residual") else ""
+        return "GET", f"{RELEASE}/mms/" + urllib.parse.quote(args.get("id", ""), safe="") + residual + query(args, ["include"]), None, None
+    if op == "foundation_entity":
+        return "GET", "icd/entity/" + urllib.parse.quote(args.get("id", ""), safe="") + query(args, ["include"]), None, None
+    if op in ("doris", "codedit"):
+        return "POST", f"{RELEASE}/{op}", json.dumps(args["certificate"], separators=(",", ":"), ensure_ascii=False).encode("utf-8"), "application/json"
+    raise SystemExit(f"unknown op {op}")
+
+
 def call_op(root, base, op, args):
     """The container's answer to the engine call `op` with the JSON object `args`: (status, body, ms)."""
     if op in ("entity", "foundation_entity") and "descendant" in str(args.get("include") or "").lower():
         return 400, REFUSED_DESCENDANT, 0.0
-    if op == "search":
-        if "limit" in args:
-            limit = args["limit"]
-            if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
-                return 400, '{"error":"bad argument: limit"}', 0.0
-            flat = args.get("flatResults")
-            if flat is not None and not isinstance(flat, bool):
-                return 400, '{"error":"bad argument: flatResults"}', 0.0
-            if flat is False:
-                return 400, REFUSED_LIMIT_NESTED, 0.0
-            status, body, ms = call_op(root, base, op, {k: v for k, v in args.items() if k != "limit"})
-            return status, chop(status, body, limit), ms
-        form = {k: str(v).lower() if isinstance(v, bool) else v for k, v in args.items() if v is not None}
-        return call(f"{base}/mms/search", urllib.parse.urlencode(form).encode(), "application/x-www-form-urlencoded")
-    if op == "codeinfo":
-        return call(f"{base}/mms/codeinfo/" + urllib.parse.quote(args.get("code", ""), safe="") + query(args, ["flexiblemode", "convertToTerminalCodes"]))
-    if op == "entity":
-        residual = "/" + urllib.parse.quote(args["residual"], safe="") if args.get("residual") else ""
-        return call(f"{base}/mms/" + urllib.parse.quote(args.get("id", ""), safe="") + residual + query(args, ["include"]))
-    if op == "foundation_entity":
-        return call(f"{root}/icd/entity/" + urllib.parse.quote(args.get("id", ""), safe="") + query(args, ["include"]))
-    if op in ("doris", "codedit"):
-        return call(f"{base}/{op}", json.dumps(args["certificate"], separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
-    raise SystemExit(f"unknown op {op}")
+    if op == "search" and "limit" in args:
+        limit = args["limit"]
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+            return 400, '{"error":"bad argument: limit"}', 0.0
+        flat = args.get("flatResults")
+        if flat is not None and not isinstance(flat, bool):
+            return 400, '{"error":"bad argument: flatResults"}', 0.0
+        if flat is False:
+            return 400, REFUSED_LIMIT_NESTED, 0.0
+        status, body, ms = call_op(root, base, op, {k: v for k, v in args.items() if k != "limit"})
+        return status, chop(status, body, limit), ms
+    _, path, body, content_type = rest(op, args)
+    return call(f"{root}/{path}", body, content_type) if body is not None else call(f"{root}/{path}")
 
 
 def main():

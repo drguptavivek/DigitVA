@@ -12,10 +12,18 @@
 # bundle_min/, data/), SUITE_FIXTURES_DIR to "-" and CERTIFICATES to a count (200 is enough to see a break); the 10,010 suite inputs are
 # then left out. The comparison is the same.
 #
-# usage: [ENGINE_SO=... STAGED=/data/local/tmp/DIR CERTIFICATES=200] scripts/icd11-parity/run_phone.sh WORK_DIR SUITE_FIXTURES_DIR|-
+# SUITE_FIXTURES_DIR may be the committed datasets/clinical-variants-10k. OURS=FILE.jsonl uses a prepared certificate file (as
+# eval.sh does, from datasets/hash-synthetic-10k) instead of generating CERTIFICATES of them.
+# Leaves in WORK_DIR: requests.tsv, phone.tsv, container.tsv, counts.txt (requests per section), summary.txt (compare.py's output) and
+# provenance.env (engine and library sources); exits with compare.py's status. scripts/icd11-parity/eval.sh is the usual entry point.
+#
+# SECTIONS (third argument, optional) names the extra request sections build_inputs.py adds: golden, sweep or golden,sweep (eval.sh: quick
+# golden, full golden,sweep). Without it the list is the earlier one (the certificates, the malformed requests, queries.json and calls.json).
+#
+# usage: [OURS=FILE.jsonl ENGINE_SO=... STAGED=/data/local/tmp/DIR CERTIFICATES=200] scripts/icd11-parity/run_phone.sh WORK_DIR SUITE_FIXTURES_DIR|- [SECTIONS]
 set -euo pipefail
-work=$1 suite=$2
-local_so="${ENGINE_SO:-}" staged="${STAGED:-}" certificates="${CERTIFICATES:-10000}"
+work=$1 suite=$2 sections=${3:-}
+local_so="${ENGINE_SO:-}" staged="${STAGED:-}" certificates="${CERTIFICATES:-10000}" prepared="${OURS:+$(cd "$(dirname "$OURS")" && pwd)/$(basename "$OURS")}"
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 # shellcheck source=../icd11-engine.env
@@ -33,9 +41,11 @@ proxy=http://127.0.0.1:9   # nothing listens here: the engine's start-up downloa
 
 mkdir -p "$work"
 cd "$work"
+: > provenance.env
 if [ -n "$local_so" ]; then
   : "${staged:?set STAGED with ENGINE_SO}"
   rm -rf lib && mkdir -p lib && cp "$local_so" lib/libdigitva_icd11.so
+  printf 'ENGINE_LOCAL_SO_SHA256=%s\nSTAGED=%s\n' "$(shasum -a 256 lib/libdigitva_icd11.so | cut -d' ' -f1)" "$staged" >> provenance.env
 else
 gh release download "$engine_tag" -R drguptavivek/DigitVA -p "icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" --clobber
 echo "$engine_sha  icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" | shasum -a 256 -c
@@ -45,10 +55,12 @@ rm -rf engine lib && mkdir -p engine lib
 tar -xzf "icd11-engine-${ICD11_ENGINE_VERSION}.tar.gz" -C engine
 unzip -q -j -o "$plus_apk" lib/arm64-v8a/libssl.so lib/arm64-v8a/libcrypto.so lib/arm64-v8a/libc++_shared.so -d lib
 cp engine/bridge-aot/pub-bionic/digitva_icd11.so lib/libdigitva_icd11.so
+printf 'ENGINE_TAG=%s\nENGINE_ARCHIVE_SHA256=%s\nLIBS_PLUS_TAG=%s\nLIBS_PLUS_APK=%s\nLIBS_PLUS_APK_SHA256=%s\n' \
+  "$engine_tag" "$engine_sha" "$plus_tag" "$plus_apk" "$plus_sha" >> provenance.env
 fi
 
-python3 "$here/make_certificates.py" "$work/ours.jsonl" "$certificates"
-python3 "$here/build_inputs.py" "$work/requests.tsv" "$work/ours.jsonl" "$suite"
+if [ -n "$prepared" ]; then cp "$prepared" ours.jsonl; else python3 "$here/make_certificates.py" "$work/ours.jsonl" "$certificates"; fi
+python3 "$here/build_inputs.py" "$work/requests.tsv" "$work/ours.jsonl" "$suite" "$sections" | tee counts.txt
 "$clang" -O2 -Wall -o phone_harness "$here/phone_harness.c" -ldl
 
 if [ -n "$local_so" ]; then
@@ -66,4 +78,4 @@ adb shell "cd $device && chmod 755 phone_harness && cp -r data work && \
 adb pull -q "$device/phone.tsv" phone.tsv
 
 python3 "$here/run_container.py" requests.tsv container.tsv
-python3 "$here/compare.py" phone.tsv container.tsv
+python3 "$here/compare.py" phone.tsv container.tsv | tee summary.txt

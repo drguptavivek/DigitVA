@@ -39,22 +39,27 @@ has neither, and its coding is one direct step with SmartVA visible.
    right for standalone; check enrolled before closing). Capture:
    `private/engine-measurements/20261030-coding-journey` (icd11 PSS max 819 MB,
    no LMK).
-4. `digitva-9cll.22` coding parity (P1), children ranked: `.22.2` online phone
+4. `eval.sh full surface` (30,783 request lines incl. `golden` and `sweep`) was
+   running on the Samsung at the 2026-10-31 commit: commit its
+   `scripts/icd11-parity/results/` folder and add its row to the kit README.
+   `make collect-plus-local` (local verification build, not for distribution)
+   was being written; its first run is unverified.
+5. `digitva-9cll.22` coding parity (P1), children ranked: `.22.2` online phone
    attachments never load (likely one prop), `.22.4` enrolled offline NQA/SA
    ignore the project and import skips the gates, `.22.3` native category view
    below the web's, `.22.5` offline not-codeable/remark, `.22.6` SmartVA sex
    raw code. The offline case-data view (local CategoryPayload from a bundled,
    drift-tested display-config pack) is the parent's main work. Policy
    baseline first.
-5. `digitva-9cll.23` standalone direct coding ("Save cause of death").
+6. `digitva-9cll.23` standalone direct coding ("Save cause of death").
    `digitva-9cll.24` coded case: one read-only summary screen (as the Expo
    web completed-case view) with Revise reopening coding pre-filled; the Coded
    tab's interim "Revise coding" then opens it.
-6. `digitva-gt2v`, `digitva-bged`: offline reply-shape and Build/axes bugs.
-7. DORIS validation gaps in `docs/current-state/doris-validation-checks.md`:
+7. `digitva-gt2v`, `digitva-bged`: offline reply-shape and Build/axes bugs.
+8. DORIS validation gaps in `docs/current-state/doris-validation-checks.md`:
    `digitva-l0ey`, `digitva-2j57`, `digitva-e505`, `digitva-giym`,
    `digitva-o16a`, `digitva-37gr`.
-8. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
+9. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
    Android ICD/DORIS review findings.
 
 ## Open owner decisions

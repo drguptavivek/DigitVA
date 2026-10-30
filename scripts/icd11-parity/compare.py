@@ -46,8 +46,8 @@ def load(path):
                            "calls": [(int(s1), parse(b1)), (int(s2), parse(b2))]}
         elif parts[0] == "CALL":
             _, ident, t, s, b = parts
-            section = ident.split("/", 1)[0]  # search and codeinfo texts are calls too; their latency is reported apart
-            rows[ident] = {"kind": section if section in ("search", "codeinfo") else "call", "ms": [float(t)], "calls": [(int(s), parse(b))]}
+            section = ident.split("/", 1)[0]  # search and codeinfo texts, the golden and the sweep requests are calls too; their latency is reported apart
+            rows[ident] = {"kind": section if section in ("search", "codeinfo", "golden", "sweep") else "call", "ms": [float(t)], "calls": [(int(s), parse(b))]}
     return rows
 
 
@@ -102,7 +102,7 @@ def main():
         print(f"{section:10} {t['total']:6} {t['same']:6} {t['both refused']:8} {t['mismatch']:9}")
     for ident, v in mismatches[:40]:
         print(f"  {ident}: {v}")
-    for kind, label in [("doris", "DORIS"), ("search", "search"), ("codeinfo", "code info"), ("call", "generic")]:
+    for kind, label in [("doris", "DORIS"), ("search", "search"), ("codeinfo", "code info"), ("call", "generic"), ("golden", "golden"), ("sweep", "sweep")]:
         p = [r["ms"][0] for r in phone.values() if r["kind"] == kind]
         c = [r["ms"][0] for r in container.values() if r["kind"] == kind]
         if p:

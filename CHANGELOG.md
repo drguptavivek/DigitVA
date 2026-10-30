@@ -3,6 +3,22 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-31
+
+- **ICD-11 parity kit as one evaluation** (`digitva-9cll.22.7`;
+  `scripts/icd11-parity/README.md`, `docs/current-state/icd11-android-engine-interface.md`).
+  `scripts/icd11-parity/eval.sh quick|full` runs the phone engine and WHO's
+  container on committed inputs and writes `results/<date>-<profile>-engine-<version>/`
+  (gzipped request and reply tables, `summary.txt`, `run.json` with engine,
+  phone, container digest, kit commit and dataset hashes). Datasets:
+  `hash-synthetic-10k` (DigitVA's generated certificates), `clinical-variants-10k`
+  (DigitVA's 2026-10-24 suite), `api-sweep` (8,909 picker reads over 401 codes)
+  and the `golden` section (every WHO read of the frozen golden sets, 1,592
+  rows). quick is 2,064 request lines, full 30,783. The runs of 2026-10-29
+  and 2026-10-30 are backfilled in the same layout; the 2026-10-29 one must
+  be read with the comparer of `0e2b603d1`. First `eval.sh quick` run: 472 of
+  472, no mismatch.
+
 ## 2026-10-30
 
 - **Collect and Collect Plus 0.3.18** (phone checks of 0.3.17, `digitva-9l5c`,

@@ -1,0 +1,39 @@
+{
+  "date_utc": "2026-10-30",
+  "profile": "quick",
+  "backfilled": true,
+  "requests": 472,
+  "requests_by_section": {
+    "ours": 200,
+    "malformed": 5,
+    "search": 92,
+    "codeinfo": 57,
+    "call": 118
+  },
+  "kit_commit": "574545617899f4e24e008a8e543600ed5dbadac3",
+  "kit_tree_dirty": true,
+  "compare_commit": "574545617899f4e24e008a8e543600ed5dbadac3",
+  "engine": {
+    "version": "2026.10.29.1",
+    "tag": null,
+    "archive_sha256": null,
+    "local_so_sha256": "8bfdc258f0e2c316a50656bc9d61ff07531d187f8855d9c5fd1ce4c6c109c718",
+    "note": "library as built for engine release 2026.10.29.1 (no fallback), run as a local library, not the downloaded archive"
+  },
+  "openssl_libcxx_libs": {
+    "source": "STAGED",
+    "path": null
+  },
+  "phone": {
+    "model": "SM-E146B",
+    "android": null
+  },
+  "container_image": "whoicd/icd-api@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c",
+  "datasets_sha256": {
+    "hash-synthetic-10k/certificates.jsonl": "aa1eea021f3f7ddf389978600a43b374805ec1fb7f2d641b4afdb2575b15b9b4",
+    "certificates sent": "fe33d74976a242d633a8bd9ad0846373d117f57c9ad1308b7fb1f25575fbb9f5"
+  },
+  "ours_equals_first_200_of_hash_synthetic_10k": true,
+  "compare_exit_status": 0,
+  "note": "Run from the working tree before the kit files of 574545617 were committed. Its 28 'refused' call rows are the bounds (limit with flatResults=false, include=descendant, invalid limit); the 1 refused search is search/091 (empty text)."
+}

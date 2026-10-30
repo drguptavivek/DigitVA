@@ -1,0 +1,40 @@
+{
+  "date_utc": "2026-10-30",
+  "profile": "quick",
+  "requests": 472,
+  "requests_by_section": {
+    "ours": 200,
+    "malformed": 5,
+    "search": 92,
+    "codeinfo": 57,
+    "call": 118
+  },
+  "kit_commit": "1b2f37d4be907ab45816c11b1535feca6e694e2f",
+  "kit_tree_dirty": true,
+  "compare_commit": "574545617899f4e24e008a8e543600ed5dbadac3",
+  "engine": {
+    "version": "2026.10.29.1",
+    "tag": "icd11-engine-v2026.10.29.1",
+    "archive_sha256": "d3fe3c3a1d7aee3fde9bb4e31224229aae1f9ff01fcbf988ff6244fdecac38c7",
+    "local_so_sha256": null
+  },
+  "openssl_libcxx_libs": {
+    "source": "Collect Plus APK",
+    "tag": "collect-plus-v0.3.14-plus.1",
+    "apk": "digitva-collect-plus-0.3.14-arm64-v8a.apk",
+    "apk_sha256": "a6fc8a2b5b4e2869dbcb7adab5c28dad864d703039823698674d177b4596e41c"
+  },
+  "phone": {
+    "model": "SM-E146B",
+    "android": "15"
+  },
+  "container_image": "whoicd/icd-api@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c",
+  "datasets_sha256": {
+    "hash-synthetic-10k/certificates.jsonl": "aa1eea021f3f7ddf389978600a43b374805ec1fb7f2d641b4afdb2575b15b9b4",
+    "certificates sent": "fe33d74976a242d633a8bd9ad0846373d117f57c9ad1308b7fb1f25575fbb9f5",
+    "queries.json": "10a1933c2ae027508722bc9cb055b17d6b67c81834b70188300ef231afc208aa",
+    "calls.json": "2afb04a681c7912a22adc98c96b8a5c495df04658c9c2f6d69d2e2ee6315b4d8"
+  },
+  "compare_exit_status": 0,
+  "backfilled": false
+}

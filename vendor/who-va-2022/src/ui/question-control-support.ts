@@ -54,6 +54,10 @@ export const questionControlStyles = {
     { color: T.text, flexShrink: 1, fontSize: 16, lineHeight: 24 },
     { color: "inkSubtle" }
   ),
+  // In a full-width row the label takes the space left by the indicator. Left
+  // to size itself, Android measures Devanagari narrower than it draws, so a
+  // Hindi word broke mid-word and pushed the English line out of the cell.
+  choiceTextFill: { flexBasis: 0, flexGrow: 1 },
   choiceIndicator: withWebTheme(
     {
       alignItems: "center" as const,
@@ -196,7 +200,8 @@ export const questionControlStyles = {
   starEmpty: withWebTheme({ color: T.borderStrong, fontSize: 26 }, { color: "controlBorder" }),
   dropdownList: { marginTop: 6 },
   hint: withWebTheme({ color: T.textMuted, fontSize: 13, marginBottom: 10 }, { color: "muted" }),
-  actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, marginTop: 8 },
+  // The gap keeps adjacent buttons apart; without it they touched on the phone.
+  actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginTop: 8 },
   buttonCompact: { alignSelf: "flex-start" as const },
   audioTimer: withWebTheme({ color: T.textMuted, fontSize: 14, marginTop: 6 }, { color: "muted" }),
   button: withWebTheme(

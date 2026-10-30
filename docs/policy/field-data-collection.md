@@ -619,7 +619,10 @@ access rule below.
   secret plus PIN, auto-lock, five wrong PINs wipe that store only), and a
   **project-less form path**: the interview runs from the instrument bundled in
   the app, with the DigitVA extension set the user picks in setup (default
-  none; the equity layer available once it ships). The local account is not
+  the medical and death document photographs, `medical_records` and
+  `death_summary`, as an enrolled project asks them: owner 2026-10-30; the
+  equity layer available once it ships). A draft keeps the set it started
+  with. The local account is not
   a server account: it holds no grants, never calls the server, and is
   skipped by token refresh, notification polling and sync.
   Informant details are saved only after the standalone consent below.
@@ -851,7 +854,14 @@ the native engine and its WHO data together in the installed package. First
 setup, repair and normal startup must use those packaged files without remote
 code or WHO-data downloads. Updating the app supplies a new packaged version;
 the old separate "Update WHO files" action is disabled. Engine startup remains
-on demand, in its isolated process. Later on 2026-10-28 the owner explicitly
+on demand, in its isolated process, with one pre-start (owner decision
+2026-10-30, after a phone check showed a 15-20 s wait on opening coding): when
+the standalone home shows at least one interview pending coding, and device
+ICD-11/DORIS coding is on, the app starts the engine in the background once the
+screen has settled, and starts it again on the next visit if Android has ended
+the engine process. A warm engine holds about 600-900 MB in its own process
+while the coder is not coding; a phone with nothing pending never starts it.
+Later on 2026-10-28 the owner explicitly
 authorized public signed Collect and Collect Plus APKs (`digitva-hs7e.17`),
 overriding the earlier Plus publication hold. Written WHO redistribution
 confirmation remains pending; this owner decision is not WHO permission.

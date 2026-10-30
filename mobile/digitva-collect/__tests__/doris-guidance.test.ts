@@ -722,6 +722,7 @@ describe("the editor's guidance route and requester", () => {
     return {
       available: async () => true,
       init: async () => ({ ok: true, ms: 0, copyMs: 0, initMs: 0, cached: true }),
+      warm: async () => ({ ok: true, ms: 0, copyMs: 0, initMs: 0, cached: true }),
       updateWhoFiles: async () => ({ ok: true, ms: 0, copyMs: 0, initMs: 0, cached: true }),
       call: async () => ({ ok: false, error: "bad_op", ms: 0 }),
       search: async () => ({ ok: false, error: "engine_status", status: 500, ms: 0 }),

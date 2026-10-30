@@ -253,6 +253,8 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   TextInput,
   Pressable,
   Image,
-  PartialSelect: NativeSelect
+  PartialSelect: NativeSelect,
+  Svg,
+  SvgPath
 });
 export type { WhoVaQuestionControlProps } from "./ui/question-controls.js";

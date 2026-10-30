@@ -619,6 +619,8 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   PartialSelect: WebSelect,
   Pressable,
   AudioPlayer: WebAudioPlayer,
-  Image
+  Image,
+  Svg,
+  SvgPath
 });
 export type { WhoVaQuestionControlProps } from "./ui/question-controls.js";

@@ -113,12 +113,17 @@ export interface WhoVaUiMessageTemplates {
   zoomOut: string;
   removeImage: string;
   removeRecording: string;
+  confirmReplaceRecording: string;
+  confirmRemoveRecording: string;
+  keepRecording: string;
   attachment: string;
   pdf: string;
   openingFiles: string;
   replaceAttachment: string;
   chooseAttachment: string;
   removeAttachment: string;
+  confirmRemoveAttachment: string;
+  keepAttachment: string;
   attachmentProcessingFailed: string;
   imageInputTooLarge: string;
   imageTypeNotAllowed: string;
@@ -276,12 +281,17 @@ export interface WhoVaUiMessages {
   zoomOut: string;
   removeImage: string;
   removeRecording: string;
+  confirmReplaceRecording: string;
+  confirmRemoveRecording: string;
+  keepRecording: string;
   attachment: string;
   pdf: string;
   openingFiles: string;
   replaceAttachment: (kind: string) => string;
   chooseAttachment: (kind: string) => string;
   removeAttachment: (kind: string) => string;
+  confirmRemoveAttachment: (kind: string) => string;
+  keepAttachment: (kind: string) => string;
   attachmentProcessingFailed: string;
   imageInputTooLarge: string;
   imageTypeNotAllowed: string;
@@ -426,12 +436,17 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   zoomOut: "Zoom out",
   removeImage: "Remove image",
   removeRecording: "Delete recording",
+  confirmReplaceRecording: "Record again? The current recording will be deleted.",
+  confirmRemoveRecording: "Delete this recording? It cannot be recovered.",
+  keepRecording: "Keep recording",
   attachment: "attachment",
   pdf: "PDF",
   openingFiles: "Opening files…",
   replaceAttachment: "Replace {kind}",
   chooseAttachment: "Choose {kind}",
   removeAttachment: "Remove {kind}",
+  confirmRemoveAttachment: "Delete this {kind}? It cannot be recovered.",
+  keepAttachment: "Keep {kind}",
   attachmentProcessingFailed: "The selected attachment could not be processed and was discarded.",
   imageInputTooLarge: "Choose an image smaller than 10 MB.",
   imageTypeNotAllowed: "Choose a valid JPEG or PNG image. Renamed and unsupported files are not accepted.",
@@ -498,6 +513,8 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
     replaceAttachment: (kind) => format(templates.replaceAttachment, { kind }),
     chooseAttachment: (kind) => format(templates.chooseAttachment, { kind }),
     removeAttachment: (kind) => format(templates.removeAttachment, { kind }),
+    confirmRemoveAttachment: (kind) => format(templates.confirmRemoveAttachment, { kind }),
+    keepAttachment: (kind) => format(templates.keepAttachment, { kind }),
     problemsCount: (count) => format(templates.problemsCount, { count }),
     problemHiddenBy: (question) => format(templates.problemHiddenBy, { question }),
     assistMismatch: (suggested, entered) => format(templates.assistMismatch, { suggested, entered }),

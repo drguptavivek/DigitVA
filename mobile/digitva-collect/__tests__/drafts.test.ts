@@ -159,6 +159,28 @@ describe("draft store", () => {
     }
   });
 
+  it("redoes a save that raced Complete on the completed row instead of failing with draft_conflict", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("late", "2026-09-30T01:00:00Z", { Id10007: "first" }));
+    // The form's autosave reads the draft, then Complete marks it before the autosave writes.
+    const originalRun = db.runAsync.bind(db);
+    let raced = false;
+    db.runAsync = (async (sql: string, params: Array<string | number | null>) => {
+      if (!raced && sql.trimStart().startsWith("UPDATE drafts SET envelope = ?, updated_at = ?")) {
+        raced = true;
+        await markCompleted(db, "late", { valid: true, issues: [] });
+      }
+      return originalRun(sql, params);
+    }) as typeof db.runAsync;
+    await expect(store.save(draft("late", "2026-09-30T01:00:01Z", { Id10007: "final" }))).resolves.toBeUndefined();
+    db.runAsync = originalRun;
+    expect(raced).toBe(true);
+    const saved = await store.load!("late") as WhoVaDraft & { completedAt?: string };
+    expect(saved.completedAt).toBeDefined();
+    expect(saved.data).toEqual({ Id10007: "final" });
+    expect((await getDraftRow(db, "late"))?.completed).toBe(1);
+  });
+
   it("retains imported language metadata and lets the active form update it", async () => {
     await db.runAsync(`INSERT INTO drafts (id, project_id, site_id, updated_at, envelope) VALUES (?, ?, ?, ?, ?)`, [
       "localized", "PROJECT1", "SITE1", "2026-09-30T01:00:00Z",
@@ -354,7 +376,7 @@ describe("draft store", () => {
     const readStarted = new Promise<void>((resolve) => { startedRead = resolve; });
     const readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
     db.getFirstAsync = async <T,>(sql: string, params: Array<string | number | null>) => {
-      if (sql === "SELECT project_id, envelope, updated_at, death_id, client_death_id FROM drafts WHERE id = ?") {
+      if (sql === "SELECT project_id, envelope, updated_at, death_id, client_death_id, completed FROM drafts WHERE id = ?") {
         startedRead();
         await readGate;
       }

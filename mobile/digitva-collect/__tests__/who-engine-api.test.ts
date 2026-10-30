@@ -15,6 +15,7 @@ function fakeEngine(handlers: Partial<Record<"search" | "codeinfo" | "entity" | 
   const engine: OfflineEngine = {
     available: async () => true,
     init: async () => init,
+    warm: async () => init,
     updateWhoFiles: async () => init,
     call: async () => failed(400),
     search: handlers.search ?? none,

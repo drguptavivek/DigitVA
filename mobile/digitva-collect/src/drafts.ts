@@ -452,6 +452,11 @@ function withoutWorkflowTimeline(envelope: string): string {
   return JSON.stringify(rest);
 }
 
+async function isCompleted(db: Db, id: string): Promise<boolean> {
+  const row = await db.getFirstAsync<{ completed: number }>("SELECT completed FROM drafts WHERE id = ?", [id]);
+  return Number(row?.completed) === 1;
+}
+
 /** True when the stored row differs from what a save read only by its workflow timeline. */
 async function onlyTimelineMoved(db: Db, id: string, read: { envelope: string; updated_at: string }): Promise<boolean> {
   const row = await db.getFirstAsync<{ envelope: string; updated_at: string }>("SELECT envelope, updated_at FROM drafts WHERE id = ?", [id]);
@@ -479,8 +484,8 @@ export function createDraftStore(
       const draft = { ...rawDraft, data: reduceNationalIdData(rawDraft.data) };
       const attemptSave = async (canRetry: boolean): Promise<void> => {
         guard.assertCurrent();
-        const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string; updated_at: string; death_id: string | null; client_death_id: string | null }>(
-          "SELECT project_id, envelope, updated_at, death_id, client_death_id FROM drafts WHERE id = ?",
+        const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string; updated_at: string; death_id: string | null; client_death_id: string | null; completed: number }>(
+          "SELECT project_id, envelope, updated_at, death_id, client_death_id, completed FROM drafts WHERE id = ?",
           [draft.id]
         );
         guard.assertCurrent();
@@ -531,6 +536,10 @@ export function createDraftStore(
           // update. It changes neither answers nor updated_at, so redo the save once from the fresh row; any other
           // difference is a real conflict and still fails.
           if (canRetry && existing && await onlyTimelineMoved(db, draft.id, existing)) return attemptSave(false);
+          // Complete (markCompleted) landed between this save's read and write: the form's own autosave racing its
+          // finish. Redo it once on the completed row, as a save after completion does, instead of reporting a
+          // conflict on an interview that is already safe (digitva-ljx2).
+          if (canRetry && existing && Number(existing.completed) === 0 && await isCompleted(db, draft.id)) return attemptSave(false);
           throw new Error("draft_conflict");
         }
         if (refused) await clearRefusedDraft(db, draft.id);

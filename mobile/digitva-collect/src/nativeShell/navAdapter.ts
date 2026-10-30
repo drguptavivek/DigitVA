@@ -47,7 +47,7 @@ export function nativeTabs(account: AccessInput | undefined): NativeTab[] {
   const tabs: NativeTab[] = [{ key: "home", labelKey: "home", route: "/worklist" }];
   if (keys.has("/collection")) tabs.push({ key: "interviews", labelKey: "tabInterviews", route: "/worklist", params: { view: "interviews" } });
   // A death reporter's own list is on Home; the Register death tab is for those who may register.
-  if (keys.has("/death-registration") && account?.registration_access === true) tabs.push({ key: "register", labelKey: "registerDeath", route: "/register" });
+  if (keys.has("/death-registration") && account?.registration_access === true) tabs.push({ key: "register", labelKey: "tabRegister", route: "/register" });
   tabs.push({ key: "sync", labelKey: "tabSync" });
   return tabs;
 }

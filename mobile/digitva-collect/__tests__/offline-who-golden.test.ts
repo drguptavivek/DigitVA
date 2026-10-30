@@ -118,6 +118,7 @@ function replayEngine(fixture: Fixture) {
   const engine: OfflineEngine = {
     available: async () => true,
     init: async () => init,
+    warm: async () => init,
     updateWhoFiles: async () => init,
     call,
     search: (q, options) => call("search", { q, ...options }),

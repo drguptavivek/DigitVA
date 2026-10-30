@@ -77,7 +77,12 @@ describe("saved audio and a refused microphone on a host without a web player", 
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
     await vi.waitFor(() => expect(container.querySelector('[data-testid="host-player"]')).not.toBeNull());
-    container.querySelector<HTMLElement>('[role="button"]')?.click();
+    // A saved recording: Replace asks first, then records.
+    container.querySelector<HTMLElement>('[data-testid="question-narr_audio"]')?.click();
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="question-narr_audio-confirm-yes"]')).not.toBeNull()
+    );
+    container.querySelector<HTMLElement>('[data-testid="question-narr_audio-confirm-yes"]')?.click();
     await vi.waitFor(() =>
       expect(container.querySelector('[role="alert"]')?.textContent).toContain("Microphone permission was denied")
     );
@@ -86,14 +91,14 @@ describe("saved audio and a refused microphone on a host without a web player", 
   });
 });
 
-describe("deleting a saved recording", () => {
-  it("offers Delete recording, removes the stored file and clears the answer", async () => {
+describe("deleting or replacing a saved recording", () => {
+  const saved = { id: "a", uri: "who-va-attachment:a", mimeType: "audio/mp4" } as never;
+  async function renderSaved(startAudioRecording = vi.fn()) {
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
     const removeAttachment = vi.fn().mockResolvedValue(undefined);
     const onAnswer = vi.fn();
-    const saved = { id: "a", uri: "who-va-attachment:a", mimeType: "audio/mp4" } as never;
     root.render(
       <WhoVaQuestionControls.Audio
         question={instrument.questions[0]!}
@@ -101,16 +106,69 @@ describe("deleting a saved recording", () => {
         data={{}}
         locale="en"
         issues={[]}
-        platform={{ removeAttachment, startAudioRecording: vi.fn() }}
+        platform={{ removeAttachment, startAudioRecording }}
         onAnswer={onAnswer}
       />
     );
     await new Promise((resolve) => setTimeout(resolve, 0));
-    container.querySelector<HTMLElement>('[data-testid="question-narr_audio-remove"]')?.click();
-    await vi.waitFor(() => expect(onAnswer).toHaveBeenCalledWith(undefined));
-    expect(removeAttachment).toHaveBeenCalledWith(saved);
-    root.unmount();
-    container.remove();
+    const press = async (testId: string) => {
+      await vi.waitFor(() => expect(container.querySelector(`[data-testid="${testId}"]`)).not.toBeNull());
+      container.querySelector<HTMLElement>(`[data-testid="${testId}"]`)!.click();
+    };
+    const done = () => {
+      root.unmount();
+      container.remove();
+    };
+    return { container, removeAttachment, onAnswer, press, done };
+  }
+
+  it("asks before Delete recording, then removes the stored file and clears the answer", async () => {
+    const view = await renderSaved();
+    await view.press("question-narr_audio-remove");
+    await vi.waitFor(() =>
+      expect(view.container.querySelector('[data-testid="question-narr_audio-confirm"]')?.textContent).toContain(
+        "Delete this recording?"
+      )
+    );
+    expect(view.onAnswer).not.toHaveBeenCalled();
+    expect(view.removeAttachment).not.toHaveBeenCalled();
+    await view.press("question-narr_audio-confirm-yes");
+    await vi.waitFor(() => expect(view.onAnswer).toHaveBeenCalledWith(undefined));
+    expect(view.removeAttachment).toHaveBeenCalledWith(saved);
+    view.done();
+  });
+
+  it("keeps the recording when the delete or replace prompt is cancelled", async () => {
+    const startAudioRecording = vi.fn();
+    const view = await renderSaved(startAudioRecording);
+    for (const trigger of ["question-narr_audio-remove", "question-narr_audio"]) {
+      await view.press(trigger);
+      await view.press("question-narr_audio-confirm-cancel");
+      await vi.waitFor(() =>
+        expect(view.container.querySelector('[data-testid="question-narr_audio-confirm"]')).toBeNull()
+      );
+    }
+    expect(view.onAnswer).not.toHaveBeenCalled();
+    expect(view.removeAttachment).not.toHaveBeenCalled();
+    expect(startAudioRecording).not.toHaveBeenCalled();
+    view.done();
+  });
+
+  it("asks before Replace audio and starts recording only on confirm", async () => {
+    const session = { stop: vi.fn(), cancel: vi.fn() };
+    const startAudioRecording = vi.fn().mockResolvedValue(session);
+    const view = await renderSaved(startAudioRecording);
+    await view.press("question-narr_audio");
+    await vi.waitFor(() =>
+      expect(view.container.querySelector('[data-testid="question-narr_audio-confirm"]')?.textContent).toContain(
+        "Record again?"
+      )
+    );
+    expect(startAudioRecording).not.toHaveBeenCalled();
+    await view.press("question-narr_audio-confirm-yes");
+    await vi.waitFor(() => expect(startAudioRecording).toHaveBeenCalledTimes(1));
+    expect(view.removeAttachment).not.toHaveBeenCalled();
+    view.done();
   });
 });
 

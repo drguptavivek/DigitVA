@@ -47,6 +47,7 @@ import {
   questionLabel
 } from "./question-control-support.js";
 import { englishAlongside, plainText } from "./localize.js";
+import { defaultFormTheme as T } from "./theme.js";
 
 /** Tabler "calendar" outline (24 grid, stroke 2): the same line-icon family as the app header, drawn in the glyph colour. Only rendered where the web date input exists. */
 const CALENDAR_ICON = React.createElement(
@@ -167,6 +168,9 @@ export interface WhoVaQuestionControlPrimitives {
       }>
     | undefined;
   Image?: React.ElementType | undefined;
+  /** Draw the red delete icon; without them a text glyph stands in. */
+  Svg?: React.ElementType | undefined;
+  SvgPath?: React.ElementType | undefined;
   /**
    * Renders ODK's inline markup in choice labels. Optional: without it labels
    * fall back to the tag-stripped text, which is what they were before.
@@ -241,7 +245,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     PartialSelect,
     Pressable,
     AudioPlayer,
-    Image
+    Image,
+    Svg,
+    SvgPath
   } = primitives;
   const RichText = primitives.RichText;
 
@@ -273,6 +279,147 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           {RichText ? <RichText source={english} /> : plainText(english)}
         </PrimitiveText>
       </>
+    );
+  }
+
+  // Material Design icons (as react-icons ships them: MdDelete, MdRotateRight,
+  // MdZoomIn, MdZoomOut, MdVisibility, MdVisibilityOff), Apache-2.0.
+  const ICON_PATHS = {
+    delete: "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
+    rotate:
+      "M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z",
+    zoomIn:
+      "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm2.5-4h-2v2H9v-2H7V9h2V7h1v2h2v1z",
+    zoomOut:
+      "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z",
+    view: "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z",
+    hide: "M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z",
+    camera: [
+      "M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z",
+      "M9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"
+    ],
+    gallery:
+      "M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4 2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z",
+    attach:
+      "M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"
+  } as const;
+  type IconName = keyof typeof ICON_PATHS;
+  /** What a host without SVG shows instead of an icon. */
+  const ICON_FALLBACK: Record<IconName, string> = {
+    delete: "🗑",
+    rotate: "↻",
+    zoomIn: "+",
+    zoomOut: "−",
+    view: "👁",
+    hide: "⊘",
+    camera: "📷",
+    gallery: "🖼",
+    attach: "📎"
+  };
+
+  /** One icon, decorative: the button around it carries the name. */
+  function Glyph({ icon, color, size = 24 }: { icon: IconName; color: string; size?: number }) {
+    if (!Svg || !SvgPath) return <PrimitiveText style={{ color, fontSize: size - 2 }}>{ICON_FALLBACK[icon]}</PrimitiveText>;
+    const paths: readonly string[] = typeof ICON_PATHS[icon] === "string" ? [ICON_PATHS[icon] as string] : ICON_PATHS[icon];
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true" focusable="false">
+        {paths.map((d) => (
+          <SvgPath key={d} d={d} />
+        ))}
+      </Svg>
+    );
+  }
+
+  /** A text button's content with its icon in front; the text alone where the host draws no SVG. */
+  function IconLabel({ icon, color, children }: { icon: IconName; color: string; children: React.ReactNode }) {
+    if (!Svg || !SvgPath) return <>{children}</>;
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <Glyph icon={icon} color={color} size={20} />
+        {children}
+      </View>
+    );
+  }
+
+  /**
+   * A square 48px icon button; the label is its accessible name. `danger`
+   * (red, for delete) or the secondary look for the image viewer actions.
+   */
+  function IconButton({
+    icon,
+    label,
+    testID,
+    danger = false,
+    onPress
+  }: {
+    icon: IconName;
+    label: string;
+    testID?: string | undefined;
+    danger?: boolean;
+    onPress: () => void;
+  }) {
+    const color = danger ? T.danger : T.primary;
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        aria-label={label}
+        testID={testID}
+        hitSlop={8}
+        style={[
+          questionControlStyles.button,
+          danger ? questionControlStyles.buttonDanger : questionControlStyles.buttonSecondary,
+          questionControlStyles.buttonCompact,
+          { minWidth: 48, minHeight: 48, paddingHorizontal: 0, alignItems: "center", justifyContent: "center" }
+        ]}
+        onPress={onPress}
+      >
+        <Glyph icon={icon} color={color} />
+      </Pressable>
+    );
+  }
+
+  /**
+   * An inline "are you sure" for an action that destroys a saved attachment
+   * (owner, 2026-10-30): the red button goes ahead, the other keeps it.
+   */
+  function ConfirmPrompt({
+    testID,
+    prompt,
+    confirmLabel,
+    cancelLabel,
+    onConfirm,
+    onCancel
+  }: {
+    testID: string;
+    prompt: string;
+    confirmLabel: string;
+    cancelLabel: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }) {
+    return (
+      <View accessibilityRole="alert" testID={testID} style={{ gap: 8, marginTop: 8 }}>
+        <PrimitiveText style={questionControlStyles.choiceText}>{prompt}</PrimitiveText>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            testID={`${testID}-yes`}
+            style={[questionControlStyles.button, questionControlStyles.buttonDanger, questionControlStyles.buttonCompact]}
+            onPress={onConfirm}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextDanger}>{confirmLabel}</PrimitiveText>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            testID={`${testID}-cancel`}
+            style={[questionControlStyles.button, questionControlStyles.buttonSecondary, questionControlStyles.buttonCompact]}
+            onPress={onCancel}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextSecondary}>{cancelLabel}</PrimitiveText>
+          </Pressable>
+        </View>
+      </View>
     );
   }
 
@@ -1749,7 +1896,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                 }}
               >
                 <ChoiceIndicator kind="radio" selected={selected} />
-                <PrimitiveText style={questionControlStyles.choiceText}>
+                <PrimitiveText style={[questionControlStyles.choiceText, questionControlStyles.choiceTextFill]}>
                   {languageChoiceLabel(choice)}
                 </PrimitiveText>
               </Pressable>
@@ -1835,6 +1982,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       }
     }
     if (bare) cellStyle.push(questionControlStyles.choiceBare);
+    // Inline cells size to their label, so only list and grid labels fill the row.
+    const textStyle = inline
+      ? questionControlStyles.choiceText
+      : [questionControlStyles.choiceText, questionControlStyles.choiceTextFill];
 
     const searchNode = searchable ? (
       <TextInput
@@ -1866,12 +2017,12 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         cells
       );
 
-    return { choices, cellStyle, inline, searchNode, wrap };
+    return { choices, cellStyle, inline, searchNode, textStyle, wrap };
   }
 
   function SingleChoice(props: WhoVaQuestionControlProps) {
     const { question, value, locale, issues, onAnswer } = props;
-    const { choices, cellStyle, searchNode, wrap } = useChoicePresentation(
+    const { choices, cellStyle, searchNode, textStyle, wrap } = useChoicePresentation(
       question,
       locale,
       props.choiceColumns
@@ -1901,7 +2052,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <ChoiceIndicator kind="radio" selected={selected} />
-          <PrimitiveText style={questionControlStyles.choiceText}>
+          <PrimitiveText style={textStyle}>
             <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
         </Pressable>
@@ -1921,7 +2072,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
-    const { choices, cellStyle, searchNode, wrap } = useChoicePresentation(
+    const { choices, cellStyle, searchNode, textStyle, wrap } = useChoicePresentation(
       question,
       locale,
       props.choiceColumns
@@ -1953,7 +2104,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <ChoiceIndicator kind="checkbox" selected={selected} />
-          <PrimitiveText style={questionControlStyles.choiceText}>
+          <PrimitiveText style={textStyle}>
             <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
         </Pressable>
@@ -2091,6 +2242,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const [phase, setPhase] = useState<"idle" | "starting" | "recording" | "stopping">("idle");
     const [recordingError, setRecordingError] = useState<string>();
     const [playbackError, setPlaybackError] = useState<string>();
+    const [confirming, setConfirming] = useState<"replace" | "delete">();
     const [recordingStartedAt, setRecordingStartedAt] = useState<number>();
     const [recordingElapsed, setRecordingElapsed] = useState(0);
     const [recordingPaused, setRecordingPaused] = useState(false);
@@ -2185,6 +2337,72 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           .catch(() => undefined);
     };
 
+    const record = async () => {
+      setConfirming(undefined);
+      setRecordingError(undefined);
+      const operationId = ++requestId.current;
+      try {
+        if (phase === "recording" && session.current) {
+          const activeSession = session.current;
+          setPhase("stopping");
+          const recorded = await activeSession.stop();
+          if (!mounted.current || requestId.current !== operationId) {
+            removeOldAttachment(attachmentReference(recorded));
+            return;
+          }
+          session.current = undefined;
+          onAnswer(recorded);
+          removeOldAttachment(currentAttachment);
+          setRecordingStartedAt(undefined);
+          setRecordingElapsed(0);
+          setPhase("idle");
+          return;
+        }
+        if (services.startAudioRecording) {
+          setPhase("starting");
+          const nextSession = await services.startAudioRecording(question, data);
+          if (!mounted.current || requestId.current !== operationId) {
+            cancelSession(nextSession);
+            return;
+          }
+          session.current = nextSession;
+          setPausable(Boolean(nextSession.pause && nextSession.resume));
+          setRecordingPaused(false);
+          setRecordingLimitMs(undefined);
+          setRecordingStartedAt(globalThis.Date.now());
+          setRecordingElapsed(0);
+          setPhase("recording");
+          return;
+        }
+        if (!services.captureAudio) return;
+        setPhase("starting");
+        const recorded = await services.captureAudio(question, data);
+        if (!mounted.current || requestId.current !== operationId) {
+          removeOldAttachment(attachmentReference(recorded));
+          return;
+        }
+        onAnswer(recorded);
+        removeOldAttachment(currentAttachment);
+        setRecordingStartedAt(undefined);
+        setRecordingElapsed(0);
+        setPhase("idle");
+      } catch (error) {
+        if (!mounted.current || requestId.current !== operationId) return;
+        const activeSession = session.current;
+        session.current = undefined;
+        if (activeSession) cancelSession(activeSession);
+        setRecordingStartedAt(undefined);
+        setRecordingElapsed(0);
+        setPhase("idle");
+        setRecordingError(
+          (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "NotAllowedError") ||
+            (error instanceof Error && error.name === "NotAllowedError")
+            ? messages.microphonePermissionDenied
+            : messages.audioRecordingFailed
+        );
+      }
+    };
+
     const label = {
       starting: messages.startingMicrophone,
       recording: messages.stopAndSaveRecording,
@@ -2207,70 +2425,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             disabled && questionControlStyles.buttonDisabled
           ]}
           disabled={disabled}
-          onPress={async () => {
+          onPress={() => {
             if (readOnly) return;
-            setRecordingError(undefined);
-            const operationId = ++requestId.current;
-            try {
-              if (phase === "recording" && session.current) {
-                const activeSession = session.current;
-                setPhase("stopping");
-                const recorded = await activeSession.stop();
-                if (!mounted.current || requestId.current !== operationId) {
-                  removeOldAttachment(attachmentReference(recorded));
-                  return;
-                }
-                session.current = undefined;
-                onAnswer(recorded);
-                removeOldAttachment(currentAttachment);
-                setRecordingStartedAt(undefined);
-                setRecordingElapsed(0);
-                setPhase("idle");
-                return;
-              }
-              if (services.startAudioRecording) {
-                setPhase("starting");
-                const nextSession = await services.startAudioRecording(question, data);
-                if (!mounted.current || requestId.current !== operationId) {
-                  cancelSession(nextSession);
-                  return;
-                }
-                session.current = nextSession;
-                setPausable(Boolean(nextSession.pause && nextSession.resume));
-                setRecordingPaused(false);
-                setRecordingLimitMs(undefined);
-                setRecordingStartedAt(globalThis.Date.now());
-                setRecordingElapsed(0);
-                setPhase("recording");
-                return;
-              }
-              if (!services.captureAudio) return;
-              setPhase("starting");
-              const recorded = await services.captureAudio(question, data);
-              if (!mounted.current || requestId.current !== operationId) {
-                removeOldAttachment(attachmentReference(recorded));
-                return;
-              }
-              onAnswer(recorded);
-              removeOldAttachment(currentAttachment);
-              setRecordingStartedAt(undefined);
-              setRecordingElapsed(0);
-              setPhase("idle");
-            } catch (error) {
-              if (!mounted.current || requestId.current !== operationId) return;
-              const activeSession = session.current;
-              session.current = undefined;
-              if (activeSession) cancelSession(activeSession);
-              setRecordingStartedAt(undefined);
-              setRecordingElapsed(0);
-              setPhase("idle");
-              setRecordingError(
-                (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "NotAllowedError") ||
-                  (error instanceof Error && error.name === "NotAllowedError")
-                  ? messages.microphonePermissionDenied
-                  : messages.audioRecordingFailed
-              );
-            }
+            if (phase === "idle" && value) setConfirming("replace");
+            else void record();
           }}
         >
           <PrimitiveText style={questionControlStyles.buttonText}>{label}</PrimitiveText>
@@ -2325,30 +2483,51 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         {playbackLoading ? (
           <PrimitiveText style={questionControlStyles.hint}>{messages.loadingAudio}</PrimitiveText>
         ) : null}
-        {phase === "idle" && previewUri && Player ? (
-          <Player
-            accessibilityLabel={messages.recorded}
-            onError={() => setPlaybackError(messages.savedAudioLoadFailed)}
-            uri={previewUri}
+        {/* Play and Delete share one row with Delete as an icon at the far end, so a tap meant for Play
+            cannot land on Delete (owner, phone check 2026-10-30). */}
+        {phase === "idle" && ((previewUri && Player) || (value && !readOnly && services.removeAttachment)) ? (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            {previewUri && Player ? (
+              <Player
+                accessibilityLabel={messages.recorded}
+                onError={() => setPlaybackError(messages.savedAudioLoadFailed)}
+                uri={previewUri}
+              />
+            ) : <View />}
+            {value && !readOnly && services.removeAttachment ? (
+              <IconButton
+                icon="delete"
+                danger
+                label={messages.removeRecording}
+                testID={`question-${question.name}-remove`}
+                onPress={() => setConfirming("delete")}
+              />
+            ) : null}
+          </View>
+        ) : null}
+        {/* Replace and Delete both destroy the saved recording, so each asks first. */}
+        {phase === "idle" && confirming && value ? (
+          <ConfirmPrompt
+            testID={`question-${question.name}-confirm`}
+            prompt={confirming === "delete" ? messages.confirmRemoveRecording : messages.confirmReplaceRecording}
+            confirmLabel={confirming === "delete" ? messages.removeRecording : messages.replaceAudio}
+            cancelLabel={messages.keepRecording}
+            onConfirm={() => {
+              if (confirming === "replace") {
+                void record();
+                return;
+              }
+              setConfirming(undefined);
+              removeOldAttachment(currentAttachment);
+              onAnswer(undefined);
+            }}
+            onCancel={() => setConfirming(undefined)}
           />
         ) : null}
         {playbackError ? (
           <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
             {playbackError}
           </PrimitiveText>
-        ) : null}
-        {phase === "idle" && value && !readOnly && services.removeAttachment ? (
-          <Pressable
-            accessibilityRole="button"
-            testID={`question-${question.name}-remove`}
-            style={[questionControlStyles.button, questionControlStyles.buttonDanger, questionControlStyles.buttonCompact]}
-            onPress={() => {
-              removeOldAttachment(currentAttachment);
-              onAnswer(undefined);
-            }}
-          >
-            <PrimitiveText style={questionControlStyles.buttonTextDanger}>{messages.removeRecording}</PrimitiveText>
-          </Pressable>
         ) : null}
         {recordingError ? (
           <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
@@ -2535,9 +2714,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         ]}
         onPress={() => onChoose("camera")}
       >
-        <PrimitiveText style={questionControlStyles.buttonText}>
-          {busy === "camera" ? messages.openingCamera : messages.camera}
-        </PrimitiveText>
+        <IconLabel icon="camera" color={T.onPrimary}>
+          <PrimitiveText style={questionControlStyles.buttonText}>
+            {busy === "camera" ? messages.openingCamera : messages.camera}
+          </PrimitiveText>
+        </IconLabel>
       </Pressable>
     );
   }
@@ -2569,19 +2750,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         ]}
         onPress={() => onChoose("library")}
       >
-        <PrimitiveText style={questionControlStyles.buttonTextSecondary}>{text}</PrimitiveText>
-      </Pressable>
-    );
-  }
-
-  function ImageViewerButton({ label, onPress }: { label: string; onPress: () => void }) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        style={[questionControlStyles.button, questionControlStyles.buttonSecondary]}
-        onPress={onPress}
-      >
-        <PrimitiveText style={questionControlStyles.buttonTextSecondary}>{label}</PrimitiveText>
+        <IconLabel icon="gallery" color={T.primary}>
+          <PrimitiveText style={questionControlStyles.buttonTextSecondary}>{text}</PrimitiveText>
+        </IconLabel>
       </Pressable>
     );
   }
@@ -2600,6 +2771,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const [rotation, setRotation] = useState(0);
     const [zoom, setZoom] = useState(1);
     const [visible, setVisible] = useState(true);
+    const [confirmingRemove, setConfirmingRemove] = useState(false);
     const [processingError, setProcessingError] = useState<string>();
     const readOnly = question.readOnly;
     const services = { ...primitives.platform, ...platform };
@@ -2629,6 +2801,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         if (selected !== undefined) {
           if (currentAttachment) await services.removeAttachment?.(currentAttachment);
           onAnswer(selected);
+          setConfirmingRemove(false);
           setRotation(0);
           setZoom(1);
           setVisible(true);
@@ -2690,43 +2863,52 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           <ImageLibraryButton {...sourceProps} />
           {attachment.uri ? (
             <>
-              <ImageViewerButton
+              <IconButton
+                icon={visible ? "hide" : "view"}
                 label={visible ? messages.hideImage : messages.viewImage}
                 onPress={() => setVisible((current) => !current)}
               />
-              <ImageViewerButton
+              <IconButton
+                icon="rotate"
                 label={messages.rotate}
                 onPress={() => setRotation((current) => (current + 90) % 360)}
               />
-              <ImageViewerButton
+              <IconButton
+                icon="zoomIn"
                 label={messages.zoomIn}
                 onPress={() => setZoom((current) => Math.min(3, current + 0.25))}
               />
-              <ImageViewerButton
+              <IconButton
+                icon="zoomOut"
                 label={messages.zoomOut}
                 onPress={() => setZoom((current) => Math.max(0.5, current - 0.25))}
               />
-              <Pressable
-                accessibilityRole="button"
-                disabled={readOnly}
-                style={[
-                  questionControlStyles.button,
-                  questionControlStyles.buttonDanger,
-                  readOnly && questionControlStyles.buttonDisabled
-                ]}
-                onPress={() => {
-                  if (readOnly) return;
-                  if (currentAttachment) void services.removeAttachment?.(currentAttachment);
-                  onAnswer(undefined);
-                }}
-              >
-                <PrimitiveText style={questionControlStyles.buttonTextDanger}>
-                  {messages.removeImage}
-                </PrimitiveText>
-              </Pressable>
+              {readOnly ? null : (
+                <IconButton
+                  icon="delete"
+                  danger
+                  label={messages.removeImage}
+                  testID={`question-${question.name}-remove`}
+                  onPress={() => setConfirmingRemove(true)}
+                />
+              )}
             </>
           ) : null}
         </View>
+        {confirmingRemove && attachment.uri ? (
+          <ConfirmPrompt
+            testID={`question-${question.name}-confirm`}
+            prompt={messages.confirmRemoveAttachment(messages.selectedImage.toLowerCase())}
+            confirmLabel={messages.removeImage}
+            cancelLabel={messages.keepAttachment(messages.selectedImage.toLowerCase())}
+            onConfirm={() => {
+              setConfirmingRemove(false);
+              if (currentAttachment) void services.removeAttachment?.(currentAttachment);
+              onAnswer(undefined);
+            }}
+            onCancel={() => setConfirmingRemove(false)}
+          />
+        ) : null}
       </>
     );
   }
@@ -2740,7 +2922,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     issues,
     onAnswer
   }: WhoVaQuestionControlProps) {
-    const [busy, setBusy] = useState(false);
+    const [busy, setBusy] = useState<"files" | "camera">();
+    const [confirmingRemove, setConfirmingRemove] = useState(false);
+    const [rotation, setRotation] = useState(0);
+    const [zoom, setZoom] = useState(1);
+    const [visible, setVisible] = useState(true);
     const [processingError, setProcessingError] = useState<string>();
     const attachment = attachmentDetails(value);
     const readOnly = question.readOnly;
@@ -2754,8 +2940,51 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         ]
       : [...WHO_VA_ATTACHMENT_POLICY.pdf.acceptedMimeTypes];
     const attachmentLabel = acceptsImages ? messages.attachment : messages.pdf;
+    // A photographed or chosen image is shown; a PDF is shown by its name.
+    const isImage = attachmentMimeType(value)?.startsWith("image/") ?? false;
+    const previewUri = useImagePreviewUri(
+      isImage ? value : undefined,
+      isImage ? attachment.uri : undefined,
+      services,
+      messages.savedImageLoadFailed,
+      setProcessingError
+    );
+    const save = async (selected: AnswerValue | undefined) => {
+      if (selected === undefined) return;
+      if (currentAttachment) await services.removeAttachment?.(currentAttachment);
+      setConfirmingRemove(false);
+      setRotation(0);
+      setZoom(1);
+      setVisible(true);
+      onAnswer(selected);
+    };
+    const takePhoto = async () => {
+      if (readOnly || !services.captureImage) return;
+      setBusy("camera");
+      setProcessingError(undefined);
+      try {
+        await save(await acquireProcessedImage(services.captureImage, services, question, data));
+      } catch (error) {
+        setProcessingError(attachmentErrorMessage(error, messages));
+      } finally {
+        setBusy(undefined);
+      }
+    };
     return (
       <>
+        {previewUri && visible && Image ? (
+          <View style={questionControlStyles.imageFrame}>
+            <Image
+              accessibilityLabel={attachment.name ?? messages.selectedImage}
+              testID={`question-${question.name}-preview`}
+              source={{ uri: previewUri }}
+              style={[
+                questionControlStyles.image,
+                { transform: [{ rotate: `${rotation}deg` }, { scale: zoom }] }
+              ]}
+            />
+          </View>
+        ) : null}
         {attachment.name ? (
           <PrimitiveText style={questionControlStyles.attachmentName}>{attachment.name}</PrimitiveText>
         ) : null}
@@ -2782,7 +3011,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             ]}
             onPress={async () => {
               if (readOnly || !services?.selectFile) return;
-              setBusy(true);
+              setBusy("files");
               setProcessingError(undefined);
               try {
                 const candidate = await services.selectFile(question, data, acceptedMimeTypes);
@@ -2819,50 +3048,97 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                       acceptsImages ? "image-output-invalid" : "pdf-render-failed"
                     );
                   }
-                  if (currentAttachment) await services.removeAttachment?.(currentAttachment);
-                  onAnswer(selected);
+                  await save(selected);
                 }
               } catch (error) {
                 setProcessingError(attachmentErrorMessage(error, messages));
               } finally {
-                setBusy(false);
+                setBusy(undefined);
               }
             }}
           >
-            <PrimitiveText style={questionControlStyles.buttonText}>
-              {busy
-                ? messages.openingFiles
-                : attachment.uri
-                  ? messages.replaceAttachment(attachmentLabel)
-                  : messages.chooseAttachment(attachmentLabel)}
-            </PrimitiveText>
+            <IconLabel icon="attach" color={T.onPrimary}>
+              <PrimitiveText style={questionControlStyles.buttonText}>
+                {busy === "files"
+                  ? messages.openingFiles
+                  : attachment.uri
+                    ? messages.replaceAttachment(attachmentLabel)
+                    : messages.chooseAttachment(attachmentLabel)}
+              </PrimitiveText>
+            </IconLabel>
           </Pressable>
-          {processingError ? (
-            <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
-              {processingError}
-            </PrimitiveText>
-          ) : null}
-          {attachment.uri ? (
+          {acceptsImages && services.captureImage ? (
             <Pressable
               accessibilityRole="button"
-              disabled={readOnly}
+              testID={`question-${question.name}-camera`}
+              disabled={readOnly || busy != null}
               style={[
                 questionControlStyles.button,
-                questionControlStyles.buttonDanger,
-                readOnly && questionControlStyles.buttonDisabled
+                questionControlStyles.buttonSecondary,
+                (readOnly || busy != null) && questionControlStyles.buttonDisabled
               ]}
-              onPress={() => {
-                if (readOnly) return;
-                if (currentAttachment) void services.removeAttachment?.(currentAttachment);
-                onAnswer(undefined);
-              }}
+              onPress={() => void takePhoto()}
             >
-              <PrimitiveText style={questionControlStyles.buttonTextDanger}>
-                {messages.removeAttachment(attachmentLabel)}
-              </PrimitiveText>
+              <IconLabel icon="camera" color={T.primary}>
+                <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
+                  {busy === "camera" ? messages.openingCamera : messages.camera}
+                </PrimitiveText>
+              </IconLabel>
             </Pressable>
           ) : null}
+          {previewUri ? (
+            <>
+              <IconButton
+                icon={visible ? "hide" : "view"}
+                label={visible ? messages.hideImage : messages.viewImage}
+                onPress={() => setVisible((current) => !current)}
+              />
+              <IconButton
+                icon="rotate"
+                label={messages.rotate}
+                onPress={() => setRotation((current) => (current + 90) % 360)}
+              />
+              <IconButton
+                icon="zoomIn"
+                label={messages.zoomIn}
+                onPress={() => setZoom((current) => Math.min(3, current + 0.25))}
+              />
+              <IconButton
+                icon="zoomOut"
+                label={messages.zoomOut}
+                onPress={() => setZoom((current) => Math.max(0.5, current - 0.25))}
+              />
+            </>
+          ) : null}
+          {attachment.uri && !readOnly ? (
+            <IconButton
+              icon="delete"
+              danger
+              label={messages.removeAttachment(attachmentLabel)}
+              testID={`question-${question.name}-remove`}
+              onPress={() => setConfirmingRemove(true)}
+            />
+          ) : null}
         </View>
+        {processingError ? (
+          <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
+            {processingError}
+          </PrimitiveText>
+        ) : null}
+        {confirmingRemove && attachment.uri ? (
+          <ConfirmPrompt
+            testID={`question-${question.name}-confirm`}
+            prompt={messages.confirmRemoveAttachment(attachmentLabel)}
+            confirmLabel={messages.removeAttachment(attachmentLabel)}
+            cancelLabel={messages.keepAttachment(attachmentLabel)}
+            onConfirm={() => {
+              setConfirmingRemove(false);
+              if (currentAttachment) void services.removeAttachment?.(currentAttachment);
+              onAnswer(undefined);
+            }}
+            onCancel={() => setConfirmingRemove(false)}
+          />
+        ) : null}
       </>
     );
   }

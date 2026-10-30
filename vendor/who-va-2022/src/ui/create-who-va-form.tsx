@@ -381,6 +381,8 @@ export function createWhoVaForm(
     Pressable,
     AudioPlayer: primitives.AudioPlayer,
     Image: primitives.Image,
+    Svg: primitives.Svg,
+    SvgPath: primitives.SvgPath,
     platform: primitives.platform
   });
 

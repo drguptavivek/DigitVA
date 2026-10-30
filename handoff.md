@@ -4,8 +4,9 @@
 
 Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Collect and Collect
 Plus 0.3.16 are live on staging (`3d5cf4f06`, web `expo-web-v2026.10.30.2`).
-main carries 0.3.17 (standalone home tabs, list refresh, actions in Settings,
-picker keyboard), not yet built: the owner dispatches the CI release. Never
+Collect Plus 0.3.17 is on the USB Samsung. main carries 0.3.18 (phone-check
+fixes, finalize race, DORIS pre-start and spinner; see CHANGELOG): the owner
+dispatches the CI releases. Never
 reset or stash; preserve the unrelated `scripts/loadtest/restore.sh`,
 manuscript decks, tool-config and Play artwork changes. WHO notes, parity runs
 and phone measurements live in `private/` (git-ignored; also holds keys).
@@ -17,12 +18,19 @@ has neither, and its coding is one direct step with SmartVA visible.
 
 ## Ranked next steps
 
-1. Verify 0.3.17 on the USB Samsung (RZCW81QZT2Z) once the owner has built and
-   installed it: tabs, name/age/sex, list refresh after back and after
-   finalize, Settings actions, picker keyboard. Release builds only (owner
-   2026-10-30: no local debug build on the phone; the debug variant is a
-   separate `.dev`/`.plus` package anyway).
-2. `digitva-9cll.5` phone proof, still to do: standalone certificate steps
+1. Offline coding shows the full coding interface (owner 2026-10-30): reuse
+   the `CaseWorkspaceScreen` the regular Collect app already runs online,
+   driven by a local `WorkspaceApi` (local `getWorkspace`/`getCategory` from
+   the draft plus a bundled, drift-tested category/field display pack, offline
+   media slot, DORIS in `renderDoris`). This is `digitva-9cll.22`'s main work;
+   policy baseline first.
+2. Verify 0.3.18 on the USB Samsung (RZCW81QZT2Z) once built: icons and
+   confirmations, Hindi wrap (Id10128/Id10129/Id10484), certificate camera and
+   preview, standalone document questions, tabs and row buttons, no error after
+   Complete (`digitva-ljx2`), Send now disabled, DORIS warm on the Pending tab
+   (`digitva-4j8h`; ICD11WARM in logcat) and the spinner. Then close
+   `digitva-9l5c`, `digitva-ljx2`, `digitva-4j8h`. Release builds only.
+3. `digitva-9cll.5` phone proof, still to do: standalone certificate steps
    (search, Use, Build/axes, details, hierarchy, XK8G/NC72 refusals, DORIS,
    CoDEdit, save shows Coded), then an enrolled TST001 coder offline (the owner
    signs in), incl. when `:icd11` starts. Done 30 Oct: standalone record,
@@ -31,9 +39,6 @@ has neither, and its coding is one direct step with SmartVA visible.
    right for standalone; check enrolled before closing). Capture:
    `private/engine-measurements/20261030-coding-journey` (icd11 PSS max 819 MB,
    no LMK).
-3. `digitva-ljx2` (P1): standalone finalize shows "Something went wrong" after
-   the draft is already completed. Reproduce on the emulator debug build to see
-   the JS error.
 4. `digitva-9cll.22` coding parity (P1), children ranked: `.22.2` online phone
    attachments never load (likely one prop), `.22.4` enrolled offline NQA/SA
    ignore the project and import skips the gates, `.22.3` native category view

@@ -36,6 +36,7 @@ function fakeEngine(answers: Answers = {}) {
   const engine: OfflineEngine = {
     available: async () => true,
     init: async () => init,
+    warm: async () => init,
     updateWhoFiles: async () => init,
     call: async () => failed(400),
     search: answer("search"),

@@ -124,7 +124,12 @@ jest.mock("../src/standalone/account", () => ({ setUpStandaloneAccount: (profile
 const mockEngineInit = jest.fn<ReturnType<OfflineEngine["init"]>, Parameters<OfflineEngine["init"]>>(
   async () => ({ ok: true, ms: 0, copyMs: 0, initMs: 0, cached: true }),
 );
-jest.mock("../src/offlineEngine", () => ({ offlineEngine: () => ({ init: mockEngineInit }) }));
+let mockProgress: ((progress: { phase: string; percent?: number }) => void) | undefined;
+const mockEngine = {
+  init: mockEngineInit,
+  onProgress: (listener: (progress: { phase: string; percent?: number }) => void) => { mockProgress = listener; return () => { mockProgress = undefined; }; },
+};
+jest.mock("../src/offlineEngine", () => ({ offlineEngine: () => mockEngine }));
 type AcquireEditor = () => (() => void) | null;
 const mockAcquireEditor = jest.fn<ReturnType<AcquireEditor>, Parameters<AcquireEditor>>(() => jest.fn());
 jest.mock("../src/localCodingLeases", () => ({ acquireLocalCodingEditor: () => mockAcquireEditor() }));
@@ -566,6 +571,21 @@ describe("the offline coding screen", () => {
     await act(async () => { retry.props.onPress(); });
     expect(mockEngineInit).toHaveBeenCalledTimes(2);
     expect(alerts(root)).toEqual([]);
+  });
+
+  it("shows a spinner with the engine's progress until DORIS is ready", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    let finish!: (value: Awaited<ReturnType<OfflineEngine["init"]>>) => void;
+    mockEngineInit.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    const root = await render(<OfflineCoding />);
+    const text = () => JSON.stringify(root.toJSON());
+    expect(text()).toContain("offlineDorisStarting");
+    await act(async () => { mockProgress?.({ phase: "engine", percent: 40 }); });
+    expect(text()).toContain("40%");
+    await act(async () => { finish({ ok: true, ms: 0, copyMs: 0, initMs: 0, cached: false }); });
+    expect(text()).not.toContain("offlineDorisStarting");
   });
 
   it("shows a retry while upload owns the case lease and releases the editor lease on unmount", async () => {

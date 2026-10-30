@@ -164,21 +164,17 @@ describe("reusable question controls", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(container.querySelector('[data-testid="question-photo-preview"]')).not.toBeNull();
-    for (const action of [
-      "Camera",
-      "Replace image",
-      "Hide image",
-      "Rotate",
-      "Zoom in",
-      "Zoom out",
-      "Remove image"
-    ]) {
+    for (const action of ["Camera", "Replace image"]) {
       expect(container.textContent).toContain(action);
     }
+    // The viewer actions and Remove are icon buttons named by their label.
     const action = (label: string) =>
       Array.from(container.querySelectorAll<HTMLElement>('[role="button"]')).find(
-        (button) => button.textContent === label
+        (button) => button.textContent === label || button.getAttribute("aria-label") === label
       );
+    for (const label of ["Hide image", "Rotate", "Zoom in", "Zoom out", "Remove image"]) {
+      expect(action(label)).toBeDefined();
+    }
     action("Rotate")?.click();
     await vi.waitFor(() =>
       expect(

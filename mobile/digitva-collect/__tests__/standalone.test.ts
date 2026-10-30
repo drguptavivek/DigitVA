@@ -153,8 +153,14 @@ describe("project-less interview", () => {
     expect(resolved.pin).toBeNull();
     expect(resolved.instrument.sections.length).toBeGreaterThan(0);
     const project = standaloneProject(standaloneProjectId(userId));
-    expect(project.form_options.enabled_extensions).toEqual([]);
+    expect(project.form_options.enabled_extensions).toEqual(["medical_records", "death_summary"]);
     expect(isStandaloneId(project.project_id)).toBe(true);
+  });
+
+  it("asks for the medical and death document photographs, as an enrolled project does", () => {
+    const names = standaloneDefinition(standaloneProject(standaloneProjectId(userId)).form_options.enabled_extensions ?? [])
+      .instrument.questions.map((question) => question.name);
+    for (const name of ["md_available", "md_count", "md_im1", "ds_count", "ds_im1"]) expect(names).toContain(name);
   });
 
   it("marks stored records standalone and lists only them", async () => {

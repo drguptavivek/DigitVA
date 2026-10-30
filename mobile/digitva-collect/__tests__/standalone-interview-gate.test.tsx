@@ -52,11 +52,14 @@ jest.mock("../src/standalone/records", () => ({
 jest.mock("../src/standalone/DataActions", () => ({ DataActions: () => require("react").createElement("data-actions") }));
 jest.mock("../src/standalone/export", () => ({ dataActionsAllowed: () => true }));
 const mockSweep = jest.fn();
+const mockWarmUpStop = jest.fn();
+const mockWarmUp = jest.fn(() => mockWarmUpStop);
+jest.mock("../src/offlineEngine", () => ({ scheduleEngineWarmUp: () => mockWarmUp() }));
 jest.mock("../src/standalone/shareFile", () => ({ sweepExportLeftovers: () => mockSweep() }));
 const WORDS: Record<string, string> = { sexMale: "Male", sexFemale: "Female" };
 jest.mock("../src/i18n", () => ({
   t: (key: string, values?: Record<string, string | number>) => WORDS[key]
-    ?? (key === "standaloneTabCount" ? `${values!.label} (${values!.count})` : key === "metaAgeYears" ? `${values!.value} y` : values?.fields ? `${key}:${values.fields}` : key),
+    ?? (key === "standaloneTabCount" ? `${values!.label} (${values!.count})` : key === "metaAgeYears" ? `${values!.value} y` : values?.time ? `${key} ${values.time}` : values?.fields ? `${key}:${values.fields}` : key),
 }));
 jest.mock("../src/ui", () => {
   const R = jest.requireActual("react") as typeof React;
@@ -189,7 +192,7 @@ describe("standalone home gate", () => {
       .toBe("standaloneProfileIncomplete:offlineProfileSex, offlineProfileMalaria");
     await act(async () => { button(tree, "standaloneProfileComplete").props.onClick(); });
     expect(mockPush).toHaveBeenCalledWith("/offline-profile");
-    const draft = button(tree, "standaloneDraft");
+    const draft = button(tree, "actionResume");
     expect(draft.props.disabled).toBeFalsy();
     await act(async () => { draft.props.onClick(); });
     expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/form", params: expect.objectContaining({ draftId: "draft-1" }) });
@@ -275,6 +278,27 @@ describe("standalone home gate", () => {
       await act(async () => tree.unmount());
     });
 
+    it("warms the engine only on Pending coding with a record to code, and stops on leaving the tab", async () => {
+      mockWarmUp.mockClear();
+      mockWarmUpStop.mockClear();
+      const tree = await render();
+      expect(text(tree)).toContain("Sita Devi · 41 y · Female");
+      expect(mockWarmUp).toHaveBeenCalledTimes(1);
+      await act(async () => { button(tree, "standaloneDraft (1)").props.onClick(); });
+      expect(mockWarmUpStop).toHaveBeenCalledTimes(1);
+      await act(async () => { button(tree, "standaloneTabPending (2)").props.onClick(); });
+      expect(mockWarmUp).toHaveBeenCalledTimes(2);
+      await act(async () => tree.unmount());
+
+      mockWarmUp.mockClear();
+      mockRecords.value = mockRecords.value.filter((r) => r.id !== "p-1" && r.id !== "p-2");
+      const empty = await render();
+      await act(async () => { button(empty, "standaloneTabPending (0)").props.onClick(); });
+      expect(text(empty)).toContain("standaloneNoPending");
+      expect(mockWarmUp).not.toHaveBeenCalled();
+      await act(async () => empty.unmount());
+    });
+
     it("stays on Pending coding after its last record is coded, so the empty tab says so", async () => {
       mockRecords.value = mockRecords.value.filter((r) => r.id !== "p-2");
       const tree = await render();
@@ -298,6 +322,10 @@ describe("standalone home gate", () => {
       expect(out).toContain('"p-2"');
       expect(out).toContain('"Sita Devi · 41 y · Female"');
       expect(out).toContain('"p-1"');
+      // The status line carries the local date and hh:mm, as the clock does, not the bare ISO date.
+      const when = new Date("2026-10-29T00:00:00Z").toLocaleString(mockAppState.uiLocale, { dateStyle: "medium", timeStyle: "short" });
+      expect(out).toContain(when);
+      expect(out).not.toContain("2026-10-29");
       await act(async () => tree.unmount());
     });
 

@@ -15,6 +15,7 @@ import { useAppState } from "../AppState";
 import { retryHeldDraft, type Db } from "../drafts";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { t } from "../i18n";
+import { scheduleEngineWarmUp } from "../offlineEngine";
 import { getOfflineProfile, standaloneProfileMissing, type StandaloneProfileField } from "../offlineProfile";
 import { standaloneProfileMissingText } from "../offlineProfileForm";
 import { backupReminder, isOverAgeLimit } from "../standalone/age";
@@ -33,6 +34,12 @@ const TABS: Array<{ key: RecordTab; label: "standaloneDraft" | "standaloneTabPen
   { key: "coded", label: "standaloneCoded", empty: "standaloneNoCoded" },
 ];
 const tabOf = (record: StandaloneRecord): RecordTab => (!record.completed ? "progress" : record.coding_status === "coded" ? "coded" : "pending");
+
+/** A record's time as the phone's local date and hh:mm, the same format as the clock above; the raw date if unparsable. */
+function localWhen(at: string, locale: string): string {
+  const when = new Date(at);
+  return Number.isNaN(when.getTime()) ? at.slice(0, 10) : when.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+}
 
 export default function StandaloneHome() {
   const styles = useUiStyles();
@@ -79,6 +86,10 @@ export default function StandaloneHome() {
   }, [account]);
   // Also on every return to this screen: a backup made in Settings clears the reminder.
   useFocusEffect(useCallback(() => { void load(); }, [load, lockVersion]));
+  // Owner 2026-10-30: on the Pending coding tab with a record to code, start DORIS in the background so opening the case
+  // does not wait ~18 s; on each visit it also restarts an engine Android ended. Off unless ICD-11/DORIS coding is on.
+  const warmEngine = pickedTab === "pending" && (records ?? []).some((r) => tabOf(r) === "pending");
+  useFocusEffect(useCallback(() => (warmEngine ? scheduleEngineWarmUp() : undefined), [warmEngine]));
 
   if (!account?.standalone) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
@@ -123,11 +134,14 @@ export default function StandaloneHome() {
           <Button kind="secondary" label={t("standaloneProfileComplete")} onPress={() => router.push("/offline-profile")} />
         </View>
       ) : null}
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {/* One row of equal tabs; a long label wraps inside its own tab instead of pushing a tab to a second line. */}
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 8 }}>
         {TABS.map((entry) => (
           <Button
             key={entry.key}
             kind={entry.key === tab ? "primary" : "secondary"}
+            size="sm"
+            style={{ flex: 1, paddingHorizontal: 6 }}
             selected={entry.key === tab}
             label={t("standaloneTabCount", { label: t(entry.label), count: inTab(entry.key).length })}
             onPress={() => setPickedTab(entry.key)}
@@ -145,8 +159,10 @@ export default function StandaloneHome() {
           <Text style={styles.text}>{title}</Text>
           {record.name ? <Text style={styles.muted} selectable>{record.id}</Text> : null}
           <Text style={styles.muted}>
-            {record.completed ? t("standaloneCompleted") : t("standaloneDraft")} · {(record.completed_at ?? record.updated_at).slice(0, 10)}
-            {record.coding_status === "coded" ? ` · ${t("standaloneCoded")}` : ""}
+            {/* The tab already names the state, so the row gives only its time. */}
+            {record.completed
+              ? t("standaloneCompletedAt", { time: localWhen(record.completed_at ?? record.updated_at, uiLocale) })
+              : t("standaloneLastEdited", { time: localWhen(record.updated_at, uiLocale) })}
           </Text>
           {record.upload_issue ? (
             <>
@@ -165,7 +181,7 @@ export default function StandaloneHome() {
               onPress={() => router.push({ pathname: "/offline-coding", params: { userId: account.user_id, caseId: record.id } })}
             />
           ) : (
-            <Button kind="secondary" label={t("standaloneDraft")} onPress={() => router.push({ pathname: "/form", params: formParams(record.id) })} />
+            <Button kind="secondary" label={t("actionResume")} onPress={() => router.push({ pathname: "/form", params: formParams(record.id) })} />
           )}
         </View>
         );

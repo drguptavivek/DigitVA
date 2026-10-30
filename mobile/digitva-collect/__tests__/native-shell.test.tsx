@@ -216,7 +216,7 @@ describe("header and tabs", () => {
     expect(texts(tree)).toContain('"3"');
     await press(tree, "Interviews");
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews" } });
-    await press(tree, "Register a death");
+    await press(tree, "Register");
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/register", params: { userId: "u1" } });
     await press(tree, "Sync, 3 unsent");
     expect(value.openSheet).toHaveBeenCalledWith("sync");

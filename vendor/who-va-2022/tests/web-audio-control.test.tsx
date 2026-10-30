@@ -37,6 +37,13 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+/** A saved recording: Replace asks first, so confirm it. */
+async function confirmReplace(container: HTMLElement) {
+  const selector = '[data-testid="question-narrative_audio-confirm-yes"]';
+  await vi.waitFor(() => expect(container.querySelector(selector)).not.toBeNull());
+  container.querySelector<HTMLElement>(selector)!.click();
+}
+
 function renderAudio(
   container: HTMLElement,
   props: Partial<React.ComponentProps<typeof WhoVaQuestionControls.Audio>> = {}
@@ -185,6 +192,7 @@ describe("web audio control", () => {
     const root = renderAudio(container, { value: oldAnswer, platform: { startAudioRecording }, onAnswer });
     await new Promise((resolve) => setTimeout(resolve, 0));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await confirmReplace(container);
     await vi.waitFor(() => expect(container.textContent).toContain("Stop and save recording"));
     container.querySelector<HTMLElement>('[data-testid="question-narrative_audio-cancel"]')?.click();
     await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
@@ -231,6 +239,7 @@ describe("web audio control", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await confirmReplace(container);
     await vi.waitFor(() => expect(container.textContent).toContain("Stop and save recording"));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
     await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
@@ -254,6 +263,7 @@ describe("web audio control", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await confirmReplace(container);
     await vi.waitFor(() =>
       expect(container.querySelector('[role="alert"]')?.textContent).toContain("Audio recording failed")
     );
@@ -275,6 +285,7 @@ describe("web audio control", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await confirmReplace(container);
     await vi.waitFor(() => expect(container.textContent).toContain("Stop and save recording"));
     container.querySelector<HTMLElement>('[data-testid="question-narrative_audio-cancel"]')?.click();
     await vi.waitFor(() =>
@@ -307,6 +318,7 @@ describe("web audio control", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await confirmReplace(container);
     await vi.waitFor(() => expect(container.textContent).toContain("Stop and save recording"));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
     root.unmount();
@@ -364,6 +376,7 @@ describe("web audio control", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await confirmReplace(container);
     await vi.waitFor(() => expect(container.textContent).toContain("Stop and save recording"));
     container.querySelector<HTMLElement>('[role="button"]')?.click();
     await vi.waitFor(() => expect(onAnswer).toHaveBeenCalledWith(recorded));

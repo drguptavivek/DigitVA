@@ -111,6 +111,12 @@ export type EngineResult =
 export interface OfflineEngine {
   available(): Promise<boolean>;
   init(): Promise<EngineInit>;
+  /**
+   * The background warm-up: asks the native side even when this wrapper thinks the engine is ready, because Android
+   * may have ended the engine process alone. A live, initialised engine answers at once as cached (EngineHost.init), so
+   * a warm engine is never warmed twice; only a new process runs the full init.
+   */
+  warm(): Promise<EngineInit>;
   /** Explicit update of the WHO files (one fetching init in a new engine process). Never throws. */
   updateWhoFiles(): Promise<EngineInit>;
   /** One engine call: `args` is the object of named arguments of `op`; `data` of the result is WHO's REST JSON for that action. */
@@ -162,6 +168,11 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
       inflight = undefined;
     });
     return inflight;
+  }
+
+  function warm(): Promise<EngineInit> {
+    if (!inflight) ready = undefined;
+    return init();
   }
 
   /**
@@ -226,6 +237,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
       }
     },
     init,
+    warm,
     updateWhoFiles,
     call: run,
     search: (q, options) => run("search", { q, ...options }),
@@ -256,6 +268,7 @@ export function offlineEngine(): OfflineEngine {
     shared = {
       ...engine,
       async init() { return await enabled() ? engine.init() : disabledInit; },
+      async warm() { return await enabled() ? engine.warm() : disabledInit; },
       async updateWhoFiles() { return await enabled() ? engine.updateWhoFiles() : disabledInit; },
       call: gated(engine.call),
       search: gated(engine.search),
@@ -277,12 +290,11 @@ export function offlineEngine(): OfflineEngine {
 export function warmUpOfflineEngine(engine: OfflineEngine, log: (line: string) => void = console.log): Promise<void> {
   return engine.available().then(async (available) => {
     if (!available) return;
-    const init = await engine.init();
+    const init = await engine.warm();
     log(`ICD11WARM ready=${init.ok} ms=${init.ms.toFixed(0)}${init.ok ? ` cached=${init.cached}` : ` error=${init.error}`} at=${Date.now()}`);
   });
 }
 
-/** Schedule the warm-up after interactions plus `delayMs`; the returned function cancels one that has not started. */
 /**
  * runAfterInteractions never fires while a looping animation (a spinner on the sign-in or unlock screen) holds an
  * interaction handle, so the warm-up also starts after `fallbackMs` at the latest. The task runs once.
@@ -306,6 +318,7 @@ export function afterInteractionsOrTimeout(task: () => void, fallbackMs = 5000):
   };
 }
 
+/** Schedule the warm-up after interactions plus `delayMs`; the returned function cancels one that has not started. */
 export function scheduleEngineWarmUp(
   engine: OfflineEngine = offlineEngine(),
   delayMs = 1000,

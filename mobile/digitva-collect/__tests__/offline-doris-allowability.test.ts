@@ -27,6 +27,7 @@ function engine(codeinfo: Record<string, unknown> = {}, failure?: EngineResult |
     calls,
     available: async () => true,
     init: async () => init,
+    warm: async () => init,
     updateWhoFiles: async () => init,
     call: async () => ok({}),
     search: async () => ok({}),

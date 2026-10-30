@@ -76,19 +76,22 @@ export function Notice({ children }: { children: React.ReactNode }) {
   return <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{children}</Text>;
 }
 
-function Card({ children, testID }: { children: React.ReactNode; testID?: string }) {
+function Card({ children, testID, fill }: { children: React.ReactNode; testID?: string; fill?: boolean }) {
   const styles = useUiStyles();
-  return <View style={[styles.card, { gap: spacing.xs }]} testID={testID}>{children}</View>;
+  return <View style={[styles.card, { gap: spacing.xs }, fill && { flex: 1 }]} testID={testID}>{children}</View>;
 }
 
 function Metric({ value, label, note, actionLabel, onAction, disabled, loading }: { value: number | string; label: string; note?: string; actionLabel: string; onAction(): void; disabled?: boolean; loading?: boolean }) {
   const { ui } = useTheme();
   return (
     <View style={{ flex: 1 }}>
-      <Card>
+      {/* Side-by-side cards share one height with the button at the bottom, so a label that wraps
+          does not push one card's button below the other's. */}
+      <Card fill>
         <Text style={{ ...typography.largeTitle, color: ui.foreground }}>{value}</Text>
         <Text style={{ ...typography.body, color: ui.foreground }}>{label}</Text>
         {note ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{note}</Text> : null}
+        <View style={{ flexGrow: 1 }} />
         <Button kind="secondary" size="sm" label={actionLabel} onPress={onAction} disabled={disabled} loading={loading} />
       </Card>
     </View>
@@ -143,7 +146,7 @@ export function HomeView(p: HomeViewProps) {
         )}
       </Card>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
-        <Metric value={p.unsent ?? "–"} label={t("homeUnsent")} note={p.unsentFiles ? t("homeUnsentFiles", { count: p.unsentFiles }) : undefined} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy} loading={p.busy} />
+        <Metric value={p.unsent ?? "–"} label={t("homeUnsent")} note={p.unsentFiles ? t("homeUnsentFiles", { count: p.unsentFiles }) : undefined} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy || p.offline || (p.unsent === 0 && !p.unsentFiles)} loading={p.busy} />
         <Metric value={p.summary.needVisit} label={t("homeNeedVisit")} actionLabel={t("homeView")} onAction={p.onViewTodo} />
       </View>
       {p.canRegister ? <Button label={t("registerDeath")} onPress={p.onRegister} /> : null}

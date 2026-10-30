@@ -7,7 +7,7 @@
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { accountStoreIdentityIsInSelectedMode } from "../accountStoreIdentity";
@@ -266,6 +266,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   const [failed, setFailed] = useState("");
   const [busy, setBusy] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
+  const [enginePercent, setEnginePercent] = useState<number>();
   const [retry, setRetry] = useState(0);
   const lastReply = useRef<DorisProcessReply | null>(null);
   const timeline = useRef<WorkflowTimelineEvent[]>([]);
@@ -384,6 +385,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
     });
     return () => { live = false; };
   }, [loaded?.smartvaOptions]);
+
+  useEffect(() => engine.onProgress((progress) => setEnginePercent(progress.percent)), [engine]);
 
   // Start only after the selected draft passes its project check and holds the editor lease.
   useEffect(() => {
@@ -573,6 +576,12 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
         <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
       </View>}
+      {allowed && !engineReady ? <View accessibilityLiveRegion="polite" style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
+        <ActivityIndicator />
+        <Text style={[styles.muted, { flex: 1 }]}>
+          {t("offlineDorisStarting")}{enginePercent !== undefined ? ` ${enginePercent}%` : ""}
+        </Text>
+      </View> : null}
       <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
         <DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={onDone} onDone={onDone} />
       </View>

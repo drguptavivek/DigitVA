@@ -254,6 +254,28 @@ describe("offlineEngine start-up sharing and recovery", () => {
     expect(none).not.toHaveBeenCalled();
   });
 
+  it("re-checks a ready engine with the native side, which restarts only a lost process", async () => {
+    let alive = false;
+    const init = jest.fn(async () => {
+      const cached = alive;
+      alive = true;
+      return { ok: true, copyMs: 0, initMs: cached ? 0 : 20, ms: cached ? 0 : 26, cached };
+    });
+    const engine = createOfflineEngine(fakeNative({ init }));
+    expect(await engine.warm()).toMatchObject({ ok: true, cached: false });
+    // Warm and alive: the native side answers cached; init() alone never reaches native.
+    expect(await engine.warm()).toMatchObject({ ok: true, cached: true });
+    await engine.init();
+    expect(init).toHaveBeenCalledTimes(2);
+    // Android ended the engine process: the next warm-up starts a new one.
+    alive = false;
+    expect(await engine.warm()).toMatchObject({ ok: true, cached: false });
+    // A warm-up during an init shares it.
+    alive = false;
+    await Promise.all([engine.warm(), engine.warm()]);
+    expect(init).toHaveBeenCalledTimes(4);
+  });
+
   it("schedules the warm-up after interactions and the delay, and can be cancelled before it starts", async () => {
     jest.useFakeTimers();
     try {

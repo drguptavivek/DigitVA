@@ -17,8 +17,12 @@ export function AttachmentAudioPlayer({ uri, accessibilityLabel, onError }: { ur
   const theme = useTheme();
   const player = useAudioPlayer({ uri });
   const status = useAudioPlayerStatus(player);
+  // At the end Android still reports the player as playing, so a bare seekTo(0) starts it again and it loops:
+  // stop first, then rewind for the next Play.
   useEffect(() => {
-    if (status.didJustFinish) void player.seekTo(0);
+    if (!status.didJustFinish) return;
+    player.pause();
+    void player.seekTo(0);
   }, [player, status.didJustFinish]);
   return (
     <View accessibilityLabel={accessibilityLabel} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 }}>

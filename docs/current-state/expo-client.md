@@ -582,9 +582,15 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   independent, so the bridge loads them on two threads: about 18 to 20 s, same
   output on six certificates (DORIS and CoDEdit). GC settings changed nothing
   measurable.
-- **Demand-only startup.** App launch does not schedule engine warm-up.
-  Eligible local coding initializes after project access and the editor lease
-  are checked. The explicit eligible-account diagnostic can also start it.
+- **Demand startup, plus one pre-start.** App launch does not schedule engine
+  warm-up. Eligible local coding initializes after project access and the
+  editor lease are checked, with a spinner and the init's progress until DORIS
+  is ready. The standalone home's Pending coding tab, when it lists a record,
+  schedules `scheduleEngineWarmUp` (after interactions, gated by the device
+  ICD-11/DORIS preference); it calls `warm()`, which always asks the native
+  side, so a live engine answers cached at once and a process Android ended
+  is initialized again (`digitva-4j8h`). The explicit eligible-account
+  diagnostic can also start it.
   The isolated service remains bound after use; Android may reclaim it and
   the next call reinitializes. No background cache-save hook is present.
 - Measured on the phone (one run each, noise about 1 to 2 s): launch to engine

@@ -210,7 +210,8 @@ export function SyncSheet() {
       {sync.result ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("syncLastResult", { text: sync.result })}</Text> : null}
       {account && !standalone && isUnlocked(account.user_id) ? (
         <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
-          <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
+          {/* Nothing to send, or no connection: Send now would only fail, so it waits. */}
+          <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId || sync.offline || (work !== undefined && work.unsent === 0 && !work.unsentFiles)} onPress={() => void shell.sendNow()} />
           <Button kind="secondary" label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />
         </View>
       ) : null}

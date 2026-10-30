@@ -5,6 +5,27 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-30
 
+- **Collect and Collect Plus 0.3.18** (phone checks of 0.3.17, `digitva-9l5c`,
+  `digitva-ljx2`, `digitva-v1e2`, `digitva-4j8h`; `docs/policy/field-data-collection.md`).
+  **Questions:** delete is a red icon button and deleting or re-recording a
+  recording, photo or file asks first; viewer actions (show, rotate, zoom) are
+  icon buttons, and Camera, Choose image and Choose file carry icons. The
+  medical certificate upload offers Camera and previews a saved image. Hindi
+  choice labels no longer wrap early (Android mismeasured Devanagari in a
+  flex row; the label now takes the row's remaining width). A recording stops
+  and rewinds at its end instead of looping. **Standalone:** new interviews
+  include the medical-record and death-summary photo questions (drafts keep
+  their own set); the three tabs fit one row, rows show "Last edited" or
+  "Completed" with the local time, and row buttons read Resume, Code and
+  Revise. Completing an interview no longer shows "Something went wrong": an
+  autosave racing Complete lost its guarded update and is now retried once.
+  **Collect home:** the metric cards align their buttons, and Send now is
+  disabled when there is nothing to send, on the home and in the Sync sheet.
+  **Offline DORIS:** the standalone home starts the engine in the background
+  when the Pending coding tab shows a record to code (a live engine answers at
+  once and is not warmed again; one Android ended is restarted), and the
+  coding screen shows a spinner with progress while DORIS starts.
+
 - **Collect and Collect Plus 0.3.17.** **Standalone home** (`digitva-axim`,
   `digitva-31ci`; `docs/current-state/expo-client.md`,
   `docs/policy/field-data-collection.md`): records sit in In progress, Pending

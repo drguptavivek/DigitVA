@@ -29,9 +29,8 @@ bin="$ndk/toolchains/llvm/prebuilt/$(uname | tr '[:upper:]' '[:lower:]')-x86_64/
 [[ -x "$bin/aarch64-linux-android29-clang" ]] || { echo "NDK clang not found in $bin: set ANDROID_NDK" >&2; exit 1; }
 : "${ICDAPI_DIR:?set ICDAPI_DIR to the WHO portable assemblies}"
 if [[ -z "${ASPNET_DIR:-}" ]]; then
-  # The SDK's own host version is the runtime it ships with; its ASP.NET Core shared framework has the same version.
-  host_version="$(cd "$here" && dotnet --info | awk '/^Host:/ {h=1} h && $1 == "Version:" {print $2; exit}')"
-  ASPNET_DIR="${DOTNET_ROOT:-$(dirname "$(readlink -f "$(command -v dotnet)")")}/shared/Microsoft.AspNetCore.App/$host_version"
+  # The ASP.NET Core shared framework the SDK ships, not the host version: setup-dotnet adds a newer bare runtime.
+  ASPNET_DIR="$(cd "$here" && dotnet --list-runtimes | awk '$1 == "Microsoft.AspNetCore.App" {v = $2; d = $3} END {gsub(/[][]/, "", d); print d "/" v}')"
 fi
 aspnet=$ASPNET_DIR
 [[ -d "$aspnet" ]] || { echo "ASP.NET Core shared framework not found: $aspnet (set ASPNET_DIR)" >&2; exit 1; }

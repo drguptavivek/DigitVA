@@ -33,6 +33,7 @@ Read these documents in this order:
 10. [Runtime And Operations](runtime-and-operations.md)
     - [Split Production TLS](split-production-tls.md): certificate paths, issuing and copying for the three-host deployment
     - [Split Production Deploy Runbook](split-production-deploy.md): preflight, backup, deploy, post-checks and rollback for the three-host deployment
+    - [Release Process](release-process.md): how each deliverable is released (server image, web export, Collect and Collect Plus APKs, Play bundle, ICD-11 engine, staging deploy), their pins, order and recipes
 11. [Data Manager Dashboard](data-manager-dashboard.md)
 12. [Submission Analytics Materialized View](submission-analytics.md)
     - [AI Analytics Questions](ai-analytics-questions.md): natural-language questions over the per-request `ai_cube`, built-in reports, question catalog, suggestions search and the Typesense container

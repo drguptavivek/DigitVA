@@ -1276,7 +1276,7 @@
   "unsentState_waiting": "अपने पंजीकरण के बाद जाएगा",
   "unsentState_attention": "ध्यान चाहिए",
   "unsentRef": "संदर्भ: {ref}",
-  "appLanguageSwitch": "ऐप की भाषा: {language} में बदलें",
+  "appLanguageMenu": "ऐप की भाषा: {language}. भाषा चुनें",
   "questionnaireLanguage": "प्रश्नावली की भाषा",
   "preIdentityMissing": "जमा करने से पहले मृतक का नाम, मृत्यु की तिथि और लिंग दर्ज करें।",
   "preConsentUnanswered": "सहमति वाले प्रश्न (Id10013) का उत्तर देना आवश्यक है।",

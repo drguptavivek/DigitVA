@@ -177,17 +177,32 @@ describe("header and tabs", () => {
     const offline = await render(<NativeHeader />, shellValue({ sync: { ...SYNC, offline: true } }));
     expect(byLabel(offline, "Offline").length).toBeGreaterThan(0);
   });
-  it("switches the app language from the header button (48dp, labelled), and from a pre-login screen", async () => {
+  it("opens a language menu from the header button (48dp, labelled) and switches only on a choice, also before sign-in", async () => {
     const tree = await render(<NativeHeader />, shellValue());
-    expect(byLabel(tree, "App language: switch to हिन्दी")[0].props.style).toMatchObject({ width: 48, height: 48 });
-    await press(tree, "App language: switch to हिन्दी");
+    const label = "App language: English. Choose a language";
+    expect(byLabel(tree, label)[0].props.style).toMatchObject({ width: 48, height: 48 });
+    expect(byLabel(tree, "हिन्दी")).toHaveLength(0);
+    await press(tree, label);
+    expect(mockChooseLocale).not.toHaveBeenCalled();
+    expect(byLabel(tree, "English")[0].props.accessibilityState).toEqual({ selected: true });
+    expect(byLabel(tree, "हिन्दी")[0].props.accessibilityState).toEqual({ selected: false });
+    await press(tree, "English");
+    expect(mockChooseLocale).not.toHaveBeenCalled();
+    expect(byLabel(tree, "हिन्दी")).toHaveLength(0);
+    await press(tree, label);
+    await press(tree, "हिन्दी");
     expect(mockChooseLocale).toHaveBeenCalledWith("hi");
+    expect(byLabel(tree, "हिन्दी")).toHaveLength(0);
     mockPathname = "/sign-in";
     mockChooseLocale.mockClear();
     const pre = await render(<NativeHeader />, shellValue());
     expect(byLabel(pre, "Help")).toHaveLength(0);
     expect(byLabel(pre, "Account")).toHaveLength(0);
-    await press(pre, "App language: switch to हिन्दी");
+    await press(pre, label);
+    await press(pre, "Cancel");
+    expect(byLabel(pre, "हिन्दी")).toHaveLength(0);
+    await press(pre, label);
+    await press(pre, "हिन्दी");
     expect(mockChooseLocale).toHaveBeenCalledWith("hi");
     mockPathname = "/worklist";
   });

@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-30
 
+- **The 文A button opens a language menu** on Collect and Collect Plus,
+  with the current language ticked, instead of switching on one tap; a stray
+  tap no longer changes the language. **DORIS picker badges stay on one line**:
+  on Android the badges' own wrapping box shrank to its widest pill and stacked
+  "+ Build" over "J"; the pills now sit straight in the result's second line,
+  which wraps. **Release process reference** in
+  `docs/current-state/release-process.md` (server image, web export, APKs, Play
+  bundle, engine, staging; pins, order, recipes).
 - **VA cause bucket shown while coding, by the analytics rule** (`digitva-to74`;
   baseline `docs/policy/va-cause-definitions.md`, as built in
   `docs/current-state/doris-cod-workflow.md`). The web DORIS panel and Collect

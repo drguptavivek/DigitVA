@@ -1276,7 +1276,7 @@
   "unsentState_waiting": "Waits for its registration",
   "unsentState_attention": "Needs attention",
   "unsentRef": "Ref: {ref}",
-  "appLanguageSwitch": "App language: switch to {language}",
+  "appLanguageMenu": "App language: {language}. Choose a language",
   "questionnaireLanguage": "Questionnaire language",
   "preIdentityMissing": "Record the name, date of death and sex of the deceased before submitting.",
   "preConsentUnanswered": "The consent question (Id10013) must be answered.",

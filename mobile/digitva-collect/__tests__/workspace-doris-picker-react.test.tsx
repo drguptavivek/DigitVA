@@ -1741,8 +1741,14 @@ describe("layout", () => {
       const use = h.tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Use CA40")[0];
       expect(flatStyle(use).minHeight).toBe(28);
       const meta = rowOf(h, "JA00").findAll((node) => node.props.testID === "result-meta" && typeof node.type === "string")[0];
-      expect(flatStyle(meta)).toMatchObject({ flexDirection: "row", flexWrap: "nowrap" });
-      for (const badge of ["Mandatory postcoordination", "Open coding note", "Open pregnancy related terms", "Open perinatal related terms"]) expect(withIn(meta, labelled(badge))).toBe(true);
+      expect(flatStyle(meta)).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
+      // The pills sit straight in line 2, not in a box of their own: on Android such a box shrank to its widest pill and stacked "+ Build" over "J".
+      const hostParent = (node: ReactTestInstance) => { let up = node.parent; while (up && typeof up.type !== "string") up = up.parent; return up; };
+      for (const badge of ["Mandatory postcoordination", "Open coding note", "Open pregnancy related terms", "Open perinatal related terms"]) {
+        const pill = meta.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === badge)[0];
+        expect(pill).toBeDefined();
+        expect(hostParent(pill) === meta).toBe(true);
+      }
       const matched = meta.findAll((node) => typeof node.type === "string" && flat(node.children) === "Matched: Gestation")[0];
       expect(matched.props.numberOfLines).toBe(1);
       expect(flatStyle(matched).flexShrink).toBe(1);

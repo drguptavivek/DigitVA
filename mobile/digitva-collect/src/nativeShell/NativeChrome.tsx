@@ -4,7 +4,8 @@
  * colour modes. Both step aside by the rules in navAdapter.ts.
  */
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
-import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Image, Modal, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
@@ -12,7 +13,7 @@ import { useAppState } from "../AppState";
 import DemoBadge from "../DemoBadge";
 import { canTryDorisDemo } from "../dorisDemoAccess";
 import { t, UI_LOCALES } from "../i18n";
-import { controlText, spacing, typography, ui, useTheme } from "../theme";
+import { controlText, radius, spacing, typography, ui, useTheme } from "../theme";
 import { activeNativeTab, isPreLoginRoute, nativeTabs, type NativeTab } from "./navAdapter";
 import { useShell, type SyncStatus } from "./shellContext";
 
@@ -54,19 +55,59 @@ export function syncIndicator(sync: SyncStatus): { label: string; busy: boolean 
   return undefined;
 }
 
-/** The app-language button (文A): one tap switches English and हिन्दी. Used in the header and on the pre-login screens. */
+/**
+ * The app-language button (文A): opens a menu of the app languages with the current one ticked, so a stray tap
+ * never changes the language. Used in the header and on the pre-login screens.
+ */
 export function LanguageButton({ color }: { color: string }) {
   const { uiLocale, chooseUiLocale } = useAppState();
-  const next = UI_LOCALES.find((locale) => locale.code !== uiLocale) ?? UI_LOCALES[0];
+  const { ui: tokens } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [open, setOpen] = useState(false);
+  const current = UI_LOCALES.find((locale) => locale.code === uiLocale) ?? UI_LOCALES[0];
+  const choose = (code: string) => {
+    setOpen(false);
+    if (code !== uiLocale) void chooseUiLocale(code);
+  };
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t("appLanguageSwitch", { language: next.label })}
-      onPress={() => void chooseUiLocale(next.code)}
-      style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
-    >
-      <Text style={{ ...typography.subhead, fontWeight: "700", color }}>文A</Text>
-    </Pressable>
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("appLanguageMenu", { language: current.label })}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(true)}
+        style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
+      >
+        <Text style={{ ...typography.subhead, fontWeight: "700", color }}>文A</Text>
+      </Pressable>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("cancel")} onPress={() => setOpen(false)} style={{ flex: 1 }}>
+          <View
+            accessibilityRole="menu"
+            accessibilityLabel={t("appLanguage")}
+            style={{ position: "absolute", top: insets.top + 52, right: spacing.sm, minWidth: 200, paddingVertical: spacing.xxs, borderRadius: radius.lg, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.popover, elevation: 6 }}
+          >
+            <Text style={{ ...typography.caption, color: tokens.mutedForeground, paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}>{t("appLanguage")}</Text>
+            {UI_LOCALES.map((locale) => {
+              const selected = locale.code === current.code;
+              return (
+                <Pressable
+                  key={locale.code}
+                  accessibilityRole="menuitem"
+                  accessibilityLabel={locale.label}
+                  accessibilityState={{ selected }}
+                  onPress={() => choose(locale.code)}
+                  style={{ minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, gap: spacing.sm }}
+                >
+                  <Text style={{ width: 20, color: tokens.primary, fontWeight: "700" }}>{selected ? "✓" : ""}</Text>
+                  <Text style={{ ...typography.body, color: tokens.popoverForeground, fontWeight: selected ? "700" : "400" }}>{locale.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 

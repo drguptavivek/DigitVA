@@ -56,14 +56,18 @@ function Tag({ label, kind, onPress, children }: { label: string; kind: keyof ty
     : <View accessible accessibilityLabel={label} style={box}>{children}</View>;
 }
 
-/** Postcoordination, pregnancy, perinatal and coding-note badges of a result; nothing renders when the code has none. */
-export function ContextBadges({ item, onRelated, onBuild, onDetails }: BadgeProps) {
+/**
+ * Postcoordination, pregnancy, perinatal and coding-note badges of a result; nothing renders when the code has none.
+ * `bare` returns the pills without their wrapping box, for a row that lays them out itself: on Android a wrapping box
+ * inside a row shrinks to its widest pill, so "+ Build" and "J" stacked on two lines with room to spare.
+ */
+export function ContextBadges({ item, onRelated, onBuild, onDetails, bare }: BadgeProps & { bare?: boolean }) {
   const { t } = useUi();
   if (!hasBadges(item)) return null;
   const mandatory = isMandatory(item);
   const tint = (index: number) => pillText(t.chart[index].foreground);
-  return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: gap.xs }}>
+  const pills = (
+    <>
       {buildable(item) ? (
         <Tag label={mandatory ? "Mandatory postcoordination" : "Postcoordination available"} kind={mandatory ? "required" : "post"} onPress={onBuild}>
           {/* "required" says in words what the web says only by leaving out Use: this code cannot be used as it is. */}
@@ -85,8 +89,9 @@ export function ContextBadges({ item, onRelated, onBuild, onDetails }: BadgeProp
           <Text maxFontSizeMultiplier={PILL_SCALE} style={tint(2)}>☰</Text>
         </Tag>
       ) : null}
-    </View>
+    </>
   );
+  return bare ? pills : <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: gap.xs }}>{pills}</View>;
 }
 
 /** "Usually used only for certain age groups": the web's fallback when the note is missing. */
@@ -148,7 +153,7 @@ export function ResultRow({ item, onTitle, onUse, onDetails, onRelated, onBuild,
         )}
       </View>
       {hasMeta ? (
-        <View testID="result-meta" style={{ flexDirection: "row", flexWrap: stacked ? "wrap" : "nowrap", alignItems: "center", columnGap: gap.xs, rowGap: gap.xs, paddingBottom: gap.xs }}>
+        <View testID="result-meta" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: gap.xs, rowGap: gap.xs, paddingBottom: gap.xs }}>
           {usePill ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Use ${item.code}`} hitSlop={8} onPress={onUse} style={pillBox(t.primary, t.background)}>
               <UseIcon color={t.primary} size={16} /><Text maxFontSizeMultiplier={PILL_SCALE} style={pillText(t.primary)}>Use</Text>
@@ -165,7 +170,7 @@ export function ResultRow({ item, onTitle, onUse, onDetails, onRelated, onBuild,
           ) : null}
           {/* A hairline sets Use apart from the pills that open something (Build, J, K, coding note). */}
           {(usePill || refused) && hasBadges(item) ? <View testID="use-divider" style={{ width: StyleSheet.hairlineWidth * 2, alignSelf: "stretch", marginVertical: 4, marginHorizontal: gap.xs, backgroundColor: t.border }} /> : null}
-          <ContextBadges item={item} onRelated={onRelated} onBuild={onBuild} onDetails={onDetails} />
+          <ContextBadges bare item={item} onRelated={onRelated} onBuild={onBuild} onDetails={onDetails} />
           {item.age_restricted ? (
             <View accessible accessibilityRole="image" accessibilityLabel={`Age-restricted: ${item.restriction_note || AGE_NOTE}`} style={{ minHeight: 28, justifyContent: "center", paddingHorizontal: gap.sm, borderRadius: uiRadius.full, borderWidth: 1, borderColor: t.warningBorder, backgroundColor: t.warning }}>
               <Text maxFontSizeMultiplier={PILL_SCALE} style={{ ...controlText, fontSize: font.caption, lineHeight: 18, fontWeight: "600", color: t.warningForeground }}>age-restricted</Text>

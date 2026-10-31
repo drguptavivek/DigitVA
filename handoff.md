@@ -42,8 +42,10 @@ has neither, and its coding is one direct step with SmartVA visible.
 4. `make collect-plus-local` (debug-signed local verification build, not for
    distribution): container mode untested end to end (Docker 12 GB or more;
    24 GB set 2026-10-31); `NATIVE=1` builds on the Mac (Node 24 and Java 21
-   accepted with a warning) and its first full run was in progress at the
-   2026-10-31 commit: check `build/collect-plus-local/` and fix or record.
+   accepted with a warning) built a debug-signed APK end to end on
+   2026-10-31 in 4.5 min (4,313 Jest tests, module JVM tests, assembleRelease)
+   after the source copy kept `resource/doris_help_examples.json` (that fix is
+   uncommitted at the time of writing).
    The engine's memory grew 511 MB to 1,082 MB over the 50,959-call full
    parity run (591 MB on 29 Oct without the golden/sweep entity reads);
    attributed to WHO's entity cache, not confirmed.

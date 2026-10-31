@@ -50,11 +50,13 @@ fi
 
 # --- 1. source -----------------------------------------------------------------------------------------------------
 # Existing files of `git ls-files -co --exclude-standard` under $1 (a deleted tracked file or a submodule dir is skipped),
-# minus anything the build does not read: private/, docs/, resource/, build dirs, node_modules, prebuilt android/ios.
+# minus anything the build does not read: private/, docs/, resource/ (but the one file the app's tests read), build dirs,
+# node_modules, prebuilt android/ios.
 source_files() {
   (cd "$1" && git ls-files -z -co --exclude-standard --deduplicate | xargs -0 -n 500 bash -c '
     for f; do
       case $f in
+        resource/doris_help_examples.json) ;;
         private/*|docs/*|resource/*|.claude/*|.beads/*|build/*|node_modules/*|*/node_modules/*|mobile/digitva-collect/android/*|mobile/digitva-collect/ios/*|mobile/digitva-collect/coverage/*|mobile/digitva-collect/dist/*|mobile/digitva-collect/.expo/*) continue ;;
       esac
       if [[ -f $f || -L $f ]]; then printf "%s\0" "$f"; fi

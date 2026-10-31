@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-10-31
 ---
 
 # DORIS COD Workflow Policy
@@ -247,6 +247,38 @@ accept a code the server would refuse.
   are integrity markers, not WHO canonical digests, and are never used for
   server verification.
 - **SmartVA** is not available offline for now; this section covers DORIS only.
+
+### Offline coding workspace (owner 2026-10-30, `digitva-9cll.22.8`)
+
+Offline coding on Collect Plus shows the same coding workspace as the web and
+online Collect, not a reduced screen: the category navigation with counts, each
+category's sub-categories, yes/no colouring, positive and negative history, the
+"Symptoms on VA Interview" summary, the narrative and the interview's
+attachments, then SmartVA, the DORIS certificate and the private note.
+
+- **Same rendering, from a pack.** The phone builds the server's category
+  payload from the draft's answers with a bundled **display pack**: the coder
+  categories in server order, the field-to-sub-category mapping, choice labels,
+  flip and info labels, sub-category labels and render modes, summary fields and
+  the category-count rule. The pack is generated server-side from the mapping
+  tables and the static coder mapping, carries a content hash and the migration
+  revision, and ships with the app. A pytest drift test fails when the committed
+  pack differs from the database at head, and a committed golden file of server
+  renders for fixed answers must equal the phone's renders (Jest), so a mapping
+  change cannot ship to one side only.
+- **The answers the server would store.** The phone renders the answers the
+  server keeps on submission (irrelevant answers left out, multi-select answers
+  labelled whether they arrive as an array or a space-joined string). The
+  server renders array answers the same way.
+- **Nothing leaves the phone.** The workspace makes no server call offline.
+  Attachments are read from the encrypted store; temporary plain copies follow
+  the existing attachment rules. The coder sees what they collected, so no PII
+  redaction applies offline.
+- **NQA and Social Autopsy** follow the rule of
+  [Field Data Collection](field-data-collection.md): disabled in standalone mode;
+  for an enrolled account they follow the project (`digitva-9cll.22.4`).
+- **Private note** is kept in the encrypted account store with the case and
+  is never synced.
 
 ## Public Help proof
 

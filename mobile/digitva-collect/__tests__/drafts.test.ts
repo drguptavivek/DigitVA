@@ -68,11 +68,16 @@ describe("draft store", () => {
     const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", binding: { projectId: "PROJECT1", prefill: { deceased: { name: "Private" } } } });
     await store.save(draft("refused", "2026-09-30T01:00:00Z", { Id10013: "yes", Id10007: "Private", Id10476: "Narrative" }));
     await saveAttachment(db, { id: "11111111-1111-4111-8111-111111111111", draftId: "refused", projectId: "PROJECT1", question: "Id10476", kind: "audio", mimeType: "audio/mp4", ext: "m4a", bytes: new Uint8Array([1]) });
+    await setMeta(db, "offlineNote:refused", { content: "Quotes the narrative", updated_at: "2026-09-30T01:00:00+05:30" });
+    await setMeta(db, "offlineNote:other", { content: "Another case", updated_at: "2026-09-30T01:00:00+05:30" });
+    expect(await getMeta(db, "offlineNote:refused")).toBeTruthy();
     await saveDraftConsent(db, "refused", { envelope: { decision: "refused" }, project_id: "PROJECT1", covered_fields: [], recorded_by: "u" } as unknown as StoredConsent);
     const row = await db.getFirstAsync<{ envelope: string; prefill: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", ["refused"]);
     expect(JSON.parse(row!.envelope).data).toEqual({ Id10013: "yes" });
     expect(row!.prefill).toBeNull();
     expect(await draftAttachments(db, "refused")).toEqual([]);
+    expect(await getMeta(db, "offlineNote:refused")).toBeUndefined();
+    expect(await getMeta(db, "offlineNote:other")).toBeTruthy();
     await store.save(draft("refused", "2026-09-30T02:00:00Z", { Id10013: "yes", Id10007: "stale" }));
     expect((await store.load!("refused"))!.data).toEqual({ Id10013: "yes" });
   });

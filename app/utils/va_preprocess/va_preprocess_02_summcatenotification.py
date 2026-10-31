@@ -2,11 +2,14 @@ from collections import OrderedDict
 from app.utils.va_mapping.va_mapping_04_summary import va_mapping_summary
 from app.utils.va_mapping.va_mapping_05_summaryflip import va_mapping_summaryflip
 
+# Shown as "label: value" in the summary, never counted.
+SPECIAL_SUMMARY_IDS = ["Id10121", "Id10122", "Id10120", "Id10436"]
+
 
 def va_preprocess_summcatenotification(va_data):
     summary_list = []
     category_notification = OrderedDict()
-    special_summary_ids = ["Id10121", "Id10122", "Id10120", "Id10436"]
+    special_summary_ids = SPECIAL_SUMMARY_IDS
 
     try:
         for category in va_mapping_summary:
@@ -15,6 +18,9 @@ def va_preprocess_summcatenotification(va_data):
             for va_id, va_summarylabel in sub_dict.items():
                 if va_id in va_data:
                     va_response = va_data.get(va_id)
+                    if isinstance(va_response, list):
+                        # Collect submits multi-selects as arrays: read as the space-joined string.
+                        va_response = " ".join(str(item) for item in va_response)
                     condition1 = (
                         va_summarylabel in va_mapping_summaryflip and va_response == "no"
                     )

@@ -1926,5 +1926,12 @@
   "standaloneProfileIncomplete": "Complete your profile before starting an interview. Missing: {fields}",
   "standaloneProfileComplete": "Complete profile",
   "standaloneProfileNameField": "Name (letters A to Z and spaces)",
-  "standaloneProfileAgeField": "Age (18 to 89, or 99 if not stated)"
+  "standaloneProfileAgeField": "Age (18 to 89, or 99 if not stated)",
+  "offlineAttachmentUnavailable": "Attachment unavailable.",
+  "offlineAttachmentLoading": "Loading attachment…",
+  "offlineAttachmentDocument": "A document is attached; it is not shown here.",
+  "offlineAttachedImage": "Attached image",
+  "offlineAttachedAudio": "Attached audio",
+  "offlineAttachmentOpen": "Open attachment",
+  "offlineAttachmentClose": "Close attachment"
 }

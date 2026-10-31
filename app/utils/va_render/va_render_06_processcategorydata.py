@@ -105,6 +105,25 @@ def _choice_lookup_key_candidates(value):
     return candidates
 
 
+def _label_choice(choice_map, value):
+    """The label of ``value`` in ``choice_map`` (numeric JSON keys tolerated), else ``value``."""
+    for candidate in _choice_lookup_key_candidates(value):
+        if candidate in choice_map:
+            return choice_map[candidate]
+    return value
+
+
+def _list_answer_as_text(va_fieldid, value, va_mapping_choice):
+    """A list answer (Collect submits multi-selects as arrays) shown as its space-joined string would be.
+
+    A multi-select field joins with a space, so ``va_render_mapchoicevalue`` labels each choice. Any other
+    field with choices labels each element and joins with ", ". A field without choices is the joined text.
+    """
+    if va_fieldid not in va_multipleselect and va_fieldid in va_mapping_choice:
+        return ", ".join(str(_label_choice(va_mapping_choice[va_fieldid], item)) for item in value)
+    return " ".join(str(item) for item in value)
+
+
 def va_render_processcategorydata(
     va_data, va_form_id, va_datalevel, va_mapping_choice, va_partial, *, va_sid=None
 ):
@@ -132,21 +151,24 @@ def va_render_processcategorydata(
         for va_fieldid, va_label in va_fieldmap.items():
             if va_fieldid in va_data and va_data.get(va_fieldid) is not None:
                 value = va_data.get(va_fieldid)
-                if (isinstance(value, str) and value.lower() in va_skipvalues) or (
+                # A list is skipped exactly when its space-joined string would be.
+                skip_test = " ".join(str(item) for item in value) if isinstance(value, list) else value
+                if (isinstance(skip_test, str) and skip_test.lower() in va_skipvalues) or (
                     va_fieldid in va_zeroskipfields
-                    and (value == 0 or value == "0" or value == "0.0")
+                    and (skip_test == 0 or skip_test == "0" or skip_test == "0.0")
                 ):
                     continue
+                if isinstance(value, list):
+                    value = _list_answer_as_text(va_fieldid, value, va_mapping_choice)
+                    if va_fieldid not in va_multipleselect:
+                        va_subcatresult[va_label] = value
+                        continue
                 if va_fieldid in va_dealwithdates:
                     value = va_render_standardizedate(value)
                 if va_fieldid in va_dealwithdatetimes:
                     value = va_render_formatdatetimeindian(value)
                 if va_fieldid in va_mapping_choice:
-                    choice_map = va_mapping_choice[va_fieldid]
-                    for candidate in _choice_lookup_key_candidates(value):
-                        if candidate in choice_map:
-                            value = choice_map[candidate]
-                            break
+                    value = _label_choice(va_mapping_choice[va_fieldid], value)
                 if va_fieldid in va_zeroskipfields and (
                     value == 1 or value == "1" or value == "1.0"
                 ):

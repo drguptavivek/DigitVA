@@ -1,13 +1,16 @@
 /**
  * Collect Plus only (APP_VARIANT=plus, src/appVariant.ts): pure-offline coding. Lists the signed-in interviewer's
- * completed-but-unsent interviews from the local store and opens one in the DORIS editor over the on-device ICD-11
- * engine (src/workspace/offlineDoris.ts). A confirmed save lands in the store's offline_coding table and the draft
- * keeps syncing as the interview; nothing syncs the coding in this phase. Only what the coder collected themselves
- * is shown: the local id, dates, org unit and coding status — names and answers stay in the form.
+ * completed-but-unsent interviews from the local store and opens one in the same coding workspace as the web and
+ * online Collect (CaseWorkspaceScreen), answered locally: the categories are rendered on the phone from the bundled
+ * display pack (src/workspace/localCategories.ts), SmartVA is the on-phone result, the private note stays in the
+ * encrypted store, and DORIS runs on the on-device ICD-11 engine (src/workspace/offlineDoris.ts). A confirmed save
+ * lands in the store's offline_coding table and the draft keeps syncing as the interview; nothing syncs the coding
+ * in this phase, and the workspace makes no server call (docs/policy/doris-cod-workflow.md, "Offline coding workspace").
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
+
 
 import { ApiError } from "../api";
 import { accountStoreIdentityIsInSelectedMode } from "../accountStoreIdentity";
@@ -35,13 +38,19 @@ import { getOrCreatePlusDeviceIdentity } from "../offlineIdentity";
 import { getOfflineProfile } from "../offlineProfile";
 import { getCachedReferenceData } from "../sync";
 import allowabilityPack from "../../assets/icd11-allowability-2026-01.json";
+import displayPackAsset from "../../assets/va-display-WHO_2022_VA.json";
+import { serverKeptAnswers } from "../coding/irrelevantAnswers";
+import { correctedNow } from "../phoneClock";
 import { codingContextFromInterview, createAllowabilityIndex, extractIcd11CodeExpression, isCluster, type AllowabilityPack } from "../coding/icd11Allowability";
 import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
 import { errorText, Button, Screen, useUiStyles } from "../ui";
 import { t } from "../i18n";
 import { createGuidanceRequester, createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
 import type { JsonRequester, WorkspaceApi } from "../workspace/api";
-import type { CodingWriteReply, DorisProcessReply, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
+import type { CodingWriteReply, DorisProcessReply, JsonValue, NotePayload, SmartvaStatus, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
+import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
+import { createDisplayPackIndex, LOCAL_ATTACHMENT_PREFIX, localCaseHeader, localCaseView, type DisplayPackIndex, type LocalCaseView } from "../workspace/localCategories";
+import { LocalAttachmentMedia } from "../workspace/media/LocalAttachmentMedia.native";
 import { offlineEngine } from "../offlineEngine";
 import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
@@ -62,7 +71,6 @@ import { getLocalSmartVa, isLocalSmartVaCurrent, type LocalSmartVaRow } from "..
 import { runLocalSmartVa } from "../smartva/localApi";
 import { ensureLocalSmartVa } from "../smartva/ensureLocal";
 import { offlineSmartvaEngine } from "../smartva/nativeEngine";
-import { SmartVaReference } from "../workspace/SmartVaReference";
 import { DEFAULT_COVERED_FIELDS, consentForDraft } from "../consentStore";
 import { isRefused } from "../refusalBoundary";
 
@@ -134,15 +142,31 @@ async function resolveOfflineSaveContext(): Promise<{ deviceUuid: string; coderP
   return { deviceUuid: identity.uuid, coderProfileUpdatedAt: profile?.updated_at ?? null };
 }
 
+/** What the local workspace answers from: the case as rendered on the phone, refreshed on every render. */
+interface LocalCase {
+  workspace: WorkspacePayload;
+  view: LocalCaseView;
+  /** The answers the server would keep (irrelevant ones left out); category values and attachments come from these. */
+  answers: Record<string, unknown>;
+  smartvaStatus: SmartvaStatus;
+}
+
+/** The private note of one case: kept in the account's encrypted store beside the draft, never synced. */
+const noteKey = (clientDraftId: string) => `offlineNote:${clientDraftId}`;
+const NOTE_MAX_CHARS = 20_000;
+
 /**
- * The workspace API surface DorisPanel touches, answered locally: the four
- * DORIS data callbacks run on the engine, a Step 1 save is stored in
- * offline_coding, VA definitions (a server crosswalk) answer none. Every
- * server-only call refuses, so an offline screen can never half-talk to a server.
+ * The CaseWorkspaceScreen API, answered on the phone: the workspace and its categories from the local render,
+ * SmartVA status from the local result (never "can run": a run is the coder's explicit action on this screen, so
+ * the shared lifecycle never starts one), the private note from the store, the four DORIS data callbacks on the
+ * engine, a Step 1 save into offline_coding, VA causes from the bundled pack. Every server-only call refuses, so an
+ * offline screen can never half-talk to a server. Each method reads through refs so the object stays the same for
+ * the open case: a new one would make the screen reload to its first section.
  */
 function offlineWorkspaceApi(
   db: Db,
-  editor: OfflineDorisEditor,
+  editor: { current: OfflineDorisEditor },
+  local: { current: LocalCase | null },
   reply: { current: DorisProcessReply | null },
   timeline: { current: WorkflowTimelineEvent[] },
   vaSid: string,
@@ -150,9 +174,22 @@ function offlineWorkspaceApi(
   assertAllowed: () => Promise<void>,
 ): WorkspaceApi {
   const unavailable = (_name: string): never => { throw new Error("offline_server_unavailable"); };
+  const opened = async () => {
+    await assertAllowed();
+    if (!local.current) throw new Error("offline_case_missing");
+    return local.current;
+  };
+  const note = (value: unknown): NotePayload => {
+    const stored = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    return {
+      va_sid: vaSid,
+      content: typeof stored.content === "string" ? stored.content : null,
+      updated_at: typeof stored.updated_at === "string" ? stored.updated_at : null,
+    };
+  };
   return {
-    getWorkspace: () => unavailable("getWorkspace"),
-    getCategory: () => unavailable("getCategory"),
+    async getWorkspace() { return (await opened()).workspace; },
+    async getCategory(_vaSid, code) { return (await opened()).view.category(code); },
     getCodingStats: () => unavailable("getCodingStats"),
     getCodingAvailable: () => unavailable("getCodingAvailable"),
     getCodingHistory: () => unavailable("getCodingHistory"),
@@ -171,31 +208,40 @@ function offlineWorkspaceApi(
     releaseReviewer: () => unavailable("releaseReviewer"),
     searchIcd: () => unavailable("searchIcd"),
     runSmartva: () => unavailable("runSmartva"),
-    getSmartvaStatus: () => unavailable("getSmartvaStatus"),
+    async getSmartvaStatus() { return { va_sid: vaSid, status: (await opened()).smartvaStatus, can_run: false }; },
     saveNarrativeQuality: () => unavailable("saveNarrativeQuality"),
     saveSocialAutopsy: () => unavailable("saveSocialAutopsy"),
-    getNote: () => unavailable("getNote"),
-    saveNote: () => unavailable("saveNote"),
+    async getNote() {
+      await opened();
+      return note(await getMeta(db, noteKey(vaSid)));
+    },
+    async saveNote(_vaSid, _mode, content) {
+      if (typeof content !== "string" || !content.trim() || content.length > NOTE_MAX_CHARS) throw new Error("offline_note_invalid");
+      await opened();
+      const saved = { content, updated_at: localDateTimeWithOffset() };
+      await setMeta(db, noteKey(vaSid), saved);
+      return note(saved);
+    },
     getWorkflowEvents: () => unavailable("getWorkflowEvents"),
     saveFinal: () => unavailable("saveFinal"),
     saveNotCodeable: () => unavailable("saveNotCodeable"),
     async searchDorisTerms(_vaSid, query, options) {
       await assertAllowed();
-      return editor.onTerms(query, options?.limit, options?.subtreeUris);
+      return editor.current.onTerms(query, options?.limit, options?.subtreeUris);
     },
-    async getDorisCodeInfo(_vaSid, code) { await assertAllowed(); return editor.onCodeInfo(code); },
-    async checkDorisSelection(_vaSid, code, uri) { await assertAllowed(); return editor.onSelectionCheck(code, uri); },
+    async getDorisCodeInfo(_vaSid, code) { await assertAllowed(); return editor.current.onCodeInfo(code); },
+    async checkDorisSelection(_vaSid, code, uri) { await assertAllowed(); return editor.current.onSelectionCheck(code, uri); },
     async getVaDefinitionForIcd(code) {
       await assertAllowed();
       const expression = extractIcd11CodeExpression(code);
       if (expression && isCluster(expression)) {
-        return getBundledVaDefinition(expression, await editor.primaryStem(expression));
+        return getBundledVaDefinition(expression, await editor.current.primaryStem(expression));
       }
       return getBundledVaDefinition(code);
     },
     async processDoris(_vaSid, _role, clientRevision, certificate) {
       await assertAllowed();
-      const processed = await editor.onProcess(clientRevision, certificate);
+      const processed = await editor.current.onProcess(clientRevision, certificate);
       reply.current = processed;
       if (processed.doris.status === "completed") {
         const at = localDateTimeWithOffset();
@@ -211,7 +257,7 @@ function offlineWorkspaceApi(
       try {
         const answersSha256 = await answersHash(vaSid);
         await assertAllowed();
-        const saved = await editor.save({
+        const saved = await editor.current.save({
           clientDraftId: vaSid, body, reply: reply.current, deviceUuid, coderProfileUpdatedAt, answersSha256,
           workflowTimelineV1: timeline.current,
           codingTimelineV1: timeline.current,
@@ -251,12 +297,28 @@ function offlineWorkspaceApi(
 // Built once: the bundled pack is indexed on first use and refuses to load if it is not understood.
 let allowabilityIndex: ReturnType<typeof createAllowabilityIndex> | undefined;
 const packIndex = () => (allowabilityIndex ??= createAllowabilityIndex(allowabilityPack as AllowabilityPack));
+// The display pack, checked once (hash and schema); a pack the app does not understand refuses to open a case.
+let displayPack: Promise<DisplayPackIndex> | undefined;
+const displayPackIndex = () => (displayPack ??= createDisplayPackIndex(displayPackAsset));
 
-/** The editor's one case: minimal header (no PII beyond what this coder collected) plus the offline editor. */
+/** One loaded case: the stored draft and coding, and its local render. */
+interface LoadedCase {
+  row: OfflineCodingCase;
+  draft: DeviceTimedDraft;
+  coding: OfflineCodingRow | null;
+  projectId: string;
+  smartvaOptions: SmartVaOptionsSnapshot | null;
+  answers: Record<string, unknown>;
+  view: LocalCaseView;
+  narrativeQaEnabled: boolean;
+  socialAutopsyEnabled: boolean;
+}
+
+/** The editor's one case in the coding workspace, with the offline editor in its COD section. */
 function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; userId: string; clientDraftId: string; account: Account; onDone: () => Promise<void> }) {
   const styles = useUiStyles();
   const engine = offlineEngine();
-  const [loaded, setLoaded] = useState<{ row: OfflineCodingCase; draft: DeviceTimedDraft; coding: OfflineCodingRow | null; projectId: string; smartvaOptions: SmartVaOptionsSnapshot | null } | undefined>();
+  const [loaded, setLoaded] = useState<LoadedCase | undefined>();
   const [smartvaCache, setSmartvaCache] = useState<LocalSmartVaRow | null>(null);
   const [smartvaAnswersHash, setSmartvaAnswersHash] = useState<string | null>(null);
   const [smartvaBusy, setSmartvaBusy] = useState(false);
@@ -358,9 +420,20 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
           const options = isSmartVaOptionsSnapshot(draftConfig?.smartva) ? draftConfig.smartva : null;
           const answersHash = await draftAnswersSha256(db, clientDraftId);
           const cached = await getLocalSmartVa(db, clientDraftId);
+          const answers = serverKeptAnswers(envelope, correctedNow());
+          const view = localCaseView(await displayPackIndex(), answers);
+          // NQA and Social Autopsy: off for a standalone account, the project's switch for an enrolled one.
+          const project = accountRef.current.standalone ? undefined
+            : (await getCachedReferenceData(db))?.projects.find((item) => item.project.project_id === draft.project_id)?.project as
+              { narrative_qa_enabled?: unknown; social_autopsy_enabled?: unknown } | undefined;
+          if (!live) return;
           setSmartvaAnswersHash(answersHash);
           setSmartvaCache(cached);
-          setLoaded({ row, draft: envelope, coding, projectId: draft.project_id, smartvaOptions: options });
+          setLoaded({
+            row, draft: envelope, coding, projectId: draft.project_id, smartvaOptions: options, answers, view,
+            narrativeQaEnabled: project?.narrative_qa_enabled === true,
+            socialAutopsyEnabled: project?.social_autopsy_enabled === true,
+          });
         }
       } catch (error) {
         releaseLease.current?.();
@@ -404,6 +477,14 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
     });
   }, [allowed, assertAllowed, busy, engine, loaded]);
 
+  const smartvaIsCurrent = smartvaAvailable === true && !!loaded?.smartvaOptions &&
+    isLocalSmartVaCurrent(smartvaCache, smartvaAnswersHash, loaded.smartvaOptions.optionsDigest, smartvaVersion);
+  // The workspace shows SmartVA only as a current local result; the screen's lifecycle sees it as done or failed.
+  const smartvaResultJson = smartvaIsCurrent && smartvaCache?.status === "ready" ? smartvaCache.result_json : null;
+  const smartvaStatus: SmartvaStatus = !smartvaIsCurrent ? "not_requested"
+    : smartvaCache?.status === "ready" ? "done" : smartvaCache?.status === "error" ? "failed" : "not_requested";
+
+  // The server's workspace payload for this case in coding mode (va_case.workspace), built from the local render.
   const workspace: WorkspacePayload | undefined = useMemo(() => {
     if (!loaded) return undefined;
     const seed = certificateSeedFromInterview(loaded.draft.data ?? {});
@@ -411,42 +492,52 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       case: {
         va_sid: clientDraftId,
         instance_name: clientDraftId,
-        form_type_code: loaded.draft.instrumentId,
+        form_type_code: "WHO_2022_VA",
+        ...localCaseHeader(loaded.view, loaded.answers),
         project_mode: "unmasked_doris",
         icd_classification: "icd11",
         workflow_state: "coding",
-        narrative_qa_enabled: false,
-        social_autopsy_enabled: false,
+        narrative_qa_enabled: loaded.narrativeQaEnabled,
+        social_autopsy_enabled: loaded.socialAutopsyEnabled,
       },
-      categories: [],
-      default_category: "",
+      categories: loaded.view.categories,
+      default_category: loaded.view.defaultCategory,
       step: "initial",
+      blocked_by: [],
       assessments: { initial: null, initial_prefill: null, final: null, not_codeable: null },
-      smartva: null,
+      smartva: smartvaResultJson ? JSON.parse(smartvaResultJson) as JsonValue : null,
+      smartva_status: smartvaStatus,
+      smartva_can_run: false,
       other_conditions_options: null,
       doris: { initial_certificate: seed.certificate, prefill_provenance: seed.provenance, saved_processing: null },
       narrative_qa: null,
       social_autopsy: null,
     };
-  }, [loaded, clientDraftId]);
+  }, [loaded, clientDraftId, smartvaResultJson, smartvaStatus]);
+  const localCase = useRef<LocalCase | null>(null);
+  localCase.current = loaded && workspace ? { workspace, view: loaded.view, answers: loaded.answers, smartvaStatus } : null;
+  // The workspace reloads (keeping its section) when the local SmartVA state it shows changes: the capability probe
+  // settling after the first load, or a run finishing.
+  const smartvaKey = `${smartvaStatus}:${smartvaResultJson ? smartvaCache?.updated_at : ""}`;
 
   const identity: WorkspaceIdentity = useMemo(() => ({ vaSid: clientDraftId, mode: "coding" }), [clientDraftId]);
+  const draftEnvelope = loaded?.draft;
   const editor = useMemo(
     () => createOfflineDorisEditor(
       engine,
       offlineCodingStore(db, assertAllowed),
-      loaded ? { index: packIndex(), context: codingContextFromInterview(loaded.draft.data ?? {}), confirmedBy: userId } : undefined,
+      draftEnvelope ? { index: packIndex(), context: codingContextFromInterview(draftEnvelope.data ?? {}), confirmedBy: userId } : undefined,
     ),
-    [engine, db, loaded, userId, assertAllowed],
+    [engine, db, draftEnvelope, userId, assertAllowed],
   );
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
   const api = useMemo(
-    () => offlineWorkspaceApi(db, editor, lastReply, timeline, clientDraftId, (draftId) => draftAnswersSha256(db, draftId), assertAllowed),
-    [editor, clientDraftId, db, assertAllowed],
+    () => offlineWorkspaceApi(db, editorRef, localCase, lastReply, timeline, clientDraftId, (draftId) => draftAnswersSha256(db, draftId), assertAllowed),
+    [clientDraftId, db, assertAllowed],
   );
   const request = offlineRequester(db, createGuidanceRequester(editor, clientDraftId, assertAllowed));
 
-  const smartvaIsCurrent = smartvaAvailable === true && !!loaded?.smartvaOptions &&
-    isLocalSmartVaCurrent(smartvaCache, smartvaAnswersHash, loaded.smartvaOptions.optionsDigest, smartvaVersion);
   const repairSmartVaOptions = async () => {
     if (!loaded || smartvaBusy) return;
     setSmartvaBusy(true);
@@ -546,48 +637,66 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
     );
   }
   const { row, coding } = loaded;
+  // The COD section: the case's local facts, the on-phone SmartVA controls (its result is the workspace's SmartVA
+  // above), then DORIS once the engine is up.
+  const renderDoris = (current: WorkspacePayload, _onSaved: () => Promise<void>, finish: () => void, guardedApi: WorkspaceApi) => {
+    return (
+      <View style={{ gap: 12 }}>
+        <View style={[styles.card, { gap: 4 }]}>
+          <Text style={styles.text} selectable>{row.client_draft_id}</Text>
+          <Text style={styles.muted}>Org unit: {row.org_unit_id ?? "—"}</Text>
+          <Text style={styles.muted}>Interview started: {datePart(row.started_at) || "—"}</Text>
+          <Text style={styles.muted}>Interview completed: {datePart(row.completed_at) || "—"}</Text>
+          <Text style={styles.muted}>Instrument: {loaded.draft.instrumentId} {loaded.draft.instrumentVersion}</Text>
+          <Text style={styles.muted}>Coding: {coding ? `${statusLabel(coding.status)}${coding.ucod_code ? ` — ${coding.ucod_code}` : ""}` : statusLabel(null)}</Text>
+        </View>
+        {loaded.smartvaOptions ? <View style={[styles.card, { gap: 8 }]}>
+          <Text style={styles.text}>{t("localSmartVaTitle")}</Text>
+          <Text style={styles.muted}>{t("localSmartVaNote")}</Text>
+          {smartvaIsCurrent && smartvaCache?.status === "ready" && smartvaCache.result_json
+            ? <Text style={styles.muted}>{t("localSmartVaUpdated", { date: new Date(smartvaCache.updated_at).toLocaleString() })} · {t("localSmartVaVersion", { version: smartvaCache.engine_version ?? "—" })}</Text>
+            : smartvaIsCurrent && smartvaCache?.status === "error"
+              ? <Text accessibilityRole="alert" style={styles.error}>{t("localSmartVaFailed")}</Text>
+              : null}
+          {smartvaFailure ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+          <Button kind="secondary" label={t(smartvaIsCurrent && smartvaCache?.status === "ready" ? "localSmartVaRegenerate" : "localSmartVaRun")} onPress={() => { void runSmartVa(); }} disabled={smartvaBusy || smartvaAvailable !== true} />
+          {smartvaBusy ? <Text style={styles.muted}>{t("localSmartVaWorking")}</Text> : null}
+          {smartvaAvailable === false ? <Text style={styles.muted}>{t("localSmartVaUnavailable")}</Text> : null}
+        </View> : <View style={[styles.card, { gap: 8 }]}>
+          <Text style={styles.muted}>{t("localSmartVaOptionsNeeded")}</Text>
+          {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+          <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
+        </View>}
+        {allowed && !engineReady ? <View accessibilityLiveRegion="polite" style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
+          <ActivityIndicator />
+          <Text style={[styles.muted, { flex: 1 }]}>
+            {t("offlineDorisStarting")}{enginePercent !== undefined ? ` ${enginePercent}%` : ""}
+          </Text>
+        </View> : null}
+        <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
+          {/* A saved Step 1 returns to the case list, as before the workspace. */}
+          <DorisPanel workspace={current} identity={identity} api={guardedApi} request={request} onSaved={async () => finish()} onDone={finish} />
+        </View>
+        {!allowed && <Text accessibilityRole="alert" style={styles.error}>Offline coding access for this project is unavailable.</Text>}
+      </View>
+    );
+  };
+  const renderMedia = (path: string) => path.startsWith(LOCAL_ATTACHMENT_PREFIX)
+    ? <LocalAttachmentMedia db={db} draftId={clientDraftId} reference={localCase.current?.answers[path.slice(LOCAL_ATTACHMENT_PREFIX.length)]} assertAllowed={assertAllowed} />
+    : null;
   return (
-    <Screen title="Offline coding">
-      <View style={[styles.card, { gap: 4 }]}>
-        <Text style={styles.text} selectable>{row.client_draft_id}</Text>
-        <Text style={styles.muted}>Org unit: {row.org_unit_id ?? "—"}</Text>
-        <Text style={styles.muted}>Interview started: {datePart(row.started_at) || "—"}</Text>
-        <Text style={styles.muted}>Interview completed: {datePart(row.completed_at) || "—"}</Text>
-        <Text style={styles.muted}>Instrument: {loaded.draft.instrumentId} {loaded.draft.instrumentVersion}</Text>
-        <Text style={styles.muted}>Coding: {coding ? `${statusLabel(coding.status)}${coding.ucod_code ? ` — ${coding.ucod_code}` : ""}` : statusLabel(null)}</Text>
-      </View>
-      {loaded.smartvaOptions ? <View style={[styles.card, { gap: 8 }]}>
-        <Text style={styles.text}>{t("localSmartVaTitle")}</Text>
-        <Text style={styles.muted}>{t("localSmartVaNote")}</Text>
-        {smartvaIsCurrent && smartvaCache?.status === "ready" && smartvaCache.result_json
-          ? <>
-            <Text style={styles.muted}>{t("localSmartVaUpdated", { date: new Date(smartvaCache.updated_at).toLocaleString() })} · {t("localSmartVaVersion", { version: smartvaCache.engine_version ?? "—" })}</Text>
-            <SmartVaReference value={JSON.parse(smartvaCache.result_json)} />
-          </>
-          : smartvaIsCurrent && smartvaCache?.status === "error"
-            ? <Text accessibilityRole="alert" style={styles.error}>{t("localSmartVaFailed")}</Text>
-            : null}
-        {smartvaFailure ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
-        <Button kind="secondary" label={t(smartvaIsCurrent && smartvaCache?.status === "ready" ? "localSmartVaRegenerate" : "localSmartVaRun")} onPress={() => { void runSmartVa(); }} disabled={smartvaBusy || smartvaAvailable !== true} />
-        {smartvaBusy ? <Text style={styles.muted}>{t("localSmartVaWorking")}</Text> : null}
-        {smartvaAvailable === false ? <Text style={styles.muted}>{t("localSmartVaUnavailable")}</Text> : null}
-      </View> : <View style={[styles.card, { gap: 8 }]}>
-        <Text style={styles.muted}>{t("localSmartVaOptionsNeeded")}</Text>
-        {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
-        <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
-      </View>}
-      {allowed && !engineReady ? <View accessibilityLiveRegion="polite" style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
-        <ActivityIndicator />
-        <Text style={[styles.muted, { flex: 1 }]}>
-          {t("offlineDorisStarting")}{enginePercent !== undefined ? ` ${enginePercent}%` : ""}
-        </Text>
-      </View> : null}
-      <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
-        <DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={onDone} onDone={onDone} />
-      </View>
-      {!allowed && <Text accessibilityRole="alert" style={styles.error}>Offline coding access for this project is unavailable.</Text>}
-      <Button kind="secondary" label="Back to the list" onPress={onDone} />
-    </Screen>
+    <CaseWorkspaceScreen
+      identity={identity}
+      api={api}
+      onExit={() => { void onDone(); }}
+      onDone={() => { void onDone(); }}
+      assertIcd11DorisEnabled={async () => {
+        if (!await isIcd11DorisEnabled()) throw new Error("icd11_doris_disabled");
+      }}
+      renderDoris={renderDoris}
+      renderMedia={renderMedia}
+      refreshKey={smartvaKey}
+    />
   );
 }
 

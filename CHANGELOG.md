@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-31
 
+- **Offline coding shows the full coding workspace** (`digitva-9cll.22.8`;
+  `docs/policy/doris-cod-workflow.md` "Offline coding workspace",
+  `docs/current-state/expo-client.md`): Collect Plus offline coding opens the
+  same `CaseWorkspaceScreen` as online coding, with categories, history, summary,
+  narrative and attachments rendered on the phone from a server-generated
+  display pack (95 KB, drift-tested) and checked against 14 golden server
+  renders. The server's category render now labels multi-select answers that
+  arrive as arrays (Collect submissions) and skips a lone `dk`/`ref` array as it
+  skips the string.
+
 - **`make collect-plus-local`** (`docs/current-state/expo-client.md`): every
   step to the Collect Plus arm64 APK in a pinned linux/amd64 container, from
   the working tree or `SRC=git REF=…`, with versions read from the release

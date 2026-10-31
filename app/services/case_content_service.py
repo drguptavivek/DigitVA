@@ -209,6 +209,56 @@ def viewer_source_payload(version, redact_pii: bool):
     return version.payload_data if redact_pii else joined_payload(version)
 
 
+def build_section(
+    render_payload,
+    form_id: str,
+    form_type_code: str,
+    va_action: str,
+    va_partial: str,
+    category_config,
+    visible_category_codes,
+    *,
+    va_sid,
+) -> dict:
+    """The payload-derived part of a category's section: summary, category data and, for the
+    workflow panel, its attachments and health-history data with their labels.
+
+    Pure over *render_payload* apart from attachment URL resolution (``va_sid``), so the
+    offline display golden builds sections with the same rule.
+    """
+    mapping_svc = get_mapping_service()
+    choices = mapping_svc.get_choices(form_type_code)
+    datalevel = va_get_render_datalevel(va_action, form_type_code, visible_category_codes)
+
+    def render(partial):
+        return va_render_processcategorydata(
+            render_payload, form_id, datalevel, choices, partial, va_sid=va_sid
+        )
+
+    data = {
+        "summary_items": build_submission_summary(form_type_code, render_payload),
+        "va_processedcategorydata": render(va_partial),
+        "cod_attachments_data": {},
+        "cod_attachments_labels": {},
+        "cod_attachments_render_modes": {},
+        "cod_health_history_data": {},
+        "cod_health_history_labels": {},
+    }
+    if category_config and category_config.render_mode == "workflow_panel":
+        data["cod_attachments_data"] = render("vanarrationanddocuments")
+        data["cod_attachments_labels"] = mapping_svc.get_subcategory_labels(
+            form_type_code, "vanarrationanddocuments"
+        )
+        data["cod_attachments_render_modes"] = mapping_svc.get_subcategory_render_modes(
+            form_type_code, "vanarrationanddocuments"
+        )
+        data["cod_health_history_data"] = render("vahealthhistorydetails")
+        data["cod_health_history_labels"] = mapping_svc.get_subcategory_labels(
+            form_type_code, "vahealthhistorydetails"
+        )
+    return data
+
+
 def get_section_data(
     *,
     va_submission,
@@ -252,40 +302,19 @@ def get_section_data(
     if cached is not None:
         return cached
 
-    mapping_svc = get_mapping_service()
     render_payload = payload_for_viewer(
         viewer_source_payload(active_version, redact_pii), form_type_code, redact_pii
     )
-    choices = mapping_svc.get_choices(form_type_code)
-    datalevel = va_get_render_datalevel(va_action, form_type_code, visible_category_codes)
-    form_id = va_submission.va_form_id
-
-    def render(partial):
-        return va_render_processcategorydata(
-            render_payload, form_id, datalevel, choices, partial, va_sid=va_sid
-        )
-
-    data = {
-        "summary_items": build_submission_summary(form_type_code, render_payload),
-        "va_processedcategorydata": render(va_partial),
-        "cod_attachments_data": {},
-        "cod_attachments_labels": {},
-        "cod_attachments_render_modes": {},
-        "cod_health_history_data": {},
-        "cod_health_history_labels": {},
-    }
-    if category_config and category_config.render_mode == "workflow_panel":
-        data["cod_attachments_data"] = render("vanarrationanddocuments")
-        data["cod_attachments_labels"] = mapping_svc.get_subcategory_labels(
-            form_type_code, "vanarrationanddocuments"
-        )
-        data["cod_attachments_render_modes"] = mapping_svc.get_subcategory_render_modes(
-            form_type_code, "vanarrationanddocuments"
-        )
-        data["cod_health_history_data"] = render("vahealthhistorydetails")
-        data["cod_health_history_labels"] = mapping_svc.get_subcategory_labels(
-            form_type_code, "vahealthhistorydetails"
-        )
+    data = build_section(
+        render_payload,
+        va_submission.va_form_id,
+        form_type_code,
+        va_action,
+        va_partial,
+        category_config,
+        visible_category_codes,
+        va_sid=va_sid,
+    )
     data["smartva"] = get_active_smartva(va_sid)
     if redact_pii:
         flask_cache.set(cache_key, data, timeout=SECTION_CACHE_TIMEOUT)

@@ -166,7 +166,8 @@ describe("export", () => {
   it("shares the file text through the Android share sheet", async () => {
     const db = memoryDb();
     await migrate(db);
-    await writeErrors(db, [entry(1)]);
+    // A recent entry: writes prune by the real clock (MAX_ERROR_AGE_DAYS).
+    await writeErrors(db, [entry(1, new Date().toISOString())]);
     mockOpenDb = db;
     expect(await exportErrors(new Date("2026-10-23T10:00:00Z"))).toBe(1);
     expect(mockShare).toHaveBeenCalledTimes(1);

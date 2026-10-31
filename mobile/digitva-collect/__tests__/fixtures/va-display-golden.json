@@ -1,0 +1,2874 @@
+{
+ "pack_sha256": "357bf832f24561ee65d85b884bafaa60d9210203fc510a52d2318f197a69829c",
+ "cases": [
+  {
+   "name": "neonate_flip_fields_and_stripped_answer",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-03-02",
+    "age_group": "neonate",
+    "isNeonatal": "1",
+    "isChild": "0",
+    "isAdult": "0",
+    "Id10019": "female",
+    "Id10058": "hospital",
+    "Id10354": "no",
+    "Id10387": "no",
+    "Id10104": "no",
+    "Id10105": "yes",
+    "Id10479": [
+     "preterm_delivery",
+     "asphyxia"
+    ],
+    "Id10173_nc": [
+     "grunting",
+     "stridor"
+    ],
+    "Id10120": 3,
+    "Id10389": "yes"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vaneonatalperioddetails",
+    "vageneralsymptoms",
+    "varespiratorycardiacsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vaneonatalperioddetails",
+     "label": "Neonatal Period",
+     "nav_label": "Neonatal Period",
+     "icon_name": "fa-baby",
+     "count": 3,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "nav_label": "General Symptoms",
+     "icon_name": "fa-thermometer",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "varespiratorycardiacsymptoms",
+     "label": "Respiratory / Cardiac",
+     "nav_label": "Respiratory / Cardiac",
+     "icon_name": "fa-lungs",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Normal vaginal delivery, without forceps or vacuum",
+    "Caesarean section delivery",
+    "Never cried",
+    "Illness duration (in days): 3"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Normal vaginal delivery, without forceps or vacuum",
+      "Caesarean section delivery",
+      "Never cried",
+      "Illness duration (in days): 3"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is a Neonate",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Neonate",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Female",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10058) Place of death",
+         "value": "Hospital",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vaneonatalperioddetails",
+     "label": "Neonatal Period",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Normal vaginal delivery, without forceps or vacuum",
+      "Caesarean section delivery",
+      "Never cried",
+      "Illness duration (in days): 3"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vaneonatalperioddetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10354) Child part of a multiple birth",
+         "value": "No",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "delivery",
+       "label": "delivery",
+       "source_category": "vaneonatalperioddetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10387) Delivery: normal vaginal, without forceps or vacuum",
+         "value": "No",
+         "flip": true,
+         "info": true
+        },
+        {
+         "label": "(Id10389) Delivery: Caesarean section",
+         "value": "Yes",
+         "flip": false,
+         "info": true
+        }
+       ]
+      },
+      {
+       "code": "stillbirth",
+       "label": "stillbirth",
+       "source_category": "vaneonatalperioddetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10104) Baby ever cried",
+         "value": "No",
+         "flip": true,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Normal vaginal delivery, without forceps or vacuum",
+      "Caesarean section delivery",
+      "Never cried",
+      "Illness duration (in days): 3"
+     ],
+     "subcategories": [
+      {
+       "code": "duration_of_illness",
+       "label": "duration_of_illness",
+       "source_category": "vageneralsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10120) Duration of illness in days before death",
+         "value": 3,
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "varespiratorycardiacsymptoms",
+     "label": "Respiratory / Cardiac",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Normal vaginal delivery, without forceps or vacuum",
+      "Caesarean section delivery",
+      "Never cried",
+      "Illness duration (in days): 3"
+     ],
+     "subcategories": [
+      {
+       "code": "breathing_pattern",
+       "label": "breathing_pattern",
+       "source_category": "varespiratorycardiacsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10173_nc) Breathing sounded like",
+         "value": "Grunting, Stridor",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Normal vaginal delivery, without forceps or vacuum",
+      "Caesarean section delivery",
+      "Never cried",
+      "Illness duration (in days): 3"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10479) Narration keywords",
+         "value": "Preterm delivery, Asphyxia",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Normal vaginal delivery, without forceps or vacuum",
+      "Caesarean section delivery",
+      "Never cried",
+      "Illness duration (in days): 3"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10479) Narration keywords",
+         "value": "Preterm delivery, Asphyxia",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "child_multiselects_numeric_flags",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-05-14",
+    "age_group": "child",
+    "isNeonatal": 0,
+    "isChild": 1,
+    "isAdult": "0.0",
+    "Id10019": "male",
+    "Id10194": "yes",
+    "Id10195": "yes",
+    "Id10199": [
+     "lower_left",
+     "dk"
+    ],
+    "Id10233": "yes",
+    "Id10235": [
+     "face",
+     "trunk"
+    ],
+    "Id10478": [
+     "fever",
+     "pneumonia",
+     "rash"
+    ],
+    "Id10173_nc": [
+     "wheezing"
+    ],
+    "Id10411": "no"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "varespiratorycardiacsymptoms",
+    "vaabdominalsymptoms",
+    "vaskinmucosalsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "varespiratorycardiacsymptoms",
+     "label": "Respiratory / Cardiac",
+     "nav_label": "Respiratory / Cardiac",
+     "icon_name": "fa-lungs",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vaabdominalsymptoms",
+     "label": "Abdominal",
+     "nav_label": "Abdominal",
+     "icon_name": "fa-capsules",
+     "count": 2,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vaskinmucosalsymptoms",
+     "label": "Skin / Mucosal / Others",
+     "nav_label": "Skin / Mucosal / Others",
+     "icon_name": "fa-allergies",
+     "count": 1,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Abdominal pain",
+    "Abdominal pain severe",
+    "Skin rash"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Abdominal pain",
+      "Abdominal pain severe",
+      "Skin rash"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is a Child",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Child",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "varespiratorycardiacsymptoms",
+     "label": "Respiratory / Cardiac",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Abdominal pain",
+      "Abdominal pain severe",
+      "Skin rash"
+     ],
+     "subcategories": [
+      {
+       "code": "breathing_pattern",
+       "label": "breathing_pattern",
+       "source_category": "varespiratorycardiacsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10173_nc) Breathing sounded like",
+         "value": "Wheezing",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vaabdominalsymptoms",
+     "label": "Abdominal",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Abdominal pain",
+      "Abdominal pain severe",
+      "Skin rash"
+     ],
+     "subcategories": [
+      {
+       "code": "abdominal_pain",
+       "label": "abdominal_pain",
+       "source_category": "vaabdominalsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10194) Abdominal pain",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10195) Abdominal pain severe",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10199) Location of the abdominal pain",
+         "value": "Lower left abdomen, Doesn't know",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vaskinmucosalsymptoms",
+     "label": "Skin / Mucosal / Others",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Abdominal pain",
+      "Abdominal pain severe",
+      "Skin rash"
+     ],
+     "subcategories": [
+      {
+       "code": "skin_rash",
+       "label": "skin_rash",
+       "source_category": "vaskinmucosalsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10233) Skin rash",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10235) Location of skin rash",
+         "value": "Face, Trunk or abdomen",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Abdominal pain",
+      "Abdominal pain severe",
+      "Skin rash"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10478) Narration keywords",
+         "value": "Fever, Pneumonia, Rash",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Abdominal pain",
+      "Abdominal pain severe",
+      "Skin rash"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10478) Narration keywords",
+         "value": "Fever, Pneumonia, Rash",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_dates_months_unit_special_fields",
+   "data": {
+    "Id10011": "2026-02-25T10:30:00.000+05:30",
+    "Id10481": "2026-02-26T09:05:00Z",
+    "Id10013": "yes",
+    "Id10020": "yes",
+    "Id10021": "1956-04-10",
+    "Id10022": "yes",
+    "Id10023_a": "2026-02-20",
+    "Id10023": "2026-02-20",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1.0",
+    "Id10019": "male",
+    "Id10059": "married",
+    "Id10058": "home",
+    "Id10411": "yes",
+    "Id10413": "yes",
+    "Id10413_b": "yes",
+    "Id10414": "no",
+    "id10120_unit": "months",
+    "Id10121": 3,
+    "Id10122": 2,
+    "Id10120": 90,
+    "Id10435": "yes",
+    "Id10436": "Died at home, no treatment sought",
+    "Id10477": [
+     "Malaria",
+     "Jaundice"
+    ],
+    "Id10476": "He had fever and yellow eyes for three months and died at home."
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vageneralsymptoms",
+    "vahealthserviceutilisation",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 3,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "nav_label": "General Symptoms",
+     "icon_name": "fa-thermometer",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vahealthserviceutilisation",
+     "label": "Health Service Utilization",
+     "nav_label": "Health Service Utilization",
+     "icon_name": "fa-hospital-alt",
+     "count": 1,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Drinks alcohol",
+    "Smokes tobacco",
+    "Smokes daily",
+    "Illness duration (in months): 3",
+    "Illness duration (in days): 90",
+    "Health care worker shared the cause of death",
+    "Cause of death / comment by the health worker: Died at home, no treatment sought"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Drinks alcohol",
+      "Smokes tobacco",
+      "Smokes daily",
+      "Illness duration (in months): 3",
+      "Illness duration (in days): 90",
+      "Health care worker shared the cause of death",
+      "Cause of death / comment by the health worker: Died at home, no treatment sought"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10058) Place of death",
+         "value": "Home",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "risk_factors",
+       "label": "risk_factors",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10411) Drink alcohol",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10413) Ever smoke tobacco",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10413_b) Smoke daily",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10414) Chew and/or sniff tobacco",
+         "value": "No",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Drinks alcohol",
+      "Smokes tobacco",
+      "Smokes daily",
+      "Illness duration (in months): 3",
+      "Illness duration (in days): 90",
+      "Health care worker shared the cause of death",
+      "Cause of death / comment by the health worker: Died at home, no treatment sought"
+     ],
+     "subcategories": [
+      {
+       "code": "duration_of_illness",
+       "label": "duration_of_illness",
+       "source_category": "vageneralsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10121) Duration of illness in months before death",
+         "value": 3,
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10120) Duration of illness in days before death",
+         "value": 90,
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vahealthserviceutilisation",
+     "label": "Health Service Utilization",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Drinks alcohol",
+      "Smokes tobacco",
+      "Smokes daily",
+      "Illness duration (in months): 3",
+      "Illness duration (in days): 90",
+      "Health care worker shared the cause of death",
+      "Cause of death / comment by the health worker: Died at home, no treatment sought"
+     ],
+     "subcategories": [
+      {
+       "code": "hcw_cod",
+       "label": "hcw_cod",
+       "source_category": "vahealthserviceutilisation",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10435) Health care worker tell you the cause of death",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10436) Comment by health care worker",
+         "value": "Died at home, no treatment sought",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Drinks alcohol",
+      "Smokes tobacco",
+      "Smokes daily",
+      "Illness duration (in months): 3",
+      "Illness duration (in days): 90",
+      "Health care worker shared the cause of death",
+      "Cause of death / comment by the health worker: Died at home, no treatment sought"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10476) Narration",
+         "value": "He had fever and yellow eyes for three months and died at home.",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10477) Narration keywords",
+         "value": "Malaria, Jaundice",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Drinks alcohol",
+      "Smokes tobacco",
+      "Smokes daily",
+      "Illness duration (in months): 3",
+      "Illness duration (in days): 90",
+      "Health care worker shared the cause of death",
+      "Cause of death / comment by the health worker: Died at home, no treatment sought"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10476) Narration",
+         "value": "He had fever and yellow eyes for three months and died at home.",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10477) Narration keywords",
+         "value": "Malaria, Jaundice",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_years_unit_single_item_multiselect",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-01-08",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "undetermined",
+    "Id10059": "widowed",
+    "id10120_unit": "years",
+    "Id10122": 2,
+    "Id10121": 5,
+    "Id10120": 730,
+    "Id10477": [
+     "Heart_attack"
+    ]
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vageneralsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "nav_label": "General Symptoms",
+     "icon_name": "fa-thermometer",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Illness duration (in years): 2",
+    "Illness duration (in days): 730"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Illness duration (in years): 2",
+      "Illness duration (in days): 730"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Ambiguous/Intersex",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Illness duration (in years): 2",
+      "Illness duration (in days): 730"
+     ],
+     "subcategories": [
+      {
+       "code": "duration_of_illness",
+       "label": "duration_of_illness",
+       "source_category": "vageneralsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10122) Duration for illness in years before death",
+         "value": 2,
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10120) Duration of illness in days before death",
+         "value": 730,
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Illness duration (in years): 2",
+      "Illness duration (in days): 730"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10477) Narration keywords",
+         "value": "Heart, attack",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Illness duration (in years): 2",
+      "Illness duration (in days): 730"
+     ],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10477) Narration keywords",
+         "value": "Heart, attack",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_female_maternal_history",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-06-01",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "female",
+    "Id10296": "yes",
+    "Id10299": "no",
+    "Id10077": "no",
+    "Id10079": "yes",
+    "Id10125": "yes",
+    "Id10130": "yes",
+    "Id10153": "yes",
+    "Id10147": "yes"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vainjuriesdetails",
+    "vahealthhistorydetails",
+    "vageneralsymptoms",
+    "varespiratorycardiacsymptoms",
+    "vamaternalsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vainjuriesdetails",
+     "label": "Injuries",
+     "nav_label": "Injuries",
+     "icon_name": "fa-first-aid",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vahealthhistorydetails",
+     "label": "Disease / Co-morbidity",
+     "nav_label": "Disease/Co-morbidity",
+     "icon_name": "fa-history",
+     "count": 2,
+     "attachment_count": 0,
+     "render_mode": "health_history_summary"
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "nav_label": "General Symptoms",
+     "icon_name": "fa-thermometer",
+     "count": 1,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "varespiratorycardiacsymptoms",
+     "label": "Respiratory / Cardiac",
+     "nav_label": "Respiratory / Cardiac",
+     "icon_name": "fa-lungs",
+     "count": 1,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vamaternalsymptoms",
+     "label": "Maternal",
+     "nav_label": "Maternal",
+     "icon_name": "fa-female",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Tuberculosis",
+    "Dengue fever",
+    "Fever",
+    "Cough"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Female",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vainjuriesdetails",
+     "label": "Injuries",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "default",
+       "label": "default",
+       "source_category": "vainjuriesdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10077) Injury or accident that led to her/his death",
+         "value": "No",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vahealthhistorydetails",
+     "label": "Disease / Co-morbidity",
+     "render_mode": "health_history_summary",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "medical_history",
+       "label": "medical_history",
+       "source_category": "vahealthhistorydetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10125) Tuberculosis",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10130) Dengue fever",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "fever",
+       "label": "fever",
+       "source_category": "vageneralsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10147) Fever",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "varespiratorycardiacsymptoms",
+     "label": "Respiratory / Cardiac",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "cough",
+       "label": "cough",
+       "source_category": "varespiratorycardiacsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10153) Cough",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vamaternalsymptoms",
+     "label": "Maternal",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vamaternalsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10296) Ever have a period or menstruate",
+         "value": "Yes",
+         "flip": true,
+         "info": true
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Tuberculosis",
+      "Dengue fever",
+      "Fever",
+      "Cough"
+     ],
+     "subcategories": [
+      {
+       "code": "medical_history",
+       "label": "medical_history",
+       "source_category": "vahealthhistorydetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10125) Tuberculosis",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10130) Dengue fever",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_ref_and_dk_values_skipped",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-04-04",
+    "age_group": "adult",
+    "isNeonatal": "0.0",
+    "isChild": 0,
+    "isAdult": 1,
+    "Id10019": "female",
+    "Id10059": "Ref",
+    "Id10058": "DK",
+    "Id10411": "ref",
+    "Id10413": "dk",
+    "Id10414": "yes",
+    "Id10194": "yes",
+    "Id10195": "yes",
+    "Id10199": [
+     "dk",
+     "ref"
+    ]
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vaabdominalsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 1,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vaabdominalsymptoms",
+     "label": "Abdominal",
+     "nav_label": "Abdominal",
+     "icon_name": "fa-capsules",
+     "count": 2,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Chew / Sniffs tobacco",
+    "Abdominal pain",
+    "Abdominal pain severe"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Chew / Sniffs tobacco",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Female",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "risk_factors",
+       "label": "risk_factors",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10414) Chew and/or sniff tobacco",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vaabdominalsymptoms",
+     "label": "Abdominal",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Chew / Sniffs tobacco",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [
+      {
+       "code": "abdominal_pain",
+       "label": "abdominal_pain",
+       "source_category": "vaabdominalsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10194) Abdominal pain",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10195) Abdominal pain severe",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10199) Location of the abdominal pain",
+         "value": "Doesn't know, Refused to answer",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Chew / Sniffs tobacco",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Chew / Sniffs tobacco",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_attachments_and_narrative",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-07-19",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10476": "Narrated by the brother.",
+    "Id10476_audio": "who-va-attachment:00000000-0000-4000-8000-000000000001",
+    "imagenarr": "who-va-attachment:00000000-0000-4000-8000-000000000002",
+    "md_available": "yes",
+    "md_count": 2,
+    "md_im1": "who-va-attachment:00000000-0000-4000-8000-000000000003",
+    "md_im2": "who-va-attachment:00000000-0000-4000-8000-000000000004",
+    "ds_available": "yes",
+    "ds_count": 1,
+    "ds_im1": "who-va-attachment:00000000-0000-4000-8000-000000000005"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10476_audio) Narration audio",
+         "value": "digitva-local-attachment:Id10476_audio",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(imagenarr) Narration image",
+         "value": "digitva-local-attachment:imagenarr",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10476) Narration",
+         "value": "Narrated by the brother.",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "medical_documents",
+       "label": "medical_documents",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(md_im1) Medical Document Image 01",
+         "value": "digitva-local-attachment:md_im1",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(md_im2) Medical Document Image 02",
+         "value": "digitva-local-attachment:md_im2",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "death_documents",
+       "label": "death_documents",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(ds_im1) Death Document Image 01",
+         "value": "digitva-local-attachment:ds_im1",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10476_audio) Narration audio",
+         "value": "digitva-local-attachment:Id10476_audio",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(imagenarr) Narration image",
+         "value": "digitva-local-attachment:imagenarr",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10476) Narration",
+         "value": "Narrated by the brother.",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "medical_documents",
+       "label": "medical_documents",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(md_im1) Medical Document Image 01",
+         "value": "digitva-local-attachment:md_im1",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(md_im2) Medical Document Image 02",
+         "value": "digitva-local-attachment:md_im2",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "death_documents",
+       "label": "death_documents",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(ds_im1) Death Document Image 01",
+         "value": "digitva-local-attachment:ds_im1",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_attachment_chain_stripped",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-07-20",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "female",
+    "md_available": "no",
+    "md_count": 3,
+    "md_im1": "who-va-attachment:00000000-0000-4000-8000-000000000011",
+    "ds_available": "yes",
+    "ds_count": 1,
+    "ds_im1": "who-va-attachment:00000000-0000-4000-8000-000000000012",
+    "Id10476_audio": "who-va-attachment:00000000-0000-4000-8000-000000000013"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Female",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10476_audio) Narration audio",
+         "value": "digitva-local-attachment:Id10476_audio",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "death_documents",
+       "label": "death_documents",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(ds_im1) Death Document Image 01",
+         "value": "digitva-local-attachment:ds_im1",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "narration",
+       "label": "narration",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10476_audio) Narration audio",
+         "value": "digitva-local-attachment:Id10476_audio",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "death_documents",
+       "label": "death_documents",
+       "source_category": "vanarrationanddocuments",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(ds_im1) Death Document Image 01",
+         "value": "digitva-local-attachment:ds_im1",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "numeric_json_keys_and_numeric_cleaning",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-08-30",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "survey_state": 29,
+    "survey_district": "555",
+    "ageInDays": 12419.0,
+    "ageInYears": "34.0",
+    "ageInMonths": "407.0",
+    "Id10120": 14
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vageneralsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "nav_label": "General Symptoms",
+     "icon_name": "fa-thermometer",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Illness duration (in days): 14"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Illness duration (in days): 14"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age (in days)",
+         "value": 12419,
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age (in years)",
+         "value": "34",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age (in months, post last birthday)",
+         "value": "407",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Survey state",
+         "value": "Karnataka",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Survey district",
+         "value": "Belagavi",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vageneralsymptoms",
+     "label": "General Symptoms",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Illness duration (in days): 14"
+     ],
+     "subcategories": [
+      {
+       "code": "duration_of_illness",
+       "label": "duration_of_illness",
+       "source_category": "vageneralsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10120) Duration of illness in days before death",
+         "value": 14,
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Illness duration (in days): 14"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Illness duration (in days): 14"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "list_answer_on_single_choice_field",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-09-09",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10058": [
+     "hospital",
+     "home"
+    ]
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10058) Place of death",
+         "value": "Hospital, Home",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "no_consent_everything_stripped",
+   "data": {
+    "Id10019": "female",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1"
+   },
+   "visible_category_codes": [],
+   "categories": [
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vanarrationanddocuments",
+   "summary_items": [],
+   "category_payloads": [
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_injury_and_info_fields",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-10-10",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10064": "yes",
+    "Id10063": "primary_school",
+    "Id10077": "yes",
+    "Id10079": "yes",
+    "Id10082": "yes",
+    "Id10083": "no",
+    "Id10084": "yes"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vainjuriesdetails",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vainjuriesdetails",
+     "label": "Injuries",
+     "nav_label": "Injuries",
+     "icon_name": "fa-first-aid",
+     "count": 2,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Injury or accident led to death",
+    "Road transport injury"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Injury or accident led to death",
+      "Road transport injury"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vainjuriesdetails",
+     "label": "Injuries",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Injury or accident led to death",
+      "Road transport injury"
+     ],
+     "subcategories": [
+      {
+       "code": "default",
+       "label": "default",
+       "source_category": "vainjuriesdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10077) Injury or accident that led to her/his death",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10079) Road transport injury",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Injury or accident led to death",
+      "Road transport injury"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Injury or accident led to death",
+      "Road transport injury"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "consent_and_sex_only",
+   "data": {
+    "Id10013": "yes",
+    "Id10019": "female",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Female",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "name": "adult_lone_dk_multiselect_skipped",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-10-12",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10194": "yes",
+    "Id10195": "yes",
+    "Id10199": [
+     "dk"
+    ],
+    "Id10477": [
+     "ref"
+    ],
+    "Id10411": "yes"
+   },
+   "visible_category_codes": [
+    "vainterviewdetails",
+    "vademographicdetails",
+    "vaabdominalsymptoms",
+    "vanarrationanddocuments"
+   ],
+   "categories": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "nav_label": "Demographic / Risk Factors",
+     "icon_name": "fa-user",
+     "count": 1,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vaabdominalsymptoms",
+     "label": "Abdominal",
+     "nav_label": "Abdominal",
+     "icon_name": "fa-capsules",
+     "count": 2,
+     "attachment_count": 0,
+     "render_mode": "table_sections"
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "nav_label": "Narration / Documents / COD",
+     "icon_name": "fa-file-medical-alt",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "attachments"
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "nav_label": "COD Assessment",
+     "icon_name": "fa-stethoscope",
+     "count": 0,
+     "attachment_count": 0,
+     "render_mode": "workflow_panel"
+    }
+   ],
+   "default_category": "vademographicdetails",
+   "summary_items": [
+    "Drinks alcohol",
+    "Abdominal pain",
+    "Abdominal pain severe"
+   ],
+   "category_payloads": [
+    {
+     "code": "vademographicdetails",
+     "label": "Demographic / Risk Factors",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Drinks alcohol",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [
+      {
+       "code": "general",
+       "label": "general",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "The deceased person is an Adult",
+         "value": "True",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "Age group",
+         "value": "Adult",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10019) Sex",
+         "value": "Male",
+         "flip": false,
+         "info": false
+        }
+       ]
+      },
+      {
+       "code": "risk_factors",
+       "label": "risk_factors",
+       "source_category": "vademographicdetails",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10411) Drink alcohol",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vaabdominalsymptoms",
+     "label": "Abdominal",
+     "render_mode": "table_sections",
+     "summary_items": [
+      "Drinks alcohol",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [
+      {
+       "code": "abdominal_pain",
+       "label": "abdominal_pain",
+       "source_category": "vaabdominalsymptoms",
+       "render_mode": "default",
+       "items": [
+        {
+         "label": "(Id10194) Abdominal pain",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        },
+        {
+         "label": "(Id10195) Abdominal pain severe",
+         "value": "Yes",
+         "flip": false,
+         "info": false
+        }
+       ]
+      }
+     ],
+     "blocked_by": []
+    },
+    {
+     "code": "vanarrationanddocuments",
+     "label": "Narration / Documents / COD",
+     "render_mode": "attachments",
+     "summary_items": [
+      "Drinks alcohol",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    },
+    {
+     "code": "vacodassessment",
+     "label": "VA COD Assessment",
+     "render_mode": "workflow_panel",
+     "summary_items": [
+      "Drinks alcohol",
+      "Abdominal pain",
+      "Abdominal pain severe"
+     ],
+     "subcategories": [],
+     "blocked_by": []
+    }
+   ]
+  }
+ ]
+}

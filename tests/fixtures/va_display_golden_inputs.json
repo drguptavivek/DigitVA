@@ -1,0 +1,316 @@
+{
+ "cases": [
+  {
+   "name": "neonate_flip_fields_and_stripped_answer",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-03-02",
+    "age_group": "neonate",
+    "isNeonatal": "1",
+    "isChild": "0",
+    "isAdult": "0",
+    "Id10019": "female",
+    "Id10058": "hospital",
+    "Id10354": "no",
+    "Id10387": "no",
+    "Id10104": "no",
+    "Id10105": "yes",
+    "Id10479": [
+     "preterm_delivery",
+     "asphyxia"
+    ],
+    "Id10173_nc": [
+     "grunting",
+     "stridor"
+    ],
+    "Id10120": 3,
+    "Id10389": "yes"
+   }
+  },
+  {
+   "name": "child_multiselects_numeric_flags",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-05-14",
+    "age_group": "child",
+    "isNeonatal": 0,
+    "isChild": 1,
+    "isAdult": "0.0",
+    "Id10019": "male",
+    "Id10194": "yes",
+    "Id10195": "yes",
+    "Id10199": [
+     "lower_left",
+     "dk"
+    ],
+    "Id10233": "yes",
+    "Id10235": [
+     "face",
+     "trunk"
+    ],
+    "Id10478": [
+     "fever",
+     "pneumonia",
+     "rash"
+    ],
+    "Id10173_nc": [
+     "wheezing"
+    ],
+    "Id10411": "no"
+   }
+  },
+  {
+   "name": "adult_dates_months_unit_special_fields",
+   "data": {
+    "Id10011": "2026-02-25T10:30:00.000+05:30",
+    "Id10481": "2026-02-26T09:05:00Z",
+    "Id10013": "yes",
+    "Id10020": "yes",
+    "Id10021": "1956-04-10",
+    "Id10022": "yes",
+    "Id10023_a": "2026-02-20",
+    "Id10023": "2026-02-20",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1.0",
+    "Id10019": "male",
+    "Id10059": "married",
+    "Id10058": "home",
+    "Id10411": "yes",
+    "Id10413": "yes",
+    "Id10413_b": "yes",
+    "Id10414": "no",
+    "id10120_unit": "months",
+    "Id10121": 3,
+    "Id10122": 2,
+    "Id10120": 90,
+    "Id10435": "yes",
+    "Id10436": "Died at home, no treatment sought",
+    "Id10477": [
+     "Malaria",
+     "Jaundice"
+    ],
+    "Id10476": "He had fever and yellow eyes for three months and died at home."
+   }
+  },
+  {
+   "name": "adult_years_unit_single_item_multiselect",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-01-08",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "undetermined",
+    "Id10059": "widowed",
+    "id10120_unit": "years",
+    "Id10122": 2,
+    "Id10121": 5,
+    "Id10120": 730,
+    "Id10477": [
+     "Heart_attack"
+    ]
+   }
+  },
+  {
+   "name": "adult_female_maternal_history",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-06-01",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "female",
+    "Id10296": "yes",
+    "Id10299": "no",
+    "Id10077": "no",
+    "Id10079": "yes",
+    "Id10125": "yes",
+    "Id10130": "yes",
+    "Id10153": "yes",
+    "Id10147": "yes"
+   }
+  },
+  {
+   "name": "adult_ref_and_dk_values_skipped",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-04-04",
+    "age_group": "adult",
+    "isNeonatal": "0.0",
+    "isChild": 0,
+    "isAdult": 1,
+    "Id10019": "female",
+    "Id10059": "Ref",
+    "Id10058": "DK",
+    "Id10411": "ref",
+    "Id10413": "dk",
+    "Id10414": "yes",
+    "Id10194": "yes",
+    "Id10195": "yes",
+    "Id10199": [
+     "dk",
+     "ref"
+    ]
+   }
+  },
+  {
+   "name": "adult_attachments_and_narrative",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-07-19",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10476": "Narrated by the brother.",
+    "Id10476_audio": "who-va-attachment:00000000-0000-4000-8000-000000000001",
+    "imagenarr": "who-va-attachment:00000000-0000-4000-8000-000000000002",
+    "md_available": "yes",
+    "md_count": 2,
+    "md_im1": "who-va-attachment:00000000-0000-4000-8000-000000000003",
+    "md_im2": "who-va-attachment:00000000-0000-4000-8000-000000000004",
+    "ds_available": "yes",
+    "ds_count": 1,
+    "ds_im1": "who-va-attachment:00000000-0000-4000-8000-000000000005"
+   }
+  },
+  {
+   "name": "adult_attachment_chain_stripped",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-07-20",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "female",
+    "md_available": "no",
+    "md_count": 3,
+    "md_im1": "who-va-attachment:00000000-0000-4000-8000-000000000011",
+    "ds_available": "yes",
+    "ds_count": 1,
+    "ds_im1": "who-va-attachment:00000000-0000-4000-8000-000000000012",
+    "Id10476_audio": "who-va-attachment:00000000-0000-4000-8000-000000000013"
+   }
+  },
+  {
+   "name": "numeric_json_keys_and_numeric_cleaning",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-08-30",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "survey_state": 29,
+    "survey_district": "555",
+    "ageInDays": 12419.0,
+    "ageInYears": "34.0",
+    "ageInMonths": "407.0",
+    "Id10120": 14
+   }
+  },
+  {
+   "name": "list_answer_on_single_choice_field",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-09-09",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10058": [
+     "hospital",
+     "home"
+    ]
+   }
+  },
+  {
+   "name": "no_consent_everything_stripped",
+   "data": {
+    "Id10019": "female",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1"
+   }
+  },
+  {
+   "name": "adult_injury_and_info_fields",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-10-10",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10064": "yes",
+    "Id10063": "primary_school",
+    "Id10077": "yes",
+    "Id10079": "yes",
+    "Id10082": "yes",
+    "Id10083": "no",
+    "Id10084": "yes"
+   }
+  },
+  {
+   "name": "consent_and_sex_only",
+   "data": {
+    "Id10013": "yes",
+    "Id10019": "female",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1"
+   }
+  },
+  {
+   "name": "adult_lone_dk_multiselect_skipped",
+   "data": {
+    "Id10013": "yes",
+    "Id10020": "no",
+    "Id10022": "no",
+    "Id10024": "2026-10-12",
+    "age_group": "adult",
+    "isNeonatal": "0",
+    "isChild": "0",
+    "isAdult": "1",
+    "Id10019": "male",
+    "Id10194": "yes",
+    "Id10195": "yes",
+    "Id10199": [
+     "dk"
+    ],
+    "Id10477": [
+     "ref"
+    ],
+    "Id10411": "yes"
+   }
+  }
+ ]
+}

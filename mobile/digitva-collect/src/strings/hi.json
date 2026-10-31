@@ -1926,5 +1926,12 @@
   "standaloneProfileIncomplete": "साक्षात्कार शुरू करने से पहले अपनी प्रोफ़ाइल पूरी करें। बाकी: {fields}",
   "standaloneProfileComplete": "प्रोफ़ाइल पूरी करें",
   "standaloneProfileNameField": "नाम (अंग्रेज़ी अक्षर A से Z और स्पेस)",
-  "standaloneProfileAgeField": "उम्र (18 से 89, या न बताने पर 99)"
+  "standaloneProfileAgeField": "उम्र (18 से 89, या न बताने पर 99)",
+  "offlineAttachmentUnavailable": "संलग्न फ़ाइल उपलब्ध नहीं है।",
+  "offlineAttachmentLoading": "संलग्न फ़ाइल खुल रही है…",
+  "offlineAttachmentDocument": "एक दस्तावेज़ संलग्न है; वह यहाँ नहीं दिखाया जाता।",
+  "offlineAttachedImage": "संलग्न चित्र",
+  "offlineAttachedAudio": "संलग्न ऑडियो",
+  "offlineAttachmentOpen": "संलग्न फ़ाइल खोलें",
+  "offlineAttachmentClose": "संलग्न फ़ाइल बंद करें"
 }

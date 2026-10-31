@@ -795,41 +795,15 @@ def _subcategories(
     ]
 
 
-@bp.get("/<va_sid>/categories/<code>")
-@role_required(
-    "coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin",
-    "interviewer", "interview_supervisor",
-)
-def category(va_sid, code):
-    """One category's data for ``?mode=coding|reviewing|view``.
+def category_subcategories(section: dict, config, form_type_code: str, code: str) -> list[dict]:
+    """A category's ordered subcategories from its ``get_section_data`` result.
 
-    200 ``{code, label, render_mode, summary_items, subcategories, blocked_by}``;
-    attachment values are ``/api/v1/attachments`` URLs (cookie or
-    bearer). A category the role does not see is 404 ``not_found``, as one
-    that does not exist. ``mode=view`` never blocks and, for a caller who
-    sees no personal data, serves the redacted section. Errors as ``workspace``.
+    The workflow panel appends the narrative and documents, then the health history,
+    each tagged with its source category. Pure over *section*, so the offline
+    display golden calls it with a locally built section.
     """
-    case = _authorize(va_sid)
-    if not isinstance(case, _Case):
-        return case
-    category_service = get_category_rendering_service()
-    if not category_service.is_category_enabled(
-        case.form_type_code, case.va_action, case.visible_category_codes, code
-    ):
-        return api_error("Category not found.", "not_found", 404)
-    config = category_service.get_category_config(case.form_type_code, case.va_action, code)
     mapping = get_mapping_service()
-    ftc = case.form_type_code
-    section = get_section_data(
-        va_submission=case.submission,
-        active_version=case.active_version,
-        form_type_code=ftc,
-        va_action=case.va_action,
-        va_partial=code,
-        category_config=config,
-        visible_category_codes=case.visible_category_codes,
-        user=current_user,
-    )
+    ftc = form_type_code
     flip, info = mapping.get_flip_labels(ftc), mapping.get_info_labels(ftc)
     subcategories = _subcategories(
         section["va_processedcategorydata"],
@@ -856,6 +830,44 @@ def category(va_sid, code):
             info,
             source_category="vahealthhistorydetails",
         )
+    return subcategories
+
+
+@bp.get("/<va_sid>/categories/<code>")
+@role_required(
+    "coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin",
+    "interviewer", "interview_supervisor",
+)
+def category(va_sid, code):
+    """One category's data for ``?mode=coding|reviewing|view``.
+
+    200 ``{code, label, render_mode, summary_items, subcategories, blocked_by}``;
+    attachment values are ``/api/v1/attachments`` URLs (cookie or
+    bearer). A category the role does not see is 404 ``not_found``, as one
+    that does not exist. ``mode=view`` never blocks and, for a caller who
+    sees no personal data, serves the redacted section. Errors as ``workspace``.
+    """
+    case = _authorize(va_sid)
+    if not isinstance(case, _Case):
+        return case
+    category_service = get_category_rendering_service()
+    if not category_service.is_category_enabled(
+        case.form_type_code, case.va_action, case.visible_category_codes, code
+    ):
+        return api_error("Category not found.", "not_found", 404)
+    config = category_service.get_category_config(case.form_type_code, case.va_action, code)
+    ftc = case.form_type_code
+    section = get_section_data(
+        va_submission=case.submission,
+        active_version=case.active_version,
+        form_type_code=ftc,
+        va_action=case.va_action,
+        va_partial=code,
+        category_config=config,
+        visible_category_codes=case.visible_category_codes,
+        user=current_user,
+    )
+    subcategories = category_subcategories(section, config, ftc, code)
     block = (
         None
         if case.mode == "view"

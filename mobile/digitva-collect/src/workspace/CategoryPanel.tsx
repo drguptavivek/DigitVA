@@ -6,6 +6,8 @@ import { Badge } from "./doris/ui";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
+/** Offline coding's draft attachment (src/workspace/localCategories.ts LOCAL_ATTACHMENT_PREFIX). */
+const LOCAL_ATTACHMENT = /^digitva-local-attachment:[A-Za-z0-9_]+$/;
 
 /** "Symptoms on VA Interview" as chips, the same summary the web shows (CategoryPanel.web.tsx SummaryBlock). */
 function SymptomSummary({ items }: { items: JsonValue[] }) {
@@ -67,7 +69,7 @@ export function CategoryValue({
   const styles = useUiStyles();
   if (value === null || value === "") return null;
   if (typeof value === "string") {
-    if (renderMedia && ATTACHMENT_PATH.test(value)) return <>{renderMedia(value)}</>;
+    if (renderMedia && (ATTACHMENT_PATH.test(value) || LOCAL_ATTACHMENT.test(value))) return <>{renderMedia(value)}</>;
     return <Text style={styles.text}>{value}</Text>;
   }
   if (typeof value === "number" || typeof value === "boolean") {

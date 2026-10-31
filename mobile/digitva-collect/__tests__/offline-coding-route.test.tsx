@@ -5,7 +5,7 @@
  * the interviewer's store and lists the completed-but-unsent cases from it.
  */
 import React from "react";
-import { Platform, TextInput } from "react-native";
+import { AppState, Platform, TextInput } from "react-native";
 import { act, create, type ReactTestInstance } from "react-test-renderer";
 import type { OfflineEngine } from "../src/offlineEngine";
 
@@ -90,8 +90,9 @@ jest.mock("../src/smartva/localApi", () => ({
   ...jest.requireActual("../src/smartva/localApi"),
   runLocalSmartVa: (input: { assertAllowed: () => Promise<void> }) => mockRunLocalSmartVa(input),
 }));
+const mockSmartvaProbe = jest.fn(async () => ({ ok: true, version: "3.0.1" }));
 jest.mock("../src/smartva/nativeEngine", () => ({
-  offlineSmartvaEngine: () => ({ init: jest.fn(async () => ({ ok: true, version: "3.0.1" })) }),
+  offlineSmartvaEngine: () => ({ init: () => mockSmartvaProbe() }),
 }));
 jest.mock("../src/consentStore", () => ({
   DEFAULT_COVERED_FIELDS: [], consentForDraft: jest.fn(async () => undefined),
@@ -144,6 +145,38 @@ jest.mock("../src/workspace/offlineDoris", () => {
   };
 });
 jest.mock("../src/workspace/doris/DorisPanel", () => ({ DorisPanel: (props: Record<string, any>) => { mockPanelProps = props; return null; } }));
+jest.mock("expo-crypto", () => ({
+  CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+  digestStringAsync: async (_algorithm: string, value: string) => require("node:crypto").createHash("sha256").update(value, "utf8").digest("hex"),
+}));
+let mockMediaProps: Record<string, any> | undefined;
+jest.mock("../src/workspace/media/LocalAttachmentMedia.native", () => ({
+  LocalAttachmentMedia: (props: Record<string, any>) => { mockMediaProps = props; return null; },
+}));
+// The shared workspace screen has its own suites; here it loads the local workspace and shows the COD section's
+// DORIS slot at once, so the route's guards and its local API can be driven directly. `mockRealScreen` puts the
+// real screen back for the tests of how the two work together.
+let mockScreenProps: Record<string, any> | undefined;
+let mockRealScreen = false;
+jest.mock("../src/workspace/CaseWorkspaceScreen", () => {
+  const ReactActual = jest.requireActual("react") as typeof React;
+  const Real = jest.requireActual("../src/workspace/CaseWorkspaceScreen").CaseWorkspaceScreen;
+  return {
+    CaseWorkspaceScreen: (props: Record<string, any>) => {
+      mockScreenProps = props;
+      return ReactActual.createElement(mockRealScreen ? Real : Fake, props);
+    },
+  };
+  function Fake(props: Record<string, any>) {
+    const [workspace, setWorkspace] = ReactActual.useState<unknown>(null);
+    ReactActual.useEffect(() => {
+      let live = true;
+      props.api.getWorkspace(props.identity.vaSid, "coding").then((value: unknown) => { if (live) setWorkspace(value); }, () => undefined);
+      return () => { live = false; };
+    }, [props.api, props.identity.vaSid]);
+    return workspace ? props.renderDoris(workspace, async () => undefined, props.onDone, props.api) : null;
+  }
+});
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -152,7 +185,7 @@ jest.mock("../src/ui", () => {
     Button: ({ label, onPress }: { label: string; onPress?: () => void }) => ReactActual.createElement("button", {
       accessibilityRole: "button", accessibilityLabel: label, onPress,
     }),
-    Screen: ({ children }: { children: React.ReactNode }) => ReactActual.createElement(View, null, children),
+    Screen: ({ children, sidebar }: { children: React.ReactNode; sidebar?: React.ReactNode }) => ReactActual.createElement(View, null, sidebar, children),
     errorText: () => "error",
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, card: {}, input: {} }),
   };
@@ -208,6 +241,9 @@ beforeEach(() => {
   mockOnGuidance.mockClear();
   mockIcd11DorisEnabled = true;
   mockPanelProps = undefined;
+  mockScreenProps = undefined;
+  mockRealScreen = false;
+  mockSmartvaProbe.mockReset().mockResolvedValue({ ok: true, version: "3.0.1" });
   mockEnsureSmartVa.mockReset().mockResolvedValue({ status: "config_needed" });
   mockRunLocalSmartVa.mockClear();
   mockPersistSmartVa.mockReset().mockResolvedValue(undefined);
@@ -616,6 +652,168 @@ describe("the offline coding screen", () => {
     const root = await render(<OfflineCoding />);
     expect(root.toJSON()).toMatchObject({ type: "redirect", props: { href: "/" } });
     expect(require("../src/interviewerDb").openInterviewerDb).not.toHaveBeenCalled();
+  });
+});
+
+describe("the offline coding workspace's local API", () => {
+  // Synthetic answers whose attachments survive the relevance strip (the golden case adult_attachments_and_narrative).
+  const answers = {
+    Id10013: "yes", Id10020: "no", Id10022: "no", Id10024: "2026-07-19", age_group: "adult", isNeonatal: "0", isChild: "0",
+    isAdult: "1", Id10019: "male", ageInYears: 61, Id10476: "Narrated by the brother.",
+    Id10476_audio: "who-va-attachment:00000000-0000-4000-8000-000000000001",
+  };
+  const metaStore = new Map<string, unknown>();
+  const originalFetch = global.fetch;
+  const fetchSpy = jest.fn();
+
+  beforeEach(() => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    metaStore.clear();
+    fetchSpy.mockReset();
+    global.fetch = fetchSpy as unknown as typeof fetch;
+    const drafts = require("../src/drafts") as { getMeta: jest.Mock; setMeta: jest.Mock; getOfflineCodingCase: jest.Mock };
+    drafts.getMeta.mockReset().mockImplementation(async (_db: unknown, key: string) => metaStore.get(key));
+    drafts.setMeta.mockReset().mockImplementation(async (_db: unknown, key: string, value: unknown) => { metaStore.set(key, value); });
+    drafts.getOfflineCodingCase.mockResolvedValue({
+      client_draft_id: "draft-7", org_unit_id: "OU-42", started_at: null, completed_at: "2026-10-26T09:30:00.000+05:30",
+      envelope: JSON.stringify({ instrumentId: "va_who_2022", instrumentVersion: "1", data: answers }),
+    });
+  });
+  afterEach(() => { global.fetch = originalFetch; });
+
+  const openCase = async () => {
+    const root = await render(<OfflineCoding />);
+    expect(mockScreenProps).toBeDefined();
+    return { root, api: mockScreenProps!.api as import("../src/workspace/api").WorkspaceApi };
+  };
+
+  it("serves the workspace and every category from the phone, in shapes the client contract accepts", async () => {
+    const { parseCategory, parseWorkspace } = jest.requireActual<typeof import("../src/workspace/contracts")>("../src/workspace/contracts");
+    const { api } = await openCase();
+    const workspace = await api.getWorkspace("draft-7", "coding");
+    expect(parseWorkspace(JSON.parse(JSON.stringify(workspace)), "coding")).toEqual(workspace);
+    expect(workspace.case).toMatchObject({
+      va_sid: "draft-7", form_type_code: "WHO_2022_VA", age: 61, gender: "male", project_mode: "unmasked_doris",
+      icd_classification: "icd11", narrative_qa_enabled: false, social_autopsy_enabled: false,
+    });
+    expect(workspace).toMatchObject({ step: "initial", blocked_by: [], smartva: null, smartva_can_run: false, narrative_qa: null, social_autopsy: null });
+    expect(workspace.categories.map((item) => item.code)).toEqual(expect.arrayContaining(["vademographicdetails", "vanarrationanddocuments", "vacodassessment"]));
+    expect(workspace.default_category).toBe("vademographicdetails");
+    for (const { code } of workspace.categories) {
+      const category = await api.getCategory("draft-7", code, "coding");
+      expect(parseCategory(JSON.parse(JSON.stringify(category)), "coding")).toEqual(category);
+    }
+    const narration = await api.getCategory("draft-7", "vanarrationanddocuments", "coding");
+    expect(narration.subcategories.flatMap((sub) => sub.items.map((item) => item.value))).toContain("digitva-local-attachment:Id10476_audio");
+    await expect(api.getCategory("draft-7", "vamaternalsymptoms", "coding")).rejects.toMatchObject({ status: 404 });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("resolves a local attachment value from the draft's own reference, and nothing else", async () => {
+    await openCase();
+    const media = await render(mockScreenProps!.renderMedia("digitva-local-attachment:Id10476_audio"));
+    expect(media.toJSON()).toBeNull();
+    expect(mockMediaProps).toMatchObject({ db: mockDb, draftId: "draft-7", reference: answers.Id10476_audio });
+    expect(mockScreenProps!.renderMedia("/api/v1/attachments/abc.mp3")).toBeNull();
+  });
+
+  it("answers SmartVA status from the phone and never lets the shared lifecycle start a run", async () => {
+    const { useSmartvaLifecycle } = jest.requireActual<typeof import("../src/workspace/useSmartvaLifecycle")>("../src/workspace/useSmartvaLifecycle");
+    const { api } = await openCase();
+    await expect(api.getSmartvaStatus("draft-7")).resolves.toEqual({ va_sid: "draft-7", status: "not_requested", can_run: false });
+    expect(() => api.runSmartva("draft-7")).toThrow("offline_server_unavailable");
+    const runSpy = jest.spyOn(api, "runSmartva");
+    const statusSpy = jest.spyOn(api, "getSmartvaStatus");
+    function Probe() {
+      useSmartvaLifecycle({ api, identity: { vaSid: "draft-7", mode: "coding" }, status: "not_requested", canRun: false, active: true });
+      return null;
+    }
+    await render(<Probe />);
+    expect(statusSpy).toHaveBeenCalled();
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the private note in the account store for this draft", async () => {
+    const { api } = await openCase();
+    await expect(api.getNote("draft-7", "coding")).resolves.toEqual({ va_sid: "draft-7", content: null, updated_at: null });
+    const saved = await api.saveNote("draft-7", "coding", "Fever for a week.");
+    expect(saved).toMatchObject({ va_sid: "draft-7", content: "Fever for a week." });
+    expect(saved.updated_at).toEqual(expect.any(String));
+    expect(metaStore.get("offlineNote:draft-7")).toEqual({ content: "Fever for a week.", updated_at: saved.updated_at });
+    await expect(api.getNote("draft-7", "coding")).resolves.toEqual(saved);
+    await expect(api.saveNote("draft-7", "coding", "x".repeat(20_001))).rejects.toThrow("offline_note_invalid");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("refuses every server-only call", async () => {
+    const { api } = await openCase();
+    const calls: Array<() => Promise<unknown>> = [
+      () => api.getCodingStats(), () => api.getCodingAvailable(), () => api.allocateCoding(), () => api.releaseCoding(),
+      () => api.searchIcd("draft-7", "icd11", "fever"), () => api.saveFinal("draft-7", {}), () => api.saveNotCodeable("draft-7", {}),
+      () => api.saveNarrativeQuality("draft-7", {}), () => api.saveSocialAutopsy("draft-7", {}), () => api.getWorkflowEvents("draft-7"),
+      () => api.runSmartva("draft-7"),
+    ];
+    for (const call of calls) await expect(Promise.resolve().then(call)).rejects.toThrow("offline_server_unavailable");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows a SmartVA result the capability probe confirms after the workspace first loaded, in the COD section", async () => {
+    const appState = Object.getOwnPropertyDescriptor(AppState, "currentState");
+    Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
+    try {
+      mockRealScreen = true;
+      let settleProbe!: (value: { ok: boolean; version: string }) => void;
+      mockSmartvaProbe.mockReturnValue(new Promise((resolve) => { settleProbe = resolve; }));
+      metaStore.set("draft-config:draft-7", { smartva: mockSmartVaOptions });
+      const cause = (rank: number, name: string | null) => ({ rank, cause: name, icd10: name ? "I64" : null, likelihood: name ? "Most likely" : null });
+      const result = { age: "61", gender: "male", key_symptoms: [], causes: [cause(1, "Stroke"), cause(2, null), cause(3, null)], symptoms: [], module: "adult", cause34: "Stroke", icd10: "I64" };
+      mockDb.getFirstAsync.mockImplementation(async (sql: string) => sql.includes("FROM local_smartva") ? {
+        draft_id: "draft-7", status: "ready", result_json: JSON.stringify(result), error_code: null, answers_sha256: "a".repeat(64),
+        options_digest: mockSmartVaOptions.optionsDigest, engine_version: "3.0.1",
+        created_at: "2026-10-28T00:00:00.000Z", updated_at: "2026-10-28T00:00:00.000Z",
+      } : sql.includes("project_id") ? { project_id: "SELF" } : { envelope: mockEnvelope });
+      const root = await render(<OfflineCoding />);
+      const api = mockScreenProps!.api;
+      // Before the probe settles, the workspace has no SmartVA yet.
+      const first = await api.getWorkspace("draft-7", "coding");
+      expect(first).toMatchObject({ smartva: null });
+      const codLabel = first.categories.find((item: { code: string }) => item.code === "vacodassessment")?.nav_label;
+      expect(codLabel).toBeTruthy();
+      const text = () => JSON.stringify(root.toJSON());
+      expect(text()).toContain("Demographic");
+      expect(text()).not.toContain("Stroke");
+      // The probe settles while the coder is on another section.
+      await act(async () => { settleProbe({ ok: true, version: "3.0.1" }); });
+      await act(async () => { await Promise.resolve(); });
+      // The section list's entry: the nearest pressable around the COD Assessment label.
+      let cod: ReactTestInstance | null = root.root.findAll((node) => node.props.children === codLabel)[0] ?? null;
+      while (cod && typeof cod.props.onPress !== "function") cod = cod.parent;
+      expect(cod).toBeDefined();
+      await act(async () => { cod!.props.onPress(); });
+      await act(async () => { await Promise.resolve(); });
+      expect(text()).toContain("SmartVA Analysis");
+      expect(text()).toContain("Stroke");
+    } finally {
+      if (appState) Object.defineProperty(AppState, "currentState", appState);
+    }
+  });
+
+  it.each<[string, string, () => void]>([
+    ["project access is revoked", "offline_case_access_revoked", () => { mockAccounts[0] = { ...mockAccounts[0], offline_coding_access: ["OTHER"] }; }],
+    ["the server refused the consent", "consent_refused", () => { metaStore.set("consent:server-refused:draft-7", true); }],
+    ["ICD-11 coding is turned off", "icd11_doris_disabled", () => { mockIcd11DorisEnabled = false; }],
+  ])("stops reading and writing the case when %s", async (_change, error, revoke) => {
+    const { api } = await openCase();
+    await expect(api.getWorkspace("draft-7", "coding")).resolves.toBeDefined();
+    revoke();
+    await expect(api.getWorkspace("draft-7", "coding")).rejects.toThrow(error);
+    await expect(api.getCategory("draft-7", "vademographicdetails", "coding")).rejects.toThrow(error);
+    await expect(api.getSmartvaStatus("draft-7")).rejects.toThrow(error);
+    await expect(api.getNote("draft-7", "coding")).rejects.toThrow(error);
+    await expect(api.saveNote("draft-7", "coding", "note")).rejects.toThrow(error);
+    expect(metaStore.has("offlineNote:draft-7")).toBe(false);
   });
 });
 

@@ -706,9 +706,20 @@ the device while unenrolled.
   so a backup made in Settings clears the reminder.
 - **Offline coding** (Settings > Collect Plus > "Offline coding";
   `src/nativeRoutes/offlineCoding.native.tsx`): lists completed-unsent
-  interviews (metadata only, no PII in the list), opens a case with the
-  unmasked `DorisPanel` driven by the offline engine
-  (`src/workspace/offlineDoris.ts`), and saves to the per-interviewer store's
+  interviews (metadata only, no PII in the list), opens a case in the shared
+  `CaseWorkspaceScreen` (as online coding) over a local `WorkspaceApi`
+  (`digitva-9cll.22.8`): categories, sub-categories, summary and counts come
+  from `src/workspace/localCategories.ts` over the draft's answers (irrelevant
+  answers stripped as the server does at submit, `src/coding/irrelevantAnswers.ts`)
+  and the bundled display pack `assets/va-display-WHO_2022_VA.json`
+  (`scripts/export_offline_va_display_pack.py`; drift and golden-render tests in
+  `tests/services/test_export_offline_va_display_pack.py` and
+  `__tests__/localCategories.test.ts`). Attachments open one at a time on tap
+  from the encrypted store (`src/workspace/media/LocalAttachmentMedia.native.tsx`);
+  the private note lives in the store's meta (`offlineNote:<id>`), never synced;
+  SmartVA shows the local result. Every server-only call refuses. The COD
+  section holds the unmasked `DorisPanel` driven by the offline engine
+  (`src/workspace/offlineDoris.ts`), which saves to the per-interviewer store's
   `offline_coding` table (certificate, engine results, local digests,
   `process_token` `local-<uuid>`, `device_uuid` +
   `coder_profile_updated_at` provenance, and `answers_sha256` of the answers

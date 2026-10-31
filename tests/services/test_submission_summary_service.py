@@ -86,3 +86,13 @@ class TestSubmissionSummaryService(BaseTestCase):
                 "Illness duration (in days): 5",
             ],
         )
+
+    def test_array_answers_read_as_their_space_joined_string(self):
+        """Collect submits multi-selects as arrays; the summary must not choke on them."""
+        summary = build_submission_summary(
+            "TEST_SUMMARY_FORM",
+            {"symptom_yes": ["yes"], "flip_no": ["no"], "Id10120": ["5", "6"]},
+        )
+
+        self.assertEqual(summary, ["Fever", "Never breathed", "Illness duration (in days): 5 6"])
+        self.assertEqual(build_submission_summary("TEST_SUMMARY_FORM", {"symptom_yes": [], "Id10120": []}), [])

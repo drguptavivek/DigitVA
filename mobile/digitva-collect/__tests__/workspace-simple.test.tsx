@@ -742,6 +742,26 @@ it("routes only API attachment paths to media and renders object values with rea
   await act(async () => tree.unmount());
 });
 
+it("routes offline coding's local attachment values to media, and only well-formed ones", async () => {
+  const media = jest.fn((path: string) => `media:${path}`);
+  const fixture: CategoryPayload = {
+    ...category,
+    subcategories: [{
+      code: "narration", label: "Narration", render_mode: "default",
+      items: [
+        { label: "Narration audio", value: "digitva-local-attachment:Id10476_audio", flip: false, info: false },
+        { label: "Narration", value: "digitva-local-attachment:../x", flip: false, info: false },
+      ],
+    }],
+  };
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<CategoryPanel category={fixture} renderMedia={media} />); });
+  expect(media).toHaveBeenCalledTimes(1);
+  expect(media).toHaveBeenCalledWith("digitva-local-attachment:Id10476_audio");
+  expect(JSON.stringify(tree.toJSON())).toContain("digitva-local-attachment:../x");
+  await act(async () => tree.unmount());
+});
+
 it("saves the editable initial prefill and reloads the workspace", async () => {
   const api = apiFor(workspace("coding"));
   let tree!: ReactTestRenderer;

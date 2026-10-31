@@ -18,12 +18,17 @@ has neither, and its coding is one direct step with SmartVA visible.
 
 ## Ranked next steps
 
-1. Offline coding shows the full coding interface (owner 2026-10-30): reuse
-   the `CaseWorkspaceScreen` the regular Collect app already runs online,
-   driven by a local `WorkspaceApi` (local `getWorkspace`/`getCategory` from
-   the draft plus a bundled, drift-tested category/field display pack, offline
-   media slot, DORIS in `renderDoris`). This is `digitva-9cll.22`'s main work;
-   policy baseline first.
+1. Offline full coding workspace (`digitva-9cll.22.8`, on main once committed):
+   offline coding opens `CaseWorkspaceScreen` over a local `WorkspaceApi` and
+   the drift-tested display pack (`assets/va-display-WHO_2022_VA.json`, 14
+   golden server renders). Not yet seen on a device: check on the USB Samsung
+   in a release build (categories, history colours, summary, attachments open
+   on tap, private note, SmartVA in the COD section, DORIS save), then close
+   the bead. Known gaps: the native category view is still below the web's
+   (`.22.3`); NQA/SA flags are not in cached reference data, so enrolled
+   offline shows neither (`.22.4`); the phone strips with the current bundled
+   instrument, not the draft's pinned version; `.22.9` label split
+   ("Heart, attack") is pinned in the golden on both sides.
 2. Verify 0.3.18 on the USB Samsung (RZCW81QZT2Z) once built: icons and
    confirmations, Hindi wrap (Id10128/Id10129/Id10484), certificate camera and
    preview, standalone document questions, tabs and row buttons, no error after
@@ -44,8 +49,7 @@ has neither, and its coding is one direct step with SmartVA visible.
    24 GB set 2026-10-31); `NATIVE=1` builds on the Mac (Node 24 and Java 21
    accepted with a warning) built a debug-signed APK end to end on
    2026-10-31 in 4.5 min (4,313 Jest tests, module JVM tests, assembleRelease)
-   after the source copy kept `resource/doris_help_examples.json` (that fix is
-   uncommitted at the time of writing).
+   after the source copy kept `resource/doris_help_examples.json`.
    The engine's memory grew 511 MB to 1,082 MB over the 50,959-call full
    parity run (591 MB on 29 Oct without the golden/sweep entity reads);
    attributed to WHO's entity cache, not confirmed.
@@ -53,9 +57,7 @@ has neither, and its coding is one direct step with SmartVA visible.
    attachments never load (likely one prop), `.22.4` enrolled offline NQA/SA
    ignore the project and import skips the gates, `.22.3` native category view
    below the web's, `.22.5` offline not-codeable/remark, `.22.6` SmartVA sex
-   raw code. The offline case-data view (local CategoryPayload from a bundled,
-   drift-tested display-config pack) is the parent's main work. Policy
-   baseline first.
+   raw code, `.22.9` multi-select label split.
 6. `digitva-9cll.23` standalone direct coding ("Save cause of death").
    `digitva-9cll.24` coded case: one read-only summary screen (as the Expo
    web completed-case view) with Revise reopening coding pre-filled; the Coded

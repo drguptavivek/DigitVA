@@ -40,6 +40,7 @@ export function CaseWorkspaceScreen({
   icd11DorisEnabled,
   onIcd11DorisOpenSettings,
   assertIcd11DorisEnabled,
+  refreshKey,
 }: {
   identity: WorkspaceIdentity;
   api: WorkspaceApi;
@@ -57,6 +58,11 @@ export function CaseWorkspaceScreen({
   onIcd11DorisOpenSettings?: () => void;
   /** Recheck the device preference at native ICD-11 processing and write boundaries. */
   assertIcd11DorisEnabled?: () => Promise<void>;
+  /**
+   * Native offline coding builds the payload from its own state (the local SmartVA result): when this changes, the
+   * workspace reloads keeping the open section, whichever it is. Omitted by server-backed callers.
+   */
+  refreshKey?: string;
 }) {
   const styles = useUiStyles();
   const [loadedWorkspace, setLoadedWorkspace] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: WorkspacePayload } | null>(null);
@@ -250,6 +256,13 @@ export function CaseWorkspaceScreen({
     await loadWorkspace(selectedCategory.current || undefined);
     if (blockedMessage && !suspended.current) setQualityError(blockedMessage);
   }, [loadWorkspace]);
+
+  const refreshSeen = useRef(refreshKey);
+  useEffect(() => {
+    if (refreshSeen.current === refreshKey) return;
+    refreshSeen.current = refreshKey;
+    void loadWorkspace(selectedCategory.current || undefined);
+  }, [loadWorkspace, refreshKey]);
 
   useEffect(() => {
     void loadWorkspace();

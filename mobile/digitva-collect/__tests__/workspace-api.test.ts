@@ -241,6 +241,74 @@ describe("workspace contracts and API", () => {
     web.mockRestore();
     native.mockRestore();
   });
+
+  test("the ICD-10 coding search asks for a list reply and both transports pass that on", async () => {
+    const calls: Array<{ path: string; init?: unknown }> = [];
+    const api = createWorkspaceApi(async (path, init) => {
+      calls.push({ path, init });
+      return [{ icd_code: "A16", icd_to_display: "A16 Respiratory tuberculosis", tier: "focused" }];
+    });
+    await expect(api.searchIcd("sid/1", "icd10", "tuber")).resolves.toEqual({
+      results: [{ icd_code: "A16", icd_to_display: "A16 Respiratory tuberculosis", tier: "focused" }],
+    });
+    expect(calls).toEqual([{ path: "/api/v1/icd10/2019-2/coding-search/sid%2F1?q=tuber&explain=1", init: { allowList: true } }]);
+
+    const csrf = { header: "X-CSRFToken", token: "csrf" };
+    const web = jest.spyOn(transport, "requestClientJson").mockResolvedValue([]);
+    const native = jest.spyOn(auth, "authedRequest").mockResolvedValue({ status: 200, body: [] });
+    await createWebWorkspaceTransport(csrf)("/api/v1/icd10/2019-2/coding-search/sid?q=tuber", { allowList: true });
+    await createNativeWorkspaceTransport("user-1")("/api/v1/icd10/2019-2/coding-search/sid?q=tuber", { allowList: true });
+    expect(web).toHaveBeenCalledWith("/api/v1/icd10/2019-2/coding-search/sid?q=tuber", expect.objectContaining({ allowList: true }));
+    expect(native).toHaveBeenCalledWith("user-1", "/api/v1/icd10/2019-2/coding-search/sid?q=tuber", expect.objectContaining({ allowList: true }));
+    web.mockRestore();
+    native.mockRestore();
+  });
+});
+
+describe("coding search explain, search id and VA definitions", () => {
+  test("sends search_id and reads the explain=1 object with its age/sex note", async () => {
+    const request = jest.fn().mockResolvedValue({
+      results: [{ icd_code: "O80", icd_to_display: "O80 Single spontaneous delivery", tier: "term" }],
+      excluded: { count: 2, examples: [], message: "2 matching codes are hidden for this death's age or sex." },
+    });
+    const api = createWorkspaceApi(request);
+    await expect(api.searchIcd("sid", "icd10", "deliv", { searchId: "11111111-1111-4111-8111-111111111111" })).resolves.toEqual({
+      results: [{ icd_code: "O80", icd_to_display: "O80 Single spontaneous delivery", tier: "term" }],
+      excludedMessage: "2 matching codes are hidden for this death's age or sex.",
+    });
+    expect(request).toHaveBeenCalledWith(
+      "/api/v1/icd10/2019-2/coding-search/sid?q=deliv&explain=1&search_id=11111111-1111-4111-8111-111111111111",
+      { allowList: true },
+    );
+  });
+
+  test("an explained reply without a usable note keeps its results; malformed results still fail", async () => {
+    const api = createWorkspaceApi(jest.fn()
+      .mockResolvedValueOnce({ results: [], excluded: { message: 5 } })
+      .mockResolvedValueOnce({ results: "nope" }));
+    await expect(api.searchIcd("sid", "icd11", "fever")).resolves.toEqual({ results: [] });
+    await expect(api.searchIcd("sid", "icd11", "fever")).rejects.toThrow(WorkspaceContractError);
+  });
+
+  test("the VA definition lookup takes a classification and defaults to ICD-11", async () => {
+    const definition = { icd_code: "A16", classification: "icd10", va_code: "VAs-01.03", title: "Pulmonary tuberculosis", definition_html: "<p>TB</p>" };
+    const request = jest.fn().mockResolvedValue(definition);
+    const api = createWorkspaceApi(request);
+    await expect(api.getVaDefinitionForIcd("A16", "icd10")).resolves.toEqual(definition);
+    await api.getVaDefinitionForIcd("1B10");
+    expect(request.mock.calls.map(([path]) => path)).toEqual([
+      "/api/v1/va-definitions/for-icd?classification=icd10&code=A16",
+      "/api/v1/va-definitions/for-icd?classification=icd11&code=1B10",
+    ]);
+    request.mockRejectedValueOnce(new transport.ApiError(404, "not_found"));
+    await expect(api.getVaDefinitionForIcd("Z99", "icd10")).resolves.toBeNull();
+  });
+
+  test("the VA definitions list reads the plain-text definitions", async () => {
+    const request = jest.fn().mockResolvedValue({ definitions: [{ va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>x</p>", definition_text: "x", source: "digitva" }], total: 1 });
+    await expect(createWorkspaceApi(request).listVaDefinitions!()).resolves.toEqual([{ va_code: "VAs-01.01", title: "Sepsis", definition_text: "x" }]);
+    expect(request).toHaveBeenCalledWith("/api/v1/va-definitions");
+  });
 });
 
 describe("project catalogues", () => {

@@ -11,6 +11,7 @@ import {
   parseDorisCodeInfo,
   parseDorisProcess,
   parseVaDefinition,
+  parseVaDefinitionList,
   parseDorisTerms,
   parseCodingWrite,
   parseIcdSearch,
@@ -37,7 +38,7 @@ import {
   type DorisCodeInfoReply,
   type DorisProcessReply,
   type DorisTermsReply,
-  type IcdSearchItem,
+  type IcdSearchReply,
   type JsonObject,
   type NotePayload,
   type ReviewerHistory,
@@ -49,12 +50,15 @@ import {
   type WorkspaceMode,
   type WorkspacePayload,
   type VaDefinition,
+  type VaDefinitionListItem,
   type WorkflowEvents,
 } from "./contracts";
 
 export interface WorkspaceRequestInit {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   json?: unknown;
+  /** The route answers a JSON list (the ICD-10 coding search). */
+  allowList?: boolean;
 }
 
 export type JsonRequester = (path: string, init?: WorkspaceRequestInit) => Promise<unknown>;
@@ -78,7 +82,11 @@ export interface WorkspaceApi {
   releaseCoding(): Promise<CodingSaveReply>;
   allocateReviewer(vaSid: string): Promise<AllocationReply>;
   releaseReviewer(): Promise<CodingSaveReply>;
-  searchIcd(vaSid: string, classification: "icd10" | "icd11", query: string): Promise<IcdSearchItem[]>;
+  /**
+   * The case's coding search with `explain=1`. `searchId` (a UUID) is forwarded as `search_id` so a save can link
+   * the chosen code back to this search; the server mints its own when it is absent or invalid.
+   */
+  searchIcd(vaSid: string, classification: "icd10" | "icd11", query: string, options?: { searchId?: string }): Promise<IcdSearchReply>;
   saveInitial(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<CodingWriteReply>;
   saveFinal(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<CodingWriteReply>;
   saveNotCodeable(vaSid: string, body: JsonObject): Promise<CodingSaveReply>;
@@ -90,8 +98,10 @@ export interface WorkspaceApi {
   saveNote(vaSid: string, mode: "coding" | "reviewing", content: string): Promise<NotePayload>;
   searchDorisTerms(vaSid: string, query: string, options?: { limit?: number; subtreeUris?: string[] }): Promise<DorisTermsReply>;
   getDorisCodeInfo(vaSid: string, code: string): Promise<DorisCodeInfoReply>;
-  /** The VA cause of an ICD-11 code, or null when no VA cause maps to it (the server answers 404). */
-  getVaDefinitionForIcd(code: string): Promise<VaDefinition | null>;
+  /** The VA cause of an ICD code (ICD-11 unless `classification` says otherwise), or null when none maps to it (404). */
+  getVaDefinitionForIcd(code: string, classification?: "icd10" | "icd11"): Promise<VaDefinition | null>;
+  /** Every active VA cause definition, for the coder "VA Definitions" list. Absent where no server is reachable. */
+  listVaDefinitions?(): Promise<VaDefinitionListItem[]>;
   checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
   processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
   getWorkflowEvents(vaSid: string, options?: { limit?: number; cursor?: string }): Promise<WorkflowEvents>;
@@ -203,11 +213,14 @@ export function createWorkspaceApi(request: JsonRequester, options: { training?:
     async releaseCoding() { return parsed(await post("/coding/allocation/release"), parseCodingSave); },
     async allocateReviewer(vaSid) { return parsed(await scopedPost(`/reviewing/allocation/${id(vaSid)}`), parseAllocation); },
     async releaseReviewer() { return parsed(await post("/reviewing/allocation/release"), parseCodingSave); },
-    async searchIcd(vaSid, classification, query) {
+    async searchIcd(vaSid, classification, query, options = {}) {
       const path = classification === "icd10"
         ? `/icd10/2019-2/coding-search/${id(vaSid)}`
         : `/icd11/coding-search/${id(vaSid)}`;
-      const value = await get(`${path}?${new URLSearchParams({ q: query })}`);
+      const params = new URLSearchParams({ q: query, explain: "1" });
+      if (options.searchId) params.set("search_id", options.searchId);
+      // explain=1 answers an object, but a server that predates it still answers the plain list.
+      const value = await request(`${API}${path}?${params}`, { allowList: true });
       return parsed(value, parseIcdSearch);
     },
     async saveInitial(vaSid, body, mode = "coding") {
@@ -240,10 +253,11 @@ export function createWorkspaceApi(request: JsonRequester, options: { training?:
       try { return parsed(await post(`/doris-clinical/codeinfo/${id(vaSid)}`, { schema_version: 1, code }), parseDorisCodeInfo); }
       catch (error) { return normalizeDorisError(error); }
     },
-    async getVaDefinitionForIcd(code) {
-      try { return parsed(await get(`/va-definitions/for-icd?classification=icd11&code=${encodeURIComponent(code)}`), parseVaDefinition); }
+    async getVaDefinitionForIcd(code, classification = "icd11") {
+      try { return parsed(await get(`/va-definitions/for-icd?classification=${classification}&code=${encodeURIComponent(code)}`), parseVaDefinition); }
       catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
     },
+    async listVaDefinitions() { return parsed(await get("/va-definitions"), parseVaDefinitionList); },
     async checkDorisSelection(vaSid, code, uri) {
       try { return parsed(await post(`/doris-clinical/selection-check/${id(vaSid)}`, { schema_version: 1, code, uri }), parseDorisCodeInfo); }
       catch (error) { return normalizeDorisError(error); }

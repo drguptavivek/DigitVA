@@ -91,5 +91,6 @@ deploy/maintenance/on
 .serena/project.yml
 cur.png
 
-# Local Collect Plus build output and work/cache dirs (scripts/collect-plus-local)
-build/collect-plus-local/
+# Local build output: collect-plus-local work dirs, CI APK downloads, Rust releases
+/build/
+mobile/digitva-collect/coverage/

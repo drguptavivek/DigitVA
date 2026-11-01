@@ -3,7 +3,7 @@ title: Local WHO ICD-11 API Runtime
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-01
 ---
 
 # Local WHO ICD-11 API Runtime
@@ -116,3 +116,13 @@ stays public on that basis. This is the owner's decision, not WHO permission;
 the write-up to WHO states plainly that the bundle is public and still asks
 for the written line on points 1 and 2 (and on redistributing WHO's data
 files, which is a separate question from the assemblies).
+
+Owner decision, 2026-11-01 (`digitva-xw1s`): the desktop engine
+`who-icd11-server` (`vendor/who-icd11-api`, its own public repository) is
+released for reuse outside verbal autopsy (doctor-certified death
+certificates, mortality coding units, CRVS). Its release archives and crate
+hold only this project's code and its embedded bridge, never WHO assemblies or
+data: each user downloads those at `--bootstrap` from WHO's own sources,
+pinned by digest and SHA-256. Releases are created as drafts and published by
+the owner. This is narrower than the 2026-10-29 bundle decision and is not WHO
+permission either.

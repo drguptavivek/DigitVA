@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-10-31
 ---
 
 # Web Intake Policy
@@ -487,6 +487,40 @@ stay on the server draft only.
 - **Bounds.** 50 MB and the type list are checked on the device before
   anything is stored, so a refused file never occupies the buffer; the server
   checks again (the browser is not a security boundary).
+
+**The Expo web interview (owner, 2026-10-31, `digitva-e621`).** The browser
+build of the Expo app (`/app/interview`, `mobile/digitva-collect/src/web/InterviewScreen.tsx`)
+records, photographs, picks and attaches files with the same encrypted buffer,
+uploader and platform as the Flask questionnaire page: it imports
+`app/static/js/intake/attachment_buffer.js` and `attachment_platform.js`
+themselves (one implementation, no copy), so the key, encryption, limits, upload,
+dropped and held handling and the seven-day rule above are the same. Its uploads
+go through the app's cookie request helper, so they carry the current
+`X-CSRFToken`, the training scope and the desktop station's launch token like
+every other request. Before a submit it sends what the buffer still holds and
+submits only when nothing of the draft is left; otherwise, and on `409
+attachments_pending`, it says how many files are still waiting. Dropped, held
+and expiring files are listed on the interview screen the same way, with a
+per-file Delete from this device for a held one. In addition:
+
+- **Sign-out deletes the buffer (owner, 2026-10-31: PII).** Signing out from
+  the app's menu, on any screen, first lets the open interview send what it
+  can, then, if any of the user's files are still unsent, warns ("Files not
+  yet sent: N. Signing out deletes them from this browser.") and signs out
+  only on confirmation; it then deletes every file and key in the buffer.
+  Cancel keeps the files and the session. An idle or expired-session sign-out
+  cannot ask, so it leaves the buffer to the rule below.
+- **A different user's sign-in deletes what the previous one left (owner,
+  2026-10-31).** Each time the app learns who is signed in (every page load,
+  and whenever that user changes), it deletes every file and key in the buffer
+  that is not that user's, on any screen, not only when an interview opens.
+- **A revision has no attachment controls.** A revision edits a submitted
+  interview, whose draft is closed, so an upload could never be accepted.
+
+The Expo client pages (`/app/...`) allow `blob:` in `img-src` and `media-src`
+for the in-memory previews of a captured image or recording, as the Flask
+questionnaire page does for `media-src`; every other page keeps the default
+policy, and no `Permissions-Policy` restricts the camera or microphone there.
 
 ## ODK boundary
 

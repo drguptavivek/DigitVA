@@ -220,6 +220,21 @@ only the case strip stays pinned at the top of the viewport, with the form's sti
 section progress below it. Every other route keeps the sticky root header.
 The form's Back, Save draft, Preview, Next are one row of four equal-width buttons (package testID `form-footer`), sticky above the phone bottom tabs below 768px and in flow at the card's end from 768px; the package's "More sections appear as you answer" note is blanked via `uiTranslations`.
 While the open interview has changes not yet acknowledged by the server, one navigation guard (`src/web/navigationGuard.ts`) holds the left menu, phone bottom bar and More sheet, header logo, Profile, Sign out, Back to collection, router back and tab close/reload behind a "Leave this interview?" alertdialog (Stay, Save and leave, Leave without saving); new-tab links (Help, Website) are not held. Answers autosave about 600 ms after the last change, so the dialog opens only while that save is pending or after it failed, and its body says which; a save of older answers settling late does not clear newer pending ones.
+The form's audio, image and file questions get their platform from
+`src/web/interviewAttachments.ts`, which builds the Flask page's encrypted buffer,
+uploader and platform (`app/static/js/intake/attachment_buffer.js`,
+`attachment_platform.js`, imported as they are; `metro.config.js` adds that folder
+to Metro's `watchFolders`) for the signed-in user and the server draft. Uploads go
+through `requestJson` (current CSRF token, training scope, station launch token).
+Submit sends the buffer first and stops with a count while files of the draft wait;
+`409 attachments_pending` gets the same message. Waiting, dropped, held (with
+Delete from this device) and expiring files show above the form. Not for a
+revision, and not when the browser lacks IndexedDB or WebCrypto (a note says so).
+Sign out (`logout` in `src/AppState.web.tsx`) warns when the user's files are still
+unsent, then deletes the whole buffer; each sign-in deletes other users' files
+(`src/web/attachmentBufferSession.ts`, loaded on demand).
+Policy: `docs/policy/web-intake.md`, "Attachments". The `/app/` pages allow `blob:`
+in `img-src` and `media-src` (`app/routes/expo_client.py`).
 
 Under the toolbar two tabs, My interviews and Reported deaths, carry their
 counts (Reported deaths sums the worklist's per-state `counts`); the chosen tab

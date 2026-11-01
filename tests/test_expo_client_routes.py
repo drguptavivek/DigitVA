@@ -8,7 +8,9 @@ from pathlib import Path
 
 from flask import Flask, send_file
 
+from app import _content_security_policy
 from app.routes.expo_client import _SPA_ROUTE_ROOTS, expo_client
+from tests.base import BaseTestCase
 
 _APP_DIR = Path(__file__).resolve().parent.parent / "mobile" / "digitva-collect" / "app"
 
@@ -96,6 +98,49 @@ class ExpoClientRouteTests(unittest.TestCase):
         self.assertIn("supervision", routes)  # the directory was actually read
         missing = sorted(routes - _SPA_ROUTE_ROOTS)
         self.assertEqual(missing, [], f"/app/ would 404 on reload for: {missing}")
+
+
+def _directives(header):
+    return dict(part.strip().split(" ", 1) for part in header.split(";") if part.strip())
+
+
+class ExpoClientSecurityHeaderTests(BaseTestCase):
+    """The Expo pages allow blob: previews (docs/policy/web-intake.md, "Attachments"); nothing else changes."""
+
+    def test_expo_pages_allow_blob_images_and_media_and_other_pages_keep_the_global_policy(self):
+        entry = "_expo/static/js/web/entry-" + "b" * 32 + ".js"
+        previous = self.app.config.get("EXPO_CLIENT_DIST")
+        with tempfile.TemporaryDirectory() as directory:
+            for name in ("index.html", entry):
+                path = Path(directory) / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("test", encoding="utf-8")
+            self.app.config["EXPO_CLIENT_DIST"] = directory
+            try:
+                expo = {route: self.client.get(route) for route in ("/app/", "/app/interview", f"/app/{entry}")}
+                login = self.client.get("/vaauth/valogin")
+            finally:
+                self.app.config["EXPO_CLIENT_DIST"] = previous
+        with self.app.test_request_context():
+            global_policy = dict(_content_security_policy(self.app))
+        for route, response in expo.items():
+            with self.subTest(route=route):
+                self.assertEqual(response.status_code, 200)
+                policy = _directives(response.headers["Content-Security-Policy"])
+                self.assertEqual(policy["img-src"], global_policy["img-src"] + " blob:")
+                self.assertEqual(policy["media-src"], global_policy["media-src"] + " blob:")
+                for directive in ("default-src", "script-src", "connect-src"):
+                    self.assertEqual(policy[directive], global_policy[directive])
+                # Nothing may switch the camera or microphone off for the interview.
+                permissions = response.headers.get("Permissions-Policy", "")
+                self.assertNotIn("camera", permissions)
+                self.assertNotIn("microphone", permissions)
+                response.close()
+        self.assertEqual(login.status_code, 200)
+        other = _directives(login.headers["Content-Security-Policy"])
+        self.assertEqual(other, global_policy)
+        self.assertNotIn("blob:", other["img-src"])
+        self.assertNotIn("blob:", other["media-src"])
 
 
 if __name__ == "__main__":

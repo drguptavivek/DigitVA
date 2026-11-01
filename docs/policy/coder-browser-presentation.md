@@ -3,7 +3,7 @@ title: Coder Browser Presentation
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-31
 ---
 
 # Coder browser presentation
@@ -77,3 +77,28 @@ The compact case header shows form ID, age, sex and the DEMO marker in that
 order when demo metadata is true, at every viewport width. The category rail
 remains independently scrollable with no scrollbar obscuring its icons.
 Presentation changes preserve scoring, save payloads and workflow gates.
+
+## ICD-10 cause of death entry
+
+Owner, 2026-10-31: the Expo ICD-10 entry (`SimpleCodPanel`, used by the browser
+and by Collect and Collect Plus online) matches the Flask Step 1 and Step 2
+assessment screens:
+
+- Step headings and the Important instruction box carry the Flask wording;
+  required fields show a red `*`, and each field keeps its Flask hint.
+- Each cause field offers ICD-10 Browser (WHO's 2019 browser), Selected ICD
+  Codes (`/static/WHO_2022_VA_CODES.pdf`) and VA Definitions.
+- Search asks for two or more characters, groups results under Focused
+  matches and Term matches by tier, shows each code once, and says when codes
+  are hidden for the deceased's age or sex (`explain=1`).
+- Choosing a code shows its VA definition when one exists.
+- Other conditions is one searchable multi-select.
+- Step 2 shows the coder's Step 1 causes, and any previous final assessment,
+  above the Step 2 fields.
+- Not Codeable is its own screen: explanation, reason, Report Issue, and a way
+  back to the assessment.
+- A save forwards the field's `search_id` and the chosen code and rank, as
+  Flask does, so search telemetry joins the choice to its search.
+
+Beyond those telemetry fields, save payloads, allowability checks and workflow
+gates do not change.

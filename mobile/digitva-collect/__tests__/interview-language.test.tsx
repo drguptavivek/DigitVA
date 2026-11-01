@@ -96,6 +96,16 @@ jest.mock("../src/web/whoRuntimeLoader", () => ({
   loadWhoCoreRuntime: jest.fn(async () => jest.requireMock("@drguptavivek/who-2022-va")),
   loadWhoWebRuntime: jest.fn(async () => jest.requireMock("@drguptavivek/who-2022-va/web")),
 }));
+// The attachment services are their own module (tested in web-interview-attachments.test.ts); the screen's part is
+// handing their platform to the form and sending files before a submit.
+const mockAttachmentPlatform = { captureImage: jest.fn(), selectImage: jest.fn(), startAudioRecording: jest.fn(), selectFile: jest.fn() };
+const mockAttachments = {
+  platform: undefined as typeof mockAttachmentPlatform | undefined,
+  unavailable: false, status: "", notices: [] as string[], held: [] as Array<{id: string; text: string}>,
+  dismissNotices: jest.fn(), deleteHeld: jest.fn(async () => undefined), send: jest.fn(async () => 0),
+};
+const mockUseAttachments = jest.fn((_options: unknown) => mockAttachments);
+jest.mock("../src/web/interviewAttachments", () => ({useInterviewAttachments: (options: unknown) => mockUseAttachments(options)}));
 const mockGetDraftConsent = jest.fn();
 const mockPostDraftConsent = jest.fn();
 const mockFetchConsentConfig = jest.fn();
@@ -145,6 +155,12 @@ beforeEach(() => {
   mockFetchConsentConfig.mockReset().mockResolvedValue(null);
   (loadWhoCoreRuntime as jest.Mock).mockReset().mockResolvedValue(jest.requireMock("@drguptavivek/who-2022-va"));
   (loadWhoWebRuntime as jest.Mock).mockReset().mockResolvedValue(jest.requireMock("@drguptavivek/who-2022-va/web"));
+});
+
+beforeEach(() => {
+  Object.assign(mockAttachments, {platform: undefined, unavailable: false, status: "", notices: [], held: []});
+  mockAttachments.send.mockReset().mockResolvedValue(0);
+  mockUseAttachments.mockClear();
 });
 
 function deferred<T>() {
@@ -1070,6 +1086,92 @@ describe("respondent consent before the interview", () => {
     expect(formAfter.props.onDraftSaved).toBe(onDraftSaved);
     expect(formAfter.props.onDraftError).toBe(onDraftError);
     expect(JSON.stringify(tree.toJSON())).toContain("Ramesh · DOD: 2026-01-15 · Age: 62 yr · Sex: Male");
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("attachments in the browser interview", () => {
+  it("hands the encrypted buffer's platform to the form for the open server draft", async () => {
+    mockAttachments.platform = mockAttachmentPlatform;
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const form = tree.root.findByType(WhoVaForm);
+    expect(form.props.platform).toBe(mockAttachmentPlatform);
+    for (const service of ["captureImage", "selectImage", "startAudioRecording", "selectFile"]) {
+      expect(typeof form.props.platform[service]).toBe("function");
+    }
+    expect(mockUseAttachments).toHaveBeenLastCalledWith(expect.objectContaining({
+      userId: "u1", draftId: "draft-1", draftsEndpoint: "/api/v1/intake/drafts", csrf: mockBootstrap.csrf,
+    }));
+    await act(async () => tree.unmount());
+  });
+
+  it("sends the held files before submitting, and does not submit while any of the draft's are waiting", async () => {
+    const order: string[] = [];
+    mockServerFlush.mockImplementation(async () => { order.push("draft"); });
+    mockAttachments.send.mockImplementation(async () => { order.push("attachments"); return 2; });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const form = tree.root.findByType(WhoVaForm);
+    await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
+    expect(order.slice(-2)).toEqual(["draft", "attachments"]);
+    expect(submitDraft).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain(t("webAttachmentsSubmitWaiting", { count: 2 }));
+    await act(async () => tree.unmount());
+  });
+
+  it("submits once nothing is waiting", async () => {
+    (submitDraft as jest.Mock).mockResolvedValue({
+      va_sid: "sid-1", draft: { draft_id: "draft-1", project_id: "P", site_id: "S", unique_id: "VA-1" }, superseded: false, validation_err: [],
+    });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const form = tree.root.findByType(WhoVaForm);
+    await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
+    expect(mockAttachments.send).toHaveBeenCalledTimes(1);
+    expect(submitDraft).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("names the server's attachments_pending refusal instead of a generic error", async () => {
+    (submitDraft as jest.Mock).mockRejectedValue(new ClientApiError(409, "attachments_pending", undefined, undefined, {
+      error: "1 attached file(s) have not finished uploading; wait for them to be sent, then submit again.", code: "attachments_pending",
+    }));
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const form = tree.root.findByType(WhoVaForm);
+    await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain(t("webAttachmentsPendingServer"));
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("lists a held file with Delete from this device, and waiting and refused files", async () => {
+    mockAttachments.status = "Files waiting to be sent: 1.";
+    mockAttachments.notices = ["image of 1/1/2026: the server refused this file."];
+    mockAttachments.held = [{ id: "file-1", text: "Narration: this interview is no longer open." }];
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Files waiting to be sent: 1.");
+    expect(text).toContain("the server refused this file.");
+    expect(text).toContain("Narration: this interview is no longer open.");
+    const remove = tree.root.findAllByType("mock-button" as unknown as React.ElementType)
+      .find((node) => node.props.label === t("webAttachmentDelete"));
+    expect(remove).toBeDefined();
+    await act(async () => { remove?.props.onPress(); });
+    expect(mockAttachments.deleteHeld).toHaveBeenCalledWith("file-1");
+    await act(async () => tree.unmount());
+  });
+
+  it("gives a revision no attachment services", async () => {
+    mockParams = { revisionDraftId: "rev-1", revisionProjectId: "P", revisionSiteId: "S", revisionVaSid: "sid-rev-1" };
+    (getRevisionDetail as jest.Mock).mockResolvedValue(submittedDetail("rev-1"));
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+    expect(mockUseAttachments).toHaveBeenLastCalledWith(expect.objectContaining({ draftId: undefined }));
     await act(async () => tree.unmount());
   });
 });

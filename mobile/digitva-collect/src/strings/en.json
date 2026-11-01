@@ -1933,5 +1933,22 @@
   "offlineAttachedImage": "Attached image",
   "offlineAttachedAudio": "Attached audio",
   "offlineAttachmentOpen": "Open attachment",
-  "offlineAttachmentClose": "Close attachment"
+  "offlineAttachmentClose": "Close attachment",
+  "webAttachmentsUnavailable": "Recording and attaching files is unavailable in this browser.",
+  "webAttachmentsWaiting": "Files waiting to be sent: {count}.",
+  "webAttachmentsWaitingOffline": "Files waiting to be sent: {count} (offline).",
+  "webAttachmentsSubmitWaiting": "Attached files still waiting to be sent: {count}. Submit again once they have been sent.",
+  "webAttachmentsSignOutTitle": "Unsent files will be deleted",
+  "webAttachmentsSignOutMessage": "Files not yet sent: {count}. Signing out deletes them from this browser. Sign out anyway?",
+  "webAttachmentsPendingServer": "Some attached files have not reached the server yet. Wait for them to be sent, then submit again.",
+  "webAttachmentRejected": "{file}: the server refused this file. It was not kept; record or attach it again.",
+  "webAttachmentHeldMissing": "{file}: this interview no longer exists on the server, so the file could not be sent. It is still kept on this device.",
+  "webAttachmentHeldClosed": "{file}: this interview is no longer open for changes (it was submitted or discarded), so the file could not be sent. It is still kept on this device.",
+  "webAttachmentDelete": "Delete from this device",
+  "webAttachmentsExpired": "These files were not sent within 7 days and are being deleted from this device; record or attach them again: {files}.",
+  "webAttachmentsExpiring": "These files have not been sent and will be deleted from this device within a day: {files}. Connect to the network to send them.",
+  "webAttachmentOfDay": "{kind} of {day}",
+  "webAttachmentKindRecording": "recording",
+  "webAttachmentKindImage": "image",
+  "webAttachmentKindPdf": "PDF"
 }

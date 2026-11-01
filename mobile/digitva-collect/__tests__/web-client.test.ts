@@ -86,6 +86,22 @@ describe("browser client", () => {
     ).resolves.toEqual({});
   });
 
+  it("returns a successful JSON list only to a route that answers one (the ICD-10 coding search)", async () => {
+    const results = [{ icd_code: "A16", icd_to_display: "A16 Respiratory tuberculosis", tier: "focused" }];
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ status: 200, body: results }));
+
+    await expect(requestClientJson("/api/v1/icd10/2019-2/coding-search/s1?q=tuber", { csrf, allowList: true })).resolves.toEqual(results);
+    await expect(requestClientJson("/api/v1/intake/drafts", { csrf })).rejects.toMatchObject({ code: "malformed_response" });
+  });
+
+  it("reads no code from a refusal whose body is a list", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ status: 409, body: [{ code: "conflict" }] }));
+
+    const failure: unknown = await requestClientJson("/api/v1/icd10/2019-2/coding-search/s1?q=tuber", { csrf, allowList: true }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ClientApiError);
+    expect(failure).toMatchObject({ status: 409, code: undefined });
+  });
+
   it("rejects a successful malformed JSON response explicitly", async () => {
     jest
       .spyOn(globalThis, "fetch")

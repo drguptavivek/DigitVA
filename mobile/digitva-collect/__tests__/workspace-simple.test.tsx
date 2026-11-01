@@ -87,7 +87,7 @@ function apiFor(payload: WorkspacePayload, overrides: Partial<WorkspaceApi> = {}
     getWorkspace: jest.fn(async () => payload),
     getCategory: jest.fn(async () => category),
     getWorkflowEvents: jest.fn(async () => ({ va_sid: "sid-1", events: [], limit: 50, next_cursor: null })),
-    searchIcd: jest.fn(async () => []),
+    searchIcd: jest.fn(async () => ({ results: [] })),
     getNote: jest.fn(async () => ({ va_sid: "sid-1", content: null, updated_at: null })),
     saveNote: jest.fn(async (_sid: string, _mode: "coding" | "reviewing", content: string) => ({ va_sid: "sid-1", content, updated_at: null })),
     saveInitial: jest.fn(async () => ({ va_sid: "sid-1", initial_assessment_id: "initial-1" })),
@@ -158,7 +158,7 @@ it("keeps mode=view read-only and loads only the served case history", async () 
   expect(api.saveNarrativeQuality).not.toHaveBeenCalled();
   expect(api.saveSocialAutopsy).not.toHaveBeenCalled();
   expect(tree.root.findAllByProps({ accessibilityLabel: "Save private note" })).toHaveLength(0);
-  expect(tree.root.findAllByProps({ accessibilityLabel: "Save initial COD" })).toHaveLength(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Save Assessment" })).toHaveLength(0);
   await act(async () => tree.unmount());
 });
 
@@ -178,7 +178,7 @@ it("blocks a validated online ICD-11 workspace when the device preference is off
   });
 
   expect(tree.root.findAllByProps({ accessibilityLabel: "Open Settings" }).length).toBeGreaterThan(0);
-  expect(tree.root.findAllByProps({ accessibilityLabel: "Save initial COD" })).toHaveLength(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Save Assessment" })).toHaveLength(0);
   expect(api.getWorkspace).toHaveBeenCalledTimes(1);
   await act(async () => tree.root.findAllByProps({ accessibilityLabel: "Open Settings" })[0].props.onPress());
   expect(onSettings).toHaveBeenCalledTimes(1);
@@ -641,15 +641,15 @@ it("shows a recoverable ICD search error without clearing entered text", async (
       await flush();
     });
     await act(async () => {
-      byLabel(tree, "Immediate cause").props.onChangeText("stroke");
+      byLabel(tree, "Immediate Cause of Death").props.onChangeText("stroke");
       await flush();
     });
     await act(async () => {
       jest.advanceTimersByTime(250);
       await flush();
     });
-    expect(api.searchIcd).toHaveBeenCalledWith("sid-1", "icd10", "stroke");
-    expect(byLabel(tree, "Immediate cause").props.value).toBe("stroke");
+    expect(api.searchIcd).toHaveBeenCalledWith("sid-1", "icd10", "stroke", { searchId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/) });
+    expect(byLabel(tree, "Immediate Cause of Death").props.value).toBe("stroke");
     expect(tree.root.findAll((node) => node.props.accessibilityRole === "alert").map(textContent).join(" "))
       .toContain("Unable to search ICD codes. Try again.");
     await act(async () => tree.unmount());
@@ -675,7 +675,7 @@ it("ignores a delayed ICD 403 after the case scope changes", async () => {
       await flush();
     });
     await act(async () => {
-      byLabel(tree, "Immediate cause").props.onChangeText("stroke");
+      byLabel(tree, "Immediate Cause of Death").props.onChangeText("stroke");
       await flush();
     });
     await act(async () => { jest.advanceTimersByTime(250); await flush(); });
@@ -708,7 +708,7 @@ it("exits and clears the case when current ICD search access is denied", async (
       await flush();
     });
     await act(async () => {
-      byLabel(tree, "Immediate cause").props.onChangeText("stroke");
+      byLabel(tree, "Immediate Cause of Death").props.onChangeText("stroke");
       await flush();
     });
     await act(async () => { jest.advanceTimersByTime(250); await flush(); });
@@ -769,7 +769,7 @@ it("saves the editable initial prefill and reloads the workspace", async () => {
     tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} />);
     await flush();
   });
-  await act(async () => byLabel(tree, "Save initial COD").props.onPress());
+  await act(async () => byLabel(tree, "Save Assessment").props.onPress());
   await flush();
   expect(api.saveInitial).toHaveBeenCalledWith("sid-1", {
     immediate_cod: "A00", antecedent_cod: "B00", other_conditions: ["Cough"],
@@ -809,7 +809,7 @@ it("ignores an initial-save completion after the case identity changes", async (
     tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={oldApi} onExit={jest.fn()} />);
     await flush();
   });
-  await act(async () => byLabel(tree, "Save initial COD").props.onPress());
+  await act(async () => byLabel(tree, "Save Assessment").props.onPress());
   await act(async () => {
     tree.update(<CaseWorkspaceScreen identity={{ vaSid: "sid-2", mode: "coding" }} api={nextApi} onExit={jest.fn()} />);
     await flush();
@@ -833,7 +833,7 @@ it("sends the simple final payload and completes reviewer work", async () => {
     tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "reviewing" }} api={api} onExit={jest.fn()} onDone={onDone} />);
     await flush();
   });
-  await act(async () => byLabel(tree, "Save final COD").props.onPress());
+  await act(async () => byLabel(tree, "Save final assessment").props.onPress());
   expect(api.saveFinal).toHaveBeenCalledWith("sid-1", { conclusive_cod: "C00", remark: "", immediate_cod: "A00", other_conditions: "Cough" }, "reviewing");
   expect(onDone).toHaveBeenCalledTimes(1);
   await act(async () => tree.unmount());
@@ -1063,7 +1063,7 @@ it("renders the private notes and the COD editor as siblings without a duplicate
     await flush();
   });
   expect(byLabel(tree, "Private note")).toBeTruthy();
-  expect(tree.root.findAllByProps({ accessibilityLabel: "Save initial COD" }).length).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Save Assessment" }).length).toBeGreaterThan(0);
   expect(errors.mock.calls.filter((call) => String(call[0]).includes("same key"))).toHaveLength(0);
   errors.mockRestore();
   await act(async () => tree.unmount());

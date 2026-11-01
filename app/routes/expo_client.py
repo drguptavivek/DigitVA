@@ -12,7 +12,21 @@ from pathlib import Path
 
 from flask import Blueprint, abort, current_app, send_file
 
+from app import _content_security_policy, talisman
+
 expo_client = Blueprint("expo_client", __name__)
+
+
+class _ExpoClientContentSecurityPolicy:
+    """The global policy per request, plus ``blob:`` images and media: the web
+    interview previews a captured image or recording from an in-memory
+    ``blob:`` URL (docs/policy/web-intake.md, "Attachments")."""
+
+    def items(self):
+        policy = _content_security_policy(current_app)
+        policy["img-src"] += " blob:"
+        policy["media-src"] += " blob:"
+        return policy.items()
 
 _SPA_ROUTE_ROOTS = frozenset(
     {
@@ -141,6 +155,7 @@ def _serve(relative_path: str):
 
 
 @expo_client.get("/app/")
+@talisman(content_security_policy=_ExpoClientContentSecurityPolicy())
 def expo_index():
     response = _serve("index.html")
     response.headers["Cache-Control"] = "no-cache"
@@ -148,5 +163,6 @@ def expo_index():
 
 
 @expo_client.get("/app/<path:relative_path>")
+@talisman(content_security_policy=_ExpoClientContentSecurityPolicy())
 def expo_asset(relative_path):
     return _serve(relative_path)

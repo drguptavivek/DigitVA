@@ -3,7 +3,52 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-01
+
+- **ICD-11 engine released as code only** (`digitva-xw1s`;
+  `docs/policy/icd11-local-api-runtime.md`, owner decision 1 Nov):
+  `vendor/who-icd11-api` gains an MIT licence, a WHO notice, CI, and a
+  tag-triggered draft release of `who-icd11-server` for Linux and macOS whose
+  archives are checked to hold no WHO files; users download WHO's files at
+  `--bootstrap`, pinned by SHA-256. Installed binaries now look for `./runtime`
+  instead of the build machine's source folder. Not shipping WHO's files keeps
+  the release clear of the unanswered licence questions.
+
+- **Expo ICD-10 cause-of-death entry matches Flask** (`digitva-tk7j`;
+  `docs/policy/coder-browser-presentation.md` "ICD-10 cause of death entry"):
+  owner, 31 Oct, the Expo ICD-10 screens were "quite poor". `SimpleCodPanel`
+  (browser, and Collect and Collect Plus online) now carries Flask's Step 1 and
+  Step 2 headings, Important box, required markers and hints; Focused and Term
+  match groups with each code shown once; the age/sex hidden-codes message
+  (`explain=1`); the VA definition under a chosen ICD-10 code; ICD-10 Browser,
+  Selected ICD Codes and VA Definitions on each cause field; Other conditions
+  as one searchable multi-select; the Step 1 causes above Step 2; and Not
+  Codeable as its own screen. The final save forwards the search id and the
+  chosen code and 0-based rank, as Flask does. The workspace's guarded API is
+  memoised: before, a SmartVA poll re-rendered the screen every 3 s and the
+  search, definition and DORIS effects refetched each time on the phone.
+  Not carried over: Flask's previous immediate/antecedent final causes (the
+  workspace API does not return them).
+
 ## 2026-10-31
+
+- **ICD-10 code search works in the Expo app** (`digitva-zqk2`): every ICD-10
+  search in the Expo coding workspace (browser, and online coding on the
+  phone) failed with "Unable to search ICD codes", because the shared request
+  helper treated the search's JSON list reply as malformed. The search now asks
+  for a list reply (`allowList`); every other route still requires an object.
+  Found while comparing the Expo and Flask ICD-10 screens (gaps: `digitva-tk7j`).
+
+- **Browser interview: audio, camera, image and PDF attachments** (`digitva-e621`;
+  `docs/policy/web-intake.md` "Attachments", `docs/current-state/expo-client.md`):
+  field report that the web interview could not photograph a paper narrative.
+  The Expo web interview now uses the Flask questionnaire page's encrypted
+  buffer, uploader and platform, imported from `app/static/js/intake/` (one
+  implementation; `metro.config.js` adds the folder). Submit sends waiting files
+  first. Signing out warns about unsent files and deletes the buffer; another
+  user's sign-in deletes what the previous user left (owner, PII). An upload
+  answered by a non-JSON 200 (captive portal) is retried, not counted as sent.
+  The `/app/` pages allow `blob:` previews.
 
 - **Offline coding shows the full coding workspace** (`digitva-9cll.22.8`;
   `docs/policy/doris-cod-workflow.md` "Offline coding workspace",

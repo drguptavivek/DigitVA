@@ -1061,6 +1061,8 @@ export async function authedRequest<T>(
     timeoutMs?: number;
     /** A file as the raw request body (src/attachmentUpload.ts). */
     rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
+    /** The route answers a JSON list (src/api.ts `ClientRequestOptions.allowList`). */
+    allowList?: boolean;
   } = {},
 ): Promise<{ status: number; body: T }> {
   const { device } = await deviceFor(userId);

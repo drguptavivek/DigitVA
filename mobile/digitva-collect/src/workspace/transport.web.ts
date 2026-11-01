@@ -7,6 +7,7 @@ export function createWebWorkspaceTransport(csrf?: ClientCsrf): JsonRequester {
   return (path, init = {}) => requestClientJson<unknown>(path, {
     method: init.method,
     json: init.json,
+    allowList: init.allowList,
     csrf,
   });
 }

@@ -894,7 +894,42 @@ export function parseCodingWrite(value: unknown): CodingWriteReply {
   return reply;
 }
 
-export function parseIcdSearch(value: unknown): IcdSearchItem[] {
+/** A coding search reply; `excludedMessage` says why matches were hidden for the deceased's age or sex (`explain=1`). */
+export interface IcdSearchReply {
+  results: IcdSearchItem[];
+  excludedMessage?: string;
+}
+
+/** Read the plain list, or the `explain=1` object `{results, excluded?}` (an older server ignores `explain`). */
+export function parseIcdSearch(value: unknown): IcdSearchReply {
+  if (Array.isArray(value)) return { results: parseIcdSearchItems(value) };
+  const source = record(value, "icd.search");
+  const results = parseIcdSearchItems(source.results);
+  const excluded = source.excluded;
+  // The note is information only: a malformed one is dropped rather than failing the search.
+  const message = excluded && typeof excluded === "object" && !Array.isArray(excluded) ? (excluded as Record<string, unknown>).message : undefined;
+  return typeof message === "string" && message ? { results, excludedMessage: message } : { results };
+}
+
+/** One row of the coder "VA Definitions" list (`GET /va-definitions`); the definition as server-made plain text. */
+export interface VaDefinitionListItem {
+  va_code: string;
+  title: string;
+  definition_text: string;
+}
+
+export function parseVaDefinitionList(value: unknown): VaDefinitionListItem[] {
+  return array(record(value, "va_definitions").definitions, "va_definitions.definitions", (item, field) => {
+    const source = record(item, field);
+    return {
+      va_code: string(source.va_code, `${field}.va_code`),
+      title: string(source.title, `${field}.title`),
+      definition_text: nullableString(source.definition_text, `${field}.definition_text`) ?? "",
+    };
+  });
+}
+
+function parseIcdSearchItems(value: unknown): IcdSearchItem[] {
   return array(value, "icd.search", (item, field) => {
     const source = record(item, field);
     const code = source.icd_code;

@@ -8,6 +8,7 @@ export function createNativeWorkspaceTransport(userId: string): JsonRequester {
     const response = await authedRequest<unknown>(userId, path, {
       method: init.method,
       body: init.json,
+      allowList: init.allowList,
     });
     return response.body;
   };

@@ -69,9 +69,12 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
       // The VA cause bucket comes from the pack bundled in the app, as offline: no network call, same answer in every mode.
       // A "/" cluster needs WHO's causing condition, which only the server (online) or the engine (offline editor) knows;
       // the server applies the same rule, and the pack's first stem is the fallback when it cannot be reached.
-      getVaDefinitionForIcd: (code: string) => code.includes("/")
-        ? base.getVaDefinitionForIcd(code).catch(() => getBundledVaDefinition(code))
-        : getBundledVaDefinition(code),
+      // The pack is ICD-11 only: an ICD-10 code (the simple COD panel) asks the server.
+      getVaDefinitionForIcd: (code: string, classification?: "icd10" | "icd11") => classification === "icd10"
+        ? base.getVaDefinitionForIcd(code, classification)
+        : code.includes("/")
+          ? base.getVaDefinitionForIcd(code).catch(() => getBundledVaDefinition(code))
+          : getBundledVaDefinition(code),
       async saveInitial(...args: Parameters<typeof base.saveInitial>) {
         const reply = await base.saveInitial(...args);
         invalidate(args[0]);
@@ -135,6 +138,7 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
     return <CaseWorkspaceScreen
       identity={identity}
       api={api}
+      serverOrigin={account.server ?? undefined}
       icd11DorisEnabled={icd11Preference.enabled}
       onIcd11DorisOpenSettings={() => router.push({ pathname: "/settings", params: { userId } })}
       assertIcd11DorisEnabled={async () => {

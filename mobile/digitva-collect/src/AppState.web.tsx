@@ -25,6 +25,7 @@ import { resetFirstHomeLoad } from "./web/roleHome";
 import { clearBrowserDraft } from "./workspace/doris/browserDraft";
 import { browserSessionStore, clearAllScroll } from "./workspace/viewState";
 import { setInterviewAssetWarmEligibility } from "./web/interviewAssetCache";
+import { unsentWebAttachmentCount, wipeOtherUsersWebAttachments, wipeWebAttachments } from "./web/attachmentBufferSession";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 const NOTIFICATION_AUTH_RETRY_MS = 60_000;
@@ -103,6 +104,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [loginUrl, setLoginUrl] = useState<string>();
   const [actionCode, setActionCode] = useState<BrowserAppState["actionCode"]>();
   const [error, setError] = useState<string>();
+  const [unsentAtSignOut, setUnsentAtSignOut] = useState<{ count: number; answer: (signOut: boolean) => void }>();
+  const attachmentBufferUser = useRef<string | undefined>(undefined);
   const [uiLocale, setLocaleState] = useState("en");
   const [sessionGeneration, setSessionGeneration] = useState(0);
   const [notificationGeneration, setNotificationGeneration] = useState(0);
@@ -212,6 +215,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const accessChanged = applyDefinitionAccess(result);
     if (result.authenticated) {
       const userId = result.bootstrap.user.user_id;
+      // A different user in this browser: unsent interview files of the previous one are deleted (PII).
+      if (attachmentBufferUser.current !== userId) {
+        attachmentBufferUser.current = userId;
+        void wipeOtherUsersWebAttachments(userId);
+      }
       if (accessChanged || notificationSession.current?.userId !== userId) {
         resetNotificationSession(userId, accessChanged);
       }
@@ -403,6 +411,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const link = bootstrap?.links.logout;
     if (!link || !bootstrap) return;
     await flushBeforeSignOut();
+    // Interview files still on this device are deleted at sign-out (PII), after a warning the user can back out of.
+    const userId = bootstrap.user.user_id;
+    const unsent = await unsentWebAttachmentCount(userId);
+    if (unsent > 0 && !(await new Promise<boolean>((answer) => setUnsentAtSignOut({ count: unsent, answer })))) return;
+    await wipeWebAttachments(userId);
     clearWebRecall();
     clearBrowserDraft();
     setInterviewAssetWarmEligibility(false);
@@ -514,6 +527,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           cancelLabel={t("idleStaySignedIn")}
           onConfirm={() => goToSignIn(true)}
           onCancel={idleWarning.stay}
+        />
+      ) : null}
+      {unsentAtSignOut ? (
+        <ConfirmDialog
+          title={t("webAttachmentsSignOutTitle")}
+          message={t("webAttachmentsSignOutMessage", { count: unsentAtSignOut.count })}
+          confirmLabel={t("signOut")}
+          cancelLabel={t("cancel")}
+          destructive
+          onConfirm={() => { setUnsentAtSignOut(undefined); unsentAtSignOut.answer(true); }}
+          onCancel={() => { setUnsentAtSignOut(undefined); unsentAtSignOut.answer(false); }}
         />
       ) : null}
     </Context.Provider>

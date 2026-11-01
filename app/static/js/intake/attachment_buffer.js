@@ -188,7 +188,7 @@ export function createUploader({
   isOnline = () => globalThis.navigator?.onLine !== false,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
-  onEvent = () => {},
+  onEvent = (_event) => {},
 }) {
   let inFlight;
   let dirty = false;

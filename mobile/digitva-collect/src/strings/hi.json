@@ -1933,5 +1933,22 @@
   "offlineAttachedImage": "संलग्न चित्र",
   "offlineAttachedAudio": "संलग्न ऑडियो",
   "offlineAttachmentOpen": "संलग्न फ़ाइल खोलें",
-  "offlineAttachmentClose": "संलग्न फ़ाइल बंद करें"
+  "offlineAttachmentClose": "संलग्न फ़ाइल बंद करें",
+  "webAttachmentsUnavailable": "इस ब्राउज़र में रिकॉर्डिंग और फ़ाइलें जोड़ना उपलब्ध नहीं है।",
+  "webAttachmentsWaiting": "भेजे जाने की प्रतीक्षा में फ़ाइलें: {count}।",
+  "webAttachmentsWaitingOffline": "भेजे जाने की प्रतीक्षा में फ़ाइलें: {count} (ऑफ़लाइन)।",
+  "webAttachmentsSubmitWaiting": "जोड़ी गई फ़ाइलें जो अभी भेजी जानी बाकी हैं: {count}। उनके भेजे जाने के बाद फिर से जमा करें।",
+  "webAttachmentsSignOutTitle": "न भेजी गई फ़ाइलें हटा दी जाएँगी",
+  "webAttachmentsSignOutMessage": "अभी तक न भेजी गई फ़ाइलें: {count}। साइन आउट करने पर वे इस ब्राउज़र से हटा दी जाएँगी। फिर भी साइन आउट करें?",
+  "webAttachmentsPendingServer": "कुछ जोड़ी गई फ़ाइलें अभी सर्वर तक नहीं पहुँची हैं। उनके भेजे जाने की प्रतीक्षा करें, फिर से जमा करें।",
+  "webAttachmentRejected": "{file}: सर्वर ने यह फ़ाइल अस्वीकार कर दी। इसे रखा नहीं गया; इसे फिर से रिकॉर्ड करें या जोड़ें।",
+  "webAttachmentHeldMissing": "{file}: यह साक्षात्कार अब सर्वर पर मौजूद नहीं है, इसलिए फ़ाइल नहीं भेजी जा सकी। यह अभी भी इस डिवाइस पर रखी है।",
+  "webAttachmentHeldClosed": "{file}: यह साक्षात्कार अब बदलाव के लिए खुला नहीं है (यह जमा या रद्द कर दिया गया), इसलिए फ़ाइल नहीं भेजी जा सकी। यह अभी भी इस डिवाइस पर रखी है।",
+  "webAttachmentDelete": "इस डिवाइस से हटाएँ",
+  "webAttachmentsExpired": "ये फ़ाइलें 7 दिनों में नहीं भेजी गईं और इस डिवाइस से हटाई जा रही हैं; इन्हें फिर से रिकॉर्ड करें या जोड़ें: {files}।",
+  "webAttachmentsExpiring": "ये फ़ाइलें नहीं भेजी गई हैं और एक दिन के भीतर इस डिवाइस से हटा दी जाएँगी: {files}। इन्हें भेजने के लिए नेटवर्क से जुड़ें।",
+  "webAttachmentOfDay": "{day} की {kind}",
+  "webAttachmentKindRecording": "रिकॉर्डिंग",
+  "webAttachmentKindImage": "छवि",
+  "webAttachmentKindPdf": "PDF"
 }

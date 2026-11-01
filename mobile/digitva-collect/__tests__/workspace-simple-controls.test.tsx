@@ -63,7 +63,7 @@ function apiFor(overrides: Partial<WorkspaceApi> = {}) {
     saveInitial: jest.fn(async () => ({ va_sid: "sid-1", initial_assessment_id: "initial-1" })),
     saveFinal: jest.fn(async () => ({ va_sid: "sid-1", final_assessment_id: "final-1" })),
     saveNotCodeable: jest.fn(async () => ({ va_sid: "sid-1", workflow_state: "not_codeable" })),
-    searchIcd: jest.fn(async () => []),
+    searchIcd: jest.fn(async () => ({ results: [] })),
     ...overrides,
   } as unknown as WorkspaceApi;
 }
@@ -85,29 +85,36 @@ async function flush() {
   await Promise.resolve();
 }
 
-it("uses WHO multiple choice controls while preserving option order and save payload", async () => {
+it("keeps the other-conditions values and order through the searchable multi-select", async () => {
   const api = apiFor();
   const { tree } = render(api);
-  const cough = byTestId(tree, "question-simple_cod_other_conditions-choice-Cough");
-  const fever = byTestId(tree, "question-simple_cod_other_conditions-choice-Fever");
-  expect(cough.props.accessibilityState).toEqual({ checked: true, disabled: false });
-  expect(fever.props.accessibilityState).toEqual({ checked: false, disabled: false });
+  expect(tree.root.findAllByProps({ testID: "other-condition-remove-Cough" }).length).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ testID: "other-condition-option-Fever" })).toHaveLength(0);
+  await act(async () => byLabel(tree, "Other significant conditions (if any)").props.onChangeText("fev"));
+  expect(tree.root.findAllByProps({ testID: "other-condition-option-Cough" })).toHaveLength(0);
   await act(async () => {
-    fever.props.onPress();
+    byTestId(tree, "other-condition-option-Fever").props.onPress();
     await flush();
   });
   expect(api.saveInitial).not.toHaveBeenCalled();
   await act(async () => {
-    byLabel(tree, "Save initial COD").props.onPress();
+    byLabel(tree, "Save Assessment").props.onPress();
     await flush();
   });
   expect(api.saveInitial).toHaveBeenCalledWith("sid-1", { immediate_cod: "A00", antecedent_cod: "B00", other_conditions: ["Cough", "Fever"] }, "coding");
+  await act(async () => byTestId(tree, "other-condition-remove-Cough").props.onPress());
+  await act(async () => {
+    byLabel(tree, "Save Assessment").props.onPress();
+    await flush();
+  });
+  expect(api.saveInitial).toHaveBeenLastCalledWith("sid-1", { immediate_cod: "A00", antecedent_cod: "B00", other_conditions: ["Fever"] }, "coding");
   await act(async () => tree.unmount());
 });
 
 it("keeps not-codeable reasons exclusive and submits the documented reason payload", async () => {
   const api = apiFor();
   const { tree } = render(api);
+  await act(async () => byLabel(tree, "Not Codeable").props.onPress());
   await act(async () => {
     byTestId(tree, "question-simple_cod_not_codeable-choice-no_info").props.onPress();
     await flush();
@@ -118,10 +125,10 @@ it("keeps not-codeable reasons exclusive and submits the documented reason paylo
     await flush();
   });
   expect(byTestId(tree, "question-simple_cod_not_codeable-choice-no_info").props.accessibilityState).toEqual({ selected: false, disabled: false });
-  const otherInput = byLabel(tree, "Other not-codeable reason");
+  const otherInput = byLabel(tree, "Please brief the other issue");
   await act(async () => otherInput.props.onChangeText("No usable information"));
   await act(async () => {
-    byLabel(tree, "Submit not-codeable report").props.onPress();
+    byLabel(tree, "Report Issue").props.onPress();
     await flush();
   });
   expect(api.saveNotCodeable).toHaveBeenCalledWith("sid-1", { reason: "others", other: "No usable information" });

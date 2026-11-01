@@ -4,12 +4,14 @@
 
 Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Collect and Collect
 Plus 0.3.16 are live on staging (`3d5cf4f06`, web `expo-web-v2026.10.30.2`).
-Collect Plus 0.3.17 is on the USB Samsung. main carries 0.3.18 (phone-check
-fixes, finalize race, DORIS pre-start and spinner; see CHANGELOG): the owner
-dispatches the CI releases. Never
-reset or stash; preserve the unrelated `scripts/loadtest/restore.sh`,
-manuscript decks, tool-config and Play artwork changes. WHO notes, parity runs
-and phone measurements live in `private/` (git-ignored; also holds keys).
+Collect Plus 0.3.17 is on the USB Samsung. main carries 0.3.18 plus, since
+1 Nov, browser interview attachments (`digitva-e621`), the ICD-10 search fix
+(`digitva-zqk2`) and Expo ICD-10 parity (`digitva-tk7j`); none of those three
+is in any APK or web export yet. The CI APK in `build/ci-plus/` (0.3.18, built
+from `79889d9b3`) predates them. Never reset or stash; preserve the unrelated
+`scripts/loadtest/restore.sh`, manuscript decks, `.claude/launch.json`, the
+InterVA `.tasks` note and Play artwork. WHO notes, parity
+runs and phone measurements live in `private/` (git-ignored; also holds keys).
 
 Owner rule (bd memory `coding-parity-all-surfaces`): coding works the same on
 the web, Collect online and Collect Plus online and offline. NQA and Social
@@ -18,75 +20,80 @@ has neither, and its coding is one direct step with SmartVA visible.
 
 ## Ranked next steps
 
-1. Offline full coding workspace (`digitva-9cll.22.8`, on main once committed):
-   offline coding opens `CaseWorkspaceScreen` over a local `WorkspaceApi` and
-   the drift-tested display pack (`assets/va-display-WHO_2022_VA.json`, 14
-   golden server renders). Not yet seen on a device: check on the USB Samsung
-   in a release build (categories, history colours, summary, attachments open
-   on tap, private note, SmartVA in the COD section, DORIS save), then close
-   the bead. Known gaps: the native category view is still below the web's
-   (`.22.3`); NQA/SA flags are not in cached reference data, so enrolled
-   offline shows neither (`.22.4`); the phone strips with the current bundled
-   instrument, not the draft's pinned version; `.22.9` label split
-   ("Heart, attack") is pinned in the golden on both sides.
-2. Verify 0.3.18 on the USB Samsung (RZCW81QZT2Z) once built: icons and
-   confirmations, Hindi wrap (Id10128/Id10129/Id10484), certificate camera and
-   preview, standalone document questions, tabs and row buttons, no error after
-   Complete (`digitva-ljx2`), Send now disabled, DORIS warm on the Pending tab
-   (`digitva-4j8h`; ICD11WARM in logcat) and the spinner. Then close
-   `digitva-9l5c`, `digitva-ljx2`, `digitva-4j8h`. Release builds only.
-3. `digitva-9cll.5` phone proof, still to do: standalone certificate steps
-   (search, Use, Build/axes, details, hierarchy, XK8G/NC72 refusals, DORIS,
-   CoDEdit, save shows Coded), then an enrolled TST001 coder offline (the owner
-   signs in), incl. when `:icd11` starts. Done 30 Oct: standalone record,
-   finalize, SmartVA, coding opens; `:icd11` started 0.53 s after tapping
-   Offline coding, not at launch (so `docs/policy/field-data-collection.md` is
-   right for standalone; check enrolled before closing). Capture:
-   `private/engine-measurements/20261030-coding-journey` (icd11 PSS max 819 MB,
-   no LMK).
-4. `make collect-plus-local` (debug-signed local verification build, not for
-   distribution): container mode untested end to end (Docker 12 GB or more;
-   24 GB set 2026-10-31); `NATIVE=1` builds on the Mac (Node 24 and Java 21
-   accepted with a warning) built a debug-signed APK end to end on
-   2026-10-31 in 4.5 min (4,313 Jest tests, module JVM tests, assembleRelease)
-   after the source copy kept `resource/doris_help_examples.json`.
-   The engine's memory grew 511 MB to 1,082 MB over the 50,959-call full
-   parity run (591 MB on 29 Oct without the golden/sweep entity reads);
-   attributed to WHO's entity cache, not confirmed.
-5. `digitva-9cll.22` coding parity (P1), children ranked: `.22.2` online phone
-   attachments never load (likely one prop), `.22.4` enrolled offline NQA/SA
-   ignore the project and import skips the gates, `.22.3` native category view
-   below the web's, `.22.5` offline not-codeable/remark, `.22.6` SmartVA sex
-   raw code, `.22.9` multi-select label split.
-6. `digitva-9cll.23` standalone direct coding ("Save cause of death").
-   `digitva-9cll.24` coded case: one read-only summary screen (as the Expo
-   web completed-case view) with Revise reopening coding pre-filled; the Coded
-   tab's interim "Revise coding" then opens it.
-7. `digitva-gt2v`, `digitva-bged`: offline reply-shape and Build/axes bugs.
-8. DORIS validation gaps in `docs/current-state/doris-validation-checks.md`:
-   `digitva-l0ey`, `digitva-2j57`, `digitva-e505`, `digitva-giym`,
-   `digitva-o16a`, `digitva-37gr`.
-9. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
-   Android ICD/DORIS review findings.
+1. Builds that carry the 1 Nov work (owner dispatches; release builds only on
+   CI): a 0.3.19 version commit, then the Collect and Collect Plus APK
+   workflows and `expo-web-release.yml`; bump the `EXPO_WEB_TAG` and APK pins
+   in `docker-compose.yml`. Dev `/app/` serves `mobile/digitva-collect/dist`
+   (last built 24 Oct): rebuild it locally to see the new screens on dev.
+2. Verify on the USB Samsung (RZCW81QZT2Z): install
+   `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (release-signed,
+   updates 0.3.17 in place) for the 0.3.18 checks and the offline workspace;
+   the 0.3.19 build for the rest.
+   - 0.3.18: icons and confirmations, Hindi wrap (Id10128/Id10129/Id10484),
+     certificate camera and preview, standalone document questions, tabs and
+     row buttons, no error after Complete (`digitva-ljx2`), Send now disabled,
+     DORIS warm on the Pending tab (`digitva-4j8h`; ICD11WARM in logcat) and
+     the spinner. Then close `digitva-9l5c`, `digitva-ljx2`, `digitva-4j8h`.
+   - Offline full coding workspace (`digitva-9cll.22.8`): categories, history
+     colours, summary, attachments open on tap, private note, SmartVA in the
+     COD section, DORIS save; then close the bead. Known gaps: `.22.3`
+     native category view, `.22.4` NQA/SA not cached, the phone strips with
+     the bundled instrument rather than the draft's pin, `.22.9` label split.
+3. Browser interview attachments (`digitva-e621`): on staging after a deploy
+   (owner's go), camera, image upload, audio and a PDF in Chrome on a phone and
+   a desktop; submit and check the files reach the case; sign out with an
+   unsent file (warning, deleted). Hindi strings: `digitva-ygo5`.
+4. Expo ICD-10 parity (`digitva-tk7j`): checked on dev web without a save. Try
+   a save on web and coding online on the phone. Flask's previous
+   immediate/antecedent final causes are not in the workspace API. Check
+   `digitva-2q7c` (workspace reloads when its tab becomes visible again) in a
+   normal browser.
+5. Standalone engine (`digitva-xw1s`): the engine repo's CI has its first run on
+   the 1 Nov push; once green, the owner tags `v0.1.0` and publishes the draft
+   release. Linux and Intel Mac untried; no Windows build (`src/hostfxr.rs`);
+   Linux needs glibc 2.39+. The React DORIS component is not started.
+6. `digitva-9cll.5` phone proof: standalone certificate steps (search, Use,
+   Build/axes, details, hierarchy, XK8G/NC72 refusals, DORIS, CoDEdit, save
+   shows Coded), then an enrolled TST001 coder offline (the owner signs in),
+   incl. when `:icd11` starts. Capture so far:
+   `private/engine-measurements/20261030-coding-journey`.
+7. `digitva-9cll.22` coding parity children: `.22.2` online phone attachments
+   never load, `.22.4`, `.22.3`, `.22.5` offline not-codeable/remark, `.22.6`
+   SmartVA sex raw code, `.22.9`.
+8. `digitva-9cll.23` standalone direct coding; `digitva-9cll.24` coded-case
+   summary with Revise.
+9. `digitva-gt2v`, `digitva-bged`: offline reply-shape and Build/axes bugs.
+10. DORIS validation gaps (`docs/current-state/doris-validation-checks.md`):
+    `digitva-l0ey`, `digitva-2j57`, `digitva-e505`, `digitva-giym`,
+    `digitva-o16a`, `digitva-37gr`.
+11. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
+    Android ICD/DORIS review findings.
+12. `make collect-plus-local`: container mode untested end to end (Docker 12 GB
+    or more); `NATIVE=1` works on the Mac (4.5 min, debug-signed, never
+    distributed).
 
 ## Open owner decisions
 
 - Send the WHO technical note (`docs/manuscript/who-technical-note-offline-icd11-doris.md`,
   one `[OPEN]`: a WHO contact email).
+- Engine repo `tests/fixtures/doris_help_examples.json`: provenance unconfirmed
+  (looks like WHO's DORIS help pages); kept in git, kept out of the crate.
 - `digitva-9cll.14`: should an enrolled phone send the interview when its
   offline coding is rejected or stale?
 - `digitva-dn15`: should the ECT selection check also refuse non-leaf categories?
-- Hindi strings awaiting approval (incl. 0.3.17's tab, Settings and backup
-  strings; `src/i18n.ts` REVIEW NEEDED note).
+- Hindi strings awaiting approval (`digitva-ygo5`, 0.3.17's tab, Settings and
+  backup strings; `src/i18n.ts` REVIEW NEEDED note).
 - WHO data files' duplicated sha256 values: keep both, or add a drift check.
 - CI as the engine release source (after `digitva-9cll.11`).
+- InterVA2022/InSilicoVA2022 as experimental algorithms
+  (`.tasks/2026-10-30-interva2022-insilicova2022-experimental.md`): needs a go.
 
 ## Boundaries still true
 
 - Golden corpora are owner-approved and frozen (`scripts/icd11-golden/README.md`).
-- Release builds only on CI; local debug builds for the emulator only. Engine
-  bundles use only public, unrestricted inputs. Publishing releases is the
-  owner's command; the agent approves gates.
+- Release builds only on CI; local debug builds for development only. Engine
+  bundles use only public, unrestricted inputs. Publishing releases and tags is
+  the owner's command; the agent approves gates.
 - On the owner's real phone: no PINs, passwords or system settings; leave the
   "vivekdemo" account alone. Emulator accounts: `private/emulator-test-accounts.md`.
 - Plus stays prerelease; WHO has not answered the licence points in writing.
@@ -100,3 +107,5 @@ has neither, and its coding is one direct step with SmartVA visible.
 - 0.3.16 phones: the standalone home list is stale until Lock and unlock.
 - Local vendor `dist` may lag the engine source: run `npm run vendor:build` in
   `mobile/digitva-collect` before a local device build.
+- `build/collect-plus-local/…-LOCAL.apk` (31 Oct) was built mid-edit of
+  `SimpleCodPanel.tsx`; do not test from it.

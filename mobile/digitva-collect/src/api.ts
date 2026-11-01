@@ -644,6 +644,8 @@ export interface ClientRequestOptions {
   background?: boolean;
   /** A file sent as the raw body (`application/octet-stream`) with its SHA-256 (hex); used instead of JSON. */
   rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
+  /** The route answers a JSON list on success (the ICD-10 coding search); any other route's list is malformed. */
+  allowList?: boolean;
 }
 
 /** A live native device session, with no credentials or other sensitive fields. */
@@ -932,11 +934,16 @@ async function requestOnce<T>(
     if (response.status === 204) return { status: 204, body: undefined as T };
     const contentType = response.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
+    // A successful JSON list is accepted only from a route that answers one (`allowList`); a refusal is read as an
+    // object only, for its code.
+    let list: unknown[] | undefined;
     let malformedJson = false;
     if (contentType.includes("json")) {
       try {
         const parsed = await response.json();
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && response.ok && options.allowList) {
+          list = parsed;
+        } else if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
           body = parsed as Record<string, unknown>;
         } else {
           malformedJson = true;
@@ -983,7 +990,7 @@ async function requestOnce<T>(
       signalSessionIdle(code, options.token === undefined && !server);
       throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, body), path, options.method);
     }
-    return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
+    return { status: response.status, body: (list ?? body) as T, ...(csrf ? { csrf } : {}) };
   } finally {
     clearTimeout(timeout);
     if (tracked) cookieRequests.delete(controller);

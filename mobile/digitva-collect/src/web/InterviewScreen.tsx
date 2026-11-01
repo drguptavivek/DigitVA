@@ -31,6 +31,7 @@ import { AppHeaderBar } from "./AppHeader";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { InterviewCaseStrip } from "./InterviewCaseStrip";
+import { useInterviewAttachments } from "./interviewAttachments";
 import { RespondentConsentPanel } from "./StationConsentPanel";
 import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
 import { loadWhoCoreRuntime, loadWhoWebRuntime, type WhoWebRuntime } from "./whoRuntimeLoader";
@@ -191,6 +192,8 @@ const SUMMARY_ANSWER_KEYS = [
 export function interviewErrorText(error: unknown, instrument?: InstrumentDefinition, language = "en"): string {
   const definitionText = definitionErrorText(error);
   if (definitionText) return definitionText;
+  // The page sends its files before it submits; this is the server finding one that has not arrived.
+  if (error instanceof ClientApiError && error.code === "attachments_pending") return t("webAttachmentsPendingServer");
   if (error instanceof ClientApiError && error.code === "draft_stale") {
     const message = error.payload?.error;
     if (typeof message === "string" && message.trim()) return message.trim().slice(0, 500);
@@ -347,6 +350,24 @@ export default function InterviewScreen() {
     () => coveredFields.size ? [...(draftPrefill?.lockedQuestionNames ?? []), ...coveredFields] : draftPrefill?.lockedQuestionNames,
     [coveredFields, draftPrefill],
   );
+
+  // A file is named by the question it answers, never by its file name.
+  const attachmentLabel = useCallback((id: string) => {
+    const data = (changedDataRef.current ?? draft?.envelope.data ?? {}) as Record<string, unknown>;
+    const name = Object.keys(data).find((key) => (data[key] as { id?: unknown } | null)?.id === id);
+    const question = name ? instrument?.questions.find((entry) => entry.name === name) : undefined;
+    if (!question || !whoRuntime) return undefined;
+    return whoRuntime.core.localizeText(question.label, locale, question.name).replace(/<[^>]*>/g, "").trim() || undefined;
+  }, [draft, instrument, locale, whoRuntime]);
+  // Only an open server draft takes files; a revision's draft is closed, so every upload would be refused.
+  const attachments = useInterviewAttachments({
+    web: whoRuntime?.web,
+    userId: loadedBootstrap?.user.user_id,
+    draftId: store instanceof ServerDraftStore && loadedBootstrap === bootstrap ? draftId : undefined,
+    draftsEndpoint: loadedBootstrap?.links.intakeDrafts,
+    csrf: requestCsrf,
+    labelFor: attachmentLabel,
+  });
 
   const initialise = useCallback(async (isInitializationActive: () => boolean) => {
     if (!bootstrap || !definitionCache || !requestCsrf) return;
@@ -713,7 +734,8 @@ export default function InterviewScreen() {
   useEffect(() => onBeforeLock(async () => {
     await controller?.saveDraft();
     if (store instanceof ServerDraftStore) await store.flush();
-  }), [controller, store, onBeforeLock]);
+    await attachments.send();
+  }), [attachments.send, controller, store, onBeforeLock]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return undefined;
@@ -825,6 +847,13 @@ export default function InterviewScreen() {
         if (currentDraft.draft.status !== "submitted") throw error;
       }
       if (!isCurrent()) return;
+      // Every attached file must be on the server before the interview is submitted (the server refuses it otherwise).
+      const waiting = await attachments.send();
+      if (!isCurrent()) return;
+      if (waiting) {
+        setMessage(t("webAttachmentsSubmitWaiting", { count: waiting }));
+        return;
+      }
       if (store instanceof ServerDraftStore && typeof store.recordTimelineEvent === "function") {
         await store.recordTimelineEvent("submit_started");
       }
@@ -1242,6 +1271,20 @@ export default function InterviewScreen() {
             </View>
           ) : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
+          {attachments.unavailable ? <Text style={styles.muted} testID="web-attachments-unavailable">{t("webAttachmentsUnavailable")}</Text> : null}
+          {attachments.status ? <Text style={styles.muted} testID="web-attachments-status">{attachments.status}</Text> : null}
+          {attachments.notices.length ? (
+            <View testID="web-attachments-notices" accessibilityRole="alert" style={{ gap: 8 }}>
+              {attachments.notices.map((notice, index) => <Text key={index} style={styles.error}>{notice}</Text>)}
+              <Button kind="secondary" label={t("dismiss")} onPress={attachments.dismissNotices} />
+            </View>
+          ) : null}
+          {attachments.held.map((file) => (
+            <View key={file.id} testID="web-attachment-held" style={styles.row}>
+              <Text style={styles.error}>{file.text}</Text>
+              <Button kind="secondary" label={t("webAttachmentDelete")} onPress={() => void attachments.deleteHeld(file.id)} />
+            </View>
+          ))}
           {consentPending || changingConsent ? (
             consentGate ? (
               <RespondentConsentPanel
@@ -1313,6 +1356,7 @@ export default function InterviewScreen() {
               {...(serverProblems ? { serverProblems } : {})}
               lockedQuestionNames={lockedQuestionNames}
               portalThemeStyle={webFormStyle}
+              {...(attachments.platform ? { platform: attachments.platform } : {})}
             />
           </View>}
         </>

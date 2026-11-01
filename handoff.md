@@ -21,7 +21,7 @@ has neither, and its coding is one direct step with SmartVA visible.
 ## Ranked next steps
 
 1. Builds that carry the 1 Nov work (owner dispatches; release builds only on
-   CI): a 0.3.19 version commit, then the Collect and Collect Plus APK
+   CI): main is at 0.3.19; run the Collect and Collect Plus APK
    workflows and `expo-web-release.yml`; bump the `EXPO_WEB_TAG` and APK pins
    in `docker-compose.yml`. Dev `/app/` serves `mobile/digitva-collect/dist`
    (last built 24 Oct): rebuild it locally to see the new screens on dev.

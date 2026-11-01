@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-01
 
+- **Collect and Collect Plus 0.3.19**: version bump so the CI builds carry the
+  browser interview attachments (`digitva-e621`; native builds pick up
+  `metro.config.js`), the ICD-10 search fix (`digitva-zqk2`) and Expo ICD-10
+  parity (`digitva-tk7j`) to phones.
+
 - **ICD-11 engine released as code only** (`digitva-xw1s`;
   `docs/policy/icd11-local-api-runtime.md`, owner decision 1 Nov):
   `vendor/who-icd11-api` gains an MIT licence, a WHO notice, CI, and a

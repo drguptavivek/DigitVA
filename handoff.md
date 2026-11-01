@@ -54,10 +54,13 @@ has neither, and its coding is one direct step with SmartVA visible.
    immediate/antecedent final causes are not in the workspace API. Check
    `digitva-2q7c` (workspace reloads when its tab becomes visible again) in a
    normal browser.
-5. Standalone engine (`digitva-xw1s`): the engine repo's CI has its first run on
-   the 1 Nov push; once green, the owner tags `v0.1.0` and publishes the draft
-   release. Linux and Intel Mac untried; no Windows build (`src/hostfxr.rs`);
-   Linux needs glibc 2.39+. The React DORIS component is not started.
+5. Standalone engine (`digitva-xw1s`): CI green on `6be9169` (Linux
+   integration 8/8 incl. WHO's certificates); `v0.1.0` tagged 1 Nov and its
+   draft release built (4 archives, each only binary + LICENSE + NOTICE +
+   README). The owner publishes the draft; then close the bead. Built
+   binaries not yet run on Linux or Intel Mac; no Windows build
+   (`src/hostfxr.rs`); Linux needs glibc 2.39+. The React DORIS component is
+   not started.
 6. `digitva-9cll.5` phone proof: standalone certificate steps (search, Use,
    Build/axes, details, hierarchy, XK8G/NC72 refusals, DORIS, CoDEdit, save
    shows Coded), then an enrolled TST001 coder offline (the owner signs in),

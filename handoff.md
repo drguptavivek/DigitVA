@@ -24,9 +24,11 @@ has neither, and its coding is one direct step with SmartVA visible.
 1. Staging runs `04d824757` (deployed 1 Nov; web `expo-web-v2026.11.01.1`;
    old-APK audit since `3d5cf4f06` found nothing). Rollback:
    `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 3d5cf4f06818148cc231fd1500891415423bdf81`.
-   `/download/android` still serves 0.3.16: staging's `.env` points it at the
-   hand-kept `private/android-hosted`, which the deploy never touches; the
-   owner copies the 0.3.19 APKs there from `minerva_app:/opt/digitva/android`.
+   `/download/android` and `/download/android/plus` serve 0.3.19 (checksums
+   match the releases). Staging's `.env` points them at the hand-kept
+   `private/android-hosted`, which the deploy never touches: after each
+   deploy the owner copies the new APKs there from
+   `minerva_app:/opt/digitva/android` (`docker cp` over `scripts/ssm.sh`).
    Dev `/app/` serves `mobile/digitva-collect/dist` (last built 24 Oct):
    rebuild it locally to see the new screens on dev.
 2. Verify on the USB Samsung (RZCW81QZT2Z): install

@@ -11,14 +11,14 @@
 # (android-v<version>), downloaded and verified into /opt/digitva/android and
 # served at /download/android beside the GitHub releases link. Empty = none.
 x-release-pins: &release-pins
-  PLUS_ANDROID_APK_TAG: "collect-plus-v0.3.16-plus.1"
-  PLUS_ANDROID_APK_ASSET: "digitva-collect-plus-0.3.16-arm64-v8a.apk"
-  PLUS_ANDROID_APK_SHA256: "ba274d35250ff4049a2dbadf09ddb0be17c208c5a57b94d27350567b798d068f"
-  ANDROID_APK_TAG: "android-v0.3.16"
-  ANDROID_APK_ASSET: "digitva-collect-0.3.16-arm64-v8a.apk"
-  ANDROID_APK_SHA256: "45924b6ffde08b43fdae2f2e8b0bc1f6d0db39a8f3b1c72b35f4331c1fd4af12"
-  EXPO_WEB_TAG: "expo-web-v2026.10.30.2"
-  EXPO_WEB_SHA256: "a82eb7f58096688cfb40488fe075ebd5ad6ec3a02107dbeecfaf86f5e3f033b8"
+  PLUS_ANDROID_APK_TAG: "collect-plus-v0.3.19-plus.1"
+  PLUS_ANDROID_APK_ASSET: "digitva-collect-plus-0.3.19-arm64-v8a.apk"
+  PLUS_ANDROID_APK_SHA256: "68855ed5c31d000fc368e476fa9dba3e9d6980aeb02e4851ed0c77a770bde98c"
+  ANDROID_APK_TAG: "android-v0.3.19"
+  ANDROID_APK_ASSET: "digitva-collect-0.3.19-arm64-v8a.apk"
+  ANDROID_APK_SHA256: "c3efd9b652df02be8c3df1efad2c82873f62afd7c8046e7bd07bb1fd3217dcf2"
+  EXPO_WEB_TAG: "expo-web-v2026.11.01.1"
+  EXPO_WEB_SHA256: "aed14e9836c18b1d30dcc29b8b683a5e86fa00ba256e6c67edf238dc563697c9"
   SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}
   SMARTVA_RS_VERSION: "v3.0.2"
   SMARTVA_RS_SHA256_ARM64: "a4f3f59f75d4b31b406b3de68f348f32a684566efc8a769b5fdf25d825d71c66"

@@ -8,7 +8,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 - **Collect and Collect Plus 0.3.19**: version bump so the CI builds carry the
   browser interview attachments (`digitva-e621`; native builds pick up
   `metro.config.js`), the ICD-10 search fix (`digitva-zqk2`) and Expo ICD-10
-  parity (`digitva-tk7j`) to phones.
+  parity (`digitva-tk7j`) to phones. Published as `android-v0.3.19`,
+  `collect-plus-v0.3.19-plus.1` and `expo-web-v2026.11.01.1` and pinned in
+  `docker-compose.yml` (staging not yet deployed).
 
 - **ICD-11 engine released as code only** (`digitva-xw1s`;
   `docs/policy/icd11-local-api-runtime.md`, owner decision 1 Nov):

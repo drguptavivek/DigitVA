@@ -6,9 +6,9 @@ Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Collect and Collect
 Plus 0.3.16 are live on staging (`3d5cf4f06`, web `expo-web-v2026.10.30.2`).
 Collect Plus 0.3.17 is on the USB Samsung. main carries 0.3.18 plus, since
 1 Nov, browser interview attachments (`digitva-e621`), the ICD-10 search fix
-(`digitva-zqk2`) and Expo ICD-10 parity (`digitva-tk7j`); none of those three
-is in any APK or web export yet. The CI APK in `build/ci-plus/` (0.3.18, built
-from `79889d9b3`) predates them. Never reset or stash; preserve the unrelated
+(`digitva-zqk2`) and Expo ICD-10 parity (`digitva-tk7j`); 0.3.19 (published
+1 Nov) carries all three. The CI APK in `build/ci-plus/` (0.3.18, built from
+`79889d9b3`) predates them. Never reset or stash; preserve the unrelated
 `scripts/loadtest/restore.sh`, manuscript decks, `.claude/launch.json`, the
 InterVA `.tasks` note and Play artwork. WHO notes, parity
 runs and phone measurements live in `private/` (git-ignored; also holds keys).
@@ -20,11 +20,12 @@ has neither, and its coding is one direct step with SmartVA visible.
 
 ## Ranked next steps
 
-1. Builds that carry the 1 Nov work (owner dispatches; release builds only on
-   CI): main is at 0.3.19; run the Collect and Collect Plus APK
-   workflows and `expo-web-release.yml`; bump the `EXPO_WEB_TAG` and APK pins
-   in `docker-compose.yml`. Dev `/app/` serves `mobile/digitva-collect/dist`
-   (last built 24 Oct): rebuild it locally to see the new screens on dev.
+1. Deploy 0.3.19 to staging (owner's go; `scripts/deploy-staging.sh`):
+   published 1 Nov as `android-v0.3.19`, `collect-plus-v0.3.19-plus.1` and
+   `expo-web-v2026.11.01.1`, pinned in `docker-compose.yml`. Staging runs
+   0.3.16, so audit the diff since `3d5cf4f06` for old-APK compatibility first.
+   Dev `/app/` serves `mobile/digitva-collect/dist` (last built 24 Oct):
+   rebuild it locally to see the new screens on dev.
 2. Verify on the USB Samsung (RZCW81QZT2Z): install
    `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (release-signed,
    updates 0.3.17 in place) for the 0.3.18 checks and the offline workspace;

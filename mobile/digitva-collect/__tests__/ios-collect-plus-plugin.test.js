@@ -10,7 +10,7 @@ jest.mock("@expo/config-plugins", () => ({
 
 const { withDangerousMod, withPodfile } = require("@expo/config-plugins");
 const withIosCollectPlus = require("../plugins/with-ios-collect-plus");
-const { excludedModules, patchPodfileExclude, plusBuildRequested } = require("../plugins/with-ios-collect-plus");
+const { excludedModules, patchPodfileExclude, plusBuildRequested, unpatchPodfileExclude } = require("../plugins/with-ios-collect-plus");
 
 // The target block of Expo SDK 57's template Podfile (node_modules/expo/template.tgz, ios/Podfile).
 const PODFILE = `platform :ios, podfile_properties['ios.deploymentTarget'] || '16.4'
@@ -96,9 +96,12 @@ describe("withIosCollectPlus", () => {
     );
   });
 
-  it("leaves the Podfile alone and stages before pod install in a full Plus build", () => {
+  it("only clears a stale exclusion from the Podfile and stages before pod install in a full Plus build", () => {
     withEnv({ APP_VARIANT: "plus", DIGITVA_IOS_SKIP_ICD11: undefined }, () => withIosCollectPlus({ name: "DigitVA", slug: "digitva" }));
-    expect(withPodfile).not.toHaveBeenCalled();
+    expect(withPodfile).toHaveBeenCalledTimes(1);
+    const podfileMod = withPodfile.mock.calls[0][1];
+    const stale = patchPodfileExclude(PODFILE, ["digitva-icd11", "digitva-smartva"]);
+    expect(podfileMod({ modResults: { contents: stale } }).modResults.contents).toBe(PODFILE);
     expect(withDangerousMod).toHaveBeenCalledTimes(1);
     expect(withDangerousMod.mock.calls[0][1][0]).toBe("ios");
   });
@@ -145,5 +148,13 @@ describe("withIosCollectPlus", () => {
       const run = stagingAction({ APP_VARIANT: "plus", DIGITVA_IOS_SKIP_ICD11: undefined });
       expect(run).toThrow("DIGITVA_IOS_SKIP_ICD11=1");
     });
+  });
+
+  it("a full Plus build removes an exclusion left by an earlier plain prebuild", () => {
+    const plain = patchPodfileExclude(PODFILE, ["digitva-icd11", "digitva-smartva"]);
+    expect(plain).toContain("use_expo_modules!(exclude:");
+    const restored = unpatchPodfileExclude(plain);
+    expect(restored).toBe(PODFILE);
+    expect(unpatchPodfileExclude(PODFILE)).toBe(PODFILE);
   });
 });

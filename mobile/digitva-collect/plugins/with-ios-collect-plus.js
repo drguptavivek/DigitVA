@@ -56,6 +56,18 @@ function patchPodfileExclude(contents, modules) {
   return contents.replace(USE_EXPO_MODULES, `${indent}${PODFILE_MARKER}\n${indent}use_expo_modules!(exclude: [${list}])`);
 }
 
+/**
+ * Undoes patchPodfileExclude: a full Plus build reuses a Podfile a plain prebuild patched (prebuild without --clean),
+ * and must not inherit its exclusion. A Podfile without the marker is returned unchanged.
+ */
+function unpatchPodfileExclude(contents) {
+  if (typeof contents !== "string") throw new Error("iOS Podfile contents must be a string");
+  if (!contents.includes(PODFILE_MARKER)) return contents;
+  const patched = /^([ \t]*)# DigitVA Collect Plus: engine modules excluded from this build\n[ \t]*use_expo_modules!\(exclude: \[[^\]]*\]\)[ \t]*$/m;
+  if (!patched.test(contents)) throw new Error("Unsupported iOS Podfile: existing Plus exclusion is missing");
+  return contents.replace(patched, (_block, indent) => `${indent}use_expo_modules!`);
+}
+
 /** Plus only: copies the private iOS engines into the modules. Throws the staging script's message when one is missing. */
 function stageIosEngines(projectRoot, env = process.env) {
   const smartva = require(path.join(projectRoot, "modules", SMARTVA_MODULE_NAME, "scripts", "stage-engine"));
@@ -69,12 +81,12 @@ function stageIosEngines(projectRoot, env = process.env) {
 
 module.exports = function withIosCollectPlus(config) {
   const excluded = excludedModules();
-  if (excluded.length > 0) {
-    config = withPodfile(config, (config) => {
-      config.modResults.contents = patchPodfileExclude(config.modResults.contents, excluded);
-      return config;
-    });
-  }
+  config = withPodfile(config, (config) => {
+    const contents = config.modResults.contents;
+    config.modResults.contents =
+      excluded.length > 0 ? patchPodfileExclude(contents, excluded) : unpatchPodfileExclude(contents);
+    return config;
+  });
   if (!plusBuildRequested()) return config;
   return withDangerousMod(config, [
     "ios",
@@ -89,6 +101,7 @@ module.exports.plusBuildRequested = plusBuildRequested;
 module.exports.icd11Skipped = icd11Skipped;
 module.exports.excludedModules = excludedModules;
 module.exports.patchPodfileExclude = patchPodfileExclude;
+module.exports.unpatchPodfileExclude = unpatchPodfileExclude;
 module.exports.stageIosEngines = stageIosEngines;
 module.exports.MODULE_NAME = MODULE_NAME;
 module.exports.SMARTVA_MODULE_NAME = SMARTVA_MODULE_NAME;

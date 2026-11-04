@@ -21,6 +21,10 @@ What landed, newest first. Details live in the commits and the linked docs;
   failure falls through to the live call. Values are JSON, not pickle. All
   Redis images are pinned to 7.4.12 (staging already ran 7.4.12). On dev a repeated DORIS search fell
   from 12.7 to 0.4 ms and a coding search from ~30 to ~4.5 ms.
+  Deployed to staging with the Statistics work as `3ab5c2d69` (web
+  `expo-web-v2026.11.04.1`; old-APK audit since `589c9b384` found no
+  blocker). On staging a repeated DORIS search took 1.3 ms instead of 47 ms,
+  and a coding search 16 ms instead of 499 ms.
 
 - **Statistics lists every interview and its numbers agree** (`digitva-vfll`;
   `docs/policy/case-list-views.md`, `docs/policy/area-dashboard.md`,

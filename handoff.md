@@ -3,8 +3,8 @@
 ## Start here
 
 Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Staging runs
-`04d824757` (0.3.19 server and web, deployed 1 Nov); phones there are on
-0.3.16 or older.
+`3ab5c2d69` (deployed 4 Nov: Statistics dashboards, ICD-11 caches, web
+`expo-web-v2026.11.04.1`); phones there are on 0.3.19 or older.
 Collect Plus 0.3.17 is on the USB Samsung. main carries 0.3.18 plus, since
 1 Nov, browser interview attachments (`digitva-e621`), the ICD-10 search fix
 (`digitva-zqk2`) and Expo ICD-10 parity (`digitva-tk7j`); 0.3.19 (published
@@ -21,13 +21,14 @@ has neither, and its coding is one direct step with SmartVA visible.
 
 ## Ranked next steps
 
-1. Staging runs `04d824757` (deployed 1 Nov; web `expo-web-v2026.11.01.1`;
-   old-APK audit since `3d5cf4f06` found nothing). Rollback:
-   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 3d5cf4f06818148cc231fd1500891415423bdf81`.
-   `/download/android` and `/download/android/plus` serve 0.3.19 (checksums
-   match the releases). Staging's `.env` points them at the hand-kept
+1. Staging runs `3ab5c2d69` (deployed 4 Nov; web `expo-web-v2026.11.04.1`;
+   old-APK audit since `589c9b384` found nothing). Rollback:
+   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 589c9b3848c6d45fb4b8febbba558c5026eb3630`.
+   New `minerva_icd_cache_redis` (128 MB) holds the ICD-11 caches; staging
+   has ~0.8 GB free RAM and no swap. `/download/android` and
+   `/download/android/plus` serve 0.3.19 from the hand-kept
    `private/android-hosted`, which the deploy never touches: after each
-   deploy the owner copies the new APKs there from
+   deploy with new APKs the owner copies them there from
    `minerva_app:/opt/digitva/android` (`docker cp` over `scripts/ssm.sh`).
    Dev `/app/` serves `mobile/digitva-collect/dist` (last built 24 Oct):
    rebuild it locally to see the new screens on dev.
@@ -95,7 +96,7 @@ has neither, and its coding is one direct step with SmartVA visible.
 - WHO data files' duplicated sha256 values: keep both, or add a drift check.
 - CI as the engine release source (after `digitva-9cll.11`).
 - Statistics Hindi strings, including the new singular forms, need a native
-  speaker's review (`digitva-omqx`). Statistics is not deployed to staging.
+  speaker's review (`digitva-omqx`).
 - InterVA2022/InSilicoVA2022 as experimental algorithms
   (`.tasks/2026-10-30-interva2022-insilicova2022-experimental.md`): needs a go.
 

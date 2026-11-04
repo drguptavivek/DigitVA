@@ -11,6 +11,12 @@ What landed, newest first. Details live in the commits and the linked docs;
   onset wait until the search closes. Results went from one row to about 370px
   on a 375×640 screen. The line controls and Search are 40px icon buttons
   (inline Lucide SVGs) on the title row, so the search box no longer collapses.
+  Deployed to staging as `589c9b384` the same day (old-APK audit since
+  `04d824757`: docs and demo CSS only). Before it, EBS snapshots
+  `snap-060962609c4f0c9a9` and `snap-06f0f60e4317c7df3`, and staging's
+  `vendor/who-icd11-api` moved from `854513a` to the recorded `6be9169`; the
+  Nov 1 deploy had left it behind, which failed the clean-checkout check.
+  Nothing on staging uses that folder (it is in `.dockerignore`).
 
 ## 2026-11-01
 

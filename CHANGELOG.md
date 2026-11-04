@@ -5,6 +5,21 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-04
 
+- **iOS port of Collect and Collect Plus, code only** (`digitva-nujw`, branch
+  `ios-port`: `d825f93`, `fb6a953`, `d8758cf`; `docs/policy/ios-client.md`,
+  `docs/current-state/ios-native-modules.md`,
+  `docs/current-state/expo-client.md`): plain Collect has iOS branches for
+  every Android-only call (date picker modal, expo-sharing share sheet, no
+  APK update or Play link, Settings for the clock), iOS bundle IDs follow the
+  Android variants, and Swift twins of the device-info, SmartVA and ICD-11
+  modules keep the Kotlin JS contract, each engine on its own thread in the
+  app process (iOS has no separate processes). SmartVA cross-compiles from
+  the unmodified submodule; the ICD-11 engine is a NativeAOT dynamic
+  framework. `with-ios-collect-plus` keeps both engines out of plain builds.
+  `ios-build.yml` builds an unsigned simulator app on macOS. Verified only by
+  Jest (4535 tests), tsc and `expo prebuild` on Linux; no Swift has compiled
+  against the real SDK and nothing has run on iOS.
+
 - **ICD-11 answers cached in their own Redis** (`digitva-er7p`;
   `docs/current-state/doris-cod-workflow.md`,
   `docs/policy/icd-coding-search-vocabulary.md`,

@@ -78,7 +78,12 @@ has neither, and its coding is one direct step with SmartVA visible.
     `digitva-o16a`, `digitva-37gr`.
 11. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
     Android ICD/DORIS review findings.
-12. `make collect-plus-local`: container mode untested end to end (Docker 12 GB
+12. iOS port (`digitva-nujw`, branch `ios-port`, not merged): code only,
+    nothing compiled for iOS yet. Next: run `.github/workflows/ios-build.yml`
+    on macOS and fix compile errors (`.6`), simulator smoke test (`.7`), then
+    ICD-11 NativeAOT for iOS and its memory on a 3-4 GB iPhone (`.8`).
+    Distribution needs an Apple Developer account (`.5`).
+13. `make collect-plus-local`: container mode untested end to end (Docker 12 GB
     or more); `NATIVE=1` works on the Mac (4.5 min, debug-signed, never
     distributed).
 
@@ -97,6 +102,9 @@ has neither, and its coding is one direct step with SmartVA visible.
 - CI as the engine release source (after `digitva-9cll.11`).
 - Statistics Hindi strings, including the new singular forms, need a native
   speaker's review (`digitva-omqx`).
+- iOS: `ITSAppUsesNonExemptEncryption` for SQLCipher (`digitva-nujw.9`);
+  offline identity in the Keychain survives reinstall (`digitva-nujw.10`);
+  Apple Developer account and TestFlight (`digitva-nujw.5`).
 - InterVA2022/InSilicoVA2022 as experimental algorithms
   (`.tasks/2026-10-30-interva2022-insilicova2022-experimental.md`): needs a go.
 

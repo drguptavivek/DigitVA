@@ -1,14 +1,23 @@
 /**
- * Hands one private-cache file to the Android share sheet and deletes it afterwards, whether or not the share
- * succeeds (the share activity returns when the person comes back from the target app). Never a public folder,
- * never an upload.
+ * Hands one private-cache file to the system share sheet and deletes it afterwards, whether or not the share
+ * succeeds (the share activity, or on iOS the share sheet, returns when the person comes back). Never a public
+ * folder, never an upload. Android uses an ACTION_SEND intent; iOS uses expo-sharing (docs/policy/ios-client.md).
  */
 import { Directory, File, Paths } from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
+import { Platform } from "react-native";
 
 import { removeFile } from "../mediaFiles";
 
 const GRANT_READ_URI_PERMISSION = 1;
+
+/** iOS Uniform Type Identifiers for the types this app shares; others go without one. */
+const UTI_BY_MIME: Record<string, string> = {
+  "text/csv": "public.comma-separated-values-text",
+  "application/json": "public.json",
+  "text/plain": "public.plain-text",
+  "application/octet-stream": "public.data",
+};
 
 /** A handle on a file in the app's private cache (not created). */
 export const cacheFile = (name: string) => new File(Paths.cache, name);
@@ -27,6 +36,13 @@ export function sweepExportLeftovers(): void {
 /** Share `file` and delete it afterwards. */
 export async function shareAndDelete(file: File, mime: string): Promise<void> {
   try {
+    if (Platform.OS !== "android") {
+      // Loaded only off Android, so the Android build keeps the intent path alone.
+      const Sharing = require("expo-sharing") as typeof import("expo-sharing");
+      const uti = UTI_BY_MIME[mime];
+      await Sharing.shareAsync(file.uri, { mimeType: mime, dialogTitle: file.name, ...(uti ? { UTI: uti } : {}) });
+      return;
+    }
     await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
       type: mime,
       flags: GRANT_READ_URI_PERMISSION,

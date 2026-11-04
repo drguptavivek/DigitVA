@@ -46,6 +46,8 @@ jest.mock("../src/ui", () => ({ errorText: (e: unknown) => `err:${String(e)}\nRe
 let mockOffline = false;
 jest.mock("../src/network", () => ({ ...jest.requireActual("../src/network"), isOffline: () => mockOffline }));
 
+import { Platform } from "react-native";
+
 import { ShellProvider } from "../src/nativeShell/shell";
 import { useShell, type Shell } from "../src/nativeShell/shellContext";
 
@@ -57,7 +59,13 @@ function Probe() {
 let tree: ReactTestRenderer;
 const mount = async () => { await act(async () => { tree = create(<ShellProvider><Probe /></ShellProvider>); }); };
 
+// jest-expo runs as iOS; these are the Android shell's cases unless a test switches.
+const realOs = Platform.OS;
+const setOs = (os: string) => Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+afterAll(() => setOs(realOs));
+
 beforeEach(() => {
+  setOs("android");
   jest.clearAllMocks();
   mockPathname = "/worklist";
   mockParams = { userId: "u1" };
@@ -75,6 +83,15 @@ it("sideloaded build: the start-up update check offers the hosted APK download",
   await mount();
   expect(mockDailyCheck).toHaveBeenCalledWith("https://digitvav3.causeofdeathindia.com");
   expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ text: "Update available: 9.9.9", action: expect.objectContaining({ label: "Download" }) }));
+});
+
+it("iOS build: no start-up update check and no Download toast (the App Store updates it)", async () => {
+  mockDevice = { server: "https://digitvav3.causeofdeathindia.com" };
+  setOs("ios");
+  await mount();
+  expect(shell.server).toBe("https://digitvav3.causeofdeathindia.com");
+  expect(mockDailyCheck).not.toHaveBeenCalled();
+  expect(mockToast).not.toHaveBeenCalled();
 });
 
 it("Google Play build: no start-up update check and no Download toast", async () => {

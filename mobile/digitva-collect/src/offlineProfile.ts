@@ -5,10 +5,10 @@
  * reaches a server or a log in this phase. The plain build and the web never write one: saveOfflineProfile
  * refuses outside Collect Plus, like the device identity's gate.
  */
-import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 import { isPlusVariant } from "./appVariant";
+import { offlineEnginePlatform } from "./platformFamily";
 import type { Prefill } from "./cases";
 import { interviewerNameFromAccount } from "./interviewerRecall";
 
@@ -98,7 +98,7 @@ function isOfflineProfile(value: unknown): value is OfflineProfile {
  * left out (null or blank). Throws OfflineProfileError with a short code the form can name.
  */
 export async function saveOfflineProfile(input: OfflineProfile): Promise<void> {
-  if (Platform.OS !== "android" || !isPlusVariant()) throw new OfflineProfileError("offline_profile_plus_only");
+  if (!offlineEnginePlatform() || !isPlusVariant()) throw new OfflineProfileError("offline_profile_plus_only");
   const name = trimmedText(input.name);
   if (!name) throw new OfflineProfileError("offline_profile_name_required");
   const country = trimmedText(input.country);

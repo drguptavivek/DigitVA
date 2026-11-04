@@ -6,10 +6,10 @@
  * rather than failing every later call.
  */
 import { randomUUID } from "expo-crypto";
-import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 import { isPlusVariant } from "./appVariant";
+import { offlineEnginePlatform } from "./platformFamily";
 
 export interface DeviceIdentity {
   uuid: string;
@@ -64,11 +64,11 @@ export async function getOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
   return minting;
 }
 
-/** Plus-only entry (Android Collect Plus): null on the web and on plain builds, so no identity is ever minted there. */
+/** Plus-only entry (Collect Plus on Android or iOS): null on the web and on plain builds, so no identity is ever minted there. */
 export async function getOrCreatePlusDeviceIdentity(
   extra?: Record<string, unknown>,
   hasEngineModule?: () => boolean,
 ): Promise<DeviceIdentity | null> {
-  if (Platform.OS !== "android" || !isPlusVariant(extra, hasEngineModule)) return null;
+  if (!offlineEnginePlatform() || !isPlusVariant(extra, hasEngineModule)) return null;
   return getOrCreateDeviceIdentity();
 }

@@ -20,7 +20,8 @@ const mockSwitchSlot = jest.fn(async (_slot: string) => true);
 let mockSlot = "active";
 
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
-jest.mock("expo-constants", () => ({ __esModule: true, default: { expoConfig: { android: { get package() { return mockAndroidPackage; } } } } }));
+let mockExtra: Record<string, unknown> | undefined;
+jest.mock("expo-constants", () => ({ __esModule: true, default: { expoConfig: { android: { get package() { return mockAndroidPackage; } }, get extra() { return mockExtra; } } } }));
 jest.mock("expo-secure-store", () => ({
   canUseBiometricAuthentication: () => mockBiometricAvailable,
   getItemAsync: jest.fn(async (key: string) => mockSecureStoreValues.get(key) ?? null),
@@ -107,7 +108,7 @@ jest.mock("../src/reEnrolConfirm", () => ({
   reEnrolDevice: (accounts: unknown[]) => mockReEnrol(accounts),
 }));
 
-import { Alert, Linking } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 
 import { ApiError } from "../src/api";
 import en from "../src/strings/en.json";
@@ -132,7 +133,14 @@ const pressLabel = async (tree: ReactTestRenderer, label: string) => {
 };
 const out = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
 
+// jest-expo runs as iOS; these are the Android Settings cases unless a test switches.
+const realOs = Platform.OS;
+const setOs = (os: string) => Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+afterAll(() => setOs(realOs));
+
 beforeEach(() => {
+  setOs("android");
+  mockExtra = undefined;
   jest.clearAllMocks();
   mockBiometricAvailable = true;
   mockAndroidPackage = "com.causeofdeathindia.digitvacollect";
@@ -678,6 +686,34 @@ it("Google Play build reports an error when package metadata is missing", async 
   } finally {
     openURL.mockRestore();
   }
+});
+
+it("iOS build: opens the App Store listing when its id is configured and never checks hosted releases", async () => {
+  setOs("ios");
+  mockExtra = { digitvaIosAppStoreId: "1234567890" };
+  const openURL = jest.spyOn(Linking, "openURL").mockImplementation(mockOpenURL);
+  try {
+    const tree = await render();
+    expect(out(tree)).toContain("App updates come from the App Store.");
+    expect(out(tree)).not.toContain("App updates come from Google Play.");
+    await pressLabel(tree, "Check for updates");
+    expect(mockOpenURL.mock.calls).toEqual([["itms-apps://apps.apple.com/app/id1234567890"]]);
+    expect(mockCheckForUpdate).not.toHaveBeenCalled();
+  } finally {
+    openURL.mockRestore();
+  }
+});
+
+it("iOS build: hides the store row when no App Store id is configured", async () => {
+  setOs("android");
+  const android = await render();
+  expect(android.root.findAll((n) => n.props.accessibilityLabel === "Check for updates").length).toBeGreaterThan(0); // the subject
+  setOs("ios");
+  const tree = await render();
+  expect(out(tree)).toContain("Settings");
+  expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Check for updates")).toEqual([]);
+  expect(out(tree)).not.toContain("App updates come from");
+  expect(mockCheckForUpdate).not.toHaveBeenCalled();
 });
 
 it("re-enrols the demo slot through Try the demo, not QR enrolment", async () => {

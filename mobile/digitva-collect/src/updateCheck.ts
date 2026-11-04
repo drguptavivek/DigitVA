@@ -2,6 +2,8 @@
  * Checks the selected package's hosted APK first and matching GitHub release second. It only reports; the app never
  * installs anything. Failures are silent: "unknown" is shown as "Couldn't check" in Settings and nowhere else.
  */
+import { Platform } from "react-native";
+
 import { APP_VERSION } from "./appVersion";
 import { assertOnline } from "./network";
 import { getUiPreference, setUiPreference } from "./preferences";
@@ -72,8 +74,12 @@ async function fromGitHub(): Promise<Release> {
   return best;
 }
 
-/** Whether a newer APK is released. `server` is the enrolled server's origin; undefined skips straight to GitHub. */
+/**
+ * Whether a newer APK is released. `server` is the enrolled server's origin; undefined skips straight to GitHub.
+ * iOS is updated only by the App Store (docs/policy/ios-client.md), so it never asks and reports "unknown".
+ */
 export async function checkForUpdate(server?: string): Promise<UpdateResult> {
+  if (Platform.OS === "ios") return { status: "unknown" };
   let latest: Release | undefined;
   if (server) latest = await fromServer(server).catch(() => undefined);
   if (!latest) latest = await fromGitHub().catch(() => undefined);

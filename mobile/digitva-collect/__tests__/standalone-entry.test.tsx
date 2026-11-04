@@ -1,4 +1,4 @@
-/** The standalone entry on /enrol is offered on Collect Plus (Android) only, and only while Active is chosen. */
+/** The standalone entry on /enrol is offered on Collect Plus (Android or iOS) only, and only while Active is chosen. */
 import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
 import { Platform, TextInput } from "react-native";
@@ -36,10 +36,12 @@ async function shown(plus: boolean, os: string, slot: "active" | "demo" | undefi
   return JSON.stringify(tree.toJSON()).includes("standaloneEntry");
 }
 
-it("shows the standalone choice on Plus Android only", async () => {
+it("shows the standalone choice on Plus Android and Plus iOS only", async () => {
   expect(await shown(true, "android")).toBe(true);
   expect(await shown(false, "android")).toBe(false);
-  expect(await shown(true, "ios")).toBe(false);
+  expect(await shown(true, "ios")).toBe(true);
+  expect(await shown(false, "ios")).toBe(false);
+  expect(await shown(true, "web")).toBe(false);
 });
 
 it("does not offer standalone setup while the Demo slot is chosen (Path C accounts belong to Active)", async () => {

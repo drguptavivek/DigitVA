@@ -290,7 +290,13 @@ describe("the route", () => {
     expect(mockForbidden).not.toHaveBeenCalled();
   });
 
-  it.each([["plain Collect on Android", "android", false], ["Collect Plus on iOS", "ios", true], ["the web", "web", true]])("sends %s home", async (_name, os, plus) => {
+  it("opens the demo in Collect Plus on iOS too (offline engines run on both phone platforms)", async () => {
+    setOs("ios");
+    const root = await render(<DorisDemoRoute />);
+    expect(dump(root)).toContain("dorisDemoIntro");
+  });
+
+  it.each([["plain Collect on Android", "android", false], ["plain Collect on iOS", "ios", false], ["the web", "web", true]])("sends %s home", async (_name, os, plus) => {
     setOs(os);
     mockPlus.mockReturnValue(plus);
     const root = await render(<DorisDemoRoute />);

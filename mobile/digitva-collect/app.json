@@ -29,7 +29,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Scan the enrolment QR code shown by your DigitVA administrator.",
+          "cameraPermission": "Scan your enrolment QR code and photograph the written narrative and documents for an interview.",
           "recordAudioAndroid": false
         }
       ],
@@ -45,7 +45,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Photograph the written narrative and documents for the interview.",
+          "photosPermission": "DigitVA attaches photos you choose to a verbal autopsy interview.",
+          "cameraPermission": "Scan your enrolment QR code and photograph the written narrative and documents for an interview.",
           "microphonePermission": "Record the respondent's account of the death for the interview."
         }
       ]

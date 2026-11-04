@@ -13,13 +13,14 @@ import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
 import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr } from "../auth";
 import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
 import { isPlusVariant } from "../appVariant";
+import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
 import { mobileDigitsFromInput, normalizeMobileIdentifier } from "../nativeAuthLinks";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
@@ -59,7 +60,7 @@ export default function Enrol() {
         setError(t("errGeneric"));
         return;
       }
-      const account = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? "Android", APP_VERSION);
+      const account = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
       await reload();
       router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
@@ -95,7 +96,7 @@ export default function Enrol() {
         setError(t("errGeneric"));
         return;
       }
-      const deviceName = Constants.deviceName ?? "Android";
+      const deviceName = Constants.deviceName ?? deviceFamilyLabel();
       if (payload.kind === "sign_in") {
         const account = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
         await reload();
@@ -123,7 +124,7 @@ export default function Enrol() {
       <Text accessibilityRole="header" style={styles.headline}>{t("enrolServerTitle")}</Text>
       <Text style={styles.text}>{t("enrolServerHint")}</Text>
       <Button label={t("enrolTitle")} disabled={busy} onPress={() => setShowServerSetup(true)} />
-      {pending || slot === "demo" || Platform.OS !== "android" || !isPlusVariant() ? null : (
+      {pending || slot === "demo" || !offlineEnginePlatform() || !isPlusVariant() ? null : (
         <View style={{ gap: 8 }}>
           <Text accessibilityRole="header" style={styles.headline}>{t("enrolStandaloneTitle")}</Text>
           <Text style={styles.muted}>{t("enrolStandaloneHint")}</Text>

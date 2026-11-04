@@ -6,7 +6,7 @@
  */
 import * as IntentLauncher from "expo-intent-launcher";
 import { useState } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, StyleSheet, Text, View } from "react-native";
 
 import { t } from "../i18n";
 import { type PhoneClock, recheckPhoneClock, usePhoneClock } from "../phoneClock";
@@ -28,7 +28,12 @@ export function clockMessage(clock: PhoneClock): string {
   return t(clock.offsetSeconds > 0 ? "clockWrongAhead" : "clockWrongBehind", { amount });
 }
 
-async function openDateSettings(): Promise<void> {
+/** Android opens Date & time settings; iOS has no public link to it, so it opens the app's Settings page. */
+export async function openDateSettings(): Promise<void> {
+  if (Platform.OS === "ios") {
+    await Linking.openSettings().catch(() => undefined);
+    return;
+  }
   try {
     await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.DATE_SETTINGS);
   } catch {

@@ -9,6 +9,9 @@
     "web:hmr": "expo start --web --host lan --port 8081",
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android",
+    "prebuild:ios": "expo prebuild --platform ios",
+    "ios": "expo run:ios",
+    "ios:plus": "APP_VARIANT=plus expo run:ios",
     "build:debug": "expo prebuild --platform android && cd android && ./gradlew assembleDebug",
     "android:plus:dev": "APP_VARIANT=plus expo prebuild --platform android --clean --no-install && APP_VARIANT=plus expo run:android --variant debug",
     "android:plus:release": "APP_VARIANT=plus expo prebuild --platform android --clean --no-install && cd android && APP_VARIANT=plus ./gradlew assembleRelease",
@@ -54,6 +57,7 @@
     "expo-screen-capture": "~57.0.3",
     "expo-screen-orientation": "~57.0.3",
     "expo-secure-store": "~57.0.3",
+    "expo-sharing": "~57.0.24",
     "expo-sqlite": "~57.0.1",
     "expo-status-bar": "^57.0.1",
     "expo-task-manager": "~57.0.21",
@@ -77,5 +81,14 @@
     "jest": "~29.7.0",
     "jest-expo": "~57.0.5",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "exclude": [
+          "expo-sharing"
+        ]
+      }
+    }
   }
 }

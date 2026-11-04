@@ -13,7 +13,10 @@ jest.mock("../src/phoneClock", () => ({
   recheckPhoneClock: (server: string) => mockRecheck(server),
 }));
 
-import { ClockBlock, ClockWarning } from "../src/nativeShell/ClockNotice.native";
+import * as IntentLauncher from "expo-intent-launcher";
+import { Linking, Platform } from "react-native";
+
+import { ClockBlock, ClockWarning, openDateSettings } from "../src/nativeShell/ClockNotice.native";
 import en from "../src/strings/en.json";
 
 let tree: ReactTestRenderer;
@@ -39,4 +42,40 @@ it.each(["https://active.example.org", "https://demo.example.org"])("rechecks th
   expect(button).toBeDefined();
   await act(async () => { button.props.onPress(); });
   expect(mockRecheck).toHaveBeenCalledWith(server);
+});
+
+describe("Date & time settings button", () => {
+  const realOs = Platform.OS;
+  const setOs = (os: string) => Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+  let openSettings: jest.SpyInstance;
+  beforeEach(() => {
+    tree = create(<></>);
+    openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    setOs(realOs);
+    openSettings.mockRestore();
+  });
+
+  it("opens Android's Date & time settings through the intent on Android", async () => {
+    setOs("android");
+    await openDateSettings();
+    expect(IntentLauncher.startActivityAsync).toHaveBeenCalledWith("date-settings");
+    expect(openSettings).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the app settings on Android when the intent fails", async () => {
+    setOs("android");
+    (IntentLauncher.startActivityAsync as jest.Mock).mockRejectedValueOnce(new Error("no activity"));
+    await openDateSettings();
+    expect(IntentLauncher.startActivityAsync).toHaveBeenCalled();
+    expect(openSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the app's Settings directly on iOS, never the intent launcher", async () => {
+    setOs("ios");
+    await openDateSettings();
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
+  });
 });

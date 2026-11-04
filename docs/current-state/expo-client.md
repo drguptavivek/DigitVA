@@ -576,6 +576,39 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   `src/errorLogDb.ts` (table `error_log`, cap, install), `src/errorExport.ts`
   (React Native `Share`). Rules: [policy](../policy/expo-client.md).
 
+## iOS (`digitva-nujw.1`, phase 1)
+
+Rules: [iOS client policy](../policy/ios-client.md). The same Expo project
+builds for iOS; Android and the web are unchanged.
+
+- `app.config.js` varies `ios.bundleIdentifier` with the variant exactly as
+  `android.package` (`.dev`, `.plus`), sets `ios.buildNumber` from
+  `DIGITVA_IOS_BUILD_NUMBER` for a `DIGITVA_IOS_RELEASE_BUILD=1` build (else
+  `"1"`), turns on `supportsTablet`, and exposes `extra.digitvaIosAppStoreId`
+  from `DIGITVA_IOS_APP_STORE_ID`. Scripts: `npm run prebuild:ios`,
+  `npm run ios`, `npm run ios:plus`.
+- `src/platformFamily.ts`: `offlineEnginePlatform()` (Android or iOS) gates the
+  Plus routes and services together with `isPlusVariant()`;
+  `deviceFamilyLabel()` gives "Android", "iPhone", "iPad" or "Web" for the
+  default device name at enrolment and the error-log export.
+- Dates: `src/platform.ts` `pickDate` keeps `DateTimePickerAndroid.open` on
+  Android. On iOS it parks a request in `src/iosDatePicker.ts`;
+  `src/IosDatePickerHost.tsx`, mounted once by the native `ShellRoot`
+  (`src/nativeShell/chrome.tsx`), shows an inline picker in a modal. Done
+  resolves the ISO day, Cancel or dismissal resolves undefined, and a second
+  request resolves the open one with undefined.
+- Sharing: `src/standalone/shareFile.ts` uses the Android SEND intent on
+  Android and `expo-sharing` `shareAsync` (with a UTI) elsewhere; the file is
+  deleted afterwards on both. The `expo-sharing` config plugin (an iOS share
+  extension) is not added.
+- Updates: `checkForUpdate` returns `unknown` on iOS without a network call,
+  the start-up check in `src/nativeShell/shell.tsx` is skipped, and Settings
+  shows the App Store row only when the id is configured.
+- The phone-clock settings button calls `Linking.openSettings()` on iOS.
+- Still Android-only: background notification polling
+  (`src/notificationTask.ts`, `app/_layout.tsx`) and performance telemetry.
+- Verified with Jest and `tsc` only; no iOS build has been run yet.
+
 ## Collect Plus (experimental, adb-only)
 
 A second Android variant of this app, built with `APP_VARIANT=plus`; never

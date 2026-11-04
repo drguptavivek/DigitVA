@@ -6,10 +6,11 @@
  */
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, Text } from "react-native";
+import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
 import { isPlusVariant } from "../appVariant";
+import { offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
 import { OfflineProfileForm, standaloneProfileMissingText } from "../offlineProfileForm";
 import { getOfflineProfile, standaloneProfileMissing, type OfflineProfile } from "../offlineProfile";
@@ -34,7 +35,7 @@ export default function StandaloneSetup() {
     return () => { live = false; };
   }, []);
 
-  if (Platform.OS !== "android" || !isPlusVariant()) return <Redirect href="/" />;
+  if (!offlineEnginePlatform() || !isPlusVariant()) return <Redirect href="/" />;
 
   async function create(profile: OfflineProfile) {
     setBusy(true);

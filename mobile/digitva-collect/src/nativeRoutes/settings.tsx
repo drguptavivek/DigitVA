@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Constants from "expo-constants";
 import { canUseBiometricAuthentication } from "expo-secure-store";
-import { Alert, Linking, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Platform, Switch, Text, TextInput, View } from "react-native";
 
 import { ApiError, type AccessSummary, type AccountDevice } from "../api";
 import { decommissionMyDevice, deleteDemoAccount, listMyDevices, refreshAccessSummary, requestAccountDeletion, type Slot } from "../auth";
@@ -25,6 +25,7 @@ import { dataActionsAllowed } from "../standalone/export";
 import StandaloneConsentNoticeSettings from "../standalone/StandaloneConsentNoticeSettings";
 import { APP_VERSION } from "../appVersion";
 import { isPlayDistribution, isPlusVariant } from "../appVariant";
+import { iosAppStoreId } from "../platformFamily";
 import { canUseOfflineCoding } from "../codingCapabilities";
 import { readDevicePermissions, requestDevicePermission, type DevicePermissionName, type DevicePermissionState } from "../devicePermissions.native";
 import { IDLE_LOCK_MS } from "../autoLock";
@@ -270,6 +271,13 @@ export default function NativeSettings() {
   }
   async function openPlayListing() {
     setError("");
+    if (Platform.OS === "ios") {
+      // The row shows only when the App Store id is configured (DIGITVA_IOS_APP_STORE_ID, app.config.js).
+      const appStoreId = iosAppStoreId();
+      if (!appStoreId) return;
+      await Linking.openURL(`itms-apps://apps.apple.com/app/id${appStoreId}`).catch(() => setError(t("errGeneric")));
+      return;
+    }
     const packageName = Constants.expoConfig?.android?.package;
     if (!packageName) {
       setError(t("errGeneric"));
@@ -685,7 +693,15 @@ export default function NativeSettings() {
           </>
         ) : null}
         <Button kind="secondary" label={t("openSourceLicensesTitle")} onPress={() => router.push("/open-source-licenses")} />
-        {isPlayDistribution() ? (
+        {Platform.OS === "ios" ? (
+          // iOS is updated only by the App Store (docs/policy/ios-client.md); no row until its listing id is known.
+          iosAppStoreId() ? (
+            <>
+              <Text style={styles.muted}>{t("updateAppStore")}</Text>
+              <Button kind="secondary" label={t("updateCheck")} onPress={() => void openPlayListing()} />
+            </>
+          ) : null
+        ) : isPlayDistribution() ? (
           // Play's Device and Network Abuse policy forbids updating outside Play; send users to this build's listing.
           <>
             <Text style={styles.muted}>{t("updatePlayStore")}</Text>

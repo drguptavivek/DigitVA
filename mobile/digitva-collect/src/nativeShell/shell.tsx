@@ -5,7 +5,7 @@
  */
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Keyboard, Linking } from "react-native";
+import { Keyboard, Linking, Platform } from "react-native";
 
 import { useAppState } from "../AppState";
 import { UNKNOWN_SERVER } from "../accountServer";
@@ -60,10 +60,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const unlocked = userId ? isUnlocked(userId) : false;
 
   // Once per app start (and at most once a day, src/updateCheck.ts): tell, never install. Silent when nothing is known.
-  // The Google Play build never checks: Play updates it and forbids offering the hosted APK.
+  // The Google Play build never checks: Play updates it and forbids offering the hosted APK. iOS is App Store only.
   const updateAsked = useRef(false);
   useEffect(() => {
-    if (!server || updateAsked.current || isPlayDistribution()) return;
+    if (!server || updateAsked.current || isPlayDistribution() || Platform.OS === "ios") return;
     updateAsked.current = true;
     void checkForUpdateDaily(server).then((result) => {
       if (result?.status !== "available") return;

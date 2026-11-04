@@ -8,6 +8,8 @@ jest.mock("../src/appVersion", () => ({ APP_VERSION: "0.3.2" }));
 let mockPlusVariant = false;
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlusVariant }));
 
+import { Platform } from "react-native";
+
 import { checkForUpdate, checkForUpdateDaily, checkServerCompatibility, GITHUB_RELEASES_URL, versionCode } from "../src/updateCheck";
 
 const SERVER = "https://va.example.org/";
@@ -31,12 +33,30 @@ const fetchMock = jest.fn(async (url: string) => {
   return reply ?? fail;
 });
 
+// jest-expo runs as iOS; the APK update check is Android's (iOS is App Store only, see the iOS test below).
+const realOs = Platform.OS;
+const setOs = (os: string) => Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+afterAll(() => setOs(realOs));
+
 beforeEach(() => {
+  setOs("android");
   mockPlusVariant = false;
   for (const key of Object.keys(mockPrefs)) delete mockPrefs[key];
   routes = {};
   fetchMock.mockClear();
   (globalThis as { fetch: unknown }).fetch = fetchMock;
+});
+
+test("iOS never asks the server or GitHub and reports unknown (App Store updates it)", async () => {
+  routes[SERVER_URL] = serverReply("0.3.10");
+  setOs("android");
+  expect((await checkForUpdate(SERVER)).status).toBe("available"); // the subject: Android does offer it
+  fetchMock.mockClear();
+  setOs("ios");
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "unknown" });
+  expect(await checkForUpdateDaily(SERVER, Date.now())).toEqual({ status: "unknown" });
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(mockPrefs.update_check_at).toBeUndefined();
 });
 
 test("version code is the server's base code", () => {

@@ -19,7 +19,7 @@ What landed, newest first. Details live in the commits and the linked docs;
   stale; empty results are not cached; `flask icd11 clear-cache` covers
   raw-SQL migrations. DORIS and CoDEdit processing is never cached; a Redis
   failure falls through to the live call. Values are JSON, not pickle. All
-  Redis images are pinned to 7.4.11. On dev a repeated DORIS search fell
+  Redis images are pinned to 7.4.12 (staging already ran 7.4.12). On dev a repeated DORIS search fell
   from 12.7 to 0.4 ms and a coding search from ~30 to ~4.5 ms.
 
 - **Statistics lists every interview and its numbers agree** (`digitva-vfll`;

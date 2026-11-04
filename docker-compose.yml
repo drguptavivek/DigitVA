@@ -305,7 +305,7 @@ services:
           memory: 384m
 
   minerva_redis_service:
-    image: redis:7.4.11
+    image: redis:7.4.12
     container_name: minerva_redis
     command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 64mb --maxmemory-policy volatile-lru
     restart: always
@@ -324,7 +324,7 @@ services:
   # evict Celery, rate-limit, authz or PII-key entries. Nothing here is
   # precious: no persistence, no port, allkeys-lru drops the oldest answer.
   minerva_icd_cache_redis_service:
-    image: redis:7.4.11
+    image: redis:7.4.12
     container_name: minerva_icd_cache_redis
     command: redis-server --requirepass ${REDIS_PASSWORD} --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
     restart: always

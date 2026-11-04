@@ -224,7 +224,7 @@ services:
   # the ICD search cache (7-day TTL) is the demo's biggest user; the container
   # limit leaves room for the RDB snapshot fork and client buffers.
   demo_redis_service:
-    image: redis:7.4.11
+    image: redis:7.4.12
     command: redis-server --requirepass ${DEMO_REDIS_PASSWORD:?DEMO_REDIS_PASSWORD missing} --maxmemory 96mb --maxmemory-policy volatile-lru
     volumes:
       - demo_redis_data:/data

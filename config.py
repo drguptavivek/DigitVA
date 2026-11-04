@@ -658,6 +658,13 @@ class Config:
     ICD11_API_TIMEOUT_SECONDS = float(
         os.environ.get("ICD11_API_TIMEOUT_SECONDS", "5")
     )
+    # WHO ICD-11 API answers (GET and ECT search, 200/404) are cached in a
+    # dedicated Redis (ICD11_API_CACHE_REDIS_URL) for this many seconds. Empty
+    # URL or a timeout of 0 turns it off. DORIS and CoDEdit are never cached.
+    ICD11_API_CACHE_REDIS_URL = os.environ.get("ICD11_API_CACHE_REDIS_URL", "")
+    ICD11_API_CACHE_TIMEOUT = int(
+        os.environ.get("ICD11_API_CACHE_TIMEOUT", str(60 * 60 * 24 * 30))
+    )
     ICD_SEARCH_CACHE_TIMEOUT = int(
         os.environ.get("ICD_SEARCH_CACHE_TIMEOUT", str(60 * 60 * 24 * 7))
     )
@@ -687,6 +694,9 @@ class TestConfig(Config):
     AUTHZ_ENFORCE_CONSULTED = False
     AUTHZ_GRANT_CACHE_ENABLED = False
     NOTIFICATION_CACHE_ENABLED = False
+    # The cache test turns it on with a fake client.
+    ICD11_API_CACHE_TIMEOUT = 0
+    ICD11_API_CACHE_REDIS_URL = ""
     CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS = 0
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False

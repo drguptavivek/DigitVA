@@ -5,6 +5,23 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-04
 
+- **ICD-11 answers cached in their own Redis** (`digitva-er7p`;
+  `docs/current-state/doris-cod-workflow.md`,
+  `docs/policy/icd-coding-search-vocabulary.md`,
+  `docs/current-state/runtime-and-operations.md`): WHO ICD-11 API reads (GET
+  lookups and the `mms/search` POST, 200/404 only) and our own coding search
+  `search_icd11_mms` are cached for 30 days in `minerva_icd_cache_redis_service`
+  (128 MB, allkeys-lru, no persistence), never in the shared Redis, whose
+  64 MB volatile-lru would otherwise evict Celery, rate-limit, authz and ban
+  keys. A separate database number was rejected: maxmemory and eviction are
+  per instance. Coding-search keys carry a stamp of the catalogue and
+  vocabulary edit times, so a policy or vocabulary edit is never served
+  stale; empty results are not cached; `flask icd11 clear-cache` covers
+  raw-SQL migrations. DORIS and CoDEdit processing is never cached; a Redis
+  failure falls through to the live call. Values are JSON, not pickle. All
+  Redis images are pinned to 7.4.11. On dev a repeated DORIS search fell
+  from 12.7 to 0.4 ms and a coding search from ~30 to ~4.5 ms.
+
 - **Statistics lists every interview and its numbers agree** (`digitva-vfll`;
   `docs/policy/case-list-views.md`, `docs/policy/area-dashboard.md`,
   `docs/current-state/api-v1.md`): Deaths, Interviews and Codings now also

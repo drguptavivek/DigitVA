@@ -10,7 +10,9 @@ for the source file's column semantics.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import logging
 import re
 from dataclasses import dataclass
 from io import BytesIO
@@ -35,6 +37,7 @@ from app.services.icd_coding_value import (
     has_icd11_cluster_marker,
 )
 from app.services.icd_search_vocabulary_service import (
+    _cache_key as _vocabulary_stamp,
     CLASSIFICATION_ICD11,
     FUZZY_MIN_QUERY_LEN,
     RESULT_TIER_EXPANDED,
@@ -46,8 +49,15 @@ from app.services.icd_search_vocabulary_service import (
     spelling_variants,
     vocabulary_matches,
 )
+from app.services.who_icd_api import _cache_client, _cache_timeout
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ICD11_RELEASE = "2026-01"
+# Coding-search result cache (dedicated ICD Redis); bump the version when the
+# result shape changes so old entries are never read.
+SEARCH_CACHE_PREFIX = "icd11search:"
+_SEARCH_CACHE_VERSION = "v1"
 DEFAULT_ICD11_MMS_EXPORT_PATH = Path(
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "icd11-mms-2026-01-base-2026-09-16/SimpleTabulation-ICD-11-MMS-en.txt"
@@ -1228,6 +1238,7 @@ def search_icd11_mms(
     Matches from the admin-managed search vocabulary (``mas_icd_search_terms``)
     are prepended and flagged; expansion goes through the same filters, so it
     never bypasses coding policy (docs/policy/icd-coding-search-vocabulary.md).
+    Non-empty results are cached in the ICD Redis (see ``_search_cache_key``).
     """
     normalized_query = _normalize_query(query)
     if len(normalized_query) < _CODING_MIN_QUERY_LEN:
@@ -1241,6 +1252,66 @@ def search_icd11_mms(
         age_group = context["age_group"]
         sex = context["sex"]
 
+    client = _cache_client() if _cache_timeout() > 0 else None
+    key = (
+        _search_cache_key(normalized_query, release, limit, apply_policy, age_group, sex)
+        if client
+        else ""
+    )
+    if key:
+        cached = _search_cache_get(client, key)
+        if cached is not None:
+            return cached
+    results = _search_icd11_mms_uncached(
+        query, normalized_query, release, limit, apply_policy, age_group, sex
+    )
+    # Empty results are not cached: the typo-search fallback behind them
+    # depends on an index that can change without moving the stamp.
+    if key and results:
+        _search_cache_set(client, key, results)
+    return results
+
+
+def _search_cache_key(normalized_query, release, limit, apply_policy, age_group, sex) -> str:
+    """Key over every input of the search plus a data-version stamp.
+
+    ``normalized_query`` is enough: the vocabulary matchers lowercase and
+    collapse whitespace themselves. The stamp is ``(count, max(updated_at))``
+    of the catalogue release and of the vocabulary, so an admin edit moves the
+    key and the old entry is simply never read again.
+    """
+    catalogue = db.session.execute(
+        sa.select(sa.func.count(MasIcd11Mms.id), sa.func.max(MasIcd11Mms.updated_at)).where(
+            MasIcd11Mms.release == release
+        )
+    ).one()
+    stamp = [list(map(str, catalogue)), list(map(str, _vocabulary_stamp()))]
+    raw = json.dumps(
+        [_SEARCH_CACHE_VERSION, normalized_query, release, limit, apply_policy, age_group, sex, stamp]
+    )
+    return SEARCH_CACHE_PREFIX + hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _search_cache_get(client, key):
+    # Fixed message only: the exception text can carry the Redis URL.
+    try:
+        raw = client.get(key)
+        return None if raw is None else json.loads(raw)
+    except Exception:  # a broken cache must never fail the search
+        logger.warning("ICD-11 search cache read failed")
+        return None
+
+
+def _search_cache_set(client, key, results) -> None:
+    try:
+        client.set(key, json.dumps(results), ex=_cache_timeout())
+    except Exception:
+        logger.warning("ICD-11 search cache write failed")
+
+
+def _search_icd11_mms_uncached(
+    query, normalized_query, release, limit, apply_policy, age_group, sex
+) -> list[dict[str, str | bool | None]]:
     # Escape LIKE wildcards so '%' and '_' in a query match literally.
     lower_code = sa.func.lower(sa.func.coalesce(MasIcd11Mms.code, ""))
     lower_title = sa.func.lower(MasIcd11Mms.title)

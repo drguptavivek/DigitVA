@@ -8,14 +8,20 @@ headers and failure behaviour consistent.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
+import logging
 import re
 from urllib.parse import quote, urlsplit
 
+import redis
 import requests
 from flask import current_app
 from urllib3.exceptions import HTTPError as Urllib3HTTPError
 from urllib3.exceptions import ReadTimeoutError as Urllib3ReadTimeoutError
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ICD11_RELEASE = "2026-01"
 
@@ -25,6 +31,10 @@ _MAX_BODY_LENGTH = 128 * 1024
 _MAX_RESPONSE_LENGTH = 2 * 1024 * 1024
 _RELEASE_RE = re.compile(r"^\d{4}-\d{2}$")
 _SAFE_RESOURCE_RE = re.compile(r"^[A-Za-z0-9._~%+:/&=\- ]+$")
+_CACHE_PREFIX = "icd11api:"
+_BOUNDARY_RE = re.compile(r";\s*boundary=(\"[^\"]+\"|[^;]+)", re.IGNORECASE)
+_CACHED_HEADERS = ("Content-Type", "API-Version", "Vary")
+_CACHEABLE_STATUSES = {200, 404}
 
 
 class WhoIcdApiUnavailable(RuntimeError):
@@ -95,6 +105,91 @@ def _request_timeout() -> tuple[float, float]:
     return timeout, timeout
 
 
+def _cache_timeout() -> int:
+    return int(current_app.config.get("ICD11_API_CACHE_TIMEOUT", 0) or 0)
+
+
+def _is_cacheable_request(method: str, resource: str) -> bool:
+    # ECT searches with a POST that only reads; every other POST stays live.
+    return method == "GET" or (
+        method == "POST" and resource.endswith("/mms/search")
+    )
+
+
+def _cache_key(url: str, method: str, body: bytes, content_type: str | None) -> str:
+    # The headers are fixed in proxy_who_icd_request; they are part of the key
+    # so changing them there cannot serve answers fetched under the old ones.
+    ctype = content_type or ""
+    if body:
+        # ECT posts multipart/form-data whose random boundary is in the body;
+        # drop it so the same search hashes the same.
+        match = _BOUNDARY_RE.search(ctype)
+        if match:
+            boundary = match.group(1).strip('"')
+            body = body.replace(boundary.encode(), b"-")
+            ctype = _BOUNDARY_RE.sub("", ctype)
+    raw = "\n".join((url, method, "en", "v2", ctype, hashlib.sha256(body).hexdigest()))
+    return _CACHE_PREFIX + hashlib.sha256(raw.encode()).hexdigest()[:40]
+
+
+_cache_clients: dict[str, redis.Redis] = {}
+
+
+def _cache_client() -> redis.Redis | None:
+    """Client for the dedicated ICD cache Redis, or None when it is not set."""
+    url = str(current_app.config.get("ICD11_API_CACHE_REDIS_URL") or "").strip()
+    if not url:
+        return None
+    if url not in _cache_clients:
+        # Short timeouts: a slow cache must cost less than the API call it saves.
+        _cache_clients[url] = redis.Redis.from_url(
+            url, socket_timeout=0.5, socket_connect_timeout=0.5
+        )
+    return _cache_clients[url]
+
+
+def _cache_get(client: redis.Redis, key: str) -> requests.Response | None:
+    # Never log the exception text or URL: the connection URL holds the password.
+    try:
+        raw = client.get(key)
+        if raw is None:
+            return None
+        stored = json.loads(raw)
+        response = requests.Response()
+        response.status_code = int(stored["status"])
+        response._content = base64.b64decode(stored["body"])
+        response._content_consumed = True
+        response.headers.update(stored["headers"])
+        return response
+    except Exception:  # a broken cache must never fail the lookup
+        logger.warning("WHO ICD API cache read failed")
+        return None
+
+
+def _cache_set(
+    client: redis.Redis, key: str, response: requests.Response, timeout: int
+) -> None:
+    headers = {
+        name: response.headers[name]
+        for name in _CACHED_HEADERS
+        if response.headers.get(name)
+    }
+    try:
+        client.set(
+            key,
+            json.dumps(
+                {
+                    "status": response.status_code,
+                    "headers": headers,
+                    "body": base64.b64encode(response.content).decode("ascii"),
+                }
+            ),
+            ex=timeout,
+        )
+    except Exception:
+        logger.warning("WHO ICD API cache write failed")
+
+
 def proxy_who_icd_request(
     resource: str,
     *,
@@ -107,6 +202,12 @@ def proxy_who_icd_request(
 
     ``resource`` is deliberately validated here as well as at the Flask route
     so future callers cannot accidentally bypass the proxy's allow-list.
+
+    Successful (200) and not-found (404) answers to GETs and to the ECT
+    ``mms/search`` POST are cached in the dedicated Redis named by
+    ``ICD11_API_CACHE_REDIS_URL`` for ``ICD11_API_CACHE_TIMEOUT`` seconds
+    (an empty URL or 0 turns it off).  Validation runs before the lookup; other POSTs and
+    errors are never cached.
     """
 
     resource = _validate_resource(resource)
@@ -132,6 +233,14 @@ def proxy_who_icd_request(
     }
     if body:
         headers["Content-Type"] = content_type or "application/json"
+
+    cache_timeout = _cache_timeout() if _is_cacheable_request(method, resource) else 0
+    client = _cache_client() if cache_timeout > 0 else None
+    key = _cache_key(url, method, body, content_type) if client else ""
+    if key:
+        cached = _cache_get(client, key)
+        if cached is not None:
+            return cached
 
     try:
         response = requests.request(
@@ -168,6 +277,8 @@ def proxy_who_icd_request(
         raise WhoIcdApiUnavailable("WHO ICD API response is too large")
     response._content = content
     response._content_consumed = True
+    if key and response.status_code in _CACHEABLE_STATUSES:
+        _cache_set(client, key, response, cache_timeout)
     return response
 
 

@@ -12,6 +12,9 @@ from app.services.icd11_mms_service import (
     import_icd11_mms_from_export,
     import_icd11_mms_policy_json,
 )
+from app.services.icd11_mms_service import SEARCH_CACHE_PREFIX
+from app.services.who_icd_api import _CACHE_PREFIX as API_CACHE_PREFIX
+from app.services.who_icd_api import _cache_client
 from app.services.icd11_policy_draft_service import (
     DEFAULT_POLICY_DRAFT_DIR,
     build_icd11_policy_draft,
@@ -117,6 +120,30 @@ def policy_draft(release: str, output_dir: str) -> None:
         f"ICD-11 {release}: {len(draft.selectable)} of {len(draft.decisions)} categories "
         f"selectable, {len(draft.range_issues)} range issues"
     )
+
+
+@icd11_group.command("clear-cache")
+def clear_cache() -> None:
+    """Delete cached coding-search and WHO API entries from the ICD cache Redis.
+
+    Run it after a migration that edits catalogue rows with raw SQL (that
+    does not move the search cache's data stamp). SCAN + DEL in batches, only
+    the two ICD prefixes; never FLUSHALL.
+    """
+    client = _cache_client()
+    if client is None:
+        raise click.ClickException("ICD11_API_CACHE_REDIS_URL is not set.")
+    for label, prefix in (("search", SEARCH_CACHE_PREFIX), ("api", API_CACHE_PREFIX)):
+        deleted = 0
+        batch: list = []
+        for key in client.scan_iter(match=prefix + "*", count=500):
+            batch.append(key)
+            if len(batch) >= 500:
+                deleted += client.delete(*batch)
+                batch = []
+        if batch:
+            deleted += client.delete(*batch)
+        click.echo(f"{label}: deleted {deleted}")
 
 
 def init_app(app):

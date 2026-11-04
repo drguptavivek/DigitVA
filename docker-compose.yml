@@ -123,6 +123,7 @@ services:
       - REGISTER_PII_SPLIT_ENABLED=${REGISTER_PII_SPLIT_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
+      - ICD11_API_CACHE_REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_icd_cache_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - ICD11_API_BASE_URL=http://icd_api_service
@@ -135,6 +136,7 @@ services:
     depends_on:
       - minerva_db_service
       - minerva_redis_service
+      - minerva_icd_cache_redis_service
     restart: always
     deploy:
       resources:
@@ -236,6 +238,7 @@ services:
       - REGISTER_PII_SPLIT_ENABLED=${REGISTER_PII_SPLIT_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
+      - ICD11_API_CACHE_REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_icd_cache_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
     secrets:
@@ -246,6 +249,8 @@ services:
       minerva_db_service:
         condition: service_healthy
       minerva_redis_service:
+        condition: service_healthy
+      minerva_icd_cache_redis_service:
         condition: service_healthy
     restart: always
     deploy:
@@ -281,6 +286,7 @@ services:
       - PII_BLIND_INDEX_KEY=${PII_BLIND_INDEX_KEY:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
+      - ICD11_API_CACHE_REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_icd_cache_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
     depends_on:
@@ -290,6 +296,8 @@ services:
         condition: service_healthy
       minerva_redis_service:
         condition: service_healthy
+      minerva_icd_cache_redis_service:
+        condition: service_healthy
     restart: always
     deploy:
       resources:
@@ -297,7 +305,7 @@ services:
           memory: 384m
 
   minerva_redis_service:
-    image: redis:7
+    image: redis:7.4.11
     container_name: minerva_redis
     command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 64mb --maxmemory-policy volatile-lru
     restart: always
@@ -305,6 +313,25 @@ services:
       resources:
         limits:
           memory: 96m
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cache for WHO ICD-11 API answers only (app/services/who_icd_api.py). Kept
+  # apart from minerva_redis_service so 25-133 KB search answers can never
+  # evict Celery, rate-limit, authz or PII-key entries. Nothing here is
+  # precious: no persistence, no port, allkeys-lru drops the oldest answer.
+  minerva_icd_cache_redis_service:
+    image: redis:7.4.11
+    container_name: minerva_icd_cache_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 160m
     healthcheck:
       test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s

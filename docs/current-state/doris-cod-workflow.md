@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-04
 ---
 
 # DORIS COD Workflow
@@ -212,6 +212,23 @@ labels reach the Expo app in the workspace payload (`antecedent_cod_label`,
 SmartVA cause `icd11_label`), so the app makes no title call for them. The
 SmartVA "ICD-11 mapping" badges on the web and in the Expo SmartVA card carry
 the same titles.
+
+WHO API answers are cached inside `proxy_who_icd_request`
+(`app/services/who_icd_api.py`), so the ECT picker, the public DORIS demo,
+codeinfo and title lookups all share it. The cache is its own Redis instance,
+`minerva_icd_cache_redis_service`, kept apart from `minerva_redis_service` so
+25-133 KB search answers cannot evict Celery, rate-limit, authz or PII-key
+entries. It runs with a 128 MB limit, `allkeys-lru` and no persistence or
+published port, reuses `REDIS_PASSWORD`, and is reached through
+`ICD11_API_CACHE_REDIS_URL` (empty turns the cache off). Entries live
+`ICD11_API_CACHE_TIMEOUT` seconds (default 30 days; 0 turns it off). Cached:
+GETs and the ECT `.../mms/search` POST (a read), only when WHO answers 200 or
+404. The key is a hash of URL, method, content type and body; ECT's multipart
+boundary is removed first so a repeated search hits. Values are JSON (status,
+headers, base64 body), never pickle. Errors, timeouts, every other POST and
+`post_mortality_processor` (DORIS, CoDEdit) are never cached. If Redis fails
+or is slow (0.5 s socket timeouts) the request goes upstream. Validation
+always runs before the lookup.
 
 ## Check before you decide
 

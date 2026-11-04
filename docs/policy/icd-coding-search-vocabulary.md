@@ -3,7 +3,7 @@ title: ICD Coding Search Vocabulary
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-11-04
 ---
 
 # ICD coding search vocabulary (`digitva-zpe.1`)
@@ -203,3 +203,19 @@ screen uses (`search_icd10_2019_2_coding_choices_for_policy`,
 `search_icd11_mms`), filtered by an explicit age group and sex instead of a
 submission's own. Demo searches are never written to `cod_search_telemetry`
 and never receive an `X-Search-Id`.
+
+## Search result cache
+
+`search_icd11_mms` caches each non-empty result list as JSON in the dedicated
+ICD cache Redis (`ICD11_API_CACHE_REDIS_URL`) for 30 days
+(`ICD11_API_CACHE_TIMEOUT`; 0 or no URL disables it). The key is `icd11search:`
+plus a sha256 of the normalized query, release, limit, whether policy applies,
+the resolved age group and sex (not the `va_sid`, so cases with the same
+context share entries), a schema version, and a data-version stamp: the
+`(count, max(updated_at))` of the release's `mas_icd11_mms` rows and of
+`mas_icd_search_terms`. An admin edit through the ORM bumps `updated_at`, so it
+changes the key and the old entry is never read. Empty results are never cached
+(the typo-search fallback behind them can change without moving the stamp). A
+Redis error logs a fixed message and the live search runs. After a migration
+that edits catalogue rows with raw SQL, run `flask icd11 clear-cache`, which
+deletes the `icd11search:*` and `icd11api:*` keys (SCAN + DEL, never FLUSHALL).

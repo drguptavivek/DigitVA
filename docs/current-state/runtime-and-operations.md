@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-11-04
 ---
 
 # Runtime And Operations
@@ -147,6 +147,7 @@ Current services:
 - `minerva_app_service`
 - `minerva_db_service`
 - `minerva_redis_service`
+- `minerva_icd_cache_redis_service` (dedicated cache for WHO ICD-11 API answers: `--maxmemory 128mb --maxmemory-policy allkeys-lru`, no persistence, no published port, same `REDIS_PASSWORD`; the app, worker and beat reach it through `ICD11_API_CACHE_REDIS_URL`, empty = cache off; see [DORIS COD Workflow](doris-cod-workflow.md))
 - `minerva_celery_worker` (Celery worker)
 - `minerva_celery_beat` (Celery beat)
 - `icd_api_service` (optional WHO ICD-11 API, Coding Tool, Browser, and DORIS; Rust in-process host, see [WHO ICD-11 service](#who-icd-11-service))

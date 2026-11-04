@@ -168,6 +168,17 @@ coding, not codeable, SmartVA failed, final COD and visit notes.
 - **Overdue interview** and **overdue coding** (`overdue_interview`,
   `overdue_coding`): the overdue definitions above, live and never
   period-filtered, on the card and every row, in the JSON and the CSV.
+  Overdue coding also counts the submissions with no register row
+  (2026-11-04; retired submissions and inactive project-sites out), as the
+  case list's `unregistered=1` rows. The Statistics page no longer reads
+  these numbers: its Overview and Projects stage and overdue numbers come
+  from `GET /api/v1/cases/stage-counts` (case-list-views.md, "Stage
+  counts"), so they equal its tables; the Flask dashboards keep these.
+- **Inactive project-sites (one rule, owner 2026-11-04):** every Statistics
+  number and table leaves out a project-site that is not active in
+  `va_project_sites`, register rows and submissions alike (the case list's
+  `unregistered=1` rule). Supervision and the phones still list such a
+  site's cases, so they can be resolved.
 - **Submitted**: submissions received in the period (web and ODK alike,
   from the hourly snapshot).
 - **Awaiting coding**: screening, attachment sync, SmartVA pending or ready

@@ -18,12 +18,14 @@ const summary = (id: string, medians: Record<string, number | null>) => ({
   card: { counts: { deaths_reported: 10, submitted: 5, final_cod: 2, overdue_interview: 0, overdue_coding: 0 }, medians, causes: [], links: {} },
   thresholds: { interview_days: 7, coding_days: 7 }, freshness: null,
 }) as never;
+const stageCounts = { reported: 10, interviewed: 5, coded: 2, overdue_interview: 0, overdue_coding: 0 };
+const stages = { projects: { P1: stageCounts, P2: stageCounts, P3: stageCounts }, total: stageCounts, thresholds: { interview_days: 7, coding_days: 7 } };
 const text = (tree: ReturnType<typeof create>) => JSON.stringify(tree.toJSON());
 const full = { death_to_interview_days: 12, interview_to_final_cod_days: 3 };
 
 const overview = (summaries: never[], sole: never | null) => (
   <OverviewTab
-    summaries={summaries} sole={sole} unit={null} site={null} soleRoot={null} busy={false} pending={0} failedCount={0}
+    stages={stages} summaries={summaries} sole={sole} unit={null} site={null} soleRoot={null} busy={false} pending={0} failedCount={0}
     onRetryFailed={jest.fn()} request={jest.fn()} onDrill={jest.fn()} onAttention={jest.fn()} onOpenLink={jest.fn()}
   />
 );
@@ -45,7 +47,7 @@ test("a Projects card shows the medians that exist and nothing when neither does
     P3: { summary: summary("P3", { death_to_interview_days: null, interview_to_final_cod_days: null }) },
   } as never;
   let tree!: ReturnType<typeof create>;
-  await act(async () => { tree = create(<ProjectsTab projects={projects} loads={loads} onOpen={jest.fn()} onRetry={jest.fn()} />); });
+  await act(async () => { tree = create(<ProjectsTab projects={projects} stages={stages} loads={loads} onOpen={jest.fn()} onRetry={jest.fn()} />); });
   const cards = tree.root.findAll((node) => typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel.startsWith("statsProjectCardOpen") && typeof node.props.onPress === "function");
   const body = (i: number) => JSON.stringify(cards[i].findAll(() => true).map((n) => n.children).flat().filter((c) => typeof c === "string"));
   expect(cards).toHaveLength(3);

@@ -241,7 +241,9 @@ beads `digitva-stc`, `digitva-qfh8`). Code:
     (`case_list_service.waiting`, the same SQL as `GET /api/v1/cases?overdue=`:
     60 days from date of death, else date reported; 15 days from submission;
     live, never period-filtered; the case's workflow and submission are
-    outer-joined on `va_sid`). The reply carries
+    outer-joined on `va_sid`); `overdue_coding` adds, in one more grouped
+    query per level, the submissions with no register row overdue for coding
+    (`_unregistered_overdue`: not retired, active project-site). The reply carries
     `thresholds: {"interview_days": 60, "coding_days": 15}`; the CSV carries
     both measures;
   - live counts over one `_live_flags` subquery of `va_submissions`

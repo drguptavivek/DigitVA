@@ -585,6 +585,9 @@ def _seed_cases(session):
         submission = VaSubmissions(
             va_sid=sid,
             va_form_id=form.form_id,
+            # Naive UTC, as every other writer: the case tables, the overdue
+            # rule and the period filters read the interview time from it.
+            va_submission_date=datetime.now(UTC).replace(tzinfo=None),
             va_data_collector="Demo interviewer",
             va_uniqueid_masked=f"DEMO-{number:03d}",
             va_consent="yes",

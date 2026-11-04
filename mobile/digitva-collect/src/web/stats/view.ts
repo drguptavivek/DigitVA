@@ -3,8 +3,8 @@
  * count sums. No React, so they are unit-tested directly (__tests__/statistics-logic.test.ts).
  */
 import {
-  DEFAULT_PERIOD, PERIODS, type AreaCounts, type AreaProject, type AreaSummary, type CaseListQuery,
-  type CaseStatus, type Period,
+  DEFAULT_PERIOD, PERIODS, type AreaProject, type AreaSummary, type CaseListQuery,
+  type CaseStatus, type Period, type StageCounts, type StageCountsReply,
 } from "../../area/api";
 import type { AccessUnit } from "../../api";
 import type { StringKey } from "../../i18n";
@@ -54,6 +54,8 @@ export const STATUS_CHIPS: Record<CaseTab, StatusChip[]> = {
     { key: "in_coding", label: "statsChipInCoding", statuses: ["in_coding"] },
     { key: "coded", label: "statsChipCoded", statuses: ["coded"] },
     { key: "not_codeable", label: "statsChipNotCodeable", statuses: ["not_codeable"] },
+    // Consent refused at the interview; the tab sends `interviewed`, so a death refused before any interview is not here.
+    { key: "refused", label: "statsChipRefused", statuses: ["refused"] },
   ],
   codings: [
     { key: "not_started", label: "statsChipNotStarted", statuses: ["submitted_awaiting_coding"] },
@@ -138,7 +140,10 @@ export function periodStart(period: Period, now: Date): string | null {
 
 /**
  * The GET /api/v1/cases query of a case tab. The Interviews and Codings presets default to their own work lists, so
- * those tabs always send their statuses. An overdue list is live, like its count, so it carries no period.
+ * those tabs always send their statuses. An overdue list is live, like its count, so it carries no period. Every tab
+ * asks for the submissions with no register row too (`unregistered`), so a project without a death register is listed;
+ * Interviews and Codings list only cases with a submission (`interviewed`). The Overview's numbers (stage-counts) are
+ * these tabs' totals.
  */
 export function casesQuery(view: StatsView & { tab: CaseTab }, projectIds: string[], now: Date, cursor: string | null): CaseListQuery {
   const chip = STATUS_CHIPS[view.tab].find((one) => one.key === view.status);
@@ -153,6 +158,8 @@ export function casesQuery(view: StatsView & { tab: CaseTab }, projectIds: strin
     org_unit_id: view.unit,
     site_id: view.site,
     overdue: view.overdue ? OVERDUE_KIND[view.tab] : null,
+    unregistered: "1",
+    interviewed: view.tab === "deaths" ? null : "1",
     limit: "50",
     cursor,
   };
@@ -163,18 +170,19 @@ export function chipCount(counts: Record<string, number> | undefined, statuses: 
   return statuses.reduce((sum, status) => sum + (counts?.[status] ?? 0), 0);
 }
 
-export type StageCounts = Pick<AreaCounts, "deaths_reported" | "submitted" | "final_cod"> & { overdue_interview: number; overdue_coding: number };
-
-/** The stage and overdue counts of several projects' cards, summed (counts only; never medians or percentages). */
-export function sumCounts(cards: Pick<AreaCounts, "deaths_reported" | "submitted" | "final_cod" | "overdue_interview" | "overdue_coding">[]): StageCounts {
-  return cards.reduce<StageCounts>((sum, card) => ({
-    deaths_reported: sum.deaths_reported + card.deaths_reported,
-    submitted: sum.submitted + card.submitted,
-    final_cod: sum.final_cod + card.final_cod,
-    overdue_interview: sum.overdue_interview + (card.overdue_interview ?? 0),
-    overdue_coding: sum.overdue_coding + (card.overdue_coding ?? 0),
-  }), { deaths_reported: 0, submitted: 0, final_cod: 0, overdue_interview: 0, overdue_coding: 0 });
+/**
+ * The GET /api/v1/cases/stage-counts query of the Overview (*projectIds* in view, the area of one) or the Projects tab
+ * (every project, no area): the same project, area and period the case tabs send, so each number is a tab's total.
+ */
+export function stageCountsQuery(projectIds: string[], area: { unit: string | null; site: string | null }, period: Period, now: Date): CaseListQuery {
+  const since = periodStart(period, now);
+  return { project_id: projectIds.join(","), org_unit_id: area.unit, site_id: area.site, reported_from: since, submitted_from: since };
 }
+
+export const NO_STAGES: StageCounts = { reported: 0, interviewed: 0, coded: 0, overdue_interview: 0, overdue_coding: 0 };
+
+/** One project's numbers; a project the server left out has nothing in reach. */
+export const projectStages = (reply: StageCountsReply, projectId: string): StageCounts => reply.projects[projectId] ?? NO_STAGES;
 
 /** Whole days from one server stamp to another (Days to code); null when either is missing or unreadable. */
 export function daysBetween(from: string | null | undefined, to: string | null | undefined): number | null {

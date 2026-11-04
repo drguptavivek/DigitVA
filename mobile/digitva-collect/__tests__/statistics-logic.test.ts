@@ -1,9 +1,10 @@
 import { activeTab } from "../src/web/navTabs";
-import { areaCsvUrl, getAreaProjects, getAreaStaff, getAreaSummary, listCases } from "../src/area/api";
-import { canDrill, formatDays, formatPercent, hasDeathRegister, pipelineScale, soleOpenUnit, stageWidths } from "../src/web/stats/pipeline";
+import { areaCsvUrl, getAreaProjects, getAreaStaff, getAreaSummary, getStageCounts, listCases } from "../src/area/api";
+import { canDrill, countKey, formatDays, formatPercent, hasDeathRegister, pipelineScale, soleOpenUnit, stageWidths } from "../src/web/stats/pipeline";
+import { setUiLocale, t } from "../src/i18n";
 import {
   allStatuses, areaOptions, casesQuery, chipCount, daysBetween, loadCounts, loadedSummaries, parseView, periodStart, projectsInView, runLimited,
-  sumCounts, toggleProject, viewParams, withTab, type ProjectLoad, type StatsView,
+  NO_STAGES, projectStages, stageCountsQuery, toggleProject, viewParams, withTab, type ProjectLoad, type StatsView,
 } from "../src/web/stats/view";
 
 const counts = (deaths_reported: number, submitted: number, final_cod: number) => ({ deaths_reported, submitted, final_cod });
@@ -103,20 +104,32 @@ describe("case tables", () => {
 
   test("Deaths: no status means the preset default; a chip sends its folded statuses; overdue drops the period", () => {
     expect(casesQuery({ ...base, tab: "deaths" }, ["P1", "P2"], now, null)).toEqual({
-      preset: "deaths", project_id: "P1,P2", status: null, source: null, reported_from: "2026-08-06", org_unit_id: null, site_id: null, overdue: null, limit: "50", cursor: null,
+      preset: "deaths", project_id: "P1,P2", status: null, source: null, reported_from: "2026-08-06", org_unit_id: null, site_id: null, overdue: null, unregistered: "1", interviewed: null, limit: "50", cursor: null,
     });
     expect(casesQuery({ ...base, tab: "deaths", status: "pending", unit: "u1", overdue: true }, ["P1"], now, "c1")).toMatchObject({
       status: "reported,interview_pending,interview_in_progress", reported_from: null, org_unit_id: "u1", overdue: "interview", cursor: "c1",
     });
   });
 
-  test("Interviews and Codings always send statuses (their presets default to work lists) and filter on submission", () => {
+  test("Interviews and Codings always send statuses (their presets default to work lists), filter on submission and list only interviewed cases", () => {
     expect(casesQuery({ ...base, tab: "interviews" }, ["P1"], now, null)).toMatchObject({
-      preset: "interview", status: "submitted_awaiting_coding,in_coding,coded,not_codeable", submitted_from: "2026-08-06",
+      preset: "interview", status: "submitted_awaiting_coding,in_coding,coded,not_codeable,refused", submitted_from: "2026-08-06", unregistered: "1", interviewed: "1",
     });
+    expect(casesQuery({ ...base, tab: "interviews", status: "refused" }, ["P1"], now, null)).toMatchObject({ status: "refused", interviewed: "1" });
     expect(casesQuery({ ...base, tab: "codings", status: "not_started", site: "s1", overdue: true }, ["S1"], now, null)).toMatchObject({
-      preset: "coding", status: "submitted_awaiting_coding", submitted_from: null, site_id: "s1", overdue: "coding",
+      preset: "coding", status: "submitted_awaiting_coding", submitted_from: null, site_id: "s1", overdue: "coding", unregistered: "1", interviewed: "1",
     });
+  });
+
+  test("stage counts ask for the tabs' project, area and period; a project left out has nothing", () => {
+    expect(stageCountsQuery(["P1", "P2"], { unit: null, site: null }, "90d", now)).toEqual({
+      project_id: "P1,P2", org_unit_id: null, site_id: null, reported_from: "2026-08-06", submitted_from: "2026-08-06",
+    });
+    expect(stageCountsQuery(["P1"], { unit: "u1", site: null }, "all", now)).toMatchObject({ org_unit_id: "u1", reported_from: null, submitted_from: null });
+    const one = { reported: 5, interviewed: 4, coded: 2, overdue_interview: 1, overdue_coding: 0 };
+    const reply = { projects: { P1: one }, total: one, thresholds: { interview_days: 60, coding_days: 15 } };
+    expect(projectStages(reply, "P1")).toBe(one);
+    expect(projectStages(reply, "P2")).toEqual(NO_STAGES);
   });
 
   test("chip counts fold the server's per-status counts; missing counts are zero", () => {
@@ -143,12 +156,14 @@ describe("case tables", () => {
   });
 });
 
-test("project counts are summed; an older server without overdue counts sums as zero", () => {
-  const card = (deaths_reported: number, submitted: number, final_cod: number, overdue?: [number, number]) => ({
-    deaths_reported, submitted, final_cod, ...(overdue ? { overdue_interview: overdue[0], overdue_coding: overdue[1] } : {}),
-  });
-  expect(sumCounts([card(10, 6, 3, [2, 1]), card(5, 5, 4)])).toEqual({ deaths_reported: 15, submitted: 11, final_cod: 7, overdue_interview: 2, overdue_coding: 1 });
-  expect(sumCounts([])).toEqual({ deaths_reported: 0, submitted: 0, final_cod: 0, overdue_interview: 0, overdue_coding: 0 });
+test("the stage-counts reply is checked: a missing number is an error, not a zero", async () => {
+  const one = { reported: 1, interviewed: 1, coded: 0, overdue_interview: 0, overdue_coding: 0 };
+  const good = { projects: { P1: one }, total: one, thresholds: { interview_days: 60, coding_days: 15 } };
+  const request = jest.fn().mockResolvedValue(good);
+  await expect(getStageCounts(request, { project_id: "P1", reported_from: null })).resolves.toEqual(good);
+  expect(request).toHaveBeenCalledWith("/api/v1/cases/stage-counts?project_id=P1");
+  const bad = jest.fn().mockResolvedValue({ ...good, projects: { P1: { ...one, coded: undefined } } });
+  await expect(getStageCounts(bad, {})).rejects.toThrow("malformed_response");
 });
 
 test("the Area drop-down: All, the path, then what opens below", () => {
@@ -210,6 +225,11 @@ describe("area api client", () => {
     await expect(listCases(request, { preset: "deaths", project_id: "P1,P2", status: null, cursor: undefined, limit: "50" })).resolves.toEqual(page);
     expect(request).toHaveBeenCalledWith("/api/v1/cases?preset=deaths&project_id=P1%2CP2&limit=50");
     await expect(listCases(jest.fn(async () => ({ cases: [{ unique_id: "U1" }], next_cursor: null })), {})).rejects.toThrow("malformed_response");
+    // A submission with no register row: a null death_id comes with its va_sid, never alone.
+    const unregistered = { cases: [{ death_id: null, va_sid: "uuid:s1", unique_id: "U2", status: "coded" }], next_cursor: null };
+    await expect(listCases(jest.fn(async () => unregistered), {})).resolves.toEqual(unregistered);
+    await expect(listCases(jest.fn(async () => ({ cases: [{ death_id: null, unique_id: "U2", status: "coded" }], next_cursor: null })), {}))
+      .rejects.toThrow("malformed_response");
     await expect(listCases(jest.fn(async () => ({ cases: [] })), {})).rejects.toThrow("malformed_response");
   });
 
@@ -268,4 +288,21 @@ describe("progressive project loading", () => {
     expect(started).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
     await expect(runLimited([], 4, async () => { throw new Error("never"); })).resolves.toBeUndefined();
   });
+});
+
+test("a count of 1 reads in the singular; other counts, a median of 1.0 and Hindi keep their forms", () => {
+  expect(t(countKey("statsOverdueInterviews", 1), { count: 1, days: 60 })).toBe("1 death not interviewed after 60 days");
+  expect(t(countKey("statsOverdueCodings", 1), { count: 1, days: 15 })).toBe("1 interview not coded after 15 days");
+  expect(t(countKey("statsOverdueInterviews", 2), { count: 2, days: 60 })).toBe("2 deaths not interviewed after 60 days");
+  expect(t(countKey("statsOverdueInterviews", 0), { count: 0, days: 60 })).toBe("0 deaths not interviewed after 60 days");
+  expect(t(countKey("statsMedianInterview", formatDays(1)), { days: formatDays(1)! })).toBe("Median 1 day from death to interview");
+  expect(t(countKey("statsMedianCod", formatDays(1.4)), { days: formatDays(1.4)! })).toBe("Median 1.4 days from interview to final cause of death");
+  expect(t(countKey("statsLoadingMore", 1), { count: 1 })).toBe("Loading 1 more project…");
+  expect(t(countKey("statsSomeFailed", 3), { count: 3 })).toBe("3 projects could not be loaded.");
+  setUiLocale("hi");
+  try {
+    expect(t(countKey("statsOverdueCodings", 1), { count: 1, days: 15 })).toBe("1 साक्षात्कार 15 दिन बाद भी कोड नहीं हुआ");
+  } finally {
+    setUiLocale("en");
+  }
 });

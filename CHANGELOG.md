@@ -5,6 +5,25 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-04
 
+- **Statistics lists every interview and its numbers agree** (`digitva-vfll`;
+  `docs/policy/case-list-views.md`, `docs/policy/area-dashboard.md`,
+  `docs/current-state/api-v1.md`): Deaths, Interviews and Codings now also
+  list submissions with no death-register row (sites-mode projects such as
+  ICMR01 and UNSW01), read-only and keyset-paged with each union branch
+  limited on its own. No backfill or migration, as the owner asked: writing
+  register rows for old submissions would change workflow data. A new
+  `GET /api/v1/cases/stage-counts` feeds the Overview, attention line and
+  Projects cards from the same scoping as the tables, so on dev every
+  project's Deaths/Interviewed/Coded/overdue counts equal its tab totals
+  (7836/7811/7515 overall). Deactivated sites drop out for registered and
+  unregistered rows alike; Interviews gains a Refused chip; empty names read
+  "Not recorded"; count lines use the singular for 1; the synthetic demo
+  seeder sets the interview date. The client keeps responses 60 s in memory
+  (stale-while-refresh, shared in-flight requests, cleared on logout),
+  prefetches the other tabs' first page, and changes tabs with setParams
+  instead of stacking screens. No Redis: every endpoint answered under
+  ~160 ms median. Tables start at a 1024 px window; below it rows are cards.
+
 - **Statistics as operational dashboards** (`digitva-0xsv`;
   `docs/policy/area-dashboard.md`, `.tasks/statistics-operational-dashboards.md`):
   `/app/statistics` gains Overview, Deaths, Interviews, Codings and Projects

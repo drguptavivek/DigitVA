@@ -1,21 +1,23 @@
 import { Text, View } from "react-native";
 
-import type { AreaProject } from "../../area/api";
+import type { AreaProject, StageCountsReply } from "../../area/api";
 import { t } from "../../i18n";
 import { fontSize, radius, spacing, typography, useTheme } from "../../theme";
 import { Button } from "../../ui";
 import { StatPressable } from "./controls";
 import { Freshness, Medians, StageLine } from "./OverviewTab";
-import { hasDeathRegister } from "./pipeline";
-import { sumCounts, type ProjectLoad } from "./view";
+import { countKey } from "./pipeline";
+import { projectStages, type ProjectLoad } from "./view";
 
 /**
- * One card per project the user can see: its stage counts, the two overdue counts (warning text when above zero) and
- * freshness. A card opens that project's Overview. *loads* holds each project's top level as it arrives: a card shows
+ * One card per project the user can see: its stage counts and the two overdue counts (warning text when above zero),
+ * from *stages* (one stage-counts request for every project, the case tabs' totals), then medians and freshness from
+ * its summary. A card opens that project's Overview. *loads* holds each project's top level as it arrives: a card shows
  * its name while loading and an error line with Retry if its summary failed, so one slow project blocks no other.
  */
-export function ProjectsTab({ projects, loads, onOpen, onRetry }: {
+export function ProjectsTab({ projects, stages, loads, onOpen, onRetry }: {
   projects: AreaProject[];
+  stages: StageCountsReply | null;
   loads: Record<string, ProjectLoad | undefined>;
   onOpen: (projectId: string) => void;
   onRetry: (projectId: string) => void;
@@ -36,11 +38,11 @@ export function ProjectsTab({ projects, loads, onOpen, onRetry }: {
             </View>
           );
         }
-        const counts = summary ? sumCounts([summary.card.counts]) : null;
-        const thresholds = summary?.thresholds;
+        const counts = summary && stages ? projectStages(stages, project.project_id) : null;
+        const thresholds = stages?.thresholds;
         const overdue = counts && thresholds ? [
-          t("statsOverdueInterviews", { count: counts.overdue_interview, days: thresholds.interview_days }),
-          t("statsOverdueCodings", { count: counts.overdue_coding, days: thresholds.coding_days }),
+          t(countKey("statsOverdueInterviews", counts.overdue_interview), { count: counts.overdue_interview, days: thresholds.interview_days }),
+          t(countKey("statsOverdueCodings", counts.overdue_coding), { count: counts.overdue_coding, days: thresholds.coding_days }),
         ].map((text, index) => ({ text, warn: (index === 0 ? counts.overdue_interview : counts.overdue_coding) > 0 })) : [];
         return (
           <StatPressable
@@ -52,7 +54,7 @@ export function ProjectsTab({ projects, loads, onOpen, onRetry }: {
             <Text style={{ ...typography.headline, color: ui.foreground }}>{project.project_name}</Text>
             {summary && counts ? (
               <>
-                <StageLine counts={counts} showReported={hasDeathRegister([summary.card.counts, ...summary.rows.map((row) => row.counts)])} />
+                <StageLine counts={counts} />
                 {overdue.map((line) => (
                   <Text key={line.text} style={{ fontSize: fontSize.body, color: line.warn ? ui.warningText : ui.mutedForeground }}>{line.text}</Text>
                 ))}

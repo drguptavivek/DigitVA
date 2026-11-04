@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
-import { DEFAULT_PERIOD, getAreaProjects, getAreaSummary, type AreaProject } from "../area/api";
+import { DEFAULT_PERIOD, type AreaProject, type AreaSummary, type StageCountsReply } from "../area/api";
 import { ClientApiError } from "../client/api";
 import { dataRouteForLink } from "../data/query";
 import { t } from "../i18n";
@@ -17,14 +17,17 @@ import { CaseTableTab } from "./stats/CaseTableTab";
 import { FilterBar, type FilterSelect } from "./stats/FilterBar";
 import { OverviewTab } from "./stats/OverviewTab";
 import { ProjectsTab } from "./stats/ProjectsTab";
+import { casesEntry, followStats, peekStats, prefetchStats, readStats, projectsEntry, setStatsScope, stageCountsEntry, summaryEntry, type StatsEntry } from "./stats/cache";
 import { soleOpenUnit } from "./stats/pipeline";
 import {
-  areaOptions, isCaseTab, loadCounts, loadedSummaries, MAX_SUMMARY_REQUESTS, parseView, projectsInView, runLimited, viewParams, withTab,
+  areaOptions, casesQuery, isCaseTab, loadCounts, loadedSummaries, MAX_SUMMARY_REQUESTS, parseView, projectsInView, runLimited, stageCountsQuery, viewParams, withTab,
   type CaseTab, type ProjectLoad, type Source, type StatsView,
 } from "./stats/view";
 
 /** Height held while the first summary loads, so the page does not jump. */
 const LOADING_MIN_HEIGHT = 240;
+/** Every query key `viewParams` may write, unset: a view change replaces the whole query. */
+const CLEARED_VIEW = { tab: undefined, project: undefined, period: undefined, unit: undefined, site: undefined, status: undefined, overdue: undefined, source: undefined };
 
 type RawParams = Partial<Record<"tab" | "project" | "period" | "unit" | "site" | "status" | "overdue" | "source", string | string[]>>;
 
@@ -32,23 +35,31 @@ type RawParams = Partial<Record<"tab" | "project" | "period" | "unit" | "site" |
  * Statistics: operational dashboards over /api/v1/area/* (counts) and /api/v1/cases (read-only case tables). The view
  * is the URL (src/web/stats/view.ts): every choice pushes a history entry, so reload and Back restore it. The URL is
  * untrusted: parseView checks it against the server's project list and the server scopes every number and row anyway.
- * The screen loads the projects and one summary per project in view (every project on the Projects tab), then hands
- * them to the tab.
+ * The screen loads the projects, one stage-counts request for the projects in view (every project on the Projects
+ * tab: the stage and overdue numbers, each a case tab's total) and one summary per project (the area detail: medians,
+ * causes, stations, staff, freshness, CSV), then hands them to the tab. Every read goes through the in-memory cache
+ * (src/web/stats/cache.ts), and once the visible tab has loaded the first page of the other tabs is prefetched, so
+ * switching tabs within a minute shows data at once.
  */
 export default function StatisticsScreen() {
   const { bootstrap } = useAppState();
   const { ui } = useTheme();
+  // Cached replies belong to one user and access; signing out or a changed grant drops them (before any read below).
+  const scope = bootstrap ? JSON.stringify([bootstrap.user.user_id, bootstrap.access, bootstrap.capabilities, bootstrap.scope]) : "";
+  setStatsScope(scope);
   const request: JsonRequester | undefined = useMemo(
     () => (bootstrap ? createWebWorkspaceTransport(bootstrap.csrf) : undefined),
     [bootstrap],
   );
   const router = useRouter();
   const params = useLocalSearchParams<RawParams>();
-  const [projects, setProjects] = useState<AreaProject[] | null>(null);
+  // A remount (each tab switch pushes a history entry) starts from the cached list, so the page does not flash Loading.
+  const [projects, setProjects] = useState<AreaProject[] | null>(() => (request ? peekStats(projectsEntry(request)) ?? null : null));
   const [loaded, setLoaded] = useState<{ key: string; byId: Record<string, ProjectLoad> } | null>(null);
   const [error, setError] = useState("");
   const [soleRoot, setSoleRoot] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [stages, setStages] = useState<{ key: string; reply: StageCountsReply } | null>(null);
 
   const view = useMemo(() => (projects ? parseView(params, projects) : null), [projects, params]);
   const inView = useMemo(() => (view && projects ? projectsInView(view, projects) : []), [view, projects]);
@@ -70,26 +81,46 @@ export default function StatisticsScreen() {
     if (!request) return undefined;
     let active = true;
     setError("");
-    getAreaProjects(request)
-      .then((rows) => {
-        if (active) setProjects(rows);
-      })
-      .catch((caught) => {
-        if (active) setError(browserErrorText(caught));
-      });
+    followStats(projectsEntry(request), (rows) => {
+      if (active) setProjects(rows);
+    }, (caught) => {
+      if (active) setError(browserErrorText(caught));
+    });
     return () => {
       active = false;
     };
   }, [request, retry]);
 
-  /** Push *next* as the view; each step is one history entry. */
-  const go = useCallback((next: StatsView) => router.push({ pathname: "/statistics", params: viewParams(next) }), [router]);
+  // One request for every project in view (Overview and Projects only); numbers of another key are never shown.
+  const stagesWanted = view ? !isCaseTab(view.tab) : false;
+  const stagesKey = JSON.stringify([loadKey, unit, site, period]);
+  const stagesSource = useMemo(
+    () => (request && loadKey && period ? stageCountsEntry(request, stageCountsQuery(loadKey.split(","), { unit, site }, period, new Date())) : null),
+    [request, loadKey, unit, site, period],
+  );
+  useEffect(() => {
+    if (!stagesSource || !stagesWanted) return undefined;
+    let active = true;
+    followStats(stagesSource, (reply) => {
+      if (active) setStages({ key: stagesKey, reply });
+    }, (caught) => {
+      if (active) setError(browserErrorText(caught));
+    });
+    return () => {
+      active = false;
+    };
+  }, [stagesSource, stagesKey, stagesWanted, retry]);
+
+  /** Show *next* in place: push stacked a new Statistics screen per tab or filter change (every one kept mounted).
+   * setParams keeps keys it is not given a value for, so every view key is cleared first. */
+  const go = useCallback((next: StatsView) => router.setParams({ ...CLEARED_VIEW, ...viewParams(next) }), [router]);
 
   useEffect(() => {
     if (!request || !loadKey || !period) return undefined;
     let active = true;
     const ids = loadKey.split(",");
     const one = ids.length === 1 && !onProjectsTab;
+    const readSummary = (project: string) => readStats(summaryEntry(request, { project, unit: one ? unit : null, site: one ? site : null, period }));
     // Each project's state lands on its own; a new project set starts empty, the same set keeps its numbers (dimmed).
     const patch = (id: string, next: Partial<ProjectLoad>) => setLoaded((prev) => {
       const base = prev && prev.key === loadKey ? prev.byId : {};
@@ -99,8 +130,7 @@ export default function StatisticsScreen() {
       setError("");
       todo.forEach((id) => patch(id, { error: "", fetching: true }));
       void runLimited(todo, MAX_SUMMARY_REQUESTS, async (project) => {
-        try {
-          const reply = await getAreaSummary(request, { project, unit: one ? unit : null, site: one ? site : null, period });
+        const landed = (reply: AreaSummary) => {
           if (!active) return;
           // A district-level user's one root opens at once, so the first level is the units below it.
           const first = one ? soleOpenUnit(reply, { unit, site }) : null;
@@ -113,8 +143,15 @@ export default function StatisticsScreen() {
           }
           if (one && !unit && !site) setSoleRoot(null);
           patch(project, { summary: reply, error: "", fetching: false });
+        };
+        // A cached summary shows at once; a stale one is refreshed behind it, and a failed refresh leaves it shown.
+        const { cached, next } = readSummary(project);
+        if (cached) landed(cached);
+        if (!next) return;
+        try {
+          landed(await next);
         } catch (caught) {
-          if (!active) return;
+          if (!active || cached) return;
           // A unit or site the server does not know (a stale link): back to the project's top level, not an error page.
           if (one && (unit || site) && caught instanceof ClientApiError && caught.status === 404) {
             patch(project, { fetching: false });
@@ -135,6 +172,30 @@ export default function StatisticsScreen() {
     };
   }, [request, loadKey, onProjectsTab, unit, site, period, retry, router]);
 
+  // After the visible tab's requests settle, the first page of every other tab for the same filters, one at a time.
+  // A filter change cancels what has not started; a request under way is stored under its own filters' key only.
+  const viewKey = JSON.stringify(view);
+  useEffect(() => {
+    const current = viewRef.current;
+    if (!request || !current || !projects) return undefined;
+    const now = new Date();
+    const ids = projectsInView(current, projects);
+    const all = projects.map((row) => row.project_id);
+    const area = { unit: current.unit, site: current.site };
+    const one = ids.length === 1;
+    const caseTabs = (["deaths", "interviews", "codings"] as const).filter((tab) => tab !== current.tab);
+    const list: StatsEntry<unknown>[] = [
+      ...caseTabs.map((tab) => casesEntry(request, casesQuery({ ...withTab(current, tab), tab }, ids, now, null))),
+      stageCountsEntry(request, stageCountsQuery(ids, area, current.period, now)),
+      ...ids.map((project) => summaryEntry(request, { project, unit: one ? area.unit : null, site: one ? area.site : null, period: current.period })),
+      stageCountsEntry(request, stageCountsQuery(all, { unit: null, site: null }, current.period, now)),
+      ...all.map((project) => summaryEntry(request, { project, unit: null, site: null, period: current.period })),
+    ];
+    return prefetchStats(list);
+    // viewKey stands for the view: its object is rebuilt on renders that change nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request, projects, viewKey, scope]);
+
   if (!bootstrap) return <WebShell title={t("statsTitle")}>{null}</WebShell>;
 
   const muted = { ...typography.subhead, color: ui.mutedForeground } as const;
@@ -151,9 +212,15 @@ export default function StatisticsScreen() {
   if (!projects || !view) return <WebShell title={t("statsTitle")}>{failed}<View style={{ minHeight: LOADING_MIN_HEIGHT }}><Text style={muted}>{t("loading")}</Text></View></WebShell>;
 
   // Numbers of another project set are never shown under this one's filters; the same set's stay (dimmed) while the area loads.
-  const byId = loaded && loaded.key === loadKey ? loaded.byId : null;
+  // A remount or a switch to another project set starts from the cached summaries, so they show without a Loading line.
+  const one = loadIds.length === 1 && !onProjectsTab;
+  const byId = loaded && loaded.key === loadKey ? loaded.byId : request ? Object.fromEntries(loadIds.flatMap((id) => {
+    const summary = peekStats(summaryEntry(request, { project: id, unit: one ? unit : null, site: one ? site : null, period: view.period }));
+    return summary ? [[id, { summary, error: "", fetching: false }]] : [];
+  })) as Record<string, ProjectLoad> : null;
   const summaries = loadedSummaries(loadIds, byId ?? {});
   const soleSummary = sole && !onProjectsTab && byId ? byId[sole]?.summary ?? null : null;
+  const stageReply = stages && stages.key === stagesKey ? stages.reply : stagesWanted && stagesSource ? peekStats(stagesSource) ?? null : null;
   const busy = loadIds.some((id) => byId?.[id]?.fetching);
   // Several projects answer one by one; the Overview says how many are still out or failed.
   const { pending, failedIds } = loadIds.length > 1 ? loadCounts(loadIds, byId ?? {}) : { pending: 0, failedIds: [] as string[] };
@@ -225,8 +292,9 @@ export default function StatisticsScreen() {
         />
       ) : null}
       {request && view.tab === "overview" ? (
-        summaries.length || error || failedIds.length ? (
+        summaries.length || stageReply || error || failedIds.length ? (
           <OverviewTab
+            stages={stageReply}
             summaries={summaries}
             sole={soleSummary}
             unit={unit}
@@ -246,6 +314,7 @@ export default function StatisticsScreen() {
       {view.tab === "projects" ? (
         <ProjectsTab
           projects={projects}
+          stages={stageReply}
           loads={byId ?? {}}
           onRetry={(projectId) => retryRef.current([projectId])}
           onOpen={(projectId) => go({ ...withTab(view, "overview"), projects: [projectId], unit: null, site: null })}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 
-import { areaCsvUrl, getAreaStaff, type AreaStaff, type AreaSummary } from "../../area/api";
+import { areaCsvUrl, getAreaStaff, type AreaStaff, type AreaSummary, type StageCounts, type StageCountsReply } from "../../area/api";
 import { t, type StringKey } from "../../i18n";
 import { fontSize, spacing, typography, useTheme } from "../../theme";
 import type { JsonRequester } from "../../workspace/api";
@@ -9,26 +9,26 @@ import { Button } from "../../ui";
 import { browserErrorText } from "../common";
 import { CausesList } from "./CausesList";
 import { StatPressable, TextAction } from "./controls";
-import { canDrill, formatDays, hasDeathRegister, pipelineScale } from "./pipeline";
+import { canDrill, countKey, formatDays, hasDeathRegister, pipelineScale } from "./pipeline";
 import { PipelineRow } from "./PipelineRow";
-import { sumCounts, type StageCounts } from "./view";
 
 /** Which count a server link belongs to, and how to say where it leads. */
 const LINK_LABELS: Record<string, StringKey> = {
   submitted: "statsLinkSubmitted", awaiting_coding: "statsLinkAwaiting", visit_notes: "statsLinkVisitNotes",
 };
 
-/** Reported -> Interviewed -> Coded with the number under each; Reported is left out without a death register. */
-export function StageLine({ counts, showReported }: { counts: StageCounts; showReported: boolean }) {
+/**
+ * Deaths -> Interviewed -> Coded with the number under each (stage-counts): each is a case tab's total, so Deaths counts
+ * every known death, reported or interviewed, in a project with or without a death register.
+ */
+export function StageLine({ counts }: { counts: StageCounts }) {
   const { ui } = useTheme();
   const stages = [
-    ...(showReported ? [{ key: "statsStageReported" as const, value: counts.deaths_reported }] : []),
-    { key: "statsStageInterviewed" as const, value: counts.submitted },
-    { key: "statsStageCoded" as const, value: counts.final_cod },
+    { key: "statsStageReported" as const, value: counts.reported },
+    { key: "statsStageInterviewed" as const, value: counts.interviewed },
+    { key: "statsStageCoded" as const, value: counts.coded },
   ];
-  const spoken = showReported
-    ? t("statsSummary", { reported: counts.deaths_reported, interviewed: counts.submitted, coded: counts.final_cod })
-    : t("statsSummaryNoRegister", { interviewed: counts.submitted, coded: counts.final_cod });
+  const spoken = t("statsSummary", { reported: counts.reported, interviewed: counts.interviewed, coded: counts.coded });
   return (
     <View accessible accessibilityLabel={spoken} style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md, rowGap: spacing.xs }}>
       {stages.map((stage, index) => (
@@ -45,26 +45,26 @@ export function StageLine({ counts, showReported }: { counts: StageCounts; showR
 }
 
 /**
- * The overdue counts as one warning line, each part a link into its filtered tab. Nothing while the server sends no
- * thresholds (an older server) or nothing is overdue.
+ * The overdue counts as one warning line, each part a link into the tab filter that lists exactly that many (Deaths or
+ * Codings with Overdue). Nothing while nothing is overdue.
  */
 export function AttentionLine({ counts, thresholds, onOpen }: {
   counts: StageCounts;
-  thresholds: AreaSummary["thresholds"];
+  thresholds: StageCountsReply["thresholds"] | undefined;
   onOpen?: (tab: "deaths" | "codings") => void;
 }) {
   const { ui } = useTheme();
   if (!thresholds) return null;
   const parts = [
-    counts.overdue_interview > 0 ? { tab: "deaths" as const, text: t("statsOverdueInterviews", { count: counts.overdue_interview, days: thresholds.interview_days }) } : null,
-    counts.overdue_coding > 0 ? { tab: "codings" as const, text: t("statsOverdueCodings", { count: counts.overdue_coding, days: thresholds.coding_days }) } : null,
+    counts.overdue_interview > 0 ? { tab: "deaths" as const, text: t(countKey("statsOverdueInterviews", counts.overdue_interview), { count: counts.overdue_interview, days: thresholds.interview_days }) } : null,
+    counts.overdue_coding > 0 ? { tab: "codings" as const, text: t(countKey("statsOverdueCodings", counts.overdue_coding), { count: counts.overdue_coding, days: thresholds.coding_days }) } : null,
   ].filter((part) => part !== null);
   if (parts.length === 0) return null;
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.xs }}>
-      {parts.map((part, index) => (
-        <View key={part.tab} style={{ flexDirection: "row", alignItems: "center", columnGap: spacing.xs }}>
-          {index > 0 ? <Text style={{ fontSize: fontSize.body, color: ui.warningText }}>{"·"}</Text> : null}
+    // A gap, not a "·" separator: on a phone the second link wraps and a dot would lead its line.
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.lg }}>
+      {parts.map((part) => (
+        <View key={part.tab} style={{ flexDirection: "row", alignItems: "center" }}>
           {onOpen ? (
             <StatPressable label={part.text} onPress={() => onOpen(part.tab)} style={{ minHeight: 44, justifyContent: "center" }}>
               <Text style={{ fontSize: fontSize.body, color: ui.warningText, textDecorationLine: "underline" }}>{part.text}</Text>
@@ -97,16 +97,18 @@ export function Medians({ summary, fallback = true }: { summary: AreaSummary; fa
     ["statsMedianCod", formatDays(summary.card.medians.interview_to_final_cod_days)],
   ] as const;
   return days.some(([, value]) => value !== null)
-    ? <>{days.map(([key, value]) => (value === null ? null : <Text key={key} style={muted}>{t(key, { days: value })}</Text>))}</>
+    ? <>{days.map(([key, value]) => (value === null ? null : <Text key={key} style={muted}>{t(countKey(key, value), { days: value })}</Text>))}</>
     : fallback ? <Text style={muted}>{t("statsMediansNone")}</Text> : null;
 }
 
 /**
- * Overview: the stage line and the attention line over every project in view (counts summed, never medians or
- * percentages), then, for one project, its area detail (path, unit bars, causes, stations, staff, CSV); for several,
- * only the freshness (each project's medians are on its Projects card). *summaries* are the projects in view, at the chosen area when there is one project.
+ * Overview: the stage line and the attention line over every project in view (*stages*, the case tabs' totals; never
+ * medians or percentages), then, for one project, its area detail (path, unit bars, causes, stations, staff, CSV); for
+ * several, only the freshness (each project's medians are on its Projects card). *summaries* are the projects in view,
+ * at the chosen area when there is one project.
  */
-export function OverviewTab({ summaries, sole, unit, site, soleRoot, busy, pending, failedCount, onRetryFailed, request, onDrill, onAttention, onOpenLink }: {
+export function OverviewTab({ stages, summaries, sole, unit, site, soleRoot, busy, pending, failedCount, onRetryFailed, request, onDrill, onAttention, onOpenLink }: {
+  stages: StageCountsReply | null;
   summaries: AreaSummary[];
   sole: AreaSummary | null;
   unit: string | null;
@@ -124,20 +126,20 @@ export function OverviewTab({ summaries, sole, unit, site, soleRoot, busy, pendi
 }) {
   const { ui } = useTheme();
   const muted = { ...typography.subhead, color: ui.mutedForeground } as const;
-  const counts = sumCounts(summaries.map((one) => one.card.counts));
+  // The unit bars below still read the area summary, whose reported stage is the death register's.
   const showReported = hasDeathRegister(summaries.flatMap((one) => [one.card.counts, ...one.rows.map((row) => row.counts)]));
   return (
     <View accessibilityState={{ busy }} style={{ gap: spacing.md, opacity: busy ? 0.55 : 1 }}>
-      {summaries.length ? (
+      {stages ? (
         <View style={{ gap: spacing.xs }}>
-          <StageLine counts={counts} showReported={showReported} />
-          <AttentionLine counts={counts} thresholds={summaries[0]?.thresholds} onOpen={onAttention} />
+          <StageLine counts={stages.total} />
+          <AttentionLine counts={stages.total} thresholds={stages.thresholds} onOpen={onAttention} />
         </View>
       ) : null}
-      {pending ? <Text style={muted}>{t(pending === 1 ? "statsLoadingMoreOne" : "statsLoadingMore", { count: pending })}</Text> : null}
+      {pending ? <Text style={muted}>{t(countKey("statsLoadingMore", pending), { count: pending })}</Text> : null}
       {failedCount ? (
         <View style={{ gap: spacing.xs }}>
-          <Text accessibilityRole="alert" style={{ ...typography.subhead, color: ui.destructiveText }}>{t(failedCount === 1 ? "statsSomeFailedOne" : "statsSomeFailed", { count: failedCount })}</Text>
+          <Text accessibilityRole="alert" style={{ ...typography.subhead, color: ui.destructiveText }}>{t(countKey("statsSomeFailed", failedCount), { count: failedCount })}</Text>
           <Button label={t("statsRetry")} kind="secondary" size="sm" onPress={onRetryFailed} style={{ alignSelf: "flex-start" }} />
         </View>
       ) : null}

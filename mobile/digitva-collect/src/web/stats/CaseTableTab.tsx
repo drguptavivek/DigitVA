@@ -9,13 +9,15 @@ import { Button } from "../../ui";
 import { CaseCard, formatDisplayTimestamp, sexLabel } from "../../ui/CaseCard";
 import { browserErrorText } from "../common";
 import { CausesList } from "./CausesList";
+import { casesEntry, followStats, peekStats } from "./cache";
 import { ChoiceRow } from "./controls";
 import { allStatuses, casesQuery, chipCount, daysBetween, STATUS_CHIPS, type CaseTab, type StatsView } from "./view";
 
-/** Below this window width the rows are case cards, not a table. */
-const TABLE_MIN_WIDTH = 768;
+/** Below this window width (sidebar included) the rows are case cards: at 768 the nine columns broke words mid-word. */
+const TABLE_MIN_WIDTH = 1024;
 
-type Column = { key: string; label: StringKey; text: (row: CaseListRow) => string; flex?: number; gate?: keyof CaseListRow };
+/** *gate*: the column shows only when some row carries one of these fields (the server omits a hidden field). */
+type Column = { key: string; label: StringKey; text: (row: CaseListRow) => string; flex?: number; gate?: (keyof CaseListRow)[] };
 
 const statusText = (row: CaseListRow) => {
   const key = `caseStatus_${row.status}` as StringKey;
@@ -36,7 +38,9 @@ function daysText(tab: CaseTab, row: CaseListRow): string {
 }
 
 const ID: Column = { key: "id", label: "statsColId", text: (row) => row.unique_id, flex: 1.2 };
-const NAME: Column = { key: "name", label: "statsColName", text: (row) => row.deceased_name ?? "", flex: 1.4, gate: "deceased_name" };
+/** "Not recorded" only where the server says so (`name_recorded: false`); a hidden name stays blank. */
+const nameText = (row: CaseListRow) => row.deceased_name || (row.name_recorded === false ? t("statsNameNotRecorded") : "");
+const NAME: Column = { key: "name", label: "statsColName", text: nameText, flex: 1.4, gate: ["deceased_name", "name_recorded"] };
 const AGE: Column = { key: "age", label: "statsColAge", text: (row) => (row.age_years == null ? "" : String(row.age_years)), flex: 0.6 };
 const SEX: Column = { key: "sex", label: "statsColSex", text: (row) => sexLabel(row.deceased_sex), flex: 0.7 };
 const DIED: Column = { key: "died", label: "statsColDeath", text: (row) => formatDisplayTimestamp(row.date_of_death) };
@@ -46,14 +50,14 @@ const INTERVIEWED: Column = { key: "interviewed", label: "statsColInterviewedOn"
 
 const COLUMNS: Record<CaseTab, Column[]> = {
   deaths: [ID, NAME, AGE, SEX, DIED, FACILITY,
-    { key: "reporter", label: "statsColReporter", text: (row) => row.reporter_name ?? "", gate: "reporter_name" },
+    { key: "reporter", label: "statsColReporter", text: (row) => row.reporter_name ?? "", gate: ["reporter_name"] },
     STATUS, { key: "days", label: "statsColDaysWaiting", text: (row) => daysText("deaths", row) }],
   interviews: [ID, NAME, AGE, SEX, DIED, INTERVIEWED,
-    { key: "interviewer", label: "statsColInterviewer", text: (row) => row.interviewer_name ?? "", gate: "interviewer_name" },
+    { key: "interviewer", label: "statsColInterviewer", text: (row) => row.interviewer_name ?? "", gate: ["interviewer_name"] },
     FACILITY, STATUS, { key: "days", label: "statsColDaysSinceInterview", text: (row) => daysText("interviews", row) }],
   codings: [ID, NAME, INTERVIEWED,
     { key: "coded", label: "statsColCodedOn", text: (row) => formatDisplayTimestamp(row.coded_at) },
-    { key: "coder", label: "statsColCoder", text: (row) => row.coder_name ?? "", gate: "coder_name" },
+    { key: "coder", label: "statsColCoder", text: (row) => row.coder_name ?? "", gate: ["coder_name"] },
     STATUS, { key: "days", label: "statsColDaysToCode", text: (row) => daysText("codings", row) }],
 };
 
@@ -77,7 +81,7 @@ export function CaseTableTab({ view, projectIds, request, causes, onStatus, onOp
 }) {
   const { ui } = useTheme();
   const wide = useWindowDimensions().width >= TABLE_MIN_WIDTH;
-  const [page, setPage] = useState<CaseListPage | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; page: CaseListPage } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -85,26 +89,30 @@ export function CaseTableTab({ view, projectIds, request, causes, onStatus, onOp
   // One "now" per view, so a re-render does not move the period start and refetch.
   const firstQuery = useMemo(() => casesQuery(view, projectIds, new Date(), null), [view, projectIds]);
   const queryKey = JSON.stringify(firstQuery);
+  const entry = useMemo(() => casesEntry(request, JSON.parse(queryKey)), [request, queryKey]);
+  // A cached first page shows on the first render (a tab switched back to within the TTL), with no loading line.
+  const page = loaded && loaded.key === queryKey ? loaded.page : peekStats(entry) ?? null;
 
   useEffect(() => {
     const mine = ++generation.current;
-    setPage(null);
-    setBusy(true);
+    let shown = false;
     setError("");
-    listCases(request, JSON.parse(queryKey))
-      .then((reply) => {
-        if (generation.current === mine) setPage(reply);
-      })
-      .catch((caught) => {
-        if (generation.current === mine) setError(browserErrorText(caught));
-      })
-      .finally(() => {
-        if (generation.current === mine) setBusy(false);
-      });
+    setBusy(true);
+    followStats(entry, (reply) => {
+      if (generation.current !== mine) return;
+      // A background refresh of the first page does not undo Load more.
+      setLoaded((current) => (shown && current?.key === queryKey && current.page.cases.length > reply.cases.length ? current : { key: queryKey, page: reply }));
+      shown = true;
+      setBusy(false);
+    }, (caught) => {
+      if (generation.current !== mine) return;
+      setError(browserErrorText(caught));
+      setBusy(false);
+    });
     return () => {
       generation.current += 1;
     };
-  }, [request, queryKey, retry]);
+  }, [entry, queryKey, retry]);
 
   const loadMore = useCallback(() => {
     if (!page?.next_cursor) return;
@@ -113,7 +121,7 @@ export function CaseTableTab({ view, projectIds, request, causes, onStatus, onOp
     listCases(request, { ...JSON.parse(queryKey), cursor: page.next_cursor })
       .then((reply) => {
         // Counts come with the first page only; they are kept while paging.
-        if (generation.current === mine) setPage((current) => current && { ...current, cases: [...current.cases, ...reply.cases], next_cursor: reply.next_cursor });
+        if (generation.current === mine) setLoaded({ key: queryKey, page: { ...page, cases: [...page.cases, ...reply.cases], next_cursor: reply.next_cursor } });
       })
       .catch((caught) => {
         if (generation.current === mine) setError(browserErrorText(caught));
@@ -125,7 +133,7 @@ export function CaseTableTab({ view, projectIds, request, causes, onStatus, onOp
 
   const rows = page?.cases ?? [];
   const opener = (row: CaseListRow) => (onOpen && row.can_open && row.va_sid ? () => onOpen(row.va_sid!) : undefined);
-  const columns = COLUMNS[view.tab].filter((column) => !column.gate || page?.cases.some((row) => row[column.gate!] !== undefined));
+  const columns = COLUMNS[view.tab].filter((column) => !column.gate || page?.cases.some((row) => column.gate!.some((field) => row[field] !== undefined)));
   // No counts until the first page lands: "(0)" while loading would read as a real zero.
   const chipLabel = (label: string, statuses: CaseStatus[]) =>
     page ? t("statsChipCount", { label, count: chipCount(page.counts, statuses) }) : label;
@@ -147,7 +155,7 @@ export function CaseTableTab({ view, projectIds, request, causes, onStatus, onOp
       ) : null}
       {page && rows.length === 0 && !page.next_cursor ?<Text style={muted}>{t("statsNoCases")}</Text> : null}
       {!page && busy ? <Text style={muted}>{t("loading")}</Text> : null}
-      {rows.length ? (wide ? <CaseTable tab={view.tab} columns={columns} rows={rows} opener={opener} /> : rows.map((row) => <CaseRowCard key={row.death_id} tab={view.tab} row={row} open={opener(row)} />)) : null}
+      {rows.length ? (wide ? <CaseTable tab={view.tab} columns={columns} rows={rows} opener={opener} /> : rows.map((row) => <CaseRowCard key={row.death_id ?? row.va_sid} tab={view.tab} row={row} open={opener(row)} />)) : null}
       {page?.next_cursor ? <Button kind="secondary" loading={busy} label={t("loadMore")} onPress={loadMore} style={{ alignSelf: "flex-start" }} /> : null}
       {view.tab === "codings" && causes ? <CausesList causes={causes} /> : null}
     </View>
@@ -192,7 +200,7 @@ function CaseTable({ tab, columns, rows, opener }: { tab: CaseTab; columns: Colu
         const { row: rowStyle, text } = tone(Boolean(row.overdue));
         const open = opener(row);
         return (
-          <View key={row.death_id} role="row" style={[{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ui.border }, rowStyle]}>
+          <View key={row.death_id ?? row.va_sid} role="row" style={[{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ui.border }, rowStyle]}>
             {columns.map((column) => (
               <View key={column.key} role="cell" style={cellStyle(column)}>
                 <Text style={{ fontSize: fontSize.body, color: text, fontWeight: column.key === "days" && row.overdue ? "600" : "400" }}>{column.text(row)}</Text>
@@ -219,6 +227,7 @@ function CaseRowCard({ tab, row, open }: { tab: CaseTab; row: CaseListRow; open?
       dateOfDeath={row.date_of_death}
       area={row.unit_name ?? undefined}
       extra={[
+        ...(row.name_recorded === false ? [{ key: "name", text: t("statsFactName", { value: t("statsNameNotRecorded") }) }] : []),
         ...fact("interviewed", "statsFactInterviewed", formatDisplayTimestamp(row.submitted_at)),
         ...fact("coded", "statsFactCoded", formatDisplayTimestamp(row.coded_at)),
         ...fact("reporter", "statsFactReporter", tab === "deaths" ? row.reporter_name : null),

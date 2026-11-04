@@ -337,13 +337,23 @@ leaf units included) and the tab's filters (Deaths: Source, Overdue;
 Interviews and Codings: Overdue). Project is not in the flyout, its count or
 its chips, and Clear all does not reset it. Applied filters show as chips
 below the tab line, above the tabs
-Overview, Deaths, Interviews, Codings, Projects. Overview sums the selected
-projects' counts into Reported → Interviewed → Coded with one overdue line
-(60 days from death, 15 from interview) linking to the filtered tab; with one
-project it keeps the area detail below. The three case tabs page
-`/api/v1/cases` (50 a page, Load more) as a table from 768 px and `CaseCard`
-below, with status chips, gated name and staff columns, and overdue rows in
-the warning fill plus "Overdue · N days". A row shows a View button when it
+Overview, Deaths, Interviews, Codings, Projects. Overview's Deaths →
+Interviewed → Coded line and its overdue line (60 days from death, 15 from
+interview, linking to the filtered tab), and each Projects card's numbers,
+come from one `/api/v1/cases/stage-counts` request built from the same scope,
+filters and statuses as the tables, so they equal the tabs' totals for every
+role; with one project the Overview keeps the area detail below. The three
+case tabs page `/api/v1/cases` with `unregistered=1` (submissions with no
+register row too; Interviews and Codings add `interviewed=1`; Interviews has a
+Refused chip) at 50 a page with Load more, as a table from a 1024 px window
+and `CaseCard` below, with status chips, gated name and staff columns
+("Not recorded" where the name may be seen but is empty), and overdue rows in
+the warning fill plus "Overdue · N days". Tab and filter changes rewrite the
+query in place (`router.setParams`; push stacked a mounted screen per change).
+Responses go through an in-memory cache (`src/web/stats/cache.ts`: per user
+and access, keyed by endpoint and query, 60 s, stale shown while it refreshes,
+in-flight requests shared, cleared on a user or access change); once the
+visible tab loads, the other tabs' first pages are prefetched one at a time. A row shows a View button when it
 carries `can_open` and `va_sid` and the user has the Data screen's access
 (`caseViewPath`, `src/web/roleHome.ts`: Flask `/data-management/view/<sid>` for
 a data manager or admin, `/coding/area/<sid>` for a viewer). Projects shows one card per project.

@@ -4,6 +4,7 @@ Policy: docs/policy/case-list-views.md. Tree CLP01 (site CL01): DST > CH1 >
 PH1 > SCA, SCB and CH1 > PH2 > SCC; CLS01 (site SM01) is a sites-mode project.
 Every "absent" assertion first asserts that an in-scope sibling is present.
 """
+import base64
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -35,6 +36,7 @@ from app.models.va_selectives import VaAllocation
 from app.services import case_list_service as case_list
 from app.services import case_transition_service as transitions
 from app.services import organization_service as org
+from app.services import register_pii_accessor
 from app.services import web_intake_service as intake_svc
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
@@ -1072,3 +1074,459 @@ class CaseListTests(BaseTestCase):
         self.assertNotIn("other_draft_active", row)
         self.assertNotIn("other_draft_started_at", row)
 
+
+    # -- submissions with no register row (unregistered=1) --------------------------
+
+    def _unregistered(self, workflow_state="ready_for_coding", unit=None, *, form=f"{PROJECT}{SITE}01",
+                      gender="Female", age=50, days_ago=0, stamp=None):
+        """A submission no register row names (an ODK-only interview). *stamp*:
+        its created and updated time (naive UTC), else now."""
+        sid = f"uuid:cl-un-{uuid.uuid4()}"
+        now = datetime.now(UTC).replace(tzinfo=None)
+        db.session.add(VaSubmissions(
+            va_sid=sid, va_form_id=form, org_unit_id=unit.org_unit_id if unit else None,
+            org_unit_resolution="form_field" if unit else None,
+            va_submission_date=now - timedelta(days=days_ago), va_odk_updatedat=now,
+            va_data_collector="cl-un", va_odk_reviewstate="reviewed", va_instance_name=sid,
+            va_uniqueid_real=sid, va_uniqueid_masked=f"masked-{sid}", va_consent="yes",
+            va_narration_language="English", va_deceased_age=age, va_deceased_gender=gender,
+            va_summary=[], va_catcount={}, va_category_list=[],
+            **({"va_created_at": stamp, "va_updated_at": stamp} if stamp else {}),
+        ))
+        db.session.flush()
+        if workflow_state:
+            db.session.add(VaSubmissionWorkflow(va_sid=sid, workflow_state=workflow_state))
+        db.session.commit()
+        return sid
+
+    def _rows(self, who, query):
+        """``{death_id or "s:" + va_sid: row}`` of one page."""
+        return {r["death_id"] or f"s:{r['va_sid']}": r for r in self._get(who, query)["cases"]}
+
+    def test_unregistered_submission_is_listed_on_request_only(self):
+        sid = self._unregistered(unit=self.sca)
+        for query in ("?preset=deaths", "?preset=interview&status=submitted_awaiting_coding", "?preset=coding"):
+            rows = self._rows(self.dana, f"{query}&unregistered=1&limit=200")
+            self.assertTrue(self._in(self.e, rows), query)
+            row = rows.get(f"s:{sid}")
+            self.assertIsNotNone(row, query)
+            self.assertIsNone(row["death_id"])
+            self.assertEqual(row["va_sid"], sid)
+            self.assertTrue(row["can_open"])
+            self.assertNotIn("deceased_name", row)
+            self.assertNotIn("reported_at", row)
+            self.assertEqual(row["identifiers"], [])
+            self.assertFalse(row["can_edit_identifiers"])
+            self.assertEqual(row["unique_id"], f"masked-{sid}")
+            self.assertEqual((row["project_id"], row["site_id"], row["source"]), (PROJECT, SITE, "odk"))
+            self.assertEqual(row["deceased_sex"], "female")  # lowercased from "Female"
+            self.assertEqual(row["age_years"], 50)
+            self.assertEqual(row["status"], "submitted_awaiting_coding")
+            self.assertIsNone(row["register_state"])
+            self.assertIsNone(row["date_of_death"])
+            self.assertEqual(row["unit_name"], "Unit SCA")
+            self.assertEqual(row["interviewer_name"], "cl-un")  # a data manager with personal-data access
+            # Flag off: the register rows only.
+            plain = self._rows(self.dana, f"{query}&limit=200")
+            self.assertTrue(self._in(self.e, plain), query)
+            self.assertNotIn(f"s:{sid}", plain, query)
+        # A coder reaches it by its VIEW scope, without the unit or staff names.
+        coder = self._rows(self.cody, "?unregistered=1&limit=200")
+        self.assertTrue(self._in(self.e, coder))
+        self.assertIn(f"s:{sid}", coder)
+        self.assertNotIn("unit_name", coder[f"s:{sid}"])
+        self.assertNotIn("interviewer_name", coder[f"s:{sid}"])
+        self.assertNotIn("name_recorded", coder[f"s:{sid}"])  # no personal-data access: nothing said
+        # An interviewer has no VIEW scope on submissions.
+        field = self._rows(self.ian, "?unregistered=1&limit=200")
+        self.assertTrue(self._in(self.a, field))
+        self.assertNotIn(f"s:{sid}", field)
+        # Supervision stays one row per death; sue sees it elsewhere through her coder grant.
+        self.assertIn(f"s:{sid}", self._rows(self.sue, "?unregistered=1&limit=200"))
+        supervised = self._rows(self.sue, "?preset=supervision&attention=total&unregistered=1&limit=200")
+        self.assertTrue(self._in(self.a, supervised))
+        self.assertNotIn(f"s:{sid}", supervised)
+
+    def test_unregistered_status_comes_from_the_workflow(self):
+        expected = {
+            self._unregistered("ready_for_coding", self.sca): "submitted_awaiting_coding",
+            self._unregistered(None, self.sca): "submitted_awaiting_coding",
+            self._unregistered("coding_in_progress", self.sca): "in_coding",
+            self._unregistered("coder_finalized", self.sca): "coded",
+            self._unregistered("not_codeable_by_coder", self.sca): "not_codeable",
+            self._unregistered("consent_refused", self.sca): "refused",
+        }
+        rows = self._rows(self.dana, "?unregistered=1&limit=200")
+        for sid, status in expected.items():
+            self.assertEqual(rows[f"s:{sid}"]["status"], status, sid)
+
+    def test_unregistered_coding_overdue_boundary(self):
+        late = self._unregistered(unit=self.sca, days_ago=16)
+        edge = self._unregistered(unit=self.sca, days_ago=15)
+        body = self._get(self.dana, "?preset=coding&overdue=coding&unregistered=1&limit=200")
+        rows = {r["death_id"] or f"s:{r['va_sid']}": r for r in body["cases"]}
+        self.assertIn(f"s:{late}", rows)
+        self.assertNotIn(f"s:{edge}", rows)
+        self.assertEqual(rows[f"s:{late}"]["overdue"], "coding")
+        self.assertEqual(rows[f"s:{late}"]["days_waiting"], 16)
+        self.assertEqual(body["counts"]["submitted_awaiting_coding"], 1)
+        everyone = self._rows(self.dana, "?preset=coding&unregistered=1&limit=200")
+        self.assertIsNone(everyone[f"s:{edge}"]["overdue"])
+        self.assertEqual(everyone[f"s:{edge}"]["days_waiting"], 15)
+        # Never waiting for an interview.
+        self.assertNotIn(f"s:{late}", self._rows(self.dana, "?overdue=interview&unregistered=1&limit=200"))
+
+    def test_unregistered_filters(self):
+        sid = self._unregistered(unit=self.sca, gender="Female", age=50)
+        male = self._unregistered(unit=self.sca, gender="male", age=30)
+        other = self._unregistered(form=f"{SITES_PROJECT}{SITES_SITE}01", gender="female")
+        today, yesterday = _utc_day(0).isoformat(), _utc_day(1).isoformat()
+        # Admin reaches every submission; a project or site filter picks one.
+        for query in (f"?project_id={SITES_PROJECT}", f"?site_id={SITES_SITE}"):
+            rows = self._rows(self.admin, f"{query}&unregistered=1&limit=200")
+            self.assertIn(f"s:{other}", rows, query)
+            self.assertNotIn(f"s:{sid}", rows, query)
+        self.assertNotIn(f"s:{other}", self._rows(self.dana, "?unregistered=1&limit=200"))  # another project
+        for query, present, absent in (
+            ("sex=female", sid, male), ("sex=male", male, sid),
+            ("age_min=40&age_max=60", sid, male), ("age_max=40", male, sid),
+            (f"submitted_from={today}", sid, None), (f"submitted_to={yesterday}", None, sid),
+            # reported_* bounds the submission day of a row with no register row.
+            (f"reported_from={today}", sid, None), (f"reported_to={yesterday}", None, sid),
+            ("source=odk", sid, None), ("source=register,odk", sid, None),
+            (f"org_unit_id={self.sca.org_unit_id}", sid, None), (f"org_unit_id={self.scc.org_unit_id}", None, sid),
+        ):
+            rows = self._rows(self.dana, f"?{query}&unregistered=1&limit=200")
+            if present:
+                self.assertIn(f"s:{present}", rows, query)
+            if absent:
+                self.assertNotIn(f"s:{absent}", rows, query)
+        # A register-only filter, or a source without odk, leaves them out.
+        for query, sibling in (("source=register", self.a), ("state=registered", self.a),
+                               (f"dod_from={_dod(30)}", self.a), ("identifier=missing", None),
+                               ("visit_note=1", None)):
+            body = self._get(self.dana, f"?{query}&unregistered=1&limit=200")
+            rows = {r["death_id"] or f"s:{r['va_sid']}": r for r in body["cases"]}
+            if sibling is not None:
+                self.assertTrue(self._in(sibling, rows), query)
+            self.assertNotIn(f"s:{sid}", rows, query)
+            self.assertFalse(any(r["death_id"] is None for r in body["cases"]), query)
+        # A unit filter is no membership probe for a coder, who sees no unit.
+        self.assertIn(f"s:{sid}", self._rows(self.cody, "?unregistered=1&limit=200"))
+        self.assertEqual(self._get(self.cody, f"?org_unit_id={self.sca.org_unit_id}&unregistered=1")["cases"], [])
+
+    def test_unregistered_normalised_age_wins_unless_it_is_not_a_number(self):
+        sid = self._unregistered(unit=self.sca, age=6)
+        nan = self._unregistered(unit=self.sca, age=7)
+        db.session.execute(sa.update(VaSubmissions).where(VaSubmissions.va_sid == sid)
+                           .values(va_deceased_age_normalized_years=0.5))
+        db.session.execute(sa.text("UPDATE va_submissions SET va_deceased_age_normalized_years = 'NaN' WHERE va_sid = :sid"),
+                           {"sid": nan})
+        db.session.commit()
+        rows = self._rows(self.dana, "?unregistered=1&limit=200")
+        self.assertEqual(rows[f"s:{sid}"]["age_years"], 0)
+        self.assertEqual(rows[f"s:{nan}"]["age_years"], 7)
+
+    def test_unregistered_rows_of_an_inactive_project_site_are_left_out(self):
+        sid = self._unregistered(form=f"{SITES_PROJECT}{SITES_SITE}01")
+        self.assertIn(f"s:{sid}", self._rows(self.admin, "?unregistered=1&limit=200"))
+        db.session.execute(sa.update(VaProjectSites).where(
+            VaProjectSites.project_id == SITES_PROJECT, VaProjectSites.site_id == SITES_SITE,
+        ).values(project_site_status=VaStatuses.deactive))
+        db.session.commit()
+        after = self._get(self.admin, "?unregistered=1&limit=200")
+        self.assertTrue(after["cases"])
+        self.assertNotIn(sid, {r.get("va_sid") for r in after["cases"]})
+
+    def test_unregistered_counts_add_to_the_register_counts(self):
+        self._unregistered("ready_for_coding", self.sca)
+        self._unregistered("coder_finalized", self.sca)
+        self._unregistered("ready_for_coding", form=f"{SITES_PROJECT}{SITES_SITE}01")  # out of dana's scope
+        plain = self._get(self.dana)["counts"]
+        mixed = self._get(self.dana, "?unregistered=1")["counts"]
+        self.assertEqual(mixed["total"], plain["total"] + 2)
+        self.assertEqual(mixed["coded"], plain["coded"] + 1)
+        self.assertEqual(mixed["submitted_awaiting_coding"], plain["submitted_awaiting_coding"] + 1)
+        self.assertEqual(self._get(self.dana, "?unregistered=1&source=register")["counts"], self._get(
+            self.dana, "?source=register")["counts"])
+
+    def test_unregistered_paging_interleaves_without_gaps_or_repeats(self):
+        stamp = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+        tied = [self.a, self.b, self.c, self.d, self.e]
+        db.session.execute(sa.update(VaDeathRegister).where(
+            VaDeathRegister.death_id.in_([x.death_id for x in tied])).values(created_at=stamp, updated_at=stamp))
+        db.session.commit()
+        naive = stamp.replace(tzinfo=None)
+        sids = [self._unregistered(unit=self.sca, stamp=naive) for _ in range(3)]
+        sids += [self._unregistered(unit=self.sca, stamp=naive - timedelta(hours=1)),
+                 self._unregistered(unit=self.sca, stamp=naive + timedelta(hours=1))]
+        for sort in case_list.SORTS:
+            base = f"?sort={sort}&unregistered=1"
+            full_rows = self._get(self.dana, f"{base}&limit=200")["cases"]
+            full = [r["death_id"] or f"s:{r['va_sid']}" for r in full_rows]
+            self.assertTrue({f"s:{s}" for s in sids} | {str(x.death_id) for x in tied} <= set(full), sort)
+            column = "created_at" if sort == "reported" else "updated_at"
+            times = [datetime.fromisoformat(r[column]) for r in full_rows]
+            self.assertEqual(times, sorted(times, reverse=sort != "oldest"), sort)
+            for limit in (1, 2):
+                seen, cursor = [], None
+                for _ in range(len(full) + 2):
+                    body = self._get(self.dana, f"{base}&limit={limit}" + (f"&cursor={cursor}" if cursor else ""))
+                    seen += [r["death_id"] or f"s:{r['va_sid']}" for r in body["cases"]]
+                    cursor = body["next_cursor"]
+                    if not cursor:
+                        break
+                self.assertEqual(seen, full, (sort, limit))
+                self.assertEqual(len(set(seen)), len(seen), (sort, limit))
+
+    def test_a_register_only_cursor_still_pages_with_the_flag(self):
+        self._unregistered(unit=self.sca)
+        cursor = self._get(self.dana, "?sort=reported&limit=2")["next_cursor"]
+        self.assertTrue(cursor)
+        self.assertTrue(self._get(self.dana, f"?sort=reported&limit=2&unregistered=1&cursor={cursor}")["cases"])
+        self._login(str(self.dana.user_id))
+        for key in ("s:", "s:" + "x" * 65, "not-a-uuid"):
+            raw = base64.urlsafe_b64encode(f"reported.0.{key}".encode()).decode().rstrip("=")
+            response = self.client.get(f"{API}?sort=reported&unregistered=1&cursor={raw}")
+            self.assertEqual(response.status_code, 400, key)
+        # The register-only list never takes a submission key.
+        raw = base64.urlsafe_b64encode(b"reported.0.s:uuid:x").decode().rstrip("=")
+        self.assertEqual(self.client.get(f"{API}?sort=reported&cursor={raw}").status_code, 400)
+        self.assertEqual(self.client.get(f"{API}?unregistered=maybe").status_code, 400)
+
+    def test_first_page_statement_count_with_unregistered_is_pinned(self):
+        """The flag adds exactly one statement to a first page holding register
+        rows (the second count; 13 with ``test_first_page_statement_count_is_pinned``'s
+        12), none per row, and none to a cursor page."""
+        self._unregistered(unit=self.sca)
+        self._login(str(self.admin.user_id))
+
+        def request(query):
+            def run():
+                response = self.client.get(f"{API}{query}")
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.get_json()["cases"])
+            return run
+
+        plain = self._statements(request("?preset=deaths&limit=50"))
+        self.assertEqual(self._statements(request("?preset=deaths&unregistered=1&limit=50")), plain + 1)
+        self.assertLessEqual(self._statements(request("?preset=deaths&unregistered=1")), 13)
+        # A page of unregistered rows only reads no registration numbers.
+        self.assertLessEqual(self._statements(request("?preset=deaths&unregistered=1&limit=1")), plain + 1)
+        cursor = self._get(self.admin, "?preset=deaths&unregistered=1&limit=1")["next_cursor"]
+        self._login(str(self.admin.user_id))
+        self.assertLess(self._statements(request(f"?preset=deaths&unregistered=1&limit=1&cursor={cursor}")), plain)
+
+    def test_the_export_stays_register_only(self):
+        sid = self._unregistered(unit=self.sca)
+        self.assertIn(f"s:{sid}", self._rows(self.dana, "?unregistered=1&limit=200"))
+        self._login(str(self.dana.user_id))
+        response = self.client.get(f"{API}/export.csv?unregistered=1")
+        self.assertEqual(response.status_code, 200)
+        text = response.get_data(as_text=True)
+        self.assertIn(self.a.unique_id, text)
+        self.assertNotIn(sid, text)
+
+    # -- Statistics: the inactive project-site rule, interviewed, names, stage counts ----
+
+    def _deactivated_site(self, case):
+        """Moves *case* to a new project-site CLP01/CL02 that is not active
+        (core UPDATE: the register row keeps everything else)."""
+        now = datetime.now(UTC)
+        db.session.add(VaSiteMaster(site_id="CL02", site_name="Site CL02", site_abbr="CL02",
+                                    site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now))
+        db.session.flush()
+        db.session.add(VaProjectSites(project_id=PROJECT, site_id="CL02", project_site_status=VaStatuses.deactive,
+                                      project_site_registered_at=now, project_site_updated_at=now))
+        db.session.flush()
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == case.death_id)
+                           .values(site_id="CL02"))
+        db.session.commit()
+
+    def test_a_deactivated_site_leaves_the_statistics_listing_not_supervision(self):
+        self._deactivated_site(self.a)
+        for query in ("?preset=deaths", "?preset=deaths&source=register", "?preset=deaths&state=registered"):
+            stats = self._ids(self.dana, f"{query}&unregistered=1&limit=200")
+            self.assertTrue(self._in(self.b, stats), query)
+            self.assertFalse(self._in(self.a, stats), query)
+        # Flag-off callers, supervision and its counts keep it.
+        self.assertTrue(self._in(self.a, self._ids(self.dana, "?limit=200")))
+        self.assertTrue(self._in(self.a, self._ids(self.sam, "?preset=supervision&attention=total&limit=200")))
+        self.assertTrue(self._in(self.a, self._ids(
+            self.sam, "?preset=supervision&attention=total&unregistered=1&limit=200")))
+        counts = self._get(self.dana, "?unregistered=1")["counts"]
+        self.assertEqual(counts["reported"] + 1, self._get(self.dana)["counts"]["reported"])
+
+    def test_interviewed_lists_only_cases_with_a_submission(self):
+        refused = self._register(self.ian, self.sca, deceased_name="Refused Register")
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == refused.death_id)
+                           .values(status="refused"))
+        consent = self._submitted("consent_refused", self.ian, self.sca, deceased_name="Consent Refused")
+        db.session.commit()
+        query = "?preset=interview&status=refused&unregistered=1&limit=200"
+        every = self._ids(self.dana, query)
+        self.assertTrue(self._in(refused, every))
+        rows = self._ids(self.dana, f"{query}&interviewed=1")
+        self.assertTrue(self._in(consent, rows))
+        self.assertFalse(self._in(refused, rows))
+        self.assertEqual(self._get(self.dana, f"{query}&interviewed=1")["counts"]["refused"], 1)
+        self._login(str(self.dana.user_id))
+        self.assertEqual(self.client.get(f"{API}?interviewed=maybe").status_code, 400)
+
+    def test_interview_preset_default_lists_no_unregistered_row_but_counts_it(self):
+        """``preset=interview`` without a status is the phone's interview
+        worklist (awaiting an interview), which no submission is: the rows
+        leave, the counts (status ignored) still hold them."""
+        sid = self._unregistered(unit=self.sca)
+        body = self._get(self.dana, "?preset=interview&unregistered=1&limit=200")
+        self.assertTrue(self._in(self.a, {r["death_id"]: r for r in body["cases"]}))
+        self.assertFalse(any(r["death_id"] is None for r in body["cases"]))
+        self.assertNotIn(sid, {r.get("va_sid") for r in body["cases"]})
+        plain = self._get(self.dana, "?preset=interview")["counts"]
+        self.assertEqual(body["counts"]["submitted_awaiting_coding"], plain["submitted_awaiting_coding"] + 1)
+
+    def test_export_prepare_drops_the_flag(self):
+        from app.services import case_export_service as case_export
+        sid = self._unregistered(unit=self.sca)
+        self.assertIn(f"s:{sid}", self._rows(self.dana, "?unregistered=1&limit=200"))
+        with self.app.test_request_context():
+            plan, count = case_export.prepare(self.dana, MultiDict({"unregistered": "1"}))
+            plain, plain_count = case_export.prepare(self.dana, MultiDict())
+        self.assertFalse(plan.filters.unregistered)
+        self.assertEqual(count, plain_count)
+        self.assertGreater(count, 0)
+
+    def test_names_and_staff_of_a_data_manager_without_personal_data_access(self):
+        sid = self._unregistered(unit=self.sca)
+        with _redacted():
+            rows = self._rows(self.dana, "?unregistered=1&limit=200")
+        register, submission = rows[str(self.e.death_id)], rows[f"s:{sid}"]
+        for row in (register, submission):
+            self.assertNotIn("deceased_name", row)
+            self.assertNotIn("name_recorded", row)  # nothing said of a name the caller may not see
+            self.assertNotIn("interviewer_name", row)
+            self.assertEqual(row["unit_name"], "Unit SCA")  # the unit is not personal data
+        # With access: the register name, and "not recorded" on the submission.
+        rows = self._rows(self.dana, "?unregistered=1&limit=200")
+        self.assertEqual(rows[str(self.e.death_id)]["deceased_name"], "Esha Echo")
+        self.assertNotIn("name_recorded", rows[str(self.e.death_id)])
+        self.assertIs(rows[f"s:{sid}"]["name_recorded"], False)
+        self.assertEqual(rows[f"s:{sid}"]["interviewer_name"], "cl-un")
+
+    def test_name_recorded_false_only_where_the_name_is_visible_and_empty(self):
+        # As a direct interview's row before its identity step: no name recorded.
+        blank = self._register(self.ian, self.sca, deceased_name="Blank")
+        blank.status = "draft_identity"  # the identity CHECK allows no name only here
+        blank.started_by_user_id = self.ian.user_id
+        register_pii_accessor.write_fields(blank, {"deceased_name": None})
+        db.session.commit()
+        own = self._ids(self.ian, "?limit=200")
+        self.assertTrue(self._in(self.a, own))
+        self.assertIs(own[str(blank.death_id)]["name_recorded"], False)
+        self.assertNotIn("name_recorded", own[str(self.a.death_id)])
+        # A collaborator who sees no name hears nothing about it.
+        cole = self._ids(self.cole, "?limit=200")
+        self.assertTrue(self._in(self.a, cole))
+        self.assertNotIn("name_recorded", cole[str(blank.death_id)])
+        self.assertNotIn("deceased_name", cole[str(blank.death_id)])
+
+    def _stage_fixture(self):
+        """Two projects; register and unregistered rows; a deactivated site;
+        a consent-refused interview and a register-refused death; overdue of
+        both kinds; one interview before the period."""
+        refused = self._register(self.ian, self.sca, deceased_name="Refused Register")
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == refused.death_id)
+                           .values(status="refused"))
+        self._submitted("consent_refused", self.ian, self.sca, deceased_name="Consent Refused")
+        late = self._register(self.ian, self.sca, deceased_name="Late Interview", date_of_death=_dod(90))
+        slow = self._submitted("ready_for_coding", self.ian, self.scb, deceased_name="Slow Coding")
+        db.session.execute(sa.update(VaSubmissions).where(VaSubmissions.va_sid == slow.va_sid)
+                           .values(va_submission_date=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=20)))
+        db.session.commit()
+        self._deactivated_site(self.b)
+        for state, days in (("ready_for_coding", 0), ("coder_finalized", 1), ("consent_refused", 2),
+                            ("not_codeable_by_coder", 3), ("ready_for_coding", 20), ("coding_in_progress", 40)):
+            self._unregistered(state, self.sca, days_ago=days)
+        self._unregistered(form=f"{SITES_PROJECT}{SITES_SITE}01", days_ago=1)
+        return late, slow
+
+    def _stage(self, who, query=""):
+        self._login(str(who.user_id))
+        response = self.client.get(f"{API}/stage-counts{query}")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        return response.get_json()
+
+    def _tab_totals(self, who, area, since):
+        """The Statistics tabs' totals, as the client reads them: the chips
+        summed from the counts, and the rows listed (every page)."""
+        period = f"&reported_from={since}" if since else ""
+        submitted = f"&submitted_from={since}" if since else ""
+        interviews = ",".join(case_list.INTERVIEWED_STATUSES)
+        codings = ",".join(case_list.CODING_STATUSES)
+        shown = [s for s in case_list.COMBINED_STATUSES if s not in ("duplicate", "cancelled")]
+        tabs = {
+            "reported": (f"?preset=deaths{period}", shown),
+            "interviewed": (f"?preset=interview&status={interviews}&interviewed=1{submitted}",
+                            case_list.INTERVIEWED_STATUSES),
+            "coded": (f"?preset=coding&status={codings}&interviewed=1{submitted}", ("coded",)),
+            "overdue_interview": ("?preset=deaths&overdue=interview", shown),
+            "overdue_coding": (f"?preset=coding&status={codings}&interviewed=1&overdue=coding", case_list.CODING_STATUSES),
+        }
+        totals = {}
+        for name, (query, chips) in tabs.items():
+            body = self._get(who, f"{query}{area}&unregistered=1&limit=200")
+            counted = sum(body["counts"][s] for s in chips)
+            if name != "coded":  # the Coded chip is a count; the others are the listed rows too
+                self.assertIsNone(body["next_cursor"])
+                self.assertEqual(len(body["cases"]), counted, (who.email, name, area))
+            totals[name] = counted
+        return totals
+
+    def test_stage_counts_equal_the_tab_totals_for_every_role(self):
+        late, slow = self._stage_fixture()
+        since = _utc_day(30).isoformat()
+        checked = 0
+        for who, redacted in ((self.admin, False), (self.dana, False), (self.dana, True), (self.cody, False),
+                              (self.cole, False), (self.pat, False), (self.ivy, False)):
+            with mock.patch.object(case_list, "should_redact_pii", return_value=True) if redacted else _nothing():
+                for period in (None, since):
+                    stage_query = f"?reported_from={period}&submitted_from={period}" if period else "?"
+                    reply = self._stage(who, stage_query)
+                    self.assertEqual(reply["thresholds"], {"interview_days": 60, "coding_days": 15})
+                    self.assertEqual(reply["total"], self._tab_totals(who, "", period), (who.email, period))
+                    for project in (PROJECT, SITES_PROJECT):
+                        expected = self._tab_totals(who, f"&project_id={project}", period)
+                        got = reply["projects"].get(project, dict.fromkeys(case_list.STAGES, 0))
+                        self.assertEqual(got, expected, (who.email, project, period))
+                        checked += sum(expected.values())
+                    narrowed = self._stage(who, f"{stage_query}&project_id={PROJECT}")
+                    self.assertEqual(set(narrowed["projects"]) - {PROJECT}, set())
+        self.assertGreater(checked, 0)
+        # The fixture's numbers for the data manager (personal-data access), all time.
+        dana = self._stage(self.dana)["projects"][PROJECT]
+        self.assertGreaterEqual(dana["overdue_interview"], 1)
+        self.assertGreaterEqual(dana["overdue_coding"], 3)  # slow, and two unregistered (20, 40 days)
+        overdue = self._ids(self.dana, "?preset=deaths&overdue=interview&unregistered=1&limit=200")
+        self.assertEqual(overdue[str(late.death_id)]["overdue"], "interview")
+        self.assertGreaterEqual(overdue[str(late.death_id)]["days_waiting"], 90)
+        # Admin and the coder reach the sites-mode project's unregistered row; the interviewer its register death.
+        self.assertIn(SITES_PROJECT, self._stage(self.admin)["projects"])
+        self.assertEqual(self._stage(self.ivy)["projects"][SITES_PROJECT]["reported"], 1)
+
+    def test_stage_counts_take_two_statements_and_none_without_scope(self):
+        self._unregistered(unit=self.sca)
+        self._login(str(self.admin.user_id))
+        self._stage(self.admin)  # warm
+        with_scope = self._statements(lambda: self._stage(self.admin, f"?project_id={PROJECT}"))
+        self.assertLessEqual(with_scope, 12)
+        reply = self._stage(self.nobody)
+        self.assertEqual(reply["projects"], {})
+        self.assertEqual(reply["total"], dict.fromkeys(case_list.STAGES, 0))
+        self._login(str(self.admin.user_id))
+        self.assertEqual(self.client.get(f"{API}/stage-counts?reported_from=yesterday").status_code, 400)
+
+
+@contextmanager
+def _nothing():
+    yield

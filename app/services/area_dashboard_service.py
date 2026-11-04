@@ -13,7 +13,8 @@ over all of the user's roles:
 Counts only: no case lists and no subject data. Staff names appear only in
 the optional per-staff view (``area_staff``), and only for a viewer
 ``should_redact_pii`` lets see staff identity. Each level is one query per
-section (units, snapshot counts, case counts, live counts), with subtree
+section (units, snapshot counts, case counts -- two: the register cases and
+the unregistered submissions overdue for coding -- live counts), with subtree
 rollups on ltree containment, plus one each for the area card's medians and
 causes; causes are small-cell suppressed here, before any caller sees them.
 A unit or site outside scope is reported as not found, never as forbidden,
@@ -63,6 +64,7 @@ from app.services.case_list_service import (
     OVERDUE_CODING_DAYS,
     OVERDUE_INTERVIEW_DAYS,
     combined_status_case,
+    unregistered_status_case,
     waiting,
 )
 from app.services.cod_bucket_mapping_service import (
@@ -439,8 +441,46 @@ def _values(row, keys) -> dict:
     return {key: row._mapping[key] or 0 for key in keys}
 
 
+def _unregistered_overdue(project_id: str):
+    """(org_unit_id, site_id) of *project_id*'s submissions with no register
+    row that are overdue for coding (``case_list_service.waiting``, as the
+    case list's ``unregistered`` rows), live. Retired submissions and
+    inactive project-sites are left out, as for the live counts; a
+    submission with no register row is never a confirmed duplicate."""
+    status = unregistered_status_case()
+    return (
+        sa.select(VaSubmissions.org_unit_id, VaForms.site_id)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            ),
+        )
+        .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .where(
+            VaForms.project_id == project_id,
+            submission_is_in_odk(VaSubmissions),
+            ~sa.exists().where(VaDeathRegister.va_sid == VaSubmissions.va_sid),
+            waiting(status, submission=VaSubmissions, registered=False).coding,
+        )
+        .subquery("unregistered_overdue")
+    )
+
+
+def _add_unregistered_overdue(counts: dict, rows) -> dict:
+    """*counts* (key -> case counts) with each ``(key, n)`` of *rows* added
+    to ``overdue_coding``; a key with no register case gets a zero row."""
+    for key, n in rows:
+        counts.setdefault(key, dict.fromkeys(CASE_COUNT_KEYS, 0))["overdue_coding"] += n
+    return counts
+
+
 def _case_counts_by_unit(project_id: str, unit_ids: list, since=None) -> dict:
-    """Unit id -> case counts in the unit's subtree, live, in one query."""
+    """Unit id -> case counts in the unit's subtree, live: one query for the
+    register cases, one for the unregistered submissions overdue for coding."""
     if not unit_ids:
         return {}
     death_unit = sa.orm.aliased(MasOrgUnit, name="death_unit")
@@ -458,7 +498,17 @@ def _case_counts_by_unit(project_id: str, unit_ids: list, since=None) -> dict:
         )
         .group_by(MasOrgUnit.org_unit_id)
     ).all()
-    return {row.org_unit_id: _values(row, CASE_COUNT_KEYS) for row in rows}
+    counts = {row.org_unit_id: _values(row, CASE_COUNT_KEYS) for row in rows}
+    late = _unregistered_overdue(project_id)
+    sub_unit = sa.orm.aliased(MasOrgUnit, name="late_unit")
+    return _add_unregistered_overdue(counts, db.session.execute(
+        sa.select(MasOrgUnit.org_unit_id, sa.func.count())
+        .select_from(MasOrgUnit)
+        .join(sub_unit, sub_unit.path.op("<@")(MasOrgUnit.path))
+        .join(late, late.c.org_unit_id == sub_unit.org_unit_id)
+        .where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)), sub_unit.project_id == project_id)
+        .group_by(MasOrgUnit.org_unit_id)
+    ).all())
 
 
 def _case_counts_unrouted(project_id: str, since=None) -> dict:
@@ -467,7 +517,12 @@ def _case_counts_unrouted(project_id: str, since=None) -> dict:
             _reported_deaths(project_id), VaDeathRegister.org_unit_id.is_(None)
         )
     ).one()
-    return _values(row, CASE_COUNT_KEYS)
+    counts = _values(row, CASE_COUNT_KEYS)
+    late = _unregistered_overdue(project_id)
+    counts["overdue_coding"] += db.session.scalar(
+        sa.select(sa.func.count()).select_from(late).where(late.c.org_unit_id.is_(None))
+    )
+    return counts
 
 
 def _case_counts_by_site(project_id: str, site_ids: list, since=None) -> dict:
@@ -476,7 +531,13 @@ def _case_counts_by_site(project_id: str, site_ids: list, since=None) -> dict:
         .where(_reported_deaths(project_id), VaDeathRegister.site_id.in_(sorted(site_ids)))
         .group_by(VaDeathRegister.site_id)
     ).all()
-    return {row.site_id: _values(row, CASE_COUNT_KEYS) for row in rows}
+    counts = {row.site_id: _values(row, CASE_COUNT_KEYS) for row in rows}
+    late = _unregistered_overdue(project_id)
+    return _add_unregistered_overdue(counts, db.session.execute(
+        sa.select(late.c.site_id, sa.func.count())
+        .where(late.c.site_id.in_(sorted(site_ids)))
+        .group_by(late.c.site_id)
+    ).all())
 
 
 def _has_final_cod():

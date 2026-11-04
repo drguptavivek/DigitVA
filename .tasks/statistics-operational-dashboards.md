@@ -62,8 +62,10 @@ awaiting coding) stay current-state, never period-filtered.
  Overview | Deaths | Interviews | Codings | Projects
 ```
 
-- Overview: one stage strip, Reported -> Interviewed -> Coded, with the
-  number under each, and an attention line under the strip:
+- Overview: one stage strip, Deaths -> Interviewed -> Coded, with the
+  number under each (owner, 2026-11-04: from `GET /api/v1/cases/stage-counts`,
+  each number a tab's total; Deaths = every known death, reported or
+  interviewed), and an attention line under the strip:
   "12 deaths not interviewed after 60 days · 4 interviews not coded after
   15 days", each a link into the filtered tab. Below: the per-area rows
   (existing pipeline bars), medians per project, top causes (existing
@@ -71,14 +73,17 @@ awaiting coding) stay current-state, never period-filtered.
 - Deaths: counts row (Pending, Interviewed, Coded, Closed) as filter chips,
   then the table: ID, Name*, Age, Sex, Date of death, Facility, Reported by*,
   Status, Days waiting. (*gated.)
-- Interviews: chips Awaiting coding, In coding, Coded, Not codeable; table:
+- Interviews: chips Awaiting coding, In coding, Coded, Not codeable,
+  Refused (2026-11-04; the tab and Codings send `interviewed=1`, so a death
+  refused before any interview is not listed); table:
   ID, Name*, Age, Sex, Date of death, Interviewed on, Interviewer*, Facility,
   Status, Days since interview.
 - Codings: chips Not started, In coding, Coded, Not codeable; table: ID,
   Name*, Interviewed on, Coded on, Coder*, Status, Days to code; top causes
   below.
 - Projects: one card per accessible project: the three stage counts, the
-  two overdue counts, freshness. Tapping sets Project to that one and opens
+  two overdue counts (stage-counts, one request for every project),
+  medians and freshness (the area summary). Tapping sets Project to that one and opens
   Overview. Nothing else new.
 
 Status fold (from `combined_status_case`): pending = reported,

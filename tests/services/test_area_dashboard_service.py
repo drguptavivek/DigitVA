@@ -854,11 +854,40 @@ class AreaOverdueTests(AreaDashboardFixture):
 
     def test_csv_carries_both_measures(self):
         self._case(unit=self.chc_a, dod_days=61)
+        self._case(unit=self.phc_a1, status="submitted", va_sid="uuid:area-pa2")  # registered: 20 days, once
         text = area.summary_csv(area.area_summary(self.project_user, self.TREE))
         self.assertIn("area,ARDT01,Area ARDT01,overdue_interview,1", text)
-        self.assertIn("area,ARDT01,Area ARDT01,overdue_coding,0", text)
+        self.assertIn("area,ARDT01,Area ARDT01,overdue_coding,1", text)
         self.assertIn("row,AD1,Unit AD1,overdue_interview,1", text)
-        self.assertIn("row,AD1,Unit AD1,overdue_coding,0", text)
+        self.assertIn("row,AD1,Unit AD1,overdue_coding,1", text)
+
+    def test_unregistered_submissions_overdue_for_coding_count(self):
+        """A submission with no register row counts in overdue_coding, as the
+        case list's unregistered rows: uuid:area-pa2 (20 days, PHC A1) and
+        uuid:area-s22 (40 days, AS02) do; uuid:area-pa1 (2 days) does not."""
+        db.session.execute(sa.update(VaSubmissions).where(VaSubmissions.va_sid == "uuid:area-un2").values(
+            va_submission_date=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=16)))  # unrouted, no workflow
+        db.session.commit()
+        summary = area.area_summary(self.project_user, self.TREE)
+        rows = self._by_key(summary)
+        self.assertEqual(rows[str(self.district_1.org_unit_id)]["counts"]["overdue_coding"], 1)
+        self.assertEqual(rows[area.UNROUTED_KEY]["counts"]["overdue_coding"], 1)
+        self.assertEqual(rows[str(self.district_2.org_unit_id)]["counts"]["overdue_coding"], 0)
+        self.assertEqual(summary["card"]["counts"]["overdue_coding"], 2)
+        self.assertEqual(summary["card"]["counts"]["overdue_interview"], 0)
+        children = self._by_key(area.area_summary(self.project_user, self.TREE, unit_id=str(self.district_1.org_unit_id)))
+        self.assertEqual(children[str(self.chc_a.org_unit_id)]["counts"]["overdue_coding"], 1)
+        self.assertEqual(children[str(self.chc_b.org_unit_id)]["counts"]["overdue_coding"], 0)
+        sites = self._by_key(area.area_summary(self.base_admin_user, self.SITES))
+        self.assertEqual(sites[self.SITE_TWO]["counts"]["overdue_coding"], 1)
+        self.assertEqual(sites[self.SITE_ONE]["counts"]["overdue_coding"], 0)
+        # Registered, it counts once (through the register); retired, not at all.
+        self._case(project=self.SITES, site=self.SITE_TWO, status="submitted", va_sid="uuid:area-s22")
+        self.assertEqual(self._by_key(area.area_summary(self.base_admin_user, self.SITES))[self.SITE_TWO]["counts"]["overdue_coding"], 1)
+        db.session.get(VaSubmissions, "uuid:area-pa2").va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        rows = self._by_key(area.area_summary(self.project_user, self.TREE))
+        self.assertEqual(rows[str(self.district_1.org_unit_id)]["counts"]["overdue_coding"], 0)
 
 
 class AreaFinalCodTests(AreaDashboardFixture):
@@ -1188,7 +1217,8 @@ class AreaDeathsReportedTests(AreaDashboardFixture):
         ]
         one = _count_statements(lambda: area._case_counts_by_unit(self.TREE, [one_id]))
         many = _count_statements(lambda: area._case_counts_by_unit(self.TREE, all_ids))
-        self.assertEqual(one, 1)
+        # The register cases, and the unregistered submissions overdue for coding.
+        self.assertEqual(one, 2)
         self.assertEqual(many, one)
 
 

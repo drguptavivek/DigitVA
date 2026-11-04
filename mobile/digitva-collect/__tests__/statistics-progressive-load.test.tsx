@@ -24,13 +24,15 @@ jest.mock("../src/web/common", () => ({
   browserErrorText: () => "error",
 }));
 jest.mock("../src/web/roleHome", () => ({ caseViewPath: jest.fn(), dataAccess: () => ({ allowed: false }), openServerPage: jest.fn() }));
-jest.mock("../src/web/stats/FilterBar", () => ({ FilterBar: () => null }));
+jest.mock("../src/web/stats/FilterBar", () => ({ FilterBar: (props: { onPeriod: (next: string) => void }) => { mockFilterBar = props; return null; } }));
 jest.mock("../src/web/stats/CaseTableTab", () => ({ CaseTableTab: () => null }));
 
 import StatisticsScreen from "../src/web/StatisticsScreen";
+import { clearStatsCache } from "../src/web/stats/cache";
 
 let mockParams: Record<string, string> = {};
-const mockRouter = { push: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), setParams: jest.fn() };
+let mockFilterBar: { onPeriod: (next: string) => void } | null = null;
 const ids = ["P1", "P2", "P3", "P4", "P5", "P6"];
 type Gate = { resolve: () => void; reject: () => void };
 let gates: Record<string, Gate[]> = {};
@@ -45,6 +47,10 @@ const summary = (id: string) => ({
 });
 const mockRequest = (url: string): Promise<unknown> => {
   if (url.endsWith("/projects")) return Promise.resolve({ projects: ids.map((id) => ({ project_id: id, project_name: `Name ${id}`, mode: "organization" })) });
+  // Stage counts and case pages (the Overview's numbers, the prefetched case tabs) answer at once; only summaries are gated.
+  const stage = { reported: 10, interviewed: 5, coded: 2, overdue_interview: 0, overdue_coding: 0 };
+  if (url.includes("/stage-counts")) return Promise.resolve({ projects: Object.fromEntries(ids.map((id) => [id, stage])), total: stage, thresholds: { interview_days: 7, coding_days: 7 } });
+  if (url.startsWith("/api/v1/cases")) return Promise.resolve({ cases: [], next_cursor: null });
   const id = /project=(P\d)/.exec(url)![1];
   calls.push(id);
   inFlight += 1;
@@ -71,7 +77,7 @@ const answer = async (id: string, how: "resolve" | "reject" = "resolve") => {
   await flush();
 };
 
-beforeEach(() => { gates = {}; inFlight = 0; peak = 0; calls.length = 0; mockParams = { tab: "projects" }; });
+beforeEach(() => { clearStatsCache(); gates = {}; inFlight = 0; peak = 0; calls.length = 0; mockParams = { tab: "projects" }; });
 
 test("at most four summaries are requested at once; the next starts as one answers", async () => {
   const tree = await render();
@@ -117,5 +123,14 @@ test("the Overview shows the summed line once one summary is in, with a pending 
   await act(async () => retryButtons(tree)[0].props.onClick());
   await flush();
   expect(calls.slice(before)).toEqual(["P2"]);
+  await act(async () => tree.unmount());
+});
+
+test("a filter change rewrites the query in place, never stacking another screen", async () => {
+  mockParams = { tab: "deaths", status: "pending" };
+  const tree = await render();
+  await act(async () => mockFilterBar!.onPeriod("90d"));
+  expect(mockRouter.push).not.toHaveBeenCalled();
+  expect(mockRouter.setParams).toHaveBeenCalledWith(expect.objectContaining({ tab: "deaths", period: "90d", status: "pending", project: undefined, overdue: undefined }));
   await act(async () => tree.unmount());
 });

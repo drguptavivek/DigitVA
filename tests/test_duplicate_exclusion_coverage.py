@@ -76,6 +76,11 @@ _RESOLVER = (
     "classifies a finalized_upstream_changed row as ODK change or send-back; callers "
     "apply their own scope and duplicate predicates"
 )
+_NO_REGISTER_ROW = (
+    "reads only submissions that no va_death_register row names (NOT EXISTS on va_sid), "
+    "a strictly stronger condition than not_confirmed_duplicate_condition: a confirmed "
+    "duplicate always has its register row"
+)
 
 EXEMPT = {
     "services/public_demo_report_service.py::own_reports": (
@@ -122,6 +127,15 @@ EXEMPT = {
         "statement it extends filters _reported_deaths, which drops confirmed duplicates by "
         "their register status, and the combined status reads register status first"
     ),
+    "services/case_list_service.py::_with_unregistered_rows": _NO_REGISTER_ROW,
+    "services/case_list_service.py::_unregistered_counts_statement": _NO_REGISTER_ROW,
+    "services/case_list_service.py::_stage_statements": (
+        "the Statistics stage counts, the case list's own totals: its register branch is the "
+        "list's register view, where every stage's status condition leaves duplicate (by its "
+        "register status, read first by the combined status) out; its other branch reads only "
+        "submissions with no register row (" + _NO_REGISTER_ROW + ")"
+    ),
+    "services/area_dashboard_service.py::_unregistered_overdue": _NO_REGISTER_ROW,
     "services/case_list_service.py::export_summary": (
         "counts the rows the case list would page through, for the export's audit row: a register view, the same scope and filters as _page_statement (a duplicate is listed by its register status), not a coding pool"
     ),

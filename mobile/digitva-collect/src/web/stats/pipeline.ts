@@ -1,5 +1,6 @@
 /** Pure rules of the Statistics screen: bar widths and number formatting. No React, so they are unit-tested directly. */
 import type { AreaCounts, AreaRow } from "../../area/api";
+import type { StringKey } from "../../i18n";
 
 /** The three stages of one unit's bar. Interviewed = submissions received, coded = final cause of death. */
 export type PipelineCounts = Pick<AreaCounts, "deaths_reported" | "submitted" | "final_cod">;
@@ -44,4 +45,12 @@ export function formatDays(days: number | null): string | null {
 /** A share as sent by the server, trimmed of a trailing ".0" ("12.5", "40"). */
 export function formatPercent(percent: number): string {
   return (Math.round(percent * 10) / 10).toString();
+}
+
+/** A string key that has a singular "…One" form beside it. */
+type Countable = { [K in StringKey]: `${K}One` extends StringKey ? K : never }[StringKey];
+
+/** *key*, or its "…One" form when *count* is exactly 1 ("1 death", not "1 deaths"); the caller still passes the count. */
+export function countKey(key: Countable, count: number | string | null | undefined): StringKey {
+  return (Number(count) === 1 ? `${key}One` : key) as StringKey;
 }

@@ -58,12 +58,30 @@ def list_cases():
     ``odk``; repeatable or a comma list), ``dod_from``, ``dod_to``,
     ``reported_from``, ``reported_to``, ``submitted_from``, ``submitted_to``,
     ``overdue`` (``interview`` or ``coding``), ``sex``, ``age_min``, ``age_max``, ``attention``, ``visit_note``, ``sort``, ``cursor``,
-    ``limit``; registration numbers: ``identifier`` (``has`` or ``missing``, an
+    ``limit``, ``unregistered`` (also list the submissions with no register
+    row: ``deaths``, ``interview`` and ``coding`` presets, ``death_id`` null;
+    the register rows of an inactive project-site leave with them),
+    ``interviewed`` (only cases with a submission); registration numbers: ``identifier`` (``has`` or ``missing``, an
     active type of the case's project) with optional ``identifier_type`` (a type
     code), and ``identifier_number`` (an exact number, found only where the
     caller sees values; counted against the per-user
     ``IDENTIFIER_SEARCH_RATE_LIMIT`` budget, 429 past it)."""
     return jsonify(case_list.case_list_page(current_user._get_current_object(), request.args))
+
+
+@bp.get("/stage-counts")
+@login_required
+@limiter.limit("120 per minute")
+def stage_counts():
+    """``{projects: {project_id: {reported, interviewed, coded,
+    overdue_interview, overdue_coding}}, total: {...}, thresholds:
+    {interview_days, coding_days}}``: the Statistics Overview and Projects
+    numbers, each the total its Statistics tab lists (``unregistered=1``).
+    Query: ``project_id`` (repeatable or a comma list), ``site_id``,
+    ``org_unit_id``, ``reported_from``/``reported_to`` (reported) and
+    ``submitted_from``/``submitted_to`` (interviewed, coded); overdue counts
+    take no period."""
+    return jsonify(case_list.stage_counts(current_user._get_current_object(), request.args))
 
 
 @bp.get("/filter-options")

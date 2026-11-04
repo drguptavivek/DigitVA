@@ -179,6 +179,12 @@ class SyntheticDemoTests(BaseTestCase):
             ),
             2,
         )
+        # Every interview has its time: the case tables' "Interviewed on" reads it.
+        dates = db.session.scalars(
+            sa.select(VaSubmissions.va_submission_date).where(VaSubmissions.va_sid.like("synthetic-demo-%"))
+        ).all()
+        self.assertEqual(len(dates), 3)
+        self.assertTrue(all(dates), dates)
         svc.seed_organization_demo()
         self.assertEqual(before, self._snapshot())
         self.assertTrue(svc.get_demo_metadata()["enabled"])

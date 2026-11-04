@@ -24,7 +24,7 @@ import io
 import logging
 import uuid
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from flask import current_app
 
@@ -109,7 +109,9 @@ def prepare(user: VaUsers, args) -> tuple[ExportPlan, int]:
     cannot be a single row), the role being that of the grant in that project. No row when no identifier column is exported.
     """
     query = case_list.parse_query(args)
-    plan = ExportPlan(preset=query["preset"], filters=query["filters"])
+    # The export is the register rows only: a submission with no register row
+    # (``unregistered=1``) has no death id to key its row and numbers by.
+    plan = ExportPlan(preset=query["preset"], filters=replace(query["filters"], unregistered=False))
     count, projects = case_list.export_summary(user, preset=plan.preset, filters=plan.filters)
     limit = current_app.config.get("EXPORT_MAX_ROWS", 200000)
     if count > limit:

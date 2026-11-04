@@ -348,7 +348,8 @@ Proposed; names follow `api-v1.md` conventions.
   existing endpoints and `X-CSRFToken`.
 - Keyset paging on `(created_at, death_id)` when sorted by reported date
   (index `ix_va_death_register_created`), on `(updated_at, death_id)`
-  otherwise (`ix_va_death_register_updated`). Limit is clamped server-side
+  otherwise (`ix_va_death_register_updated`); with `unregistered=1` on
+  `(sort time, row_key)` (below). Limit is clamped server-side
   (`WORKLIST_PAGE_MAX`). Cursors are opaque and validated.
 - One query for the page: joins for unit, reporter and workflow state in the
   same statement, aggregate counts in the database, no per-row lookups.
@@ -358,6 +359,101 @@ Proposed; names follow `api-v1.md` conventions.
 - The Expo component is a rework of `SupervisionScreen.tsx` into a shared
   `CaseListScreen`; the Supervision preset keeps its flags and visit-note
   filters as extra chips.
+
+## Submissions with no register row (owner, 2026-11-04)
+
+A project without an organisation tree or death register (ICMR01, UNSW01)
+has submissions that no `va_death_register` row names, so the
+one-row-per-death list left them out while the Statistics Overview counted
+them. On request the list also holds them:
+
+- **Opt-in:** `unregistered=1` (a boolean like `visit_note`). Honoured by
+  the `deaths`, `interview` and `coding` presets only; `supervision` stays
+  one row per death and ignores it. Without it every statement is the
+  register-only one (phones and `GET /intake/cases` are untouched). The
+  Statistics tables send it on all three tabs.
+- **Which rows:** submissions in the caller's `Action.VIEW` scope
+  (`scope_filter`, admin through its bypass) with no register row, not
+  retired from ODK and on an active project-site (as the analytics counts
+  of the Statistics Overview, admin included), training scope as for the
+  rest of the list. No field, supervision or collaborator-area reach
+  applies to them.
+- **Row fields:** `death_id` null; `va_sid` always and `can_open` true
+  (in scope by VIEW); `unique_id` is the masked ODK unique id; project and
+  site from the form; `org_unit_id`/`unit_name` from the submission, shown
+  as `can_unit` would (not to a row reached by non-PII coding alone);
+  `deceased_sex` the form's gender lowercased; `age_years` the normalised
+  age in whole years, else the form's age; `source` `odk`; `created_at` /
+  `updated_at` the submission row's (UTC); `status` from the workflow alone,
+  as a register row in state `submitted` (so never awaiting an interview);
+  `register_state`, `date_of_death`, `reported_at` absent or null; no
+  `deceased_name` (there is no name column on a submission, as
+  `coding_names`), no location, no reporter; `interviewer_name` is the
+  ODK data collector and `coder_name` the latest coding allocation, both
+  under the staff rule (`can_staff`: personal-data access and admin or the
+  data manager lens); `identifiers` `[]`, `can_edit_identifiers` false.
+- **Filters:** `project_id`, `site_id`, `org_unit_id`, `submitted_*`,
+  `overdue`, `sex`, `age_*` apply as to any row; `reported_*` bounds the
+  submission day (the interview is the first the system knows of such a
+  death); a `source` filter without `odk`, or any register-only filter
+  (`state`, `dod_*`, `identifier`, `identifier_number`, `visit_note`),
+  leaves them out. The `interview` preset's default statuses (awaiting an
+  interview) never hold them: send `status=` (the Statistics tab does).
+- **Counts** add theirs per status (a second aggregate, first page only).
+- **Paging:** keyset on `(sort time, row_key)`, `row_key` the death id as
+  text or `s:` + the submission id, compared in "C" collation (a uuid sorts
+  before `s:`, and as text exactly as a uuid). Each branch is ordered and
+  limited on its own index, then the union. A death-id cursor from the
+  register-only list still pages.
+- **Inactive project-sites (one rule):** with the flag, the `deaths`,
+  `interview` and `coding` presets also leave out the register rows whose
+  `(project_id, site_id)` pair is not active in `va_project_sites`, exactly
+  as the unregistered rows, whatever other filter is set (a `source` or
+  register-only filter included), counts too. Supervision, the phones
+  (`GET /intake/cases`) and every flag-off caller still list them: a
+  supervisor must still resolve a case at a deactivated site.
+- **Interviewed** (`interviewed=1`): only cases with a submission (a
+  register row whose `va_sid` names a submission row; every unregistered
+  row). Status `refused` mixes register-refused deaths (never interviewed)
+  and consent-refused submissions; the Statistics Interviews and Codings
+  tabs send it so they only ever show cases that have a submission.
+- **Names** (`name_recorded`): a row carries `name_recorded: false` where
+  the caller may see the name (`can_name`) and none is recorded (a direct
+  interview before its identity step), and, to a caller with personal-data
+  access (`should_redact_pii` false), on every unregistered row (no name
+  exists for it anywhere). Where the name is hidden nothing is said: the
+  field is absent, as `deceased_name`.
+- **Export** (`export.csv`) stays register-only: the flag is ignored there,
+  so the export lists as a flag-off caller (inactive project-sites
+  included).
+- **Area dashboard:** `overdue_coding` adds the unregistered submissions
+  overdue for coding (same definition); the Flask dashboards read it. The
+  Statistics page reads `stage-counts` instead (below).
+
+## Stage counts: the Statistics Overview and Projects numbers (owner, 2026-11-04)
+
+`GET /api/v1/cases/stage-counts` returns, per project and in total, five
+numbers over the caller's listing with `unregistered=1`, each the total of
+a Statistics tab, so the numbers agree everywhere for every role:
+
+| Stage | Equals | Period |
+| --- | --- | --- |
+| `reported` (shown as "Deaths") | Deaths "All": every status but duplicate and cancelled | `reported_*` (an unregistered row: its submission day) |
+| `interviewed` | Interviews "All" with `interviewed=1`: awaiting coding, in coding, coded, not codeable, refused | `submitted_*` |
+| `coded` | Codings' "Coded" chip with `interviewed=1` | `submitted_*` |
+| `overdue_interview` | Deaths with `overdue=interview` | none (live) |
+| `overdue_coding` | Codings "All" with `interviewed=1` and `overdue=coding` | none (live) |
+
+One grouped statement per branch (register rows, unregistered rows): the
+WHERE is the listing's scope and area filters (`project_id`, `site_id`,
+`org_unit_id`, the inactive project-site rule), each stage a `count(*)
+FILTER` built from the list's own filter and status functions, so the two
+cannot drift. A project with nothing in reach is absent. The reply also
+carries the overdue thresholds. The area summary keeps its own counts
+(register rows, analytics snapshot) for the Flask dashboards.
+- `filter-options` stays register-only: a project with no register rows is
+  not offered there (the Statistics page takes its projects from the area
+  API).
 
 ## Non-goals
 

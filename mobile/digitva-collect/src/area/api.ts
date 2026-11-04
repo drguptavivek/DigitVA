@@ -155,9 +155,10 @@ export type CaseStatus =
 /**
  * One GET /api/v1/cases row. A field the caller may not see is absent, not blank: `deceased_name` (personal-data
  * gate), `reporter_name` / `interviewer_name` / `coder_name` (staff-identity gate), `unit_name` (unit reach).
+ * With `unregistered=1`, a submission no register row names has `death_id` null and always its `va_sid`.
  */
 export interface CaseListRow {
-  death_id: string;
+  death_id: string | null;
   unique_id: string;
   project_id: string;
   site_id: string;
@@ -167,7 +168,9 @@ export interface CaseListRow {
   deceased_sex: string | null;
   date_of_death: string | null;
   created_at: string;
-  deceased_name?: string;
+  deceased_name?: string | null;
+  /** False where the caller may see the name and none is recorded; absent wherever the name is hidden. */
+  name_recorded?: false;
   unit_name?: string | null;
   reporter_name?: string | null;
   interviewer_name?: string | null;
@@ -196,11 +199,44 @@ export function parseCaseListPage(value: unknown): CaseListPage {
   const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
   const ok = record(value) && Array.isArray(value.cases) && (value.next_cursor === null || typeof value.next_cursor === "string") &&
     (value.counts === undefined || record(value.counts)) &&
-    value.cases.every((row) => record(row) && typeof row.death_id === "string" && typeof row.unique_id === "string" && typeof row.status === "string");
+    value.cases.every((row) => record(row) && (typeof row.death_id === "string" || (row.death_id === null && typeof row.va_sid === "string")) &&
+      typeof row.unique_id === "string" && typeof row.status === "string");
   if (!ok) throw new Error("malformed_response");
   return value as unknown as CaseListPage;
 }
 
 export async function listCases(request: JsonRequester, params: CaseListQuery): Promise<CaseListPage> {
   return parseCaseListPage(await request(`/api/v1/cases${query(params)}`));
+}
+
+/** The Statistics stage and overdue numbers of one project, or summed; each equals a case tab's total. */
+export interface StageCounts {
+  reported: number;
+  interviewed: number;
+  coded: number;
+  overdue_interview: number;
+  overdue_coding: number;
+}
+
+/** GET /api/v1/cases/stage-counts: per project (absent when nothing is in reach), the total and the overdue thresholds. */
+export interface StageCountsReply {
+  projects: Record<string, StageCounts>;
+  total: StageCounts;
+  thresholds: { interview_days: number; coding_days: number };
+}
+
+const STAGE_KEYS: (keyof StageCounts)[] = ["reported", "interviewed", "coded", "overdue_interview", "overdue_coding"];
+
+/** Check the reply's shape: every number present, so a missing one is an error rather than a wrong zero. */
+export function parseStageCounts(value: unknown): StageCountsReply {
+  const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
+  const counts = (item: unknown) => record(item) && STAGE_KEYS.every((key) => typeof item[key] === "number");
+  const ok = record(value) && record(value.projects) && Object.values(value.projects).every(counts) && counts(value.total) &&
+    record(value.thresholds) && typeof value.thresholds.interview_days === "number" && typeof value.thresholds.coding_days === "number";
+  if (!ok) throw new Error("malformed_response");
+  return value as unknown as StageCountsReply;
+}
+
+export async function getStageCounts(request: JsonRequester, params: CaseListQuery): Promise<StageCountsReply> {
+  return parseStageCounts(await request(`/api/v1/cases/stage-counts${query(params)}`));
 }

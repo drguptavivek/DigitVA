@@ -3,6 +3,15 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-04
+
+- **DORIS demo fits a phone** (`digitva-i58a`): on screens up to 768px the
+  ICD search pop-up shows only the search box, the results and a smaller
+  Building/OK bar; line moves, remove, Reset, existing codes, uncoded entry and
+  onset wait until the search closes. Results went from one row to about 370px
+  on a 375×640 screen. The line controls and Search are 40px icon buttons
+  (inline Lucide SVGs) on the title row, so the search box no longer collapses.
+
 ## 2026-11-01
 
 - **Collect and Collect Plus 0.3.19**: version bump so the CI builds carry the

@@ -156,7 +156,26 @@
 #doris-demo-app .doris-guided-panel .doris-axis-option, .doris-clinical-editor .doris-guided-panel .doris-axis-option { min-width: 12rem; }
 #doris-demo-app .doris-guided-panel code, .doris-clinical-editor .doris-guided-panel code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .doris-axis-children { flex-basis: 100%; width: calc(100% - 1rem); border-left: 2px solid var(--border); padding-left: .45rem; }
-@media (max-width: 575.98px) { #doris-demo-app .doris-line .btn-group { width: 100%; } #doris-demo-app .doris-line > .d-flex { align-items: flex-start !important; flex-direction: column; } }
+/* Phones: search box and search icon on one row; uncoded entry below. */
+@media (max-width: 575.98px) {
+  #doris-demo-app .doris-line .input-group { gap: .4rem; }
+  #doris-demo-app .doris-line .input-group > [data-search] { flex: 1 1 0; min-width: 0; }
+  #doris-demo-app .doris-line .input-group > .btn { margin-left: 0 !important; }
+  #doris-demo-app .doris-line .input-group > [data-add-uncoded] { flex: 1 0 100%; }
+  #doris-demo-app .doris-line .input-group > * { border-radius: var(--radius-md) !important; }
+}
+/* Phones, search open: only the search box, results and the OK bar. Line editing waits until the search closes;
+   typing searches and clears a staged choice, so Search and Reset are not needed here. */
+@media (max-width: 768px) {
+  #doris-demo-app .doris-line.doris-search-modal-open > .d-flex:first-child { flex-wrap: wrap; gap: .35rem !important; }
+  #doris-demo-app .doris-line.doris-search-modal-open [data-line-title] { flex: 1 1 auto; }
+  #doris-demo-app .doris-line.doris-search-modal-open > .d-flex:first-child > .d-flex,
+  #doris-demo-app .doris-line.doris-search-modal-open [data-interval-control],
+  #doris-demo-app .doris-line.doris-search-modal-open [data-chips],
+  #doris-demo-app .doris-line.doris-search-modal-open [data-search-button],
+  #doris-demo-app .doris-line.doris-search-modal-open [data-add-uncoded],
+  #doris-demo-app .doris-line.doris-search-modal-open .doris-search-reset { display: none !important; }
+}
 @media (max-width: 640px) { .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; } .doris-search-controls { justify-content: flex-end !important; } }
 @media (max-width: 767.98px) { .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); } .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 35vh; } }
 
@@ -196,6 +215,11 @@
   .doris-selection-text { flex: 1 1 auto; min-height: 0; max-height: none; }
   .doris-footer-buttons { flex: none; }
   .doris-search-modal-open .doris-selection-footer .btn { flex: 1 1 8rem; }
+  /* Compact bar on phones so the results keep the screen. */
+  .doris-search-modal-open .doris-selection-footer { gap: .3rem; padding-top: .4rem; }
+  .doris-search-modal-open .doris-selection-choice { font-size: .95rem; }
+  .doris-search-modal-open .doris-selection-code { font-size: 1rem; }
+  .doris-search-modal-open .doris-selection-footer .btn { min-height: 2.5rem; font-size: .9rem; }
   .doris-related-window { inset: 0; width: auto; max-height: none; border-radius: 0 !important; display: flex; flex-direction: column; }
   .doris-related-content { flex: 1 1 auto; max-height: none; }
 }
@@ -368,3 +392,6 @@
 .doris-clinical-editor .doris-clear-inline { position: absolute; top: 50%; right: .25rem; transform: translateY(-50%); width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; margin: 0; }
 .doris-clinical-editor .doris-clear-inline.doris-clear-number { right: 1.6rem; }
 .doris-clinical-editor .doris-clear-inline.doris-clear-corner { top: .25rem; transform: none; }
+/* Inline line-control icons (Lucide, ISC). */
+#doris-demo-app .doris-icon { vertical-align: -.2em; }
+#doris-demo-app .btn:has(> .doris-icon:only-child) { min-width: 2.5rem; padding-inline: .6rem; }

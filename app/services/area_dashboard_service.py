@@ -50,6 +50,7 @@ from app.models import (
     VaSmartvaResults,
     VaStatuses,
     VaSubmissions,
+    VaSubmissionWorkflow,
     VaSyncRun,
     VaUserAccessGrants,
     VaUsers,
@@ -57,6 +58,13 @@ from app.models import (
 )
 from app.services import authz, org_grant_service, training_scope
 from app.services.authz.consulted import mark_consulted
+from app.services.case_list_service import (
+    CASE_SUBMISSION,
+    OVERDUE_CODING_DAYS,
+    OVERDUE_INTERVIEW_DAYS,
+    combined_status_case,
+    waiting,
+)
 from app.services.cod_bucket_mapping_service import (
     count_coded_submissions_by_cause,
     default_reporting_scheme_code,
@@ -375,6 +383,7 @@ def period_start(period: str) -> datetime | None:
 CASE_COUNT_KEYS = (
     "deaths_reported", "deaths_7_days", "deaths_30_days",
     "interviews_pending", "pending_over_7_days", "pending_over_30_days",
+    "overdue_interview", "overdue_coding",
 )
 LIVE_COUNT_KEYS = ("final_cod", "smartva_failed", "visit_notes")
 COUNT_KEYS = (
@@ -394,9 +403,12 @@ def _reported_deaths(project_id: str):
 def _case_count_columns(since) -> list:
     """The death-register counts as labelled ``count FILTER`` columns: cases
     registered in the period (all when *since* is None) and in the last 7 and
-    30 days, and open cases waiting for an interview, also those waiting
-    over 7 and 30 days since registration."""
+    30 days, open cases waiting for an interview, also those waiting over 7
+    and 30 days since registration, and the overdue interviews and codings
+    (``case_list_service.waiting``, live, never period-filtered). Needs
+    ``_with_case_state`` on the statement."""
     now = datetime.now(UTC)
+    overdue = waiting(combined_status_case())
     counted = sa.func.count(VaDeathRegister.death_id)
     created = VaDeathRegister.created_at
     pending = VaDeathRegister.status.in_(OPEN_CASE_STATES)
@@ -407,7 +419,20 @@ def _case_count_columns(since) -> list:
         counted.filter(pending).label("interviews_pending"),
         counted.filter(pending, created < now - timedelta(days=7)).label("pending_over_7_days"),
         counted.filter(pending, created < now - timedelta(days=30)).label("pending_over_30_days"),
+        counted.filter(overdue.interview).label("overdue_interview"),
+        counted.filter(overdue.coding).label("overdue_coding"),
     ]
+
+
+def _with_case_state(statement):
+    """*statement* (over ``VaDeathRegister``) with the case's workflow and
+    submission outer-joined, which the overdue columns read. Both are unique
+    on ``va_sid``, so no case is counted twice."""
+    return (
+        statement
+        .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
+        .outerjoin(CASE_SUBMISSION, CASE_SUBMISSION.va_sid == VaDeathRegister.va_sid)
+    )
 
 
 def _values(row, keys) -> dict:
@@ -420,10 +445,12 @@ def _case_counts_by_unit(project_id: str, unit_ids: list, since=None) -> dict:
         return {}
     death_unit = sa.orm.aliased(MasOrgUnit, name="death_unit")
     rows = db.session.execute(
-        sa.select(MasOrgUnit.org_unit_id, *_case_count_columns(since))
-        .select_from(MasOrgUnit)
-        .join(death_unit, death_unit.path.op("<@")(MasOrgUnit.path))
-        .join(VaDeathRegister, VaDeathRegister.org_unit_id == death_unit.org_unit_id)
+        _with_case_state(
+            sa.select(MasOrgUnit.org_unit_id, *_case_count_columns(since))
+            .select_from(MasOrgUnit)
+            .join(death_unit, death_unit.path.op("<@")(MasOrgUnit.path))
+            .join(VaDeathRegister, VaDeathRegister.org_unit_id == death_unit.org_unit_id)
+        )
         .where(
             MasOrgUnit.org_unit_id.in_(sorted(unit_ids)),
             death_unit.project_id == project_id,
@@ -436,7 +463,7 @@ def _case_counts_by_unit(project_id: str, unit_ids: list, since=None) -> dict:
 
 def _case_counts_unrouted(project_id: str, since=None) -> dict:
     row = db.session.execute(
-        sa.select(*_case_count_columns(since)).where(
+        _with_case_state(sa.select(*_case_count_columns(since)).select_from(VaDeathRegister)).where(
             _reported_deaths(project_id), VaDeathRegister.org_unit_id.is_(None)
         )
     ).one()
@@ -445,7 +472,7 @@ def _case_counts_unrouted(project_id: str, since=None) -> dict:
 
 def _case_counts_by_site(project_id: str, site_ids: list, since=None) -> dict:
     rows = db.session.execute(
-        sa.select(VaDeathRegister.site_id, *_case_count_columns(since))
+        _with_case_state(sa.select(VaDeathRegister.site_id, *_case_count_columns(since)).select_from(VaDeathRegister))
         .where(_reported_deaths(project_id), VaDeathRegister.site_id.in_(sorted(site_ids)))
         .group_by(VaDeathRegister.site_id)
     ).all()
@@ -1106,6 +1133,7 @@ def _area_summary(user, project_id, unit_id, site_id, period) -> dict:
         "unit": None,
         "breadcrumb": [],
         "project_card": None,
+        "thresholds": {"interview_days": OVERDUE_INTERVIEW_DAYS, "coding_days": OVERDUE_CODING_DAYS},
     }
     screens = link_screens(user, project_id)
     dm_links = SCREEN_DATA_MANAGEMENT in screens

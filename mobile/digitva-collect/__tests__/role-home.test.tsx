@@ -54,6 +54,7 @@ function bootstrap(
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockRouteParams,
   useRouter: () => mockRouter,
+  usePathname: () => "/coding",
 }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockAppBootstrap, reload: mockReload }) }));
 jest.mock("../src/client/session", () => ({ loadBrowserSession: () => Promise.resolve(mockLoadedSession) }));
@@ -102,6 +103,7 @@ import {
   resetFirstHomeLoad,
   ROLE_SCREENS,
   roleScreens,
+  statisticsAllowed,
 } from "../src/web/roleHome";
 
 function memoryStorage() {
@@ -364,6 +366,13 @@ describe("role home dashboard", () => {
     expect(roleScreens(bootstrap(["coder"]))).not.toContain("/death-registration");
     expect(roleScreens(bootstrap(["data_manager"], { supervision: true }))).not.toContain("/supervision");
 
+    // Statistics is the oversight view: not for people who follow their own work in their screens.
+    for (const role of ["data_manager", "site_pi", "project_pi", "interview_supervisor", "collaborator", "collaborator_pii", "admin"]) {
+      expect(statisticsAllowed(bootstrap([role]))).toBe(true);
+    }
+    for (const role of ["interviewer", "coder", "coding_tester", "reviewer", "death_reporter"]) expect(statisticsAllowed(bootstrap([role]))).toBe(false);
+    expect(statisticsAllowed(bootstrap([]))).toBe(false);
+    expect(homeLanding(bootstrap(["coder"]), "/statistics")).toBe("/coding");
     // Statistics is a remembered in-app route; the retired Flask "/area/" visit maps to it; no grant, no Statistics.
     expect(homeLanding(bootstrap(["site_pi"]), "/statistics")).toBe("/statistics");
     expect(homeLanding(bootstrap(["site_pi"]), "/area/")).toBe("/statistics");

@@ -63,17 +63,19 @@ function ChoiceIndicator({ multiple, selected }: { multiple: boolean; selected: 
     <View
       aria-hidden={true}
       style={{
-        width: 20,
-        height: 20,
-        borderRadius: multiple ? 4 : 10,
+        width: 22,
+        height: 22,
+        flexShrink: 0,
+        borderRadius: multiple ? 4 : 11,
         borderWidth: 2,
         borderColor: selected ? theme.ui.primary : theme.ui.input,
-        backgroundColor: selected ? theme.ui.primary : theme.ui.background,
+        backgroundColor: selected && multiple ? theme.ui.primary : theme.ui.background,
         alignItems: "center",
         justifyContent: "center"
       }}
     >
-      {selected ? <Text style={{ color: theme.ui.primaryForeground, fontSize: 14, lineHeight: 16 }}>{multiple ? "✓" : "•"}</Text> : null}
+      {selected && multiple ? <Text style={{ color: theme.ui.primaryForeground, fontSize: 14, lineHeight: 16 }}>✓</Text> : null}
+      {selected && !multiple ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: theme.ui.primary }} /> : null}
     </View>
   );
 }

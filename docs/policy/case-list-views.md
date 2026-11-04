@@ -3,7 +3,7 @@ title: Case List Views Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-26
+last_updated: 2026-11-04
 ---
 
 # Case List Views Policy
@@ -96,8 +96,12 @@ one shared list over the existing `GET /intake/cases`.
 - Filter bar: search; then status chips left (All, To visit, In progress,
   Submitted) and toggles right: Mine | All (`registered_by_me`, default Mine
   only for a user whose one death role is `death_reporter`) and Last 30 days |
-  All (date reported, client side, default All). Project and Area move into
-  Advanced filters, first; applied ones stay removable chips with the count.
+  All (date reported, client side, default All). Area moves into Advanced
+  filters, first; applied ones stay removable chips with the count. Project is
+  the shared Project control top right on Collection (both tabs), Coding,
+  Reviewing and Statistics, not an Advanced filter (2026-11-04); Clear all
+  does not reset it. The Deaths panel on the death registration and training
+  screens keeps Project in its Advanced filters.
 - Cards: name as title (else ID), the ID once, a status badge, one primary
   action (Code now, Resume, Start interview, Edit, View).
 
@@ -219,7 +223,8 @@ or one type).
 
 **Already built** (`src/web/caseFilters.tsx`; `docs/current-state/expo-client.md`)
 and reused by the shared list: tabs; search; status chips; Mine | All and
-Last 30 days | All toggles; Project and Area inside Advanced filters;
+Last 30 days | All toggles; Area inside Advanced filters (Project is the
+shared Project control, top right);
 advanced filters for date of death, date reported, sex and age band; applied
 filters as removable chips with Clear all. Today only Project runs on the
 server and the rest filter loaded pages; the shared list moves them into the
@@ -240,6 +245,17 @@ query; no new scope rule:
 - the submissions `scope_filter(user, action)`
   (`app/services/authz/predicates.py`), through the case's `va_sid`: coding,
   data manager and collaborator reach.
+- **Collaborator register reach** (owner, 2026-11-04,
+  `.tasks/statistics-operational-dashboards.md`): a `collaborator` or
+  `collaborator_pii` grant also reaches the register rows in its grant area,
+  with or without an interview: a project grant the project, a site grant
+  that project-site, an org-unit grant the unit's subtree; on an active
+  project-site only, inside the training separation like every reach. Read-only:
+  it gives no interview, edit or registration-number rights (registration
+  numbers stay badges on a row reached this way alone), names only through
+  a `collaborator_pii` grant, the unit name to both, staff names unchanged
+  (`can_staff`). It applies to `GET /api/v1/cases`, its counts and
+  `/filter-options`; the CSV export (data managers only) shares the scope.
 
 Not `authz.reachable_unit_ids`: it answers "which units", not "which cases
 this role may see", and would merge reaches that are not interchangeable.
@@ -311,7 +327,16 @@ Proposed; names follow `api-v1.md` conventions.
   (`deaths|interview|coding|supervision`), `project_id`, `site_id`,
   `org_unit_id`, `status` (repeatable), `dod_from`, `dod_to`,
   `reported_from`, `reported_to`, `identifier` (`has`|`missing`),
-  `identifier_type`, `identifier_number`, `cursor`, `limit`. Returns
+  `identifier_type`, `identifier_number`, `cursor`, `limit`; and, for the
+  Statistics tables (2026-11-04): `project_id` repeatable or a comma list
+  (one value behaves as before), `submitted_from` / `submitted_to` (the
+  submission date, UTC days, end inclusive; rows without a submission are
+  left out when either is given), `overdue=interview|coding`,
+  `source=register|direct|odk` (repeatable or a comma list; counts follow
+  it). Rows add `submitted_at`, `coded_at`, `overdue`, `days_waiting`
+  (never negative) and `can_open` (true only when the case has a
+  submission the caller may view: its `Action.VIEW` scope, or admin;
+  pending deaths false), with `va_sid` only where `can_open` is true. Returns
   `{cases, counts, next_cursor}` with `counts` per combined status (and the
   Supervision tiles) ignoring the status filter, as `list_supervised_cases`
   does, computed with the same `CASE` in one aggregate query.

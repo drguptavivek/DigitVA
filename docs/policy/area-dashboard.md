@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-04
 ---
 
 # Area Dashboard Policy
@@ -20,16 +20,23 @@ separate project dashboard build. Bead `digitva-stc`.
 
 ## Who sees it
 
-- Any user with at least one active grant, of any role, on an active project.
-  A user with no grant sees an empty page, not an error.
+- **Menu and Home entry: oversight roles only** (owner, 2026-11-04,
+  `.tasks/statistics-operational-dashboards.md`): `data_manager`, `site_pi`,
+  `project_pi`, `interview_supervisor`, `collaborator`, `collaborator_pii`
+  and `admin`. Interviewers, coders and reviewers follow their own work in
+  Collection (`/collection?tab=deaths`), Coding (`/coding?tab=history`) and
+  Reviewing, not here.
+- **The API still admits any grant**: any user with at least one active
+  grant, of any role, on an active project gets their area's counts. A user
+  with no grant sees an empty page, not an error. The page and API require
+  only a signed-in session, not a role: a role list would refuse users with
+  no grant instead of showing them an empty page.
 - District offices through their usual roles at the district unit (data
   manager, collaborator with or without personal data, site PI); mentoring
   institute staff through their mentor-role unit grants, `collaborator`
   included for a mentor who should see counts without names
   ([Organization Model](organization-model.md), "Mentoring institutes").
 - `admin` sees every project whole.
-- The page and API require only a signed-in session, not a role: a role list
-  would refuse users with no grant instead of showing them an empty page.
 
 ## Scope
 
@@ -53,8 +60,45 @@ code or open a case there.
 
 ## What it shows
 
-Counts only. No case lists and no subject data; staff names only in the
-per-staff view below, to viewers allowed staff identity.
+Counts, plus read-only case tables (owner, 2026-11-04). The tables are
+`GET /api/v1/cases` ([Case List Views](case-list-views.md)) with its presets
+`deaths`, `interview` and `coding`; the area API itself carries no case rows
+and no subject data.
+
+- **Deceased name** only where `should_redact_pii` does not redact the
+  viewer, per the case list's existing `can_name` rules; otherwise the field
+  is absent (not blank, not pseudonymised).
+- **Staff names** (reported by, interviewer, coder) only under the case
+  list's staff-identity gate (`can_staff`: personal-data access plus admin,
+  a supervising role or the data-manager lens).
+- **Collaborators** (`collaborator`, `collaborator_pii`, mentors) reach the
+  register rows in their grant area read-only, pending deaths included, so
+  they can see how many interviews are pending. This reach gives no
+  interview, edit or registration-number rights; names only for
+  `collaborator_pii`.
+- **Overdue** (thresholds fixed in code, `OVERDUE_INTERVIEW_DAYS = 60`,
+  `OVERDUE_CODING_DAYS = 15`, sent to the client as `thresholds`): a death
+  not yet interviewed (reported, interview pending or in progress) more than
+  60 days after its date of death, or after the date reported when the date
+  of death is missing; an interview not yet coded (awaiting coding or in
+  coding) more than 15 days after its submission date. "Today" is the
+  server's UTC date. Shown as a fill plus text, never colour alone.
+- **Deaths statuses**: Pending, Interviewed, Coded, Refused, Not codeable,
+  each its own chip; duplicates and cancelled cases are hidden.
+- Rows open the existing case page only where the viewer's role already
+  admits them; viewing scope never implies coding scope. The CSV stays
+  aggregates only: no case-level export from this page.
+- **Filters (2026-11-04)**: Project is the shared Project control top right
+  (several projects allowed). A Filters button on the tab line opens Period,
+  Area (one project only; every unit in the user's area, leaf units included)
+  and the tab's filters (Deaths: Source, Overdue; Interviews and Codings:
+  Overdue). Project is not part of that flyout, its count or its chips, and
+  Clear all does not reset it. A case row shows View when it carries
+  `can_open` and `va_sid` and the user has the Data screen's access (data
+  manager or admin: the data management view; a viewer: the area case view).
+
+Staff names otherwise only in the per-staff view below, to viewers allowed
+staff identity.
 A count links to the screen the user's role already has for that work, only
 when the user holds that role on the project and that screen admits them
 (`digitva-stc.3`):
@@ -121,6 +165,9 @@ coding, not codeable, SmartVA failed, final COD and visit notes.
 - **Interviews pending**: open cases (registered, scheduled, in progress,
   paused, not reachable), live, with how many have waited **over 7 days**
   and **over 30 days** since registration.
+- **Overdue interview** and **overdue coding** (`overdue_interview`,
+  `overdue_coding`): the overdue definitions above, live and never
+  period-filtered, on the card and every row, in the JSON and the CSV.
 - **Submitted**: submissions received in the period (web and ODK alike,
   from the hourly snapshot).
 - **Awaiting coding**: screening, attachment sync, SmartVA pending or ready

@@ -52,6 +52,7 @@ from app.services.area_dashboard_service import (
     PERCENT_MIN_WHOLE,
     _case_count_columns,
     _has_final_cod,
+    _with_case_state,
     suppress_causes,
 )
 from app.services.duplicate_exclusion import (
@@ -413,11 +414,12 @@ def _register_counts(scope: DmScope, project_ids: list[str], *, by_sex: bool) ->
     (a linked submission), optionally per normalised ``deceased_sex``."""
     sex = sa.literal_column(sex_sql("va_death_register.deceased_sex"))
     group = (sex.label("sex"),) if by_sex else ()
-    stmt = sa.select(
+    # The overdue columns read the case's workflow and submission: join them, or they cross-join in.
+    stmt = _with_case_state(sa.select(
         *group,
         *_case_count_columns(None),
         sa.func.count().filter(VaDeathRegister.va_sid.is_not(None)).label("interviewed"),
-    ).where(
+    ).select_from(VaDeathRegister)).where(
         VaDeathRegister.project_id.in_(project_ids),
         VaDeathRegister.status.not_in([DUPLICATE_CASE_STATUS, CANCELLED_CASE_STATUS]),
         scope_clause(scope, "va_death_register", "va_death_register"),

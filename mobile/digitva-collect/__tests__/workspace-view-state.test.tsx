@@ -4,7 +4,7 @@ import { AppState } from "react-native";
 
 import { CaseWorkspaceScreen } from "../src/workspace/CaseWorkspaceScreen";
 import type { WorkspaceApi } from "../src/workspace/api";
-import { canRestoreScroll, clearScroll, parseQueueParams, readScroll, resolveSection, saveScroll, serializeQueueParams } from "../src/workspace/viewState";
+import { canRestoreScroll, clearScroll, parseQueueParams, queueUrlStep, readScroll, resolveSection, saveScroll, serializeQueueParams } from "../src/workspace/viewState";
 
 let layoutProps: any;
 jest.mock("../src/workspace/WorkspaceLayout", () => ({
@@ -95,6 +95,17 @@ test("queue params serialise to a URL-safe record that parses back", () => {
   expect(serializeQueueParams({ showHistory: false, offset: 0 })).toEqual({ project: "all", tab: undefined, offset: undefined });
   const back = parseQueueParams(serializeQueueParams(view));
   expect(back).toMatchObject({ projectId: "P1", showHistory: true, offset: 50 });
+});
+
+test("a project change pushes a history entry; the first settle and tab or page changes replace", () => {
+  // First settle: the URL has no project yet.
+  expect(queueUrlStep("", { projectId: "P1", showHistory: false, offset: 0 })).toEqual({ push: false, params: { project: "P1" } });
+  // Tab or page in the same project.
+  expect(queueUrlStep("?project=P1", { projectId: "P1", showHistory: true, offset: 50 }).push).toBe(false);
+  // A new project (All included) pushes the whole query: the old page and tab go, other params stay.
+  expect(queueUrlStep("?project=P1&tab=history&offset=50&training=1", { projectId: "P2", showHistory: false, offset: 0 }))
+    .toEqual({ push: true, params: { training: "1", project: "P2" } });
+  expect(queueUrlStep("?project=P1", { showHistory: false, offset: 0 })).toEqual({ push: true, params: { project: "all" } });
 });
 
 beforeEach(() => { AppState.currentState = "active"; layoutProps = undefined; });

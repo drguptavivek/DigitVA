@@ -168,14 +168,14 @@ describe("web shell navigation and last visit", () => {
     mockUnscoped = trainee(["review"], ["coder"]);
     mockBootstrap = { ...bootstrap(["reviewer"]), scope: "training" } as ClientBootstrap; // what the page sees
     const renderer = await render();
-    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navStatistics", "navTraining", "trainingReview", "navMore"]);
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navTraining", "trainingReview", "navMore"]);
     await act(async () => { renderer.unmount(); });
   });
 
-  test("a coder sees Statistics (any grant) but no Deaths, Interview or Data management", async () => {
+  test("a coder sees no Statistics (oversight roles only), Deaths, Interview or Data management", async () => {
     const renderer = await render();
     await openMore(renderer);
-    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navStatistics", "navMore", "navOrg", "navSettings", "navWebsite", "signOut"]);
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navMore", "navOrg", "navSettings", "navWebsite", "signOut"]);
     await act(async () => { renderer.unmount(); });
   });
 

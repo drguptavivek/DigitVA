@@ -272,7 +272,7 @@ test("phone: bottom bar on the queue and home, a compact header with Help, none 
   mockWidth = 375;
   mountAll();
   expect(host.querySelector("nav[aria-label='Main']")).toBeNull();
-  expect(barLabels()).toEqual(["Home", "VA Code", "VA Review", "Statistics", "More"]);
+  expect(barLabels()).toEqual(["Home", "VA Code", "VA Review", "More"]);
   expect(bar()!.querySelector("a[href='/app/coding']")!.getAttribute("aria-current")).toBe("page");
   expect(bar()!.querySelector("a[href='/help']")).toBeNull();
   expect(host.querySelector("header a[href='/help']")).not.toBeNull();
@@ -378,7 +378,7 @@ test("phone: a reviewer gets VA Review, a collector who also interviews gets Dea
   mockPathname = "/";
   mockBootstrap = boot(["reviewer"]);
   mountAll();
-  expect(barLabels()).toEqual(["Home", "VA Review", "Statistics", "More"]);
+  expect(barLabels()).toEqual(["Home", "VA Review", "More"]);
   mockBootstrap = { ...boot([]), capabilities: { intake: true, registerDeath: true, registeredDeaths: false, supervision: false } };
   mountAll();
   expect(barLabels()).toEqual(["Home", "Deaths", "VA Interview", "More"]);

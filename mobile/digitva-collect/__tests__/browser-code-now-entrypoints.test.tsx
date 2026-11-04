@@ -11,7 +11,7 @@ const mockWorkspaceApi = {
   releaseCoding: jest.fn().mockResolvedValue({ va_sid: "other", workflow_state: "ready_for_coding" }),
 };
 
-jest.mock("expo-router", () => ({ useLocalSearchParams: () => mockParams, useRouter: () => mockRouter }));
+jest.mock("expo-router", () => ({ useLocalSearchParams: () => mockParams, useRouter: () => mockRouter, usePathname: () => "/collection" }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap, reload: mockReload }) }));
 jest.mock("../src/client/api", () => ({
   getCaseDetail: async () => ({ case: {

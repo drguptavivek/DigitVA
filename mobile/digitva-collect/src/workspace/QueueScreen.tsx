@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { ActivityIndicator, Alert, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
+import { ProjectSelect } from "../ui/ProjectSelect";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
 import type { WorkspaceApi } from "./api";
@@ -62,13 +63,7 @@ type QueueMessage = { scope: QueueScope; text: string };
 function useQueueStyles() {
   const { colors, ui } = useTheme();
   return useMemo(() => StyleSheet.create({
-    field: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.sm },
-    fieldText: { flex: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
-    backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
-    sheet: { maxHeight: "80%", backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.sm, gap: spacing.xs, width: "100%", maxWidth: controls.contentMaxWidth, alignSelf: "center" },
-    option: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 48, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md },
-    optionOn: { backgroundColor: colors.accentSoft },
-    optionText: { flex: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
+    topLine: { flexDirection: "row", justifyContent: "flex-end" },
     titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     titleMain: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: spacing.xs },
     iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
@@ -190,14 +185,6 @@ function CaseCardDetails({ item }: { item: AnyQueueCase }) {
   );
 }
 
-function Chevron({ color }: { color: string }) {
-  return <Svg width={14} height={14} viewBox="0 0 14 14"><Path d="M2 5l5 5 5-5" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-}
-
-function CheckMark({ color }: { color: string }) {
-  return <Svg width={16} height={16} viewBox="0 0 16 16"><Path d="M3 8.5l3.5 3.5L13 4.5" stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-}
-
 function RefreshIcon({ onPress, disabled }: { onPress: () => void; disabled: boolean }) {
   const { colors } = useTheme();
   const q = useQueueStyles();
@@ -208,46 +195,6 @@ function RefreshIcon({ onPress, disabled }: { onPress: () => void; disabled: boo
         <Path d="M16.5 3v4h-4" stroke={colors.text} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     </Pressable>
-  );
-}
-
-/** One field-like control that opens a sheet; names wrap in the list but stay on one line in the field. */
-function ProjectPicker({ options, value, disabled, onSelect }: {
-  options: { project_id: string; project_name: string }[];
-  value?: string;
-  disabled: boolean;
-  onSelect: (projectId: string | undefined) => void;
-}) {
-  const { colors } = useTheme();
-  const q = useQueueStyles();
-  const [open, setOpen] = useState(false);
-  const selected = options.find((option) => option.project_id === value);
-  const name = selected?.project_name ?? "All projects";
-  const choose = (projectId: string | undefined) => { setOpen(false); onSelect(projectId); };
-  const row = (key: string, label: string, projectId: string | undefined, on: boolean) => (
-    <Pressable key={key} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }} onPress={() => choose(projectId)} style={[q.option, on && q.optionOn]}>
-      <Text style={q.optionText}>{label}</Text>
-      {on ? <CheckMark color={colors.accent} /> : <View style={{ width: 16 }} />}
-    </Pressable>
-  );
-  return (
-    <>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Project: ${name}`} accessibilityState={{ expanded: open, disabled }} disabled={disabled} onPress={() => setOpen(true)} style={[q.field, disabled && { opacity: 0.5 }]}>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={q.fieldText}>Project: {name}</Text>
-        <Chevron color={colors.text} />
-      </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <View style={q.backdrop}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close project list" onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
-          <View style={q.sheet} accessibilityViewIsModal>
-            <ScrollView keyboardDismissMode="on-drag">
-              {row("all", "All projects", undefined, !value)}
-              {options.map((option) => row(option.project_id, option.project_name, option.project_id, option.project_id === value))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </>
   );
 }
 
@@ -763,6 +710,20 @@ export function QueueScreen({
     if (catalogReady) viewChanged.current?.({ projectId, showHistory, offset });
   }, [catalogReady, projectId, showHistory, offset]);
 
+  // Back and Forward change the URL's project under a mounted queue: follow it once the catalogue is in (the first
+  // value is the default chain's, above). A project the catalogue does not offer is All projects, as on first load.
+  const urlProject = initialView?.allProjects ? "all" : initialView?.projectId;
+  const seenUrlProject = useRef(urlProject);
+  useEffect(() => {
+    if (!catalogReady || seenUrlProject.current === urlProject) return;
+    seenUrlProject.current = urlProject;
+    const next = projects?.project_options.some((option) => option.project_id === urlProject) ? urlProject : undefined;
+    if (next === projectId) return;
+    clearMessage();
+    setOffset(initialView?.offset ?? 0);
+    setProjectId(next);
+  }, [catalogReady, urlProject]);
+
   const activeItems = useMemo<AnyQueueCase[]>(() => {
     if (mode === "coding") {
       return showHistory
@@ -1024,6 +985,16 @@ export function QueueScreen({
       headerAction={onExit ? <Button label="Back" kind="secondary" size="sm" onPress={onExit} /> : undefined}
     >
       <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />
+      {projects?.project_options.length ? (
+        <View style={q.topLine}>
+          <ProjectSelect
+            projects={projects.project_options.map((option) => ({ id: option.project_id, name: option.project_name }))}
+            value={projectId ? [projectId] : []}
+            disabled={busy}
+            onChange={(next) => { clearMessage(); setOffset(0); setProjectId(next[0]); }}
+          />
+        </View>
+      ) : null}
       {loading ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole="alert" style={styles.error}>{currentMessage}</Text> : null}
 
@@ -1039,20 +1010,6 @@ export function QueueScreen({
         </View>
       ) : null}
 
-      {projects?.project_options.length ? (
-        <View style={styles.card}>
-          {projects.project_options.length > 1 || (projectId === undefined && (startedOnAll.current || initialView?.projectId !== undefined)) ? (
-            <ProjectPicker
-              options={projects.project_options}
-              value={projectId}
-              disabled={busy}
-              onSelect={(next) => { clearMessage(); setOffset(0); setProjectId(next); }}
-            />
-          ) : (
-            <Text style={styles.text}>Project: {projects.project_options[0].project_name}</Text>
-          )}
-        </View>
-      ) : null}
 
       {mode === "coding" ? (
         <View style={styles.card}>

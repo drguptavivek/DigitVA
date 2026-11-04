@@ -461,6 +461,8 @@ export interface CaseRow {
   other_draft_started_at?: string | null;
   other_complete_interview?: boolean;
   code_now?: boolean;
+  /** Coding state of the case's submission (GET /intake/cases); null or absent before a submission. */
+  coding_status?: "awaiting_coding" | "in_coding" | "coded" | "not_codeable" | null;
   /** The caller registered this death (GET /intake/cases). */
   registered_by_me?: boolean;
   /** False for a death the caller reaches only as its death_reporter: no interview or case detail. */

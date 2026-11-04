@@ -5,6 +5,21 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-04
 
+- **Statistics as operational dashboards** (`digitva-0xsv`;
+  `docs/policy/area-dashboard.md`, `.tasks/statistics-operational-dashboards.md`):
+  `/app/statistics` gains Overview, Deaths, Interviews, Codings and Projects
+  tabs for oversight roles only, with a project multi-select, a Filters
+  flyout and status chips. Case tables come from `/cases` (names only with
+  PII access; overdue at 60 days from death and 15 days from interview;
+  View opens interviewed cases). Collection, Coding, Reviewing and
+  Statistics share one top-right Project control kept in the URL; the
+  interviewer's Deaths list shows Coded and Not codeable; collaborators see
+  reported deaths awaiting interview. The ICD-11 top-cause probe now uses
+  its unique index (`coalesce(age_scope,'')`): 23.7 s to 0.42 s per area
+  summary, and the DM COD reports with it. Includes the radio-button
+  styling in `whoControlsWeb.tsx`. Open: `digitva-vfll` (sites-mode
+  interviews missing from the tables), `digitva-omqx` (Hindi review).
+
 - **DORIS demo fits a phone** (`digitva-i58a`): on screens up to 768px the
   ICD search pop-up shows only the search box, the results and a smaller
   Building/OK bar; line moves, remove, Reset, existing codes, uncoded entry and

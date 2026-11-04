@@ -117,6 +117,11 @@ EXEMPT = {
     "services/case_list_service.py::_counts_statement": (
         "case list is a register view (death registrations, not coding pools): a confirmed duplicate is shown by its register status, only in the supervision preset or when filtered for, and the combined status reads register status first so its workflow state never surfaces; it is excluded from every coding pool"
     ),
+    "services/area_dashboard_service.py::_with_case_state": (
+        "joins the workflow to the area's register counts for the overdue columns; every "
+        "statement it extends filters _reported_deaths, which drops confirmed duplicates by "
+        "their register status, and the combined status reads register status first"
+    ),
     "services/case_list_service.py::export_summary": (
         "counts the rows the case list would page through, for the export's audit row: a register view, the same scope and filters as _page_statement (a duplicate is listed by its register status), not a coding pool"
     ),

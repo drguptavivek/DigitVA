@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { AccessProject, IntakeContextEntry } from "../api";
@@ -273,11 +273,74 @@ export const WITHIN_AREA = "__within_area__";
 
 export type ProjectOption = { value: string; label: string };
 
-/** Project and area are applied with the sheet but filtered outside `matchesAdvanced` (project on the server). */
+/** Project and area are applied with the sheet but filtered outside `matchesAdvanced` (project on the server). Project
+ * is in the sheet only where the screen has no shared Project control of its own (the Deaths screen). */
 export type PlaceFilters = { project?: string; unit?: string };
 
 function areaLabel(unit: string): string {
   return unit === WITHIN_AREA ? t("filterWithinArea") : unit;
+}
+
+/**
+ * The panel every filter surface shares: a right side panel at 768 px and wider, a bottom sheet narrower. Escape,
+ * a tap outside and the Close button call *onClose*; the modal keeps focus inside while open. *footer* holds the actions.
+ */
+export function FilterPanel({ open, title, onClose, footer, children }: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  footer: ReactNode;
+  children: ReactNode;
+}) {
+  const s = useFilterStyles();
+  const { width } = useWindowDimensions();
+  const wide = width >= 768;
+  return (
+    <Modal visible={open} transparent animationType={wide ? "fade" : "slide"} onRequestClose={onClose}>
+      <View style={wide ? s.backdropSide : s.backdropSheet}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("closeList")} onPress={onClose} style={StyleSheet.absoluteFill} />
+        <View style={wide ? s.side : s.sheet} accessibilityViewIsModal>
+          <View style={s.sheetHeader}>
+            <Text style={s.sheetTitle} accessibilityRole="header">{title}</Text>
+            <Button kind="secondary" size="sm" label={t("supervisionClose")} onPress={onClose} />
+          </View>
+          <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={s.sheetBody}>{children}</ScrollView>
+          <View style={s.sheetFooter}>{footer}</View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/** The filters button: *label* and, when *count* filters are applied, a badge. The button ref lets the caller return focus. */
+export const FilterButton = forwardRef<View, { label: string; a11yLabel: string; count: number; expanded: boolean; onPress: () => void }>(
+  function FilterButton({ label, a11yLabel, count, expanded, onPress }, ref) {
+    const s = useFilterStyles();
+    return (
+      <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={a11yLabel} accessibilityState={{ expanded }} onPress={onPress} style={s.advancedButton}>
+        <Text style={s.advancedText}>{label}</Text>
+        {count ? <View style={s.badge}><Text style={s.badgeText}>{count}</Text></View> : null}
+      </Pressable>
+    );
+  },
+);
+
+/** Removable chips of the applied filters, then Clear all. */
+export function AppliedChips({ chips, onClearAll }: { chips: { key: string; label: string; clear: () => void }[]; onClearAll: () => void }) {
+  const s = useFilterStyles();
+  return (
+    <View style={s.chipRow}>
+      {chips.map((chip) => (
+        <Pressable key={chip.key} accessibilityRole="button" accessibilityLabel={t("removeFilter", { label: chip.label })} hitSlop={spacing.xs} onPress={chip.clear} style={s.appliedChip}>
+          <Text style={s.appliedChipText}>{chip.label}</Text>
+          <Text style={s.appliedChipText} aria-hidden>×</Text>
+        </Pressable>
+      ))}
+      <Pressable accessibilityRole="button" accessibilityLabel={t("clearAll")} hitSlop={spacing.xs} onPress={onClearAll}>
+        <Text style={s.linkText}>{t("clearAll")}</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 /**
@@ -289,14 +352,13 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLab
   open: boolean;
   value: AdvancedFilters;
   place: PlaceFilters;
-  projects: ProjectOption[];
+  projects?: ProjectOption[];
   units: string[];
   reportedLabel: string;
   onApply: (next: AdvancedFilters, place: PlaceFilters) => void;
   onClose: () => void;
 }) {
   const s = useFilterStyles();
-  const { width } = useWindowDimensions();
   const [draft, setDraft] = useState(value);
   const [draftPlace, setDraftPlace] = useState(place);
   useEffect(() => {
@@ -306,18 +368,14 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLab
     }
   }, [open, value, place.project, place.unit]);
   const set = (patch: Partial<AdvancedFilters>) => setDraft((previous) => ({ ...previous, ...patch }));
-  const wide = width >= 768;
   return (
-    <Modal visible={open} transparent animationType={wide ? "fade" : "slide"} onRequestClose={onClose}>
-      <View style={wide ? s.backdropSide : s.backdropSheet}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t("closeList")} onPress={onClose} style={StyleSheet.absoluteFill} />
-        <View style={wide ? s.side : s.sheet} accessibilityViewIsModal>
-          <View style={s.sheetHeader}>
-            <Text style={s.sheetTitle} accessibilityRole="header">{t("advancedFilters")}</Text>
-            <Button kind="secondary" size="sm" label={t("supervisionClose")} onPress={onClose} />
-          </View>
-          <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={s.sheetBody}>
-            {projects.length > 1 ? (
+    <FilterPanel open={open} title={t("advancedFilters")} onClose={onClose} footer={(
+      <>
+        <Button kind="secondary" label={t("clearAll")} onPress={() => { setDraft(EMPTY_ADVANCED); setDraftPlace({}); }} />
+        <Button label={t("applyFilters")} onPress={() => onApply(draft, draftPlace)} />
+      </>
+    )}>
+            {projects && projects.length > 1 ? (
               <View style={s.section}>
                 <Text style={s.sectionTitle}>{t("filterProject")}</Text>
                 <View style={s.group}>
@@ -393,14 +451,7 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLab
                 </View>
               </View>
             </View>
-          </ScrollView>
-          <View style={s.sheetFooter}>
-            <Button kind="secondary" label={t("clearAll")} onPress={() => { setDraft(EMPTY_ADVANCED); setDraftPlace({}); }} />
-            <Button label={t("applyFilters")} onPress={() => onApply(draft, draftPlace)} />
-          </View>
-        </View>
-      </View>
-    </Modal>
+    </FilterPanel>
   );
 }
 
@@ -443,8 +494,9 @@ function SegmentedToggle({ toggle }: { toggle: FilterToggle }) {
 /**
  * The filter bar every case list shares. Row 1: search and the Advanced
  * filters button (its badge counts every applied sheet filter). Row 2: status
- * chips on the left, the optional toggles on the right. Project and Area live
- * in the sheet; applied sheet filters show as removable chips with Clear all.
+ * chips on the left, the optional toggles on the right. Area (and Project, when
+ * *projects* is given) live in the sheet; applied sheet filters show as removable
+ * chips with Clear all. Screens with the shared Project control leave *projects* out.
  */
 export function CaseFilterBar<K extends string>(props: {
   search: string;
@@ -454,9 +506,9 @@ export function CaseFilterBar<K extends string>(props: {
   allStatus: K;
   onStatus: (key: K) => void;
   toggles?: FilterToggle[];
-  projects: ProjectOption[];
+  projects?: ProjectOption[];
   project?: string;
-  onProject: (value: string | undefined) => void;
+  onProject?: (value: string | undefined) => void;
   units: string[];
   unit?: string;
   onUnit: (value: string | undefined) => void;
@@ -468,9 +520,9 @@ export function CaseFilterBar<K extends string>(props: {
   const s = useFilterStyles();
   const { colors } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const projectLabel = props.projects.find((project) => project.value === props.project)?.label ?? props.project;
+  const projectLabel = props.projects?.find((project) => project.value === props.project)?.label ?? props.project;
   const chips = [
-    ...(props.project ? [{ key: "project", label: `${t("filterProject")}: ${projectLabel}`, clear: () => props.onProject(undefined) }] : []),
+    ...(props.projects && props.project ? [{ key: "project", label: `${t("filterProject")}: ${projectLabel}`, clear: () => props.onProject?.(undefined) }] : []),
     ...(props.unit ? [{ key: "unit", label: `${t("filterArea")}: ${areaLabel(props.unit)}`, clear: () => props.onUnit(undefined) }] : []),
     ...appliedAdvancedChips(props.advanced, props.reportedLabel)
       .map((chip) => ({ key: chip.key, label: chip.label, clear: () => props.onAdvanced({ ...props.advanced, ...chip.clear }) })),
@@ -487,16 +539,13 @@ export function CaseFilterBar<K extends string>(props: {
           onChangeText={props.onSearch}
           style={s.searchInput}
         />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={chips.length ? t("advancedFiltersActive", { count: chips.length }) : t("advancedFilters")}
-          accessibilityState={{ expanded: sheetOpen }}
+        <FilterButton
+          label={t("advancedFilters")}
+          a11yLabel={chips.length ? t("advancedFiltersActive", { count: chips.length }) : t("advancedFilters")}
+          count={chips.length}
+          expanded={sheetOpen}
           onPress={() => setSheetOpen(true)}
-          style={s.advancedButton}
-        >
-          <Text style={s.advancedText}>{t("advancedFilters")}</Text>
-          {chips.length ? <View style={s.badge}><Text style={s.badgeText}>{chips.length}</Text></View> : null}
-        </Pressable>
+        />
       </View>
       <View style={s.statusRow} testID="case-filter-status-row">
         <View style={s.statusLeft} testID="case-filter-status-left">
@@ -508,26 +557,7 @@ export function CaseFilterBar<K extends string>(props: {
           </View>
         ) : null}
       </View>
-      {anyActive ? (
-        <View style={s.chipRow}>
-          {chips.map((chip) => (
-            <Pressable
-              key={chip.key}
-              accessibilityRole="button"
-              accessibilityLabel={t("removeFilter", { label: chip.label })}
-              hitSlop={spacing.xs}
-              onPress={chip.clear}
-              style={s.appliedChip}
-            >
-              <Text style={s.appliedChipText}>{chip.label}</Text>
-              <Text style={s.appliedChipText} aria-hidden>×</Text>
-            </Pressable>
-          ))}
-          <Pressable accessibilityRole="button" accessibilityLabel={t("clearAll")} hitSlop={spacing.xs} onPress={props.onClearAll}>
-            <Text style={s.linkText}>{t("clearAll")}</Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {anyActive ? <AppliedChips chips={chips} onClearAll={props.onClearAll} /> : null}
       <AdvancedFiltersSheet
         open={sheetOpen}
         value={props.advanced}
@@ -538,7 +568,7 @@ export function CaseFilterBar<K extends string>(props: {
         onApply={(next, place) => {
           setSheetOpen(false);
           props.onAdvanced(next);
-          if (place.project !== props.project) props.onProject(place.project);
+          if (props.projects && place.project !== props.project) props.onProject?.(place.project);
           if (place.unit !== props.unit) props.onUnit(place.unit);
         }}
         onClose={() => setSheetOpen(false)}

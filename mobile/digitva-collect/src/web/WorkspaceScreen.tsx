@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
 
@@ -11,7 +11,7 @@ import { Button, useUiStyles } from "../ui";
 import { createWorkspaceApi, type JsonRequester, type WorkspaceApi } from "../workspace/api";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import { QueueScreen } from "../workspace/QueueScreen";
-import { hasQueueParams, ownsQueueParams, parseQueueParams, serializeQueueParams } from "../workspace/viewState";
+import { hasQueueParams, ownsQueueParams, parseQueueParams, queueUrlStep, serializeQueueParams } from "../workspace/viewState";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
@@ -168,8 +168,13 @@ function currentPathMode(forcedMode: WorkspaceMode | undefined, routeMode: strin
 function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forcedMode?: WorkspaceMode; training?: boolean } = {}) {
   const router = useRouter();
   const params = useLocalSearchParams<RouteParams>();
+  const pathname = usePathname();
+  // The queue's first settled view only corrects the URL (a stale or missing project): it replaces, never pushes.
+  const queueSettled = useRef(false);
   const vaSid = first(params.vaSid)?.trim();
   const mode = currentPathMode(forcedMode, first(params.mode));
+  // A queue that remounts (back from a case) or a mode change starts unsettled again: its first settle replaces.
+  useEffect(() => { queueSettled.current = false; }, [mode, vaSid]);
   const training = trainingRoute;
   const trainingHome = mode === "reviewing" ? TRAINING_ROUTES.review : TRAINING_ROUTES.coding;
   const { bootstrap, loginUrl, reload } = useAppState();
@@ -319,7 +324,13 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     mode={mode}
     Shell={trainingRoute ? (mode === "reviewing" ? ReviewTrainingShell : CodingTrainingShell) : WebShell}
     initialView={parseQueueParams(params)}
-    onViewChange={(view) => { if (ownsQueueParams(window.location.search)) router.setParams(serializeQueueParams(view)); }}
+    onViewChange={(view) => {
+      if (!ownsQueueParams(window.location.search)) return;
+      const step = queueUrlStep(window.location.search, view);
+      if (step.push && queueSettled.current) router.push({ pathname: pathname as never, params: step.params });
+      else router.setParams(serializeQueueParams(view));
+      queueSettled.current = true;
+    }}
     onOpen={(identity) => router.push({
       pathname: trainingRoute ? (identity.mode === "reviewing" ? TRAINING_REVIEWING_CASE_ROUTE : TRAINING_CODING_CASE_ROUTE) : "/workspace",
       params: { vaSid: identity.vaSid, mode: identity.mode },

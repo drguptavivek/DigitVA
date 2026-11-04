@@ -31,12 +31,23 @@ const mockBootstrapB = {
   csrf: { header: "X-CSRFToken", token: "csrf-b" },
   links: { login: "/vaauth/valogin", logout: "/vaauth/valogout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
+/** The same interviewer with a second project, so the shared Project control has a choice. */
+const mockTwoProjectBootstrap = {
+  ...mockBootstrap,
+  access: {
+    ...mockBootstrap.access,
+    projects: [
+      { ...mockBootstrap.access.projects[0], project_name: "Project One" },
+      { ...mockBootstrap.access.projects[0], project_id: "P2", project_name: "Project Two" },
+    ],
+  },
+};
 let mockCurrentBootstrap = mockBootstrap;
-let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string; readyVaSid?: string; saved?: string; submitted?: string; submittedId?: string; tab?: string } = {};
+let mockParams: { project?: string; superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string; readyVaSid?: string; saved?: string; submitted?: string; submittedId?: string; tab?: string } = {};
 const mockRouterPush = jest.fn();
 const mockSetParams = jest.fn();
 
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockRouterPush, setParams: mockSetParams }), useLocalSearchParams: () => mockParams }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockRouterPush, setParams: mockSetParams }), useLocalSearchParams: () => mockParams, usePathname: () => "/collection" }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({
     bootstrap: mockCurrentBootstrap
@@ -72,7 +83,7 @@ const mockIntake = {
   context: [{ project_id: "P1", site_id: "S1", web_intake_mode: "both" }]
 };
 
-/** Project and Area live in the Advanced filters sheet: open it, choose, Apply. */
+/** Area lives in the Advanced filters sheet: open it, choose, Apply. */
 async function chooseInSheet(tree: ReturnType<typeof create>, label: string): Promise<void> {
   const open = tree.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];
   await act(async () => open.props.onPress());
@@ -692,7 +703,8 @@ describe("CollectionScreen tabs and filters", () => {
     await act(async () => tree.unmount());
   });
 
-  it("filters My interviews by search, status chips and project (from the sheet), on the loaded lists", async () => {
+  it("filters My interviews by search, status chips and the URL's project, on the loaded lists", async () => {
+    mockCurrentBootstrap = mockTwoProjectBootstrap;
     mockGetIntakeContext.mockResolvedValue(intakeTwoProjects);
     mockGetDrafts.mockResolvedValue({ drafts: [
       { draft_id: "dr1", project_id: "P1", site_id: "S1", unique_id: "UID-1", deceased_name: "Asha Devi", sections_saved: 2, updated_at: "2026-10-01T10:00:00" },
@@ -721,18 +733,57 @@ describe("CollectionScreen tabs and filters", () => {
     expect(text(tree)).not.toContain("Asha Devi");
     await act(async () => search.props.onChangeText(""));
 
+    // Project is the shared top-line control, not an Advanced filter: choosing one pushes it into the URL with the tab.
+    await press(tree, "advancedFilters");
+    expect(tree.root.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProjectLabel"))).toHaveLength(0);
+    await press(tree, "filterProject: filterAllProjects");
+    await press(tree, "Project One");
+    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { tab: "interviews", project: "P1" } });
+
+    // The URL names the project: My interviews narrow on the client, the deaths list re-fetches for it on the server.
     mockGetCases.mockClear();
-    await chooseInSheet(tree, "filterProjectLabel:Project One");
+    mockParams = { project: "P1" };
+    await act(async () => { tree.update(<CollectionScreen />); });
     await settle();
-    // My interviews are whole lists: the project narrows them here, the deaths list is not re-fetched.
-    expect(mockGetCases).not.toHaveBeenCalled();
     expect(text(tree)).toContain("Asha Devi");
     expect(text(tree)).not.toContain("Ravi Lal");
-    expect(tree.root.findAll((n) => n.props.accessibilityLabel === "advancedFiltersActive")).not.toHaveLength(0);
+    expect(text(tree)).toContain("filterProject: Project One");
+    expect(mockGetCases).toHaveBeenLastCalledWith("/api/v1/intake/cases", expect.anything(), null, "P1", false);
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === "advancedFiltersActive")).toHaveLength(0);
 
-    await press(tree, "clearAll");
+    // Back to a URL without the project (or with one the user has no project for) is All again.
+    for (const params of [{}, { project: "NOPE" }]) {
+      mockParams = params;
+      await act(async () => { tree.update(<CollectionScreen />); });
+      await settle();
+      expect(text(tree)).toContain("Ravi Lal");
+      expect(text(tree)).toContain("Asha Devi");
+    }
+    expect(mockGetCases).toHaveBeenLastCalledWith("/api/v1/intake/cases", expect.anything(), null, undefined, false);
+    await press(tree, "filterProject: filterAllProjects");
+    await press(tree, "Project Two");
+    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { tab: "interviews", project: "P2" } });
+    await act(async () => tree.unmount());
+  });
+
+  it("fetches the deaths once on load for a URL project, and once more for a later project change", async () => {
+    mockCurrentBootstrap = mockTwoProjectBootstrap;
+    mockGetIntakeContext.mockResolvedValue(intakeTwoProjects);
+    mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
+    mockParams = { project: "P1", tab: "interviews" };
+    const tree = await render();
+    expect(mockGetCases).toHaveBeenCalledTimes(1);
+    expect(mockGetCases).toHaveBeenCalledWith("/api/v1/intake/cases", expect.anything(), null, "P1", false);
+
+    mockGetCases.mockClear();
+    await press(tree, "filterProject: Project One");
+    await press(tree, "Project Two");
+    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { tab: "interviews", project: "P2" } });
+    mockParams = { project: "P2", tab: "interviews" };
+    await act(async () => { tree.update(<CollectionScreen />); });
     await settle();
-    expect(text(tree)).toContain("Ravi Lal");
+    expect(mockGetCases).toHaveBeenCalledTimes(1);
+    expect(mockGetCases).toHaveBeenCalledWith("/api/v1/intake/cases", expect.anything(), null, "P2", false);
     await act(async () => tree.unmount());
   });
 
@@ -753,10 +804,11 @@ describe("CollectionScreen tabs and filters", () => {
     await act(async () => tree.unmount());
   });
 
-  it("hides the project chips when the user has one project", async () => {
+  it("shows the one project as plain text, with no project choice", async () => {
     mockGetCases.mockResolvedValue({ cases: deathCases, next_cursor: null });
     const tree = await render();
-    expect(tree.root.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProjectLabel"))).toHaveLength(0);
+    expect(text(tree)).toContain("filterProject: Project");
+    expect(tree.root.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProject"))).toHaveLength(0);
     await act(async () => tree.unmount());
   });
 

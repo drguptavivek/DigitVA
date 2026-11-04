@@ -27,7 +27,7 @@ import { FilterChips, FilterPanel } from "./data/DataFilters";
 import { DataPanels } from "./data/DataPanels";
 import { columnLabel, DataCardList, DataTable, type RowAction } from "./data/DataTable";
 import { UpstreamChangesDialog } from "./data/UpstreamChangesDialog";
-import { dataAccess, openServerPage } from "./roleHome";
+import { caseViewPath, dataAccess, openServerPage } from "./roleHome";
 import { ChoiceRow, StatPressable, TextAction } from "./stats/controls";
 
 const PHONE_BREAKPOINT = 768;
@@ -190,7 +190,7 @@ export default function DataScreen() {
     setNotice("");
     setActionError("");
     if (action === "view") {
-      leaveFrom(row, () => openServerPage(userId, access.manage ? `/data-management/view/${enc(row.va_sid)}` : `/coding/area/${enc(row.va_sid)}`));
+      leaveFrom(row, () => openServerPage(userId, caseViewPath(access, row.va_sid)));
     } else if (action === "edit") {
       window.open(`/data-management/submissions/${enc(row.va_sid)}/odk-edit`, "_blank", "noopener");
     } else if (action === "cancel") {

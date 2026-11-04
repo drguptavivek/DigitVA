@@ -3,11 +3,14 @@ import { Platform, Pressable, Text, View, type StyleProp, type ViewStyle } from 
 
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../../theme";
 
-/** A pressable with the app's visible web focus ring; the one place the stats pieces draw it. */
-export function StatPressable({ label, onPress, selected, style, children }: {
+/** A pressable with the app's visible web focus ring; the one place the stats pieces draw it. *role* defaults to button. */
+export function StatPressable({ label, onPress, selected, checked, expanded, role = "button", style, children }: {
   label: string;
   onPress: () => void;
   selected?: boolean;
+  checked?: boolean;
+  expanded?: boolean;
+  role?: "button" | "tab" | "checkbox";
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
@@ -15,9 +18,9 @@ export function StatPressable({ label, onPress, selected, style, children }: {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={role}
       accessibilityLabel={label}
-      accessibilityState={selected === undefined ? undefined : { selected }}
+      accessibilityState={selected === undefined && checked === undefined && expanded === undefined ? undefined : { selected, checked, expanded }}
       onPress={onPress}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}

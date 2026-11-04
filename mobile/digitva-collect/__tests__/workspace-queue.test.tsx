@@ -78,8 +78,9 @@ async function render(mode: "coding" | "reviewing", api = makeApi(), onOpen = je
   return { renderer, api, onOpen };
 }
 
+/** A button, or a row of the project menu (role radio). */
 function button(root: ReactTestInstance, label: string) {
-  return root.findAll((node) => node.props.accessibilityRole === "button" && node.props.accessibilityLabel === label)[0];
+  return root.findAll((node) => (node.props.accessibilityRole === "button" || node.props.accessibilityRole === "radio") && node.props.accessibilityLabel === label)[0];
 }
 
 async function press(renderer: ReactTestRenderer, label: string) {
@@ -562,6 +563,25 @@ describe("queue project defaults", () => {
     await unmount(renderer);
   });
 
+  test("Back to another project in the URL moves the mounted queue there; a project it does not offer is All", async () => {
+    const api = makeApi({ getReviewerProjects: jest.fn().mockResolvedValue({ project_options: projectOptions, last_project_id: null }) });
+    const onViewChange = jest.fn();
+    const at = (view: { projectId?: string; allProjects: boolean; offset: number }) =>
+      <QueueScreen api={api} mode="reviewing" initialView={{ showHistory: false, ...view }} onViewChange={onViewChange} onOpen={jest.fn()} />;
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(at({ projectId: "P2", allProjects: false, offset: 0 })); });
+    await flush();
+    expect(api.getReviewerAvailable).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    await act(async () => { renderer.update(at({ projectId: "P1", allProjects: false, offset: 50 })); });
+    await flush();
+    expect(api.getReviewerAvailable).toHaveBeenLastCalledWith({ projectId: "P1", limit: 50, offset: 50 });
+    expect(onViewChange).toHaveBeenLastCalledWith({ projectId: "P1", showHistory: false, offset: 50 });
+    await act(async () => { renderer.update(at({ projectId: "GONE", allProjects: false, offset: 0 })); });
+    await flush();
+    expect(api.getReviewerAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    await unmount(renderer);
+  });
+
   test("offline history uses the saved page as read-only and never exposes case actions", async () => {
     const page: CoderHistory = {
       history: [{ ...coderRow, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: true }],
@@ -693,7 +713,7 @@ describe("queue layout", () => {
     expect(button(screen.renderer.root, "Project: All projects")).toBeDefined();
     expect(button(screen.renderer.root, long)).toBeUndefined();
     await press(screen.renderer, "Project: All projects");
-    expect(button(screen.renderer.root, "All projects")?.props.accessibilityState.selected).toBe(true);
+    expect(button(screen.renderer.root, "All projects")?.props.accessibilityState.checked).toBe(true);
     expect(button(screen.renderer.root, long)).toBeDefined();
     await press(screen.renderer, long);
     expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", limit: 50, offset: 0 });
@@ -827,7 +847,7 @@ describe("queue layout", () => {
     await act(async () => { screen.renderer.root.findByType(Modal).props.onRequestClose(); });
     expect(sheetVisible()).toBe(false);
     await press(screen.renderer, "Project: All projects");
-    await press(screen.renderer, "Close project list");
+    await press(screen.renderer, "Close list");
     expect(sheetVisible()).toBe(false);
     await unmount(screen.renderer);
   });
@@ -987,7 +1007,7 @@ describe("queue layout", () => {
     await unmount(screen.renderer);
   });
 
-  test("shows Project: All projects picker when single offered project does not match requested project", async () => {
+  test("a requested project that is not the single offered one opens All projects, shown as that one project", async () => {
     const api = makeApi({
       getCodingProjects: jest.fn().mockResolvedValue({
         projects: ["SADEMO"],
@@ -1001,7 +1021,10 @@ describe("queue layout", () => {
     });
     await settle();
     await settle();
-    expect(button(renderer.root, "Project: All projects")).toBeDefined();
+    expect(api.getCodingAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    // One project is plain text everywhere (the shared control); All projects then holds that project's cases only.
+    expect(button(renderer.root, "Project: All projects")).toBeUndefined();
+    expect(JSON.stringify(renderer.toJSON())).toContain("Project: WHO 2022 Demo");
     await unmount(renderer);
   });
 });

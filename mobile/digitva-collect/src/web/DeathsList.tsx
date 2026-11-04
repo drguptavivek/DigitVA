@@ -9,12 +9,13 @@ import { canStartDeathInterview } from "../deathWorkflow";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
-import { t } from "../i18n";
+import { t, type StringKey } from "../i18n";
 import { Button, stateLabel, useUiStyles } from "../ui";
 import { browserErrorText } from "./common";
 import {
   appliedAdvancedChips, CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, withinLastDays,
   type AdvancedFilters,
+  type ProjectOption,
 } from "./caseFilters";
 import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { rememberCasePreviews } from "./newCasePreview";
@@ -38,6 +39,10 @@ const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "cl
 const VISIT_CASE_STATES = new Set(["registered", "scheduled", "not_reachable", "paused", "pending"]);
 const IN_PROGRESS_CASE_STATES = new Set(["in_progress", "draft_identity", "active"]);
 const WARNING_CASE_STATES = new Set(["not_reachable", "paused", "refused"]);
+
+const CODING_STATUS_LABELS: Record<NonNullable<CaseRow["coding_status"]>, StringKey> = {
+  awaiting_coding: "caseStatus_submitted_awaiting_coding", in_coding: "caseStatus_in_coding", coded: "caseStatus_coded", not_codeable: "caseStatus_not_codeable",
+};
 
 type DeathStatusFilter = "all" | "to_visit" | "in_progress" | "submitted" | "ready_to_code";
 
@@ -71,7 +76,7 @@ export type DeathCases = {
   /** Reload the first page for the current project; false (and `message`) on failure. */
   refresh: () => Promise<boolean>;
   loadMore: () => Promise<void>;
-  /** Project is the one server-side filter: re-fetch the first page for it. */
+  /** Project is the one server-side filter: re-fetch the first page for it (before any load, only set it). */
   changeProject: (next: string | undefined) => Promise<void>;
 };
 
@@ -89,6 +94,9 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
   const [message, setMessage] = useState("");
   const [project, setProject] = useState<string | undefined>(undefined);
   const projectRef = useRef<string | undefined>(undefined);
+  // False until the first page was requested for this bootstrap: a project chosen before that rides on the
+  // caller's first refresh instead of fetching a page of its own.
+  const loadedRef = useRef(false);
   const mounted = useRef(false);
   const bootstrapRef = useRef(bootstrap);
   const generationRef = useRef(0);
@@ -113,6 +121,7 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     setMessage("");
     setProject(undefined);
     projectRef.current = undefined;
+    loadedRef.current = false;
   }, [bootstrap]);
 
   /** Fetch one page; apply it only while the bootstrap, mount and project still match. */
@@ -120,6 +129,7 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     if (!bootstrap) return false;
     const generation = generationRef.current;
     const requested = projectRef.current;
+    loadedRef.current = true;
     const isCurrent = () => mounted.current && generationRef.current === generation && bootstrapRef.current === bootstrap;
     setBusy(true);
     setMessage("");
@@ -160,10 +170,25 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     setCases([]);
     setCounts({});
     setNextCursor(null);
-    await fetchPage(null, replace);
+    if (loadedRef.current) await fetchPage(null, replace);
   }, [bootstrap, fetchPage, replace]);
 
   return { cases, counts, nextCursor, busy, message, project, refresh, loadMore, changeProject };
+}
+
+/** The intake contexts of the reported-deaths list: what the user interviews or registers deaths in. */
+export function deathListContext(bootstrap: ClientBootstrap | undefined) {
+  return bootstrap ? [
+    ...intakeContextFromAccess(bootstrap.access, "interview"),
+    ...intakeContextFromAccess(bootstrap.access, "register_death"),
+  ] : [];
+}
+
+/** One option per project of *context*, in first-seen order: the Project choices of Collection and the Deaths screen. */
+export function projectOptionsOf(context: { project_id: string; project_name?: string | null }[]): ProjectOption[] {
+  const byId = new Map<string, string>();
+  for (const entry of context) if (!byId.has(entry.project_id)) byId.set(entry.project_id, entry.project_name ?? entry.project_id);
+  return Array.from(byId, ([value, label]) => ({ value, label }));
 }
 
 /**
@@ -171,8 +196,10 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
  * (the Deaths screen's "Register a death"). Edit opens the registration
  * form; a death reached only as its reporter opens it from the reporter's own
  * registrations (`registered=mine`), as the case detail is the interviewer's.
+ * *showProject* false leaves Project out of the sheet and Clear all: the screen
+ * (Collection) shows the shared Project control and owns the choice.
  */
-export function DeathsList({ list, headerAction }: { list: DeathCases; headerAction?: ReactNode }) {
+export function DeathsList({ list, headerAction, showProject = true }: { list: DeathCases; headerAction?: ReactNode; showProject?: boolean }) {
   const router = useRouter();
   const appState = useAppState();
   const { bootstrap } = appState;
@@ -208,15 +235,8 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
   }, [bootstrap]);
 
   // Projects the user interviews or registers deaths in; the Project filter shows only with more than one.
-  const context = useMemo(() => bootstrap ? [
-    ...intakeContextFromAccess(bootstrap.access, "interview"),
-    ...intakeContextFromAccess(bootstrap.access, "register_death"),
-  ] : [], [bootstrap]);
-  const projectOptions = useMemo(() => {
-    const byId = new Map<string, string>();
-    for (const entry of context) if (!byId.has(entry.project_id)) byId.set(entry.project_id, entry.project_name ?? entry.project_id);
-    return Array.from(byId, ([value, label]) => ({ value, label }));
-  }, [context]);
+  const context = useMemo(() => deathListContext(bootstrap), [bootstrap]);
+  const projectOptions = useMemo(() => projectOptionsOf(context), [context]);
 
   const rowUnits = useMemo(() => list.cases.map((row) => ({ id: row.org_unit_id, name: row.unit_name ?? row.org_unit_name })), [list.cases]);
   const { orgLookup, unitOptions, unitMatches } = useAreaFilter(bootstrap?.access.projects, context, rowUnits, list.project);
@@ -250,7 +270,7 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
     // Clear all returns the toggles to the role's defaults, not to a wider view.
     setMine(defaultMine);
     setLast30(false);
-    void list.changeProject(undefined);
+    if (showProject) void list.changeProject(undefined);
   };
   const openEdit = (row: CaseRow) => router.push({
     pathname: training ? TRAINING_REPORTING_ROUTE : "/death-registration",
@@ -278,7 +298,7 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
             { key: "mine", on: mine, onLabel: t("filterMine"), offLabel: t("filterAll"), a11yLabel: (label) => t("filterWhoseLabel", { label }), onChange: setMine },
             { key: "last30", on: last30, onLabel: t("filterLast30Days"), offLabel: t("filterAll"), a11yLabel: (label) => t("filterPeriodLabel", { label }), onChange: setLast30 },
           ]}
-          projects={projectOptions}
+          projects={showProject ? projectOptions : undefined}
           project={list.project}
           onProject={(next) => void list.changeProject(next)}
           units={unitOptions}
@@ -316,6 +336,9 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
           label: stateLabel(rawState || "registered"),
           tone: WARNING_CASE_STATES.has(state) ? "warning" : IN_PROGRESS_CASE_STATES.has(state) ? "accent" : "neutral",
         }];
+        // After submission the card says where coding stands (Awaiting coding, In coding, Coded, Not codeable).
+        const coding = row.coding_status ? CODING_STATUS_LABELS[row.coding_status] : undefined;
+        if (coding) badges.push({ label: t(coding), tone: row.coding_status === "not_codeable" ? "warning" : "neutral" });
         if (row.my_draft_id && !TERMINAL_CASE_STATES.has(state) && !IN_PROGRESS_CASE_STATES.has(state)) {
           badges.push({ label: t("draftInProgress"), tone: "accent" });
         }

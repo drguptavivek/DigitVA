@@ -17,7 +17,7 @@ jest.mock("../src/client/api", () => ({
 }));
 jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/AppState", () => jest.requireActual("../src/AppState.web"));
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => ({}) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => ({}), usePathname: () => "/collection" }));
 jest.mock("../src/ui", () => ({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
   stateLabel: (state: string) => state,

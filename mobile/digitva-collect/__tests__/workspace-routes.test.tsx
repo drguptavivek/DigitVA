@@ -23,6 +23,7 @@ function bootstrap(userId: string, roles: string[], isAdmin = false): ClientBoot
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockRouteParams,
   useRouter: () => mockRouter,
+  usePathname: () => "/coding",
 }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockAppBootstrap, reload: mockReload }) }));
 jest.mock("../src/client/session", () => ({ loadBrowserSession: () => Promise.resolve(mockLoadedSession) }));
@@ -105,6 +106,51 @@ describe("browser workspace routes", () => {
     Object.defineProperty(window, "location", { configurable: true, value: { search: "?vaSid=sid-1&mode=coding" } });
     report(view); // a late report from the queue that was just left
     expect(mockRouter.setParams).not.toHaveBeenCalled();
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("a project change pushes a history entry; the first settle, even off a stale project, replaces", async () => {
+    mockAppBootstrap = bootstrap("current-user", ["coder"]);
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    const renderer = await render(<CodingScreen />);
+    const report = renderer.root.findByType("queue-screen" as never).props.onViewChange;
+    mockRouter.push.mockClear();
+    mockRouter.setParams.mockClear();
+    Object.defineProperty(window, "location", { configurable: true, value: { search: "?project=GONE" } });
+    report({ showHistory: false, offset: 0 });
+    expect(mockRouter.setParams).toHaveBeenCalledWith({ project: "all", tab: undefined, offset: undefined });
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    Object.defineProperty(window, "location", { configurable: true, value: { search: "?project=all" } });
+    report({ projectId: "SADEMO", showHistory: false, offset: 0 });
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/coding", params: { project: "SADEMO" } });
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("after the queue remounts (back from a case) the first settle replaces again", async () => {
+    mockAppBootstrap = bootstrap("current-user", ["coder"]);
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    const renderer = await render(<CodingScreen />);
+    const settleQueue = (search: string, view: object) => {
+      Object.defineProperty(window, "location", { configurable: true, value: { search } });
+      renderer.root.findByType("queue-screen" as never).props.onViewChange(view);
+    };
+    settleQueue("?project=all", { projectId: "SADEMO", showHistory: false, offset: 0 });
+    mockRouter.push.mockClear();
+    mockRouter.setParams.mockClear();
+    settleQueue("?project=all", { projectId: "OTHER", showHistory: false, offset: 0 });
+    expect(mockRouter.push).toHaveBeenCalledTimes(1);
+
+    mockRouteParams = { vaSid: "sid-1", mode: "coding" };
+    await act(async () => { renderer.update(<CodingScreen />); });
+    expect(renderer.root.findAllByType("queue-screen" as never)).toHaveLength(0);
+    mockRouteParams = {};
+    await act(async () => { renderer.update(<CodingScreen />); });
+
+    mockRouter.push.mockClear();
+    mockRouter.setParams.mockClear();
+    settleQueue("?project=all", { projectId: "SADEMO", showHistory: false, offset: 0 });
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockRouter.setParams).toHaveBeenCalled();
     await act(async () => { renderer.unmount(); });
   });
 

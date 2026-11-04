@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -12,10 +12,13 @@ import { t } from "../i18n";
 import { controls, spacing, typography, useTheme } from "../theme";
 import { TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_REPORTING_ROUTE } from "../training";
 import { Button, useUiStyles } from "../ui";
+import { ProjectSelect } from "../ui/ProjectSelect";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, type AdvancedFilters } from "./caseFilters";
-import { CaseCard, DeathsList, formatDisplayTimestamp, useCaseCardStyles, useDeathCases } from "./DeathsList";
+import {
+  CaseCard, deathListContext, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases,
+} from "./DeathsList";
 import { DirectInterviewPanel, directInterviewTargets, RefreshIconButton } from "./DirectInterviewPanel";
 
 type InterviewStatusFilter = "all" | "in_progress" | "submitted";
@@ -34,6 +37,7 @@ function useCollectionStyles() {
     toolbarCard: { gap: spacing.sm },
     toolbarActions: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
     toolbarRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
+    topRight: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: spacing.xs },
     tabBar: { flexDirection: "row", borderBottomWidth: 1, borderColor: colors.border },
     tab: {
       flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xs,
@@ -86,7 +90,9 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
     submitted?: string;
     submittedId?: string;
     tab?: string;
+    project?: string;
   }>();
+  const pathname = usePathname();
   const [dismissedSubmit, setDismissedSubmit] = useState("");
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
@@ -105,6 +111,13 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   );
   const canCode = bootstrap?.access?.roles?.some((role) => role === "coder" || role === "coding_tester") === true;
   const deaths = useDeathCases(bootstrap);
+  // One Project for both tabs, from the URL (absent = All). The URL is untrusted: an id the user has no collection
+  // project for is All. Interviews filter on the client; the deaths list re-fetches from the server for the project.
+  const projectChoices = useMemo(() => projectOptionsOf(deathListContext(bootstrap)).map((option) => ({ id: option.value, name: option.label })), [bootstrap]);
+  const urlProject = typeof params.project === "string" ? params.project : undefined;
+  const projectFilter = projectChoices.some((choice) => choice.id === urlProject) ? urlProject : undefined;
+  const changeDeathsProject = deaths.changeProject;
+  useEffect(() => { void changeDeathsProject(projectFilter); }, [changeDeathsProject, projectFilter]);
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [submitted, setSubmitted] = useState<SubmittedRevisionSummary[]>([]);
@@ -114,7 +127,6 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   const [unitFilter, setUnitFilter] = useState<string | undefined>(undefined);
   const [interviewStatus, setInterviewStatus] = useState<InterviewStatusFilter>("all");
   const [advanced, setAdvanced] = useState<AdvancedFilters>(EMPTY_ADVANCED);
-  const [projectFilter, setProjectFilter] = useState<string | undefined>(undefined);
   const [tabChoice, setTabChoice] = useState<CollectionTab | undefined>(validTab(params.tab));
   const refreshInFlight = useRef<{ generation: number; promise: Promise<AuthoritativeRefreshResult> } | undefined>(undefined);
   const notificationRevisionRef = useRef(notificationGeneration ?? 0);
@@ -245,7 +257,6 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
     setUnitFilter(undefined);
     setInterviewStatus("all");
     setAdvanced(EMPTY_ADVANCED);
-    setProjectFilter(undefined);
     // Keyed on the account, not the bootstrap object: an access re-read keeps the user's filters.
   }, [bootstrap?.user.user_id]);
 
@@ -277,14 +288,8 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   );
   const { orgLookup, unitOptions, unitMatches } = useAreaFilter(bootstrap?.access.projects, intake?.context, interviewUnits, projectFilter);
 
-  /** Projects the user interviews in (the intake context); the Project filter shows only with more than one. */
-  const projectOptions = useMemo(() => {
-    const byId = new Map<string, string>();
-    for (const entry of intake?.context ?? []) {
-      if (!byId.has(entry.project_id)) byId.set(entry.project_id, entry.project_name ?? entry.project_id);
-    }
-    return Array.from(byId, ([value, label]) => ({ value, label }));
-  }, [intake?.context]);
+  /** Projects the user interviews in (the intake context): a card names its project only when there is more than one. */
+  const projectOptions = useMemo(() => projectOptionsOf(intake?.context ?? []), [intake?.context]);
   const projectNames = useMemo(() => new Map(projectOptions.map((option) => [option.value, option.label])), [projectOptions]);
 
   const directTargets = useMemo(() => directInterviewTargets(intake?.context ?? []), [intake?.context]);
@@ -316,12 +321,15 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
     setTabChoice(next);
     router.setParams({ tab: next });
   };
+  /** A project change is a history entry (Back returns to the previous project) and keeps the tab. */
+  const selectProject = (next: string | undefined) => {
+    router.push({ pathname: pathname as never, params: { tab, ...(next ? { project: next } : {}) } });
+  };
   const clearInterviewFilters = () => {
     setSearchQuery("");
     setInterviewStatus("all");
     setUnitFilter(undefined);
     setAdvanced(EMPTY_ADVANCED);
-    setProjectFilter(undefined);
   };
 
   return (
@@ -377,14 +385,17 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
                   <Button kind="secondary" label={t("directVaInterview")} expanded={directOpen} onPress={() => setDirectOpen((open) => !open)} />
                 ) : null}
               </View>
-              <RefreshIconButton disabled={busy} onPress={() => {
-                void refresh().then((result) => {
-                  if (result.success) {
-                    acknowledgeAuthoritativeRefresh?.(result.revision);
-                    acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
-                  }
-                });
-              }} />
+              <View style={c.topRight}>
+                <ProjectSelect projects={projectChoices} value={projectFilter ? [projectFilter] : []} onChange={(next) => selectProject(next[0])} />
+                <RefreshIconButton disabled={busy} onPress={() => {
+                  void refresh().then((result) => {
+                    if (result.success) {
+                      acknowledgeAuthoritativeRefresh?.(result.revision);
+                      acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
+                    }
+                  });
+                }} />
+              </View>
             </View>
             {directOpen && directTargets.length > 0 ? (
               <DirectInterviewPanel
@@ -428,9 +439,6 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
                   status={interviewStatus}
                   allStatus="all"
                   onStatus={setInterviewStatus}
-                  projects={projectOptions}
-                  project={projectFilter}
-                  onProject={setProjectFilter}
                   units={unitOptions}
                   unit={unitFilter}
                   onUnit={setUnitFilter}
@@ -487,7 +495,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
               })}
             </>
           ) : null}
-          {tab === "deaths" ? <DeathsList list={deaths} /> : null}
+          {tab === "deaths" ? <DeathsList list={deaths} showProject={false} /> : null}
         </>
       )}
     </>

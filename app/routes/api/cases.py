@@ -53,9 +53,11 @@ def list_cases():
     """``{cases, counts, [tiles,] next_cursor}``; ``counts`` and ``tiles`` only
     without a ``cursor``. Query: ``preset``
     (``deaths`` default, ``interview``, ``coding``, ``supervision``),
-    ``project_id``, ``site_id``, ``org_unit_id``, ``status`` (repeatable),
-    ``state``, ``dod_from``, ``dod_to``, ``reported_from``, ``reported_to``,
-    ``sex``, ``age_min``, ``age_max``, ``attention``, ``visit_note``, ``sort``, ``cursor``,
+    ``project_id`` (repeatable or a comma list), ``site_id``, ``org_unit_id``,
+    ``status`` (repeatable), ``state``, ``source`` (``register``, ``direct``,
+    ``odk``; repeatable or a comma list), ``dod_from``, ``dod_to``,
+    ``reported_from``, ``reported_to``, ``submitted_from``, ``submitted_to``,
+    ``overdue`` (``interview`` or ``coding``), ``sex``, ``age_min``, ``age_max``, ``attention``, ``visit_note``, ``sort``, ``cursor``,
     ``limit``; registration numbers: ``identifier`` (``has`` or ``missing``, an
     active type of the case's project) with optional ``identifier_type`` (a type
     code), and ``identifier_number`` (an exact number, found only where the

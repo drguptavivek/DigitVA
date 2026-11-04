@@ -1,6 +1,10 @@
 import { activeTab } from "../src/web/navTabs";
-import { areaCsvUrl, getAreaProjects, getAreaStaff, getAreaSummary } from "../src/area/api";
-import { canDrill, formatDays, formatPercent, hasDeathRegister, parseSelection, pipelineScale, selectionParams, soleOpenUnit, stageWidths } from "../src/web/stats/pipeline";
+import { areaCsvUrl, getAreaProjects, getAreaStaff, getAreaSummary, listCases } from "../src/area/api";
+import { canDrill, formatDays, formatPercent, hasDeathRegister, pipelineScale, soleOpenUnit, stageWidths } from "../src/web/stats/pipeline";
+import {
+  allStatuses, areaOptions, casesQuery, chipCount, daysBetween, loadCounts, loadedSummaries, parseView, periodStart, projectsInView, runLimited,
+  sumCounts, toggleProject, viewParams, withTab, type ProjectLoad, type StatsView,
+} from "../src/web/stats/view";
 
 const counts = (deaths_reported: number, submitted: number, final_cod: number) => ({ deaths_reported, submitted, final_cod });
 
@@ -35,26 +39,140 @@ describe("pipeline bars", () => {
   });
 });
 
-describe("selection from the URL", () => {
-  const projects = [{ project_id: "P1", mode: "organization" as const }, { project_id: "S1", mode: "sites" as const }];
+describe("the view from the URL", () => {
+  const projects = [{ project_id: "P1", mode: "organization" as const }, { project_id: "S1", mode: "sites" as const }, { project_id: "P2", mode: "organization" as const }];
+  const base: StatsView = { tab: "overview", projects: [], period: "all", unit: null, site: null, status: null, overdue: false, source: null };
 
-  test("valid names are kept; unknown project and period fall back; arrays use the first value", () => {
-    expect(parseSelection({ project: "P1", unit: "u1", period: "90d" }, projects)).toEqual({ project: "P1", unit: "u1", site: null, period: "90d" });
-    expect(parseSelection({ project: "nope", period: "weekly" }, projects)).toEqual({ project: "P1", unit: null, site: null, period: "all" });
-    expect(parseSelection({ project: ["S1", "P1"], site: ["a"] }, projects)).toEqual({ project: "S1", unit: null, site: "a", period: "all" });
-    expect(parseSelection({}, [])).toBeNull();
+  test("no project is All; unknown tab, project and period fall back; a comma list and repeats both work", () => {
+    expect(parseView({}, projects)).toEqual(base);
+    expect(parseView({ tab: "nope", project: "zzz", period: "weekly" }, projects)).toEqual(base);
+    expect(parseView({ project: "P1,P2" }, projects)?.projects).toEqual(["P1", "P2"]);
+    expect(parseView({ project: ["P2", "P1", "zzz"] }, projects)?.projects).toEqual(["P1", "P2"]);
+    // Naming every project is All.
+    expect(parseView({ project: "P1,S1,P2" }, projects)?.projects).toEqual([]);
+    expect(parseView({}, [])).toBeNull();
   });
 
-  test("unit applies to organization projects only, site to sites projects only; long values are dropped", () => {
-    expect(parseSelection({ project: "P1", site: "x" }, projects)?.site).toBeNull();
-    expect(parseSelection({ project: "S1", unit: "x" }, projects)?.unit).toBeNull();
-    expect(parseSelection({ project: "P1", unit: "u".repeat(65) }, projects)?.unit).toBeNull();
+  test("an old single-project link keeps its project and unit", () => {
+    expect(parseView({ project: "P1", unit: "u1", period: "90d" }, projects)).toEqual({ ...base, projects: ["P1"], unit: "u1", period: "90d" });
   });
 
-  test("params leave out empty values and the default period", () => {
-    expect(selectionParams({ project: "P1", unit: null, site: null, period: "all" })).toEqual({ project: "P1" });
-    expect(selectionParams({ project: "S1", unit: null, site: "a", period: "12m" })).toEqual({ project: "S1", site: "a", period: "12m" });
+  test("unit and site only with exactly one project of the right mode; long values are dropped", () => {
+    expect(parseView({ project: "P1,P2", unit: "u1" }, projects)?.unit).toBeNull();
+    expect(parseView({ project: "P1", site: "x" }, projects)?.site).toBeNull();
+    expect(parseView({ project: "S1", unit: "x", site: "a" }, projects)).toMatchObject({ unit: null, site: "a" });
+    expect(parseView({ project: "P1", unit: "u".repeat(65) }, projects)?.unit).toBeNull();
+    // A user with one project: All is that project, so its area applies.
+    expect(parseView({ unit: "u1" }, [projects[0]])?.unit).toBe("u1");
   });
+
+  test("status, overdue and source are kept only where the tab has them", () => {
+    expect(parseView({ tab: "deaths", status: "pending", overdue: "interview", source: "direct" }, projects)).toMatchObject({ status: "pending", overdue: true, source: "direct" });
+    expect(parseView({ tab: "deaths", status: "awaiting", overdue: "coding", source: "odk" }, projects)).toMatchObject({ status: null, overdue: false, source: null });
+    expect(parseView({ tab: "codings", status: "not_started", overdue: "coding", source: "direct" }, projects)).toMatchObject({ status: "not_started", overdue: true, source: null });
+    expect(parseView({ tab: "overview", status: "pending", overdue: "interview" }, projects)).toMatchObject({ status: null, overdue: false });
+  });
+
+  test("params leave out defaults and round-trip; a tab change drops the tab's filters", () => {
+    expect(viewParams(base)).toEqual({});
+    const deaths: StatsView = { ...base, tab: "deaths", projects: ["P1"], period: "12m", unit: "u1", status: "pending", overdue: true, source: "reported" };
+    expect(viewParams(deaths)).toEqual({ tab: "deaths", project: "P1", period: "12m", unit: "u1", status: "pending", overdue: "interview", source: "reported" });
+    expect(parseView(viewParams(deaths), projects)).toEqual(deaths);
+    expect(withTab(deaths, "codings")).toEqual({ ...deaths, tab: "codings", status: null, overdue: false, source: null });
+    expect(projectsInView(base, projects)).toEqual(["P1", "S1", "P2"]);
+  });
+
+  test("a project checkbox narrows All to one, toggles otherwise, and none or every project is All", () => {
+    const all = ["P1", "S1", "P2"];
+    expect(toggleProject([], "S1", all)).toEqual(["S1"]);
+    expect(toggleProject(["S1"], "P1", all)).toEqual(["P1", "S1"]);
+    expect(toggleProject(["S1"], "S1", all)).toEqual([]);
+    expect(toggleProject(["P1", "S1"], "P2", all)).toEqual([]);
+  });
+});
+
+describe("case tables", () => {
+  const now = new Date("2026-11-04T10:00:00Z");
+  const base: StatsView = { tab: "deaths", projects: [], period: "90d", unit: null, site: null, status: null, overdue: false, source: null };
+
+  test("the period start is a UTC date; all time has none", () => {
+    expect(periodStart("30d", now)).toBe("2026-10-05");
+    expect(periodStart("12m", now)).toBe("2025-11-04");
+    expect(periodStart("all", now)).toBeNull();
+  });
+
+  test("Deaths: no status means the preset default; a chip sends its folded statuses; overdue drops the period", () => {
+    expect(casesQuery({ ...base, tab: "deaths" }, ["P1", "P2"], now, null)).toEqual({
+      preset: "deaths", project_id: "P1,P2", status: null, source: null, reported_from: "2026-08-06", org_unit_id: null, site_id: null, overdue: null, limit: "50", cursor: null,
+    });
+    expect(casesQuery({ ...base, tab: "deaths", status: "pending", unit: "u1", overdue: true }, ["P1"], now, "c1")).toMatchObject({
+      status: "reported,interview_pending,interview_in_progress", reported_from: null, org_unit_id: "u1", overdue: "interview", cursor: "c1",
+    });
+  });
+
+  test("Interviews and Codings always send statuses (their presets default to work lists) and filter on submission", () => {
+    expect(casesQuery({ ...base, tab: "interviews" }, ["P1"], now, null)).toMatchObject({
+      preset: "interview", status: "submitted_awaiting_coding,in_coding,coded,not_codeable", submitted_from: "2026-08-06",
+    });
+    expect(casesQuery({ ...base, tab: "codings", status: "not_started", site: "s1", overdue: true }, ["S1"], now, null)).toMatchObject({
+      preset: "coding", status: "submitted_awaiting_coding", submitted_from: null, site_id: "s1", overdue: "coding",
+    });
+  });
+
+  test("chip counts fold the server's per-status counts; missing counts are zero", () => {
+    const counts = { reported: 2, interview_pending: 3, interview_in_progress: 1, submitted_awaiting_coding: 4, in_coding: 1, coded: 7, refused: 1, not_codeable: 2, duplicate: 9 };
+    expect(chipCount(counts, ["reported", "interview_pending", "interview_in_progress"])).toBe(6);
+    // All leaves duplicate out.
+    expect(chipCount(counts, allStatuses("deaths"))).toBe(21);
+    expect(chipCount(undefined, ["coded"])).toBe(0);
+  });
+
+  test("Source goes to the server: Reported is register, Direct is direct and odk; only Deaths sends it", () => {
+    const now = new Date("2026-11-01T12:00:00Z");
+    const base = { projects: [], period: "all" as const, unit: null, site: null, status: null, overdue: false };
+    expect(casesQuery({ ...base, tab: "deaths", source: "reported" }, ["P1"], now, null)).toMatchObject({ source: "register" });
+    expect(casesQuery({ ...base, tab: "deaths", source: "direct" }, ["P1"], now, null)).toMatchObject({ source: "direct,odk" });
+    expect(casesQuery({ ...base, tab: "deaths", source: null }, ["P1"], now, null).source).toBeNull();
+    expect(casesQuery({ ...base, tab: "interviews", source: "direct" }, ["P1"], now, null).source).toBeNull();
+  });
+
+  test("days to code come from two server stamps", () => {
+    expect(daysBetween("2026-10-01T08:00:00Z", "2026-10-11T07:00:00Z")).toBe(9);
+    expect(daysBetween(null, "2026-10-11")).toBeNull();
+    expect(daysBetween("garbage", "2026-10-11")).toBeNull();
+  });
+});
+
+test("project counts are summed; an older server without overdue counts sums as zero", () => {
+  const card = (deaths_reported: number, submitted: number, final_cod: number, overdue?: [number, number]) => ({
+    deaths_reported, submitted, final_cod, ...(overdue ? { overdue_interview: overdue[0], overdue_coding: overdue[1] } : {}),
+  });
+  expect(sumCounts([card(10, 6, 3, [2, 1]), card(5, 5, 4)])).toEqual({ deaths_reported: 15, submitted: 11, final_cod: 7, overdue_interview: 2, overdue_coding: 1 });
+  expect(sumCounts([])).toEqual({ deaths_reported: 0, submitted: 0, final_cod: 0, overdue_interview: 0, overdue_coding: 0 });
+});
+
+test("the Area drop-down: All, the path, then what opens below", () => {
+  const summary = {
+    mode: "organization" as const,
+    breadcrumb: [{ org_unit_id: "d1", code: "D", name: "District" }],
+    rows: [
+      { kind: "unit" as const, key: "b1", code: null, name: "Block", has_children: true, counts: {} as never },
+      { kind: "unit" as const, key: "leaf", code: null, name: "Leaf", has_children: false, counts: {} as never },
+    ],
+  };
+  expect(areaOptions(summary, null).map(({ value, kind, depth }) => [value, kind, depth])).toEqual([["", "all", 0], ["d1", "unit", 0], ["b1", "unit", 1]]);
+  // With the user's units (case tabs) every unit under the current one is listed, leaves included.
+  const units = [
+    { org_unit_id: "d1", unit_name: "District", path: "d", is_active: true },
+    { org_unit_id: "b1", unit_name: "Block", path: "d.b", is_active: true },
+    { org_unit_id: "leaf", unit_name: "Leaf", path: "d.b.l", is_active: true },
+    { org_unit_id: "off", unit_name: "Closed", path: "d.x", is_active: false },
+    { org_unit_id: "other", unit_name: "Elsewhere", path: "e", is_active: true },
+  ];
+  expect(areaOptions(summary, null, units).map(({ value, depth }) => [value, depth])).toEqual([["", 0], ["d1", 0], ["b1", 1], ["leaf", 2]]);
+  expect(areaOptions({ ...summary, breadcrumb: [] }, null, units).map(({ value, depth }) => [value, depth])).toEqual([["", 0], ["d1", 0], ["b1", 1], ["leaf", 2], ["other", 0]]);
+  // A district user's one root: no All.
+  expect(areaOptions(summary, "d1")[0].value).toBe("d1");
 });
 
 describe("formatting", () => {
@@ -86,6 +204,15 @@ describe("area api client", () => {
     expect(request.mock.calls.every(([, init]) => init === undefined)).toBe(true);
   });
 
+  test("the case list sends only given params and refuses a malformed reply", async () => {
+    const page = { cases: [{ death_id: "d1", unique_id: "U1", status: "coded", overdue: null }], counts: { coded: 1 }, next_cursor: null };
+    const request = jest.fn(async () => page);
+    await expect(listCases(request, { preset: "deaths", project_id: "P1,P2", status: null, cursor: undefined, limit: "50" })).resolves.toEqual(page);
+    expect(request).toHaveBeenCalledWith("/api/v1/cases?preset=deaths&project_id=P1%2CP2&limit=50");
+    await expect(listCases(jest.fn(async () => ({ cases: [{ unique_id: "U1" }], next_cursor: null })), {})).rejects.toThrow("malformed_response");
+    await expect(listCases(jest.fn(async () => ({ cases: [] })), {})).rejects.toThrow("malformed_response");
+  });
+
   test("the csv link is the same level as a plain URL", () => {
     expect(areaCsvUrl({ project: "P1", unit: "u1", period: "12m" })).toBe("/api/v1/area/summary?project=P1&unit=u1&period=12m&format=csv");
     expect(areaCsvUrl({ project: "S1", site: "a" })).toBe("/api/v1/area/summary?project=S1&site=a&period=all&format=csv");
@@ -112,5 +239,33 @@ describe("a district-level user's first level", () => {
     expect(soleOpenUnit({ ...top, rows: [unitRow(true)] }, { unit: "u0", site: null })).toBeNull();
     expect(soleOpenUnit({ ...top, unit: { org_unit_id: "u0" }, rows: [unitRow(true)] }, none)).toBeNull();
     expect(soleOpenUnit({ ...top, mode: "sites", rows: [unitRow(true)] }, none)).toBeNull();
+  });
+});
+
+describe("progressive project loading", () => {
+  const load = (extra: Partial<ProjectLoad> = {}): ProjectLoad => ({ summary: null, error: "", fetching: false, ...extra });
+  const summary = (id: string) => ({ project_id: id }) as never;
+
+  test("only the summaries that arrived are kept, in order; pending and failed are counted apart", () => {
+    const byId = { A: load({ summary: summary("A") }), B: load({ fetching: true }), C: load({ error: "boom" }) };
+    expect(loadedSummaries(["C", "B", "A", "D"], byId)).toEqual([summary("A")]);
+    expect(loadCounts(["A", "B", "C", "D"], byId)).toEqual({ pending: 2, failedIds: ["C"] });
+    expect(loadCounts([], {})).toEqual({ pending: 0, failedIds: [] });
+  });
+
+  test("runLimited never has more than the limit in flight and still runs every id in order", async () => {
+    let flying = 0;
+    let peak = 0;
+    const started: string[] = [];
+    await runLimited(["a", "b", "c", "d", "e", "f", "g"], 3, async (id) => {
+      started.push(id);
+      flying += 1;
+      peak = Math.max(peak, flying);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      flying -= 1;
+    });
+    expect(peak).toBe(3);
+    expect(started).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
+    await expect(runLimited([], 4, async () => { throw new Error("never"); })).resolves.toBeUndefined();
   });
 });

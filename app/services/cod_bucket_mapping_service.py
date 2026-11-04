@@ -4845,7 +4845,10 @@ def _icd11_reporting_code_subquery(scheme, final_icd11_column):
                 MapIcdCodBucket.is_active.is_(True),
                 MasCodBucketNode.is_active.is_(True),
                 sa.func.upper(MapIcdCodBucket.icd_code) == sa.func.upper(code_column),
-                MapIcdCodBucket.age_scope.is_not_distinct_from(age_scope_column),
+                # The unique index's own expression, so the probe is an index seek:
+                # IS NOT DISTINCT FROM cannot use it and cost ~24 s per report
+                # (37k-row catalogue scan). The index already makes NULL and '' one key.
+                sa.func.coalesce(MapIcdCodBucket.age_scope, "") == sa.func.coalesce(age_scope_column, ""),
             )
             .limit(1)
             .scalar_subquery()

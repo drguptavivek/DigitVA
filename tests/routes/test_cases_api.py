@@ -11,6 +11,7 @@ from unittest import mock
 
 import sqlalchemy as sa
 from flask import g
+from werkzeug.datastructures import MultiDict
 
 from app import db, limiter
 from app.models import (
@@ -18,6 +19,8 @@ from app.models import (
     VaAccessScopeTypes,
     VaAllocations,
     VaDeathRegister,
+    VaFinalAssessments,
+    VaFinalCodAuthority,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -52,6 +55,10 @@ def _redacted():
 
 def _dod(days):
     return (date.today() - timedelta(days=days)).isoformat()
+
+
+def _utc_day(days_ago):
+    return datetime.now(UTC).date() - timedelta(days=days_ago)
 
 
 class CaseListTests(BaseTestCase):
@@ -583,7 +590,7 @@ class CaseListTests(BaseTestCase):
         for query in (f"?sort=updated&cursor={cursor}", "?cursor=nonsense", "?preset=other", "?status=other",
                       "?dod_from=2026-13-01", "?dod_from=20261020", "?reported_from=yesterday",
                       "?org_unit_id=abc", "?limit=many", "?sex=other", f"?dod_from={_dod(1)}&dod_to={_dod(3)}",
-                      "?age_min=-1", "?age_max=999", "?age_min=" + "9" * 5000, "?sort=random", "?attention=all", "?project_id=" + "x" * 65,
+                      "?age_min=-1", "?age_max=999", "?age_min=" + "9" * 5000, "?sort=random", "?attention=all", "?source=paper", "?source=register,paper", "?project_id=" + "x" * 65,
                       f"?org_unit_id={uuid.uuid4()}&org_unit_id={uuid.uuid4()}"):
             response = self.client.get(f"{API}{query}")
             self.assertEqual(response.status_code, 400, query)
@@ -626,6 +633,38 @@ class CaseListTests(BaseTestCase):
         self.assertLess(len(statements), count(1))
         self.assertGreater(len(self._get(self.dana, "?limit=50")["cases"]), 5)
 
+    def _statements(self, run):
+        statements = []
+
+        def record(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", record)
+        try:
+            run()
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", record)
+        return len(statements)
+
+    def test_first_page_statement_count_is_pinned(self):
+        """An admin's first page with counts. In a request the grant lookups
+        are memoised (9 statements); outside one (Celery, CLI) every
+        ``resolve_grants`` re-reads, so the count shows how often the reach is
+        built: 112 when the page and the counts each built their own, 34 with
+        the one built in ``case_list_page``."""
+        self._login(str(self.admin.user_id))
+
+        def request():
+            response = self.client.get(f"{API}?preset=deaths")
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.get_json()["cases"])
+
+        self.assertLessEqual(self._statements(request), 12)
+        body = {}
+        self._statements(lambda: body.update(case_list.case_list_page(self.admin, MultiDict())))
+        self.assertTrue(body["cases"])
+        self.assertLessEqual(self._statements(lambda: case_list.case_list_page(self.admin, MultiDict())), 40)
+
     # -- the other endpoints ------------------------------------------------------
 
     def test_filter_options_stay_inside_the_scope(self):
@@ -667,3 +706,369 @@ class CaseListTests(BaseTestCase):
         deaths = self.client.get(f"/api/v1/intake/deaths?project_id={PROJECT}&site_id={SITE}")
         self.assertEqual(deaths.status_code, 200)
         self.assertIn("deaths", deaths.get_json())
+
+
+    # -- Statistics additions (2026-11-04) ---------------------------------------
+
+    def _set_submission_day(self, case, days_ago):
+        db.session.execute(sa.update(VaSubmissions).where(VaSubmissions.va_sid == case.va_sid)
+                           .values(va_submission_date=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days_ago)))
+        db.session.commit()
+
+    def _status(self, who, query):
+        self._login(str(who.user_id))
+        return self.client.get(f"{API}{query}")
+
+    # -- project_id ------------------------------------------------------------
+
+    def test_project_id_repeats_and_never_leaks_an_unreachable_project(self):
+        both = self._get_or_make_user("cl.both@test.local", "CaseList123")
+        for project_id in (PROJECT, SITES_PROJECT):
+            db.session.add(VaUserAccessGrants(
+                user_id=both.user_id, role=R.interviewer, scope_type=VaAccessScopeTypes.project,
+                project_id=project_id, grant_status=VaStatuses.active, notes="case list"))
+        db.session.commit()
+        for query in (f"?project_id={PROJECT}&project_id={SITES_PROJECT}", f"?project_id={PROJECT},{SITES_PROJECT}"):
+            rows = self._ids(both, query)
+            self.assertTrue(self._in(self.a, rows), query)
+            self.assertTrue(self._in(self.s, rows), query)
+        one = self._ids(both, f"?project_id={SITES_PROJECT}")
+        self.assertTrue(self._in(self.s, one))
+        self.assertFalse(self._in(self.a, one))
+        # ivy reaches CLS01 only: naming CLP01 as well adds nothing of it.
+        body = self._get(self.ivy, f"?project_id={SITES_PROJECT}&project_id={PROJECT}")
+        rows = {c["death_id"]: c for c in body["cases"]}
+        self.assertTrue(self._in(self.s, rows))
+        self.assertEqual({c["project_id"] for c in body["cases"]}, {SITES_PROJECT})
+        self.assertEqual(body["counts"]["total"], len(rows))
+        self.assertEqual(self._get(self.ivy, f"?project_id={PROJECT}")["cases"], [])
+
+    def test_project_id_values_are_bounded(self):
+        many = ",".join(f"P{i}" for i in range(case_list.PROJECTS_MAX + 1))
+        self.assertEqual(self._status(self.dana, f"?project_id={many}").status_code, 400)
+        self.assertEqual(self._status(self.dana, f"?project_id={'x' * 65}").status_code, 400)
+
+    # -- submitted_from / submitted_to -----------------------------------------
+
+    def test_submitted_range_filters_on_the_submission_day(self):
+        self._set_submission_day(self.e, 20)
+        day = _utc_day(20).isoformat()
+        rows = self._ids(self.dana, f"?submitted_from={day}&submitted_to={day}")
+        self.assertTrue(self._in(self.e, rows))
+        self.assertFalse(self._in(self.f, rows))  # submitted today
+        self.assertFalse(self._in(self.a, rows))  # no submission
+        later = self._ids(self.dana, f"?submitted_from={_utc_day(19).isoformat()}")
+        self.assertTrue(self._in(self.f, later))
+        self.assertFalse(self._in(self.e, later))
+        self.assertFalse(self._in(self.a, later))
+        body = self._get(self.dana, f"?submitted_to={day}")
+        self.assertEqual([c["death_id"] for c in body["cases"]], [str(self.e.death_id)])
+        self.assertEqual(body["counts"]["total"], 1)
+        self.assertEqual(self._status(self.dana, f"?submitted_from={day}&submitted_to={_utc_day(21)}").status_code, 400)
+        self.assertEqual(self._status(self.dana, "?submitted_from=yesterday").status_code, 400)
+
+    # -- overdue ----------------------------------------------------------------
+
+    def test_overdue_interview_boundary_and_date_reported_fallback(self):
+        late = self._register(self.ian, self.sca, deceased_name="Late Sixtyone", date_of_death=_utc_day(61).isoformat())
+        edge = self._register(self.ian, self.sca, deceased_name="Edge Sixty", date_of_death=_utc_day(60).isoformat())
+        undated_late = self._register(self.ian, self.sca, deceased_name="Undated Late")
+        undated_edge = self._register(self.ian, self.sca, deceased_name="Undated Edge")
+        now = datetime.now(UTC)
+        # Only a draft_identity case may lack its date of death (ck_va_death_register_identity).
+        for case, days in ((undated_late, 61), (undated_edge, 60)):
+            db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == case.death_id)
+                               .values(status="draft_identity", date_of_death=None,
+                                       created_at=now - timedelta(days=days)))
+        db.session.commit()
+        rows = self._ids(self.dana, "?overdue=interview")
+        self.assertTrue(self._in(late, rows))
+        self.assertTrue(self._in(undated_late, rows))
+        self.assertFalse(self._in(edge, rows))
+        self.assertFalse(self._in(undated_edge, rows))
+        self.assertFalse(self._in(self.a, rows))
+        self.assertEqual(rows[str(late.death_id)]["overdue"], "interview")
+        self.assertEqual(rows[str(late.death_id)]["days_waiting"], 61)
+        self.assertEqual(rows[str(undated_late.death_id)]["days_waiting"], 61)
+        everyone = self._ids(self.dana)
+        self.assertIsNone(everyone[str(edge.death_id)]["overdue"])
+        self.assertEqual(everyone[str(edge.death_id)]["days_waiting"], 60)
+        self.assertEqual(everyone[str(undated_edge.death_id)]["days_waiting"], 60)
+        # Counts honour the filter, as every other filter.
+        body = self._get(self.dana, "?overdue=interview")
+        self.assertEqual(body["counts"]["total"], len(body["cases"]))
+        self.assertEqual(body["counts"]["reported"], 1)
+        self.assertEqual(body["counts"]["interview_in_progress"], 1)
+        self.assertEqual(self._status(self.dana, "?overdue=1").status_code, 400)
+
+    def test_overdue_coding_boundary(self):
+        late = self._submitted("ready_for_coding", self.ian, self.sca, deceased_name="Code Late")
+        edge = self._submitted("ready_for_coding", self.ian, self.sca, deceased_name="Code Edge")
+        self._set_submission_day(late, 16)
+        self._set_submission_day(edge, 15)
+        self._set_submission_day(self.f, 16)  # coding_in_progress
+        self._set_submission_day(self.g, 40)  # coder_finalized: coded, never overdue
+        body = self._get(self.dana, "?preset=coding&overdue=coding")
+        rows = {c["death_id"]: c for c in body["cases"]}
+        self.assertTrue(self._in(late, rows))
+        self.assertTrue(self._in(self.f, rows))
+        self.assertFalse(self._in(edge, rows))
+        self.assertFalse(self._in(self.g, rows))
+        self.assertEqual(rows[str(late.death_id)]["overdue"], "coding")
+        self.assertEqual(rows[str(late.death_id)]["days_waiting"], 16)
+        self.assertEqual(rows[str(self.f.death_id)]["status"], "in_coding")
+        self.assertEqual(body["counts"]["submitted_awaiting_coding"], 1)
+        self.assertEqual(body["counts"]["in_coding"], 1)
+        self.assertEqual(body["counts"]["total"], 2)
+        everyone = self._ids(self.dana, "?preset=coding")
+        self.assertIsNone(everyone[str(edge.death_id)]["overdue"])
+        self.assertEqual(everyone[str(edge.death_id)]["days_waiting"], 15)
+        coded = self._ids(self.dana, "?status=coded")[str(self.g.death_id)]
+        self.assertIsNone(coded["overdue"])
+        self.assertIsNone(coded["days_waiting"])
+
+    # -- submitted_at / coded_at --------------------------------------------------
+
+    def _authority(self, case, effective_at):
+        assessment = VaFinalAssessments(va_sid=case.va_sid, va_finassess_by=self.cody.user_id,
+                                        va_conclusive_cod="I10 - Essential Hypertension")
+        db.session.add(assessment)
+        db.session.flush()
+        authority = VaFinalCodAuthority(va_sid=case.va_sid, authoritative_final_assessment_id=assessment.va_finassess_id,
+                                        authority_source_role="vacoder", authority_reason="final_cod_submitted",
+                                        effective_at=effective_at)
+        db.session.add(authority)
+        db.session.commit()
+        return authority
+
+    def test_submitted_at_and_coded_at(self):
+        self._set_submission_day(self.e, 3)
+        submitted = db.session.scalar(sa.select(VaSubmissions.va_submission_date).where(VaSubmissions.va_sid == self.e.va_sid))
+        effective = datetime(2026, 10, 1, 8, 30)
+        self._authority(self.g, effective)
+        later = self._submitted("coder_finalized", self.ian, self.sca, deceased_name="Coded Later")
+        unset = self._authority(later, None)
+        rows = self._ids(self.dana, "?status=coded,submitted_awaiting_coding")
+        e, g = rows[str(self.e.death_id)], rows[str(self.g.death_id)]
+        self.assertEqual(e["submitted_at"], submitted.replace(tzinfo=UTC).isoformat())
+        self.assertIsNone(e["coded_at"])
+        self.assertEqual(g["coded_at"], effective.replace(tzinfo=UTC).isoformat())
+        self.assertEqual(rows[str(later.death_id)]["coded_at"], unset.created_at.replace(tzinfo=UTC).isoformat())
+        a = self._ids(self.dana)[str(self.a.death_id)]
+        self.assertIsNone(a["submitted_at"])
+        self.assertIsNone(a["coded_at"])
+
+    # -- collaborator register reach -------------------------------------------
+
+    def test_plain_collaborator_sees_pending_register_rows_without_names_or_values(self):
+        rows = self._ids(self.cole)
+        self.assertTrue(self._in(self.e, rows))  # through the submission, as before
+        self.assertTrue(self._in(self.a, rows))  # pending, no submission: the register reach
+        a = rows[str(self.a.death_id)]
+        self.assertEqual(a["status"], "reported")
+        self.assertEqual(a["unit_name"], "Unit SCA")
+        self.assertNotIn("deceased_name", a)
+        self.assertNotIn("Asha", str(rows))
+        for field in STAFF_FIELDS:
+            self.assertNotIn(field, a)
+        self.assertFalse(a["can_edit_identifiers"])
+        self.assertTrue(all("value" not in i for i in a["identifiers"]))
+        self.assertFalse(self._in(self.s, rows))  # another project
+        # No identifier values from this reach, where a field role has them.
+        self.assertIn(self.a.death_id, case_list.identifier_value_death_ids(self.ian, [self.a.death_id]))
+        self.assertEqual(case_list.identifier_value_death_ids(self.cole, [self.a.death_id]), set())
+        self.assertEqual(case_list.identifier_value_death_ids(self.pat, [self.a.death_id]), set())
+        # No interview: the worklist stays closed to a collaborator.
+        self._login(str(self.cole.user_id))
+        self.assertEqual(self.client.get("/api/v1/intake/cases").status_code, 403)
+        # The status counts include the pending deaths.
+        self.assertGreaterEqual(self._get(self.cole)["counts"]["reported"], 1)
+        self.assertIn(PROJECT, {p["project_id"] for p in self.client.get(f"{API}/filter-options").get_json()["projects"]})
+
+    def test_collaborator_pii_sees_names_on_pending_register_rows(self):
+        rows = self._ids(self.pat)
+        self.assertTrue(self._in(self.a, rows))
+        a = rows[str(self.a.death_id)]
+        self.assertEqual(a["deceased_name"], "Asha Alpha")
+        self.assertEqual(a["unit_name"], "Unit SCA")
+        self.assertFalse(a["can_edit_identifiers"])
+        for field in STAFF_FIELDS:
+            self.assertNotIn(field, a)
+        self.assertFalse(self._in(self.s, rows))
+        with _redacted():
+            redacted = self._ids(self.cole)
+        self.assertTrue(self._in(self.a, redacted))
+
+    def test_collaborator_unit_grant_reaches_only_its_subtree(self):
+        mentor = self._get_or_make_user("cl.mentor@test.local", "CaseList123")
+        db.session.add(VaUserAccessGrants(
+            user_id=mentor.user_id, role=R.collaborator, scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=self.ph2.org_unit_id, grant_status=VaStatuses.active, notes="case list"))
+        db.session.commit()
+        rows = self._ids(mentor)
+        self.assertTrue(self._in(self.c, rows))  # SCC under PH2
+        self.assertFalse(self._in(self.a, rows))  # SCA under PH1
+        self.assertNotIn("deceased_name", rows[str(self.c.death_id)])
+
+    def _collaborator(self, key, *scopes, public_demo=False):
+        """A fresh collaborator with one grant per *scopes* entry: a project
+        id, or a ``VaProjectSites`` row (a project_site grant)."""
+        person = self._get_or_make_user(f"cl.{key}@test.local", "CaseList123")
+        person.is_public_demo = public_demo
+        for scope in scopes:
+            where = ({"scope_type": VaAccessScopeTypes.project, "project_id": scope} if isinstance(scope, str)
+                     else {"scope_type": VaAccessScopeTypes.project_site, "project_site_id": scope.project_site_id})
+            db.session.add(VaUserAccessGrants(user_id=person.user_id, role=R.collaborator,
+                                              grant_status=VaStatuses.active, notes="case list", **where))
+        db.session.commit()
+        return person
+
+    def _second_site(self):
+        """Site CL02 on CLP01 (active pair) and one pending death on it."""
+        now = datetime.now(UTC)
+        db.session.add(VaSiteMaster(site_id="CL02", site_name="Site CL02", site_abbr="CL02",
+                                    site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now))
+        db.session.flush()
+        pair = VaProjectSites(project_id=PROJECT, site_id="CL02", project_site_status=VaStatuses.active,
+                              project_site_registered_at=now, project_site_updated_at=now)
+        db.session.add(pair)
+        case = self._register(self.ian, self.sca, deceased_name="Other Site")
+        db.session.flush()
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == case.death_id)
+                           .values(site_id="CL02"))
+        db.session.commit()
+        return pair, case
+
+    def test_collaborator_of_another_project_sees_nothing_of_this_one(self):
+        other = self._collaborator("other", SITES_PROJECT)
+        rows = self._ids(other)
+        self.assertTrue(self._in(self.s, rows))
+        for case in (self.a, self.c, self.e):
+            self.assertFalse(self._in(case, rows))
+        self.assertEqual(self._get(other, f"?project_id={PROJECT}")["counts"]["total"], 0)
+
+    def test_collaborator_site_grant_reaches_only_its_site(self):
+        pair, elsewhere = self._second_site()
+        home = db.session.scalar(sa.select(VaProjectSites).where(VaProjectSites.project_id == PROJECT,
+                                                                 VaProjectSites.site_id == SITE))
+        at_site = self._collaborator("atsite", home)
+        rows = self._ids(at_site)
+        self.assertTrue(self._in(self.a, rows))
+        self.assertFalse(self._in(elsewhere, rows))
+        self.assertTrue(self._in(elsewhere, self._ids(self._collaborator("atcl02", pair))))
+
+    def test_collaborator_reach_skips_an_inactive_project_site(self):
+        pair, elsewhere = self._second_site()
+        whole = self._collaborator("whole", PROJECT)
+        self.assertTrue(self._in(elsewhere, self._ids(whole)))
+        db.session.execute(sa.update(VaProjectSites).where(VaProjectSites.project_site_id == pair.project_site_id)
+                           .values(project_site_status=VaStatuses.deactive))
+        db.session.commit()
+        rows = self._ids(whole)
+        self.assertTrue(self._in(self.a, rows))
+        self.assertFalse(self._in(elsewhere, rows))
+
+    def test_collaborator_reach_keeps_the_training_project_out(self):
+        both = self._collaborator("trainee", PROJECT, SITES_PROJECT)
+        self.assertTrue(self._in(self.s, self._ids(both)))
+        with mock.patch.dict(self.app.config, DIGITVA_TRAINING_PROJECT_ID=SITES_PROJECT):
+            rows = self._ids(both)
+            self.assertTrue(self._in(self.a, rows))
+            self.assertFalse(self._in(self.s, rows))
+            self.assertEqual(self._get(both, f"?project_id={SITES_PROJECT}")["counts"]["total"], 0)
+
+    def test_public_demo_collaborator_gets_no_register_reach(self):
+        self.assertTrue(self._in(self.a, self._ids(self._collaborator("real", PROJECT))))
+        demo = self._collaborator("demo", PROJECT, public_demo=True)
+        self.assertFalse(self._in(self.a, self._ids(demo)))
+
+    def test_virtual_collaborator_grant_gets_no_register_reach(self):
+        # No virtual collaborator grant is minted today (DEMO_VIRTUAL_ROLES):
+        # this pins the guard should one ever be.
+        from app.services.authz.grants import Grant, ResolvedGrants
+
+        def area(virtual):
+            grant = Grant(role=R.collaborator, scope_type=VaAccessScopeTypes.project, project_id=PROJECT,
+                          virtual=virtual)
+            return case_list._collaborator_area(
+                self.cole, ResolvedGrants(user_id=self.cole.user_id, is_admin=False, grants=(grant,)))
+
+        self.assertNotIsInstance(area(False), sa.sql.elements.False_)
+        self.assertIsInstance(area(True), sa.sql.elements.False_)
+
+    # -- source -----------------------------------------------------------------
+
+    def test_source_filter_narrows_rows_and_counts(self):
+        direct = self._register(self.ian, self.sca, deceased_name="Direct Start")
+        odk = self._register(self.ian, self.sca, deceased_name="Odk Only")
+        db.session.flush()
+        for case, source in ((direct, "direct"), (odk, "odk")):
+            db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == case.death_id)
+                               .values(source=source))
+        db.session.commit()
+        reported = self._get(self.dana, "?source=register")
+        rows = {c["death_id"]: c for c in reported["cases"]}
+        self.assertTrue(self._in(self.a, rows))
+        self.assertFalse(self._in(direct, rows))
+        self.assertFalse(self._in(odk, rows))
+        for query in ("?source=direct,odk", "?source=direct&source=odk"):
+            body = self._get(self.dana, query)
+            self.assertEqual({c["death_id"] for c in body["cases"]}, {str(direct.death_id), str(odk.death_id)})
+            self.assertEqual(body["counts"]["total"], 2)
+        self.assertEqual(self._get(self.dana)["counts"]["total"],
+                         reported["counts"]["total"] + 2)
+
+    # -- can_open / va_sid ----------------------------------------------------------
+
+    def test_can_open_only_where_the_submission_is_viewable(self):
+        e = str(self.e.death_id)
+        for who in (self.dana, self.cole, self.cody, self.admin):
+            row = self._ids(who)[e]
+            self.assertTrue(row["can_open"], who.email)
+            self.assertEqual(row["va_sid"], self.e.va_sid, who.email)
+        # Field reach to a submitted case is not the submission's VIEW scope.
+        theirs = self._ids(self.ian)
+        self.assertIn(e, theirs)
+        self.assertFalse(theirs[e]["can_open"])
+        self.assertNotIn("va_sid", theirs[e])
+        # A pending death has nothing to open, whoever looks.
+        for who in (self.dana, self.cole, self.ian):
+            a = self._ids(who)[str(self.a.death_id)]
+            self.assertFalse(a["can_open"], who.email)
+            self.assertNotIn("va_sid", a, who.email)
+
+    def test_days_waiting_is_never_negative(self):
+        ahead = self._register(self.ian, self.sca, deceased_name="Future Date")
+        db.session.flush()
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == ahead.death_id)
+                           .values(date_of_death=_utc_day(-5)))
+        db.session.commit()
+        row = self._ids(self.dana)[str(ahead.death_id)]
+        self.assertEqual(row["days_waiting"], 0)
+        self.assertIsNone(row["overdue"])
+
+    # -- /intake/cases coding_status ----------------------------------------------
+
+    def test_intake_rows_carry_the_coding_status(self):
+        stuck = self._submitted("not_codeable_by_coder", self.ian, self.sca, deceased_name="Not Codeable")
+        self._login(str(self.ian.user_id))
+        rows = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases?limit=200").get_json()["cases"]}
+        expected = {self.e: "awaiting_coding", self.f: "in_coding", self.g: "coded", stuck: "not_codeable", self.a: None}
+        for case, status in expected.items():
+            self.assertIn(str(case.death_id), rows)
+            self.assertEqual(rows[str(case.death_id)]["coding_status"], status, case.unique_id)
+
+    def test_reporter_only_intake_row_has_coding_status_but_no_interview(self):
+        theirs = self._submitted("ready_for_coding", self.ian, self.sca, deceased_name="Reported Submitted")
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == theirs.death_id)
+                           .values(registered_by=self.rita.user_id))
+        db.session.commit()
+        self._login(str(self.rita.user_id))
+        rows = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases?limit=200").get_json()["cases"]}
+        self.assertIn(str(theirs.death_id), rows)
+        row = rows[str(theirs.death_id)]
+        self.assertEqual(row["coding_status"], "awaiting_coding")
+        self.assertFalse(row["can_interview"])
+        self.assertNotIn("other_draft_active", row)
+        self.assertNotIn("other_draft_started_at", row)
+

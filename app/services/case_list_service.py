@@ -50,6 +50,26 @@ True where the caller may change that case's numbers now
 statement). Filters: ``identifier=has|missing`` (+ ``identifier_type``), an
 EXISTS on ``map_death_identifier`` for everyone who sees the badge, and
 ``identifier_number`` (exact, by blind index, only where the caller sees values).
+
+Collaborator register reach (owner, 2026-11-04, docs/policy/case-list-views.md):
+a ``collaborator`` / ``collaborator_pii`` grant also reaches the register rows
+of its grant area (``_collaborator_area``), pending deaths included, read-only:
+the unit name to both, the name through a ``collaborator_pii`` grant only, and
+no field, staff, identifier-value or edit right.
+
+Opening a case (``can_open``, owner 2026-11-04): True where the row has a
+submission the caller may view (``scope_filter(user, Action.VIEW)``, or
+admin); the row then carries its ``va_sid``, and no other row of the
+``deaths`` / ``interview`` / ``coding`` presets does. ``source`` filters on
+``VaDeathRegister.source`` (``CASE_SOURCES``), counts included.
+
+Waiting and overdue (``waiting``, shared with ``area_dashboard_service``):
+a death waits for its interview (combined status ``reported``,
+``interview_pending``, ``interview_in_progress``) since its date of death, or
+the UTC day it was reported when that is missing; an interview waits for its
+coding (``submitted_awaiting_coding``, ``in_coding``) since its submission day.
+More than ``OVERDUE_INTERVIEW_DAYS`` / ``OVERDUE_CODING_DAYS`` before the
+server's UTC today is overdue (exactly the threshold is not).
 """
 from __future__ import annotations
 
@@ -73,7 +93,9 @@ from app.models import (
     VaAccessScopeTypes,
     VaAllocations,
     VaDeathRegister,
+    VaFinalCodAuthority,
     VaProjectMaster,
+    VaProjectSites,
     VaSiteMaster,
     VaStatuses,
     VaSubmissions,
@@ -82,8 +104,8 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.models.va_selectives import VaAllocation
-from app.models.va_web_intake import CASE_STATES, DEATH_SEX_VALUES
-from app.services import org_grant_service, training_scope, register_pii_accessor
+from app.models.va_web_intake import CASE_SOURCES, CASE_STATES, DEATH_SEX_VALUES
+from app.services import org_grant_service, register_pii_accessor, training_scope
 from app.services.authz import (
     Action,
     Lens,
@@ -143,6 +165,19 @@ _STATUS_DEFAULTS = {
     "interview": ("reported", "interview_pending", "interview_in_progress"),
     "coding": ("submitted_awaiting_coding", "in_coding"),
 }
+OVERDUE = ("interview", "coding")
+#: Days a death may wait for its interview, and an interview for its coding,
+#: before it is overdue (owner, 2026-11-04; a per-project setting later if wanted).
+OVERDUE_INTERVIEW_DAYS = 60
+OVERDUE_CODING_DAYS = 15
+_AWAITING_INTERVIEW = ("reported", "interview_pending", "interview_in_progress")
+_AWAITING_CODING = ("submitted_awaiting_coding", "in_coding")
+#: Most ``project_id`` values one request may name.
+PROJECTS_MAX = 100
+#: The case's submission and final-COD authority, joined on ``va_sid``. Aliased:
+#: the reach's EXISTS subqueries on ``va_submissions`` must not correlate to it.
+CASE_SUBMISSION = aliased(VaSubmissions, name="case_submission")
+_CASE_AUTHORITY = aliased(VaFinalCodAuthority, name="case_authority")
 _PRESET_SORT = {"deaths": "reported", "interview": "updated", "coding": "updated", "supervision": "oldest"}
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
 IDENTIFIER_FILTERS = ("has", "missing")
@@ -179,6 +214,36 @@ def combined_status_case():
     )
 
 
+def waiting(status, today: date | None = None) -> SimpleNamespace:
+    """``(interview, coding, days_waiting)`` as SQL for the overdue rules
+    (module docstring) over the combined *status* CASE: the two overdue
+    conditions and the whole days waited (NULL when the case waits for
+    neither, or has no submission date). Needs ``CASE_SUBMISSION`` (and the
+    workflow, for *status*) outer-joined on ``va_sid``. *today*: the server's
+    UTC date unless given."""
+    today = today or datetime.now(UTC).date()
+    reported_day = sa.cast(sa.func.timezone("UTC", VaDeathRegister.created_at), sa.Date)
+    interview_since = sa.func.coalesce(VaDeathRegister.date_of_death, reported_day)
+    coding_since = sa.cast(CASE_SUBMISSION.va_submission_date, sa.Date)
+    awaiting_interview = status.in_(_AWAITING_INTERVIEW)
+    awaiting_coding = status.in_(_AWAITING_CODING)
+    day = sa.literal(today, sa.Date)
+    return SimpleNamespace(
+        interview=sa.and_(awaiting_interview,
+                          interview_since < today - timedelta(days=OVERDUE_INTERVIEW_DAYS)),
+        # The same test as ``coding_since < day``, kept sargable on the submission-date index.
+        coding=sa.and_(awaiting_coding, CASE_SUBMISSION.va_submission_date
+                       < datetime.combine(today - timedelta(days=OVERDUE_CODING_DAYS), datetime.min.time())),
+        # date - date is an integer in PostgreSQL. Never negative (a date of
+        # death in the future waits 0 days); GREATEST per branch, since
+        # GREATEST(NULL, 0) is 0 and a case waiting for neither stays NULL.
+        days_waiting=sa.type_coerce(sa.case(
+            (awaiting_interview, sa.func.greatest(day - interview_since, 0)),
+            (sa.and_(awaiting_coding, coding_since.is_not(None)), sa.func.greatest(day - coding_since, 0)),
+        ), sa.Integer),
+    )
+
+
 # ---------------------------------------------------------------------------
 # The request: parsed and validated at the boundary
 # ---------------------------------------------------------------------------
@@ -186,15 +251,23 @@ def combined_status_case():
 
 @dataclass(frozen=True)
 class CaseFilters:
-    project_id: str | None = None
+    #: ``project_id``, repeatable or a comma list: any of these projects.
+    project_ids: tuple[str, ...] = ()
     site_id: str | None = None
     org_unit_id: uuid.UUID | None = None
     statuses: tuple[str, ...] = ()
     states: tuple[str, ...] = ()
+    #: ``source``, repeatable or a comma list: ``register``, ``direct``, ``odk``.
+    sources: tuple[str, ...] = ()
     dod_from: date | None = None
     dod_to: date | None = None
     reported_from: date | None = None
     reported_to: date | None = None
+    #: The submission's UTC day; either one leaves out cases with no submission.
+    submitted_from: date | None = None
+    submitted_to: date | None = None
+    #: ``interview`` / ``coding``: overdue by ``waiting``.
+    overdue: str | None = None
     sex: str | None = None
     age_min: int | None = None
     age_max: int | None = None
@@ -262,6 +335,17 @@ def _choices(args, name: str, allowed) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))
 
 
+def _projects(args) -> tuple[str, ...]:
+    """``project_id``, repeatable (``project_id=A&project_id=B``) or a comma
+    list; each id at most 64 characters, at most ``PROJECTS_MAX`` of them.
+    Not checked against the caller's projects: the scope already narrows an
+    unreachable one to no rows."""
+    values = [p.strip() for raw in args.getlist("project_id") for p in raw.split(",") if p.strip()]
+    if any(len(v) > 64 for v in values) or len(values) > PROJECTS_MAX:
+        raise WebIntakeError("project_id is not valid.")
+    return tuple(dict.fromkeys(values))
+
+
 def _boolean(args, name: str) -> bool:
     value = (_one(args, name) or "").lower()
     if value not in ("", "0", "false", "no", "1", "true", "yes"):
@@ -279,6 +363,9 @@ def parse_query(args) -> dict:
     sex = _one(args, "sex")
     if sex is not None and sex not in DEATH_SEX_VALUES:
         raise WebIntakeError("sex has an unknown value.")
+    overdue = _one(args, "overdue")
+    if overdue is not None and overdue not in OVERDUE:
+        raise WebIntakeError("overdue must be interview or coding.")
     attention = _one(args, "attention")
     if attention is not None and attention not in ATTENTION:
         raise WebIntakeError("attention has an unknown value.")
@@ -300,17 +387,20 @@ def parse_query(args) -> dict:
     except ValueError:
         raise WebIntakeError("limit must be a whole number.") from None
     filters = CaseFilters(
-        project_id=_text(args, "project_id"), site_id=_text(args, "site_id"),
+        project_ids=_projects(args), site_id=_text(args, "site_id"),
         org_unit_id=_uuid(args, "org_unit_id"),
         statuses=_choices(args, "status", COMBINED_STATUSES), states=_choices(args, "state", CASE_STATES),
+        sources=_choices(args, "source", CASE_SOURCES),
         dod_from=_date(args, "dod_from"), dod_to=_date(args, "dod_to"),
         reported_from=_date(args, "reported_from"), reported_to=_date(args, "reported_to"),
-        sex=sex, age_min=_age(args, "age_min"), age_max=_age(args, "age_max"),
+        submitted_from=_date(args, "submitted_from"), submitted_to=_date(args, "submitted_to"),
+        overdue=overdue, sex=sex, age_min=_age(args, "age_min"), age_max=_age(args, "age_max"),
         attention=attention,
         visit_note=_boolean(args, "visit_note"), sort=sort,
         identifier=identifier, identifier_type=identifier_type, identifier_number=identifier_number,
     )
     for low, high, what in ((filters.dod_from, filters.dod_to, "dod"), (filters.reported_from, filters.reported_to, "reported"),
+                            (filters.submitted_from, filters.submitted_to, "submitted"),
                             (filters.age_min, filters.age_max, "age")):
         if low is not None and high is not None and low > high:
             raise WebIntakeError(f"{what}: the start is after the end.")
@@ -336,10 +426,41 @@ class _Reach:
     can_staff: object
     can_identifiers: object
     can_edit_identifiers: object
+    can_open: object
 
 
 def _on_submission(condition):
     return sa.exists().where(VaSubmissions.va_sid == VaDeathRegister.va_sid, condition)
+
+
+def _collaborator_area(user: VaUsers, grants) -> object:
+    """The register rows *grants*' ``collaborator`` / ``collaborator_pii``
+    grants reach, with or without a submission: a project grant its project,
+    a site grant its project-site, a unit grant the unit's subtree (one ltree
+    select for every unit grant). Only rows on an active project-site, where
+    the viewer lens stops too. Demo-training grants and public-demo accounts
+    reach nothing here. ``sa.false()`` when no such grant applies."""
+    if getattr(user, "is_public_demo", False):
+        return sa.false()
+    clauses, units = [], set()
+    for grant in grants.of((VaAccessRoles.collaborator, VaAccessRoles.collaborator_pii), virtual=False):
+        if grant.scope_type == VaAccessScopeTypes.project:
+            clauses.append(VaDeathRegister.project_id == grant.project_id)
+        elif grant.scope_type == VaAccessScopeTypes.project_site:
+            clauses.append(sa.and_(VaDeathRegister.project_id == grant.project_id,
+                                   VaDeathRegister.site_id == grant.site_id))
+        elif grant.scope_type == VaAccessScopeTypes.org_unit and grant.org_unit_id:
+            units.add(grant.org_unit_id)
+    if units:
+        clauses.append(VaDeathRegister.org_unit_id.in_(subtree_select(units)))
+    if not clauses:
+        return sa.false()
+    active_pair = sa.exists().where(
+        VaProjectSites.project_id == VaDeathRegister.project_id,
+        VaProjectSites.site_id == VaDeathRegister.site_id,
+        VaProjectSites.project_site_status == VaStatuses.active,
+    )
+    return sa.and_(sa.or_(*clauses), active_pair)
 
 
 def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
@@ -361,15 +482,15 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
     supervised = sa.and_(supervised_case_condition(user), *training) if oversees else sa.false()
     # scope_filter marks the request consulted by authz; it is also the
     # coder, reviewer, data manager and collaborator reach.
-    submissions = scope_filter(user, Action.VIEW)
+    submissions = scope_filter(user, Action.VIEW, _grants=grants)
     via_submission = _on_submission(submissions)
 
     admin = sa.true() if grants.is_admin else sa.false()
     # Per caller, as gps_projects: one grant read, a constant in the statement.
     pii = sa.false() if should_redact_pii(user) else sa.true()
-    dm_lens = _on_submission(lens_filter(user, Lens.DM))
+    dm_lens = _on_submission(lens_filter(user, Lens.DM, _grants=grants))
     other_lenses = _on_submission(sa.or_(*(
-        lens_filter(user, lens) for lens in (Lens.DM, Lens.VIEWER, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
+        lens_filter(user, lens, _grants=grants) for lens in (Lens.DM, Lens.VIEWER, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
     )))
     pii_viewer_grants = replace(
         grants,
@@ -390,6 +511,10 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
         if pii_viewer_grants.grants
         else sa.false()
     )
+    # Collaborators' register rows (module docstring): scope and the unit name
+    # for both roles, the name only through a PII collaborator_pii grant.
+    collaborator_area = _collaborator_area(user, grants)
+    collaborator_pii_area = _collaborator_area(user, pii_viewer_grants) if pii_viewer_grants.grants else sa.false()
     # Registration-number values (decision 14): ASSIGNED field reach (the
     # interviewer grant a self-coding coder is implied confers none),
     # supervision, the PII lenses (data manager / In-charge / project PI) and
@@ -399,7 +524,7 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
     value_field = sa.or_(*(c for c in field_scopes if c is not None)) if any(
         c is not None for c in field_scopes) else sa.false()
     pi_lenses = _on_submission(sa.or_(*(
-        lens_filter(user, lens) for lens in (Lens.DM, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
+        lens_filter(user, lens, _grants=grants) for lens in (Lens.DM, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
     )))
     in_system_coder_grants = replace(
         grants,
@@ -421,7 +546,7 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
         else sa.false()
     )
     return _Reach(
-        scope=sa.and_(sa.or_(via_field, supervised, via_submission), *training),
+        scope=sa.and_(sa.or_(via_field, supervised, via_submission, collaborator_area), *training),
         supervised=supervised,
         via_field=via_field,
         # Names: field roles on their reach and collaborator_pii as always;
@@ -431,10 +556,12 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
         can_name=sa.or_(
             via_field,
             collaborator_pii,
+            collaborator_pii_area,
             sa.and_(pii, sa.or_(admin, supervised, in_system_coder)),
         ),
-        # Everything but a row reached by non-PII coding alone.
-        can_unit=sa.or_(admin, via_field, supervised, other_lenses, in_system_coder),
+        # Everything but a row reached by non-PII coding alone. Identifier
+        # values below stay off the collaborator register reach.
+        can_unit=sa.or_(admin, via_field, supervised, other_lenses, in_system_coder, collaborator_area),
         can_staff=sa.and_(pii, sa.or_(admin, supervised, dm_lens)),
         can_identifiers=sa.or_(
             admin,
@@ -443,6 +570,9 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
             sa.and_(pii, sa.or_(supervised, pi_lenses, in_system_coder)),
         ),
         can_edit_identifiers=identifier_edit_condition(user, field_scopes),
+        # The submission itself opens: its VIEW scope, or admin. An EXISTS on
+        # the submission, so a pending death (no submission) is always false.
+        can_open=_on_submission(sa.or_(admin, submissions)),
     )
 
 
@@ -480,8 +610,8 @@ def _identifier_number_match(user: VaUsers, reach: _Reach, f: CaseFilters):
     if number is None:
         return sa.false()
     active = [MasDeathIdentifierType.is_active.is_(True)]
-    if f.project_id:
-        active.append(MasDeathIdentifierType.project_id == f.project_id)
+    if f.project_ids:
+        active.append(MasDeathIdentifierType.project_id.in_(f.project_ids))
     if f.identifier_type:
         active.append(MasDeathIdentifierType.code == f.identifier_type)
     projects = set(db.session.scalars(sa.select(MasDeathIdentifierType.project_id).where(*active).distinct()))
@@ -512,10 +642,12 @@ def _identifier_number_match(user: VaUsers, reach: _Reach, f: CaseFilters):
 
 
 def _filter_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters) -> list:
-    """Every filter except status and attention, which counts ignore."""
+    """Every filter except status and attention, which counts ignore (the
+    overdue filter included: counts honour it). Needs ``CASE_SUBMISSION``
+    and the workflow outer-joined."""
     conditions = []
-    if f.project_id:
-        conditions.append(VaDeathRegister.project_id == f.project_id)
+    if f.project_ids:
+        conditions.append(VaDeathRegister.project_id.in_(f.project_ids))
     if f.site_id:
         conditions.append(VaDeathRegister.site_id == f.site_id)
     if f.org_unit_id:
@@ -523,6 +655,8 @@ def _filter_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters
         conditions.append(sa.and_(reach.can_unit, VaDeathRegister.org_unit_id.in_(subtree_select({f.org_unit_id}))))
     if f.states:
         conditions.append(VaDeathRegister.status.in_(f.states))
+    if f.sources:
+        conditions.append(VaDeathRegister.source.in_(f.sources))
     if f.dod_from:
         conditions.append(VaDeathRegister.date_of_death >= f.dod_from)
     if f.dod_to:
@@ -535,6 +669,14 @@ def _filter_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters
         conditions.append(
             VaDeathRegister.created_at < datetime.combine(f.reported_to + timedelta(days=1), datetime.min.time(), UTC)
         )
+    # va_submission_date is naive UTC; the bounds stay sargable on its index.
+    if f.submitted_from:
+        conditions.append(CASE_SUBMISSION.va_submission_date >= datetime.combine(f.submitted_from, datetime.min.time()))
+    if f.submitted_to:
+        conditions.append(CASE_SUBMISSION.va_submission_date
+                          < datetime.combine(f.submitted_to + timedelta(days=1), datetime.min.time()))
+    if f.overdue:
+        conditions.append(getattr(waiting(combined_status_case()), f.overdue))
     if f.sex:
         conditions.append(VaDeathRegister.deceased_sex == f.sex)
     if f.age_min is not None:
@@ -618,9 +760,10 @@ def _row_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters, s
 
 
 def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | None, limit: int,
-                    with_names: bool = True):
-    reach = _reach(user)
+                    with_names: bool = True, reach: _Reach | None = None):
+    reach = reach or _reach(user)
     status = combined_status_case()
+    wait = waiting(status)
     sort = f.sort or _PRESET_SORT[preset]
     conditions = _row_conditions(user, reach, preset, f, status)
     if cursor:
@@ -658,6 +801,16 @@ def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | No
         reach.can_staff.label("can_staff"), reach.via_field.label("via_field"),
         reach.can_identifiers.label("can_identifiers"),
         reach.can_edit_identifiers.label("can_edit_identifiers"),
+        reach.can_open.label("can_open"),
+        sa.case((reach.can_open, VaDeathRegister.va_sid)).label("open_sid"),
+        CASE_SUBMISSION.va_submission_date.label("submitted_at"),
+        sa.case((
+            sa.or_(_CASE_AUTHORITY.authoritative_final_assessment_id.is_not(None),
+                   _CASE_AUTHORITY.authoritative_reviewer_final_assessment_id.is_not(None)),
+            sa.func.coalesce(_CASE_AUTHORITY.effective_at, _CASE_AUTHORITY.created_at),
+        )).label("coded_at"),
+        sa.case((wait.interview, "interview"), (wait.coding, "coding")).label("overdue"),
+        wait.days_waiting.label("days_waiting"),
     ]
     if with_names:
         columns += [
@@ -685,16 +838,18 @@ def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | No
         .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
         .outerjoin(starter, starter.user_id == VaDeathRegister.started_by_user_id)
         .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
+        .outerjoin(CASE_SUBMISSION, CASE_SUBMISSION.va_sid == VaDeathRegister.va_sid)
+        .outerjoin(_CASE_AUTHORITY, _CASE_AUTHORITY.va_sid == VaDeathRegister.va_sid)
         .where(*conditions)
         .order_by(*_order(sort))
         .limit(limit + 1)
     ), sort
 
 
-def _counts_statement(user: VaUsers, preset: str, f: CaseFilters):
+def _counts_statement(user: VaUsers, preset: str, f: CaseFilters, reach: _Reach | None = None):
     """Rows per combined status over the scope and every filter but status
     and attention, in one aggregate query: the status tabs' numbers."""
-    reach = _reach(user)
+    reach = reach or _reach(user)
     status = combined_status_case()
     return (
         sa.select(
@@ -703,6 +858,7 @@ def _counts_statement(user: VaUsers, preset: str, f: CaseFilters):
         )
         .select_from(VaDeathRegister)
         .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
+        .outerjoin(CASE_SUBMISSION, CASE_SUBMISSION.va_sid == VaDeathRegister.va_sid)
         .where(_base_scope(preset, reach), *_filter_conditions(user, reach, preset, f))
     )
 
@@ -714,6 +870,13 @@ def _counts_statement(user: VaUsers, preset: str, f: CaseFilters):
 
 def _iso(value) -> str | None:
     return value.isoformat() if value else None
+
+
+def _utc_iso(value) -> str | None:
+    """A naive UTC timestamp (submission, final COD authority) as ISO with its offset."""
+    if value is None:
+        return None
+    return (value if value.tzinfo else value.replace(tzinfo=UTC)).isoformat()
 
 
 def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers: list,
@@ -739,7 +902,16 @@ def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers
         "started_by_me": mine_started,
         "identifiers": identifiers,
         "can_edit_identifiers": bool(row.can_edit_identifiers),
+        "submitted_at": _utc_iso(row.submitted_at),
+        "coded_at": _utc_iso(row.coded_at),
+        "overdue": row.overdue,
+        "days_waiting": row.days_waiting,
+        "can_open": bool(row.can_open),
     }
+    # The submission id only where it opens (the supervision preset below
+    # keeps its own va_sid, as before).
+    if row.can_open:
+        out["va_sid"] = row.open_sid
     # created_at is the report time only for a register case (module docstring).
     if row.source == "register":
         out["reported_at"] = out["created_at"]
@@ -870,7 +1042,8 @@ def coding_names(user: VaUsers, va_sids) -> dict[str, str]:
 
 def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str | None = None,
                limit: int = WORKLIST_PAGE_DEFAULT, with_identifiers: bool = True,
-               identifier_projects: set | None = None, with_names: bool = True) -> dict:
+               identifier_projects: set | None = None, with_names: bool = True,
+               reach: _Reach | None = None) -> dict:
     """``{"cases": [row, ...], "next_cursor": str | None}``: one page of the
     caller's cases for *preset*, hidden fields omitted per row. *limit* is
     clamped to ``WORKLIST_PAGE_MAX``. Empty scope is an empty page.
@@ -885,13 +1058,14 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     (the export's audited set), the others stay badges. *with_names* False
     skips the deceased name and the location (both sealed): the blob is not
     selected and nothing is decrypted (the export has neither column).
+    *reach* is a ``_reach(user)`` the caller already built (one per request).
     """
     if preset not in PRESETS:
         raise WebIntakeError("Unknown preset.")
     if _no_scope(user):
         return {"cases": [], "next_cursor": None}
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    statement, sort = _page_statement(user, preset, filters, cursor, limit, with_names)
+    statement, sort = _page_statement(user, preset, filters, cursor, limit, with_names, reach)
     rows = db.session.execute(statement).all()
     page = rows[:limit]
     org_projects = set()
@@ -918,11 +1092,11 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     return {"cases": cases, "next_cursor": _encode_cursor(sort, page[-1]) if len(rows) > limit else None}
 
 
-def case_list_counts(user: VaUsers, *, preset: str, filters: CaseFilters) -> dict:
+def case_list_counts(user: VaUsers, *, preset: str, filters: CaseFilters, reach: _Reach | None = None) -> dict:
     """``{"counts": {status: n, ..., "total": n}}`` ignoring the status filter
     (duplicate and cancelled are counted in every preset), plus ``"tiles"``
     (``supervision_tiles`` over the supervised cases, every filter ignored)
-    only for a caller with supervision scope."""
+    only for a caller with supervision scope. *reach*: as ``list_cases``."""
     zero = {name: 0 for name in (*COMBINED_STATUSES, "total")}
     if _no_scope(user):
         return {"counts": zero}
@@ -933,9 +1107,9 @@ def case_list_counts(user: VaUsers, *, preset: str, filters: CaseFilters) -> dic
     # drops the setting too.
     previous = db.session.scalar(sa.text("SELECT current_setting('jit')"))
     db.session.execute(sa.text("SET LOCAL jit = off"))
-    counts = dict(db.session.execute(_counts_statement(user, preset, filters)).one()._mapping)
+    counts = dict(db.session.execute(_counts_statement(user, preset, filters, reach)).one()._mapping)
     result = {"counts": counts}
-    supervised = _reach(user).supervised
+    supervised = (reach or _reach(user)).supervised
     if not isinstance(supervised, sa.sql.elements.False_):
         result["tiles"] = supervision_tiles(supervised)
     db.session.execute(sa.text("SELECT set_config('jit', :previous, true)"), {"previous": previous})
@@ -954,6 +1128,7 @@ def export_summary(user: VaUsers, *, preset: str, filters: CaseFilters) -> tuple
         sa.select(sa.func.count(), sa.func.array_agg(sa.distinct(VaDeathRegister.project_id)))
         .select_from(VaDeathRegister)
         .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
+        .outerjoin(CASE_SUBMISSION, CASE_SUBMISSION.va_sid == VaDeathRegister.va_sid)
         .where(*_row_conditions(user, reach, preset, filters, combined_status_case()))
     ).one()
     return count, set(projects or ())
@@ -963,10 +1138,13 @@ def case_list_page(user: VaUsers, args) -> dict:
     """The ``GET /api/v1/cases`` reply: ``{cases, counts, [tiles,] next_cursor}``;
     ``counts`` and ``tiles`` only without a ``cursor`` (the first page)."""
     query = parse_query(args)
-    page = list_cases(user, **query)
+    # One build for the page and the counts; none for an empty scope.
+    reach = None if _no_scope(user) else _reach(user)
+    page = list_cases(user, **query, reach=reach)
     # Counts and tiles are seq scans (docs/kb/case-list-query-plans.md): the
     # first page only; a client keeps them while it pages.
-    counts = {} if query["cursor"] else case_list_counts(user, preset=query["preset"], filters=query["filters"])
+    counts = {} if query["cursor"] else case_list_counts(
+        user, preset=query["preset"], filters=query["filters"], reach=reach)
     return {"cases": page["cases"], **counts, "next_cursor": page["next_cursor"]}
 
 

@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-31
+last_updated: 2026-11-04
 ---
 
 # Expo Client Hosting And Access
@@ -181,7 +181,11 @@ when the export is present (`VaUsers.landing_url()`, policy
   row, then create the new ones). The file is sent as base64 in JSON, since the
   shared requester sends JSON only.
   Coding and reviewing queues open on `last_project_id` from `/coding/projects`
-  and `/reviewing/projects` unless a `?project=` query is passed.
+  and `/reviewing/projects` unless a `?project=` query is passed. The queues
+  take the project from the shared Project control (below) on their top line;
+  `project=<id|all>` stays in the URL with its default chain, and a project
+  change pushes a history entry (`queueUrlStep`, `src/workspace/viewState.ts`),
+  so Back and Forward follow it.
 
 Interview supervisors (and data managers) work in the Deaths tab
 (`/death-registration`, digitva-a5jf): with supervision scope
@@ -275,6 +279,16 @@ reporter-only row adds `registered=mine`, and the form then reads the
 registration from `GET /intake/deaths` (walking at most 20 pages), never the
 case detail.
 
+The shared Project control (`src/ui/ProjectSelect.tsx`) sits top right on
+Collection (both tabs), Coding, Reviewing and Statistics. It is a button
+"Project: All projects / <name> / N projects" with a chevron. The menu is
+anchored to the button from 768 px and a bottom sheet below. Rows are radio
+buttons (one project at a time) or, on Statistics, checkboxes. Escape or a
+press outside closes it and focus returns to the button. With one project it
+is plain text; with none it shows nothing. Collection carries the choice as
+`project` in the URL (absent or unknown means All); the Deaths tab re-fetches
+from the server, Interviews filters on the client.
+
 Both tabs use one filter bar (`src/web/caseFilters.tsx`): row 1 search and
 Advanced filters; row 2 status chips on the left (deaths: All, To visit, In
 progress, Submitted, Ready to code when any; interviews: All, In progress,
@@ -283,12 +297,14 @@ Submitted) and, on Reported deaths, two toggles on the right: Mine | All
 `death_reporter`, and Clear all returns to that default) and Last 30 days |
 All (date reported, local dates, today included). On a phone the toggles wrap
 under the chips. Advanced filters (bottom sheet under 768 px, side panel
-wider) holds Project (more than one project) and Area (the user's units,
+wider) holds Area (the user's units,
 Within area) first, then date of death, date reported/started, sex, age band
 and min/max; applied ones show as removable chips with Clear all, and the
-button shows their count. Project is server-side on Reported deaths
-(`GET /intake/cases?project_id=`, scope checked, re-fetches the first page);
-every other filter runs on the loaded pages, and the list says "Filtering
+button shows their count. Project is not in Advanced filters here and Clear all
+does not reset it (the Deaths panel on the death registration and training
+screens keeps Project in its Advanced filters). Project is server-side on
+Reported deaths (`GET /intake/cases?project_id=`, scope checked, re-fetches the
+first page); every other filter runs on the loaded pages, and the list says "Filtering
 loaded cases" while more pages exist. My interviews filters its whole lists
 (at most 200 drafts each) on the client, project included.
 
@@ -304,14 +320,34 @@ unit, and the units below, which open in place. People are shown by name and
 cadre only.
 
 Statistics (`/statistics`, `src/web/StatisticsScreen.tsx`, pieces in
-`src/web/stats/`, client `src/area/api.ts`) is the area dashboard over
-`GET /api/v1/area/{projects,summary,staff}` (policy `docs/policy/area-dashboard.md`).
-Menu entry and Home button: any user with an active grant (`statisticsAllowed`,
-`src/web/roleHome.ts`); a remembered `/area/` visit maps to `/statistics`. The view
-is the URL (`project`, `unit`, `site`, `period`, validated by `parseSelection`),
-each choice pushes a history entry, so reload and Back restore it; a unit or site
-the server 404s drops to the project top level. Project picker: buttons for up to
-four projects, a native select above that. One proportional pipeline bar per child
+`src/web/stats/`, client `src/area/api.ts`) is the oversight dashboard over
+`GET /api/v1/area/{projects,summary,staff}` and `GET /api/v1/cases` (policy
+`docs/policy/area-dashboard.md`). Menu entry and Home button: admin and the
+oversight roles data_manager, site_pi, project_pi, interview_supervisor,
+collaborator, collaborator_pii (`statisticsAllowed`, `src/web/roleHome.ts`);
+interviewers, coders and reviewers follow their own work in Collection, Coding
+and Reviewing. A remembered `/area/` visit maps to `/statistics`. The view is
+the URL (`tab`, `project` repeatable, `period`, `unit`/`site` with one project,
+and the tab's `status`, `overdue`, `source`; `parseView` in
+`src/web/stats/view.ts`), each choice pushes a history entry. The shared
+Project control (multiple choice) sits top right. A Filters button on the tab
+line opens the shared FilterPanel (right panel from 768 px, bottom sheet
+below) with Period, Area (one project only; every unit in the user's area,
+leaf units included) and the tab's filters (Deaths: Source, Overdue;
+Interviews and Codings: Overdue). Project is not in the flyout, its count or
+its chips, and Clear all does not reset it. Applied filters show as chips
+below the tab line, above the tabs
+Overview, Deaths, Interviews, Codings, Projects. Overview sums the selected
+projects' counts into Reported → Interviewed → Coded with one overdue line
+(60 days from death, 15 from interview) linking to the filtered tab; with one
+project it keeps the area detail below. The three case tabs page
+`/api/v1/cases` (50 a page, Load more) as a table from 768 px and `CaseCard`
+below, with status chips, gated name and staff columns, and overdue rows in
+the warning fill plus "Overdue · N days". A row shows a View button when it
+carries `can_open` and `va_sid` and the user has the Data screen's access
+(`caseViewPath`, `src/web/roleHome.ts`: Flask `/data-management/view/<sid>` for
+a data manager or admin, `/coding/area/<sid>` for a viewer). Projects shows one card per project.
+With one project, the Overview area detail is: one proportional pipeline bar per child
 unit or, in a sites project, per site (a site opens to its card, causes and
 staff); deaths reported, interviews received, coded on one scale, with the
 reported stage left out when the project has no death register. Then the area's

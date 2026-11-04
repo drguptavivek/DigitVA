@@ -21,6 +21,10 @@ export interface AreaCounts {
   final_cod: number;
   smartva_failed: number;
   visit_notes: number;
+  /** Live, period-independent: deaths not interviewed after `thresholds.interview_days`. Optional until every server sends it. */
+  overdue_interview?: number;
+  /** Live, period-independent: interviews not coded after `thresholds.coding_days`. */
+  overdue_coding?: number;
 }
 
 export interface AreaProject {
@@ -92,6 +96,8 @@ export interface AreaSummary {
     snapshot_refreshed_display: string | null;
     live_at_display: string | null;
   };
+  /** The overdue cut-offs in days (server constants). */
+  thresholds?: { interview_days: number; coding_days: number };
 }
 
 export interface AreaInterviewer {
@@ -139,4 +145,62 @@ export function getAreaStaff(request: JsonRequester, { project, unit, site }: Ar
 /** The same level as the summary, as a spreadsheet download: a plain URL, no request. */
 export function areaCsvUrl({ project, unit, site, period = DEFAULT_PERIOD }: AreaQuery): string {
   return `${AREA_API}/summary${query({ project, unit, site, period, format: "csv" })}`;
+}
+
+/** Combined case status (app/services/case_list_service.py COMBINED_STATUSES). */
+export type CaseStatus =
+  | "reported" | "interview_pending" | "interview_in_progress" | "submitted_awaiting_coding" | "in_coding"
+  | "coded" | "refused" | "not_codeable" | "duplicate" | "cancelled";
+
+/**
+ * One GET /api/v1/cases row. A field the caller may not see is absent, not blank: `deceased_name` (personal-data
+ * gate), `reporter_name` / `interviewer_name` / `coder_name` (staff-identity gate), `unit_name` (unit reach).
+ */
+export interface CaseListRow {
+  death_id: string;
+  unique_id: string;
+  project_id: string;
+  site_id: string;
+  status: CaseStatus;
+  source: string;
+  age_years: number | null;
+  deceased_sex: string | null;
+  date_of_death: string | null;
+  created_at: string;
+  deceased_name?: string;
+  unit_name?: string | null;
+  reporter_name?: string | null;
+  interviewer_name?: string | null;
+  coder_name?: string | null;
+  submitted_at?: string | null;
+  coded_at?: string | null;
+  overdue?: "interview" | "coding" | null;
+  days_waiting?: number | null;
+  /** True when the caller may view the row's submission; `va_sid` comes with it. */
+  can_open?: boolean;
+  va_sid?: string;
+}
+
+export interface CaseListPage {
+  cases: CaseListRow[];
+  /** Rows per combined status (plus `total`), ignoring the status filter; first page only. */
+  counts?: Record<string, number>;
+  next_cursor: string | null;
+}
+
+/** GET /api/v1/cases query; `project_id` is a comma list, absent values are left out. */
+export type CaseListQuery = Record<string, string | null | undefined>;
+
+/** Check the server-owned page shape before the screen uses it; a malformed reply is an error, not a blank table. */
+export function parseCaseListPage(value: unknown): CaseListPage {
+  const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item);
+  const ok = record(value) && Array.isArray(value.cases) && (value.next_cursor === null || typeof value.next_cursor === "string") &&
+    (value.counts === undefined || record(value.counts)) &&
+    value.cases.every((row) => record(row) && typeof row.death_id === "string" && typeof row.unique_id === "string" && typeof row.status === "string");
+  if (!ok) throw new Error("malformed_response");
+  return value as unknown as CaseListPage;
+}
+
+export async function listCases(request: JsonRequester, params: CaseListQuery): Promise<CaseListPage> {
+  return parseCaseListPage(await request(`/api/v1/cases${query(params)}`));
 }

@@ -259,9 +259,19 @@ export function dataAccess(bootstrap: RoleBootstrap): { allowed: boolean; manage
   return { allowed: manage || viewer, manage, redacted: !admin && !roles.some((role) => PII_ROLES.includes(role)) };
 }
 
-/** Statistics is open to anyone with at least one active grant, or admin (docs/policy/area-dashboard.md, "Who sees it"). */
+/** The Flask page a row's View opens: the manager's data page, or the read-only area view for a viewer role. */
+export const caseViewPath = (access: { manage: boolean }, sid: string): string =>
+  `${access.manage ? "/data-management/view" : "/coding/area"}/${encodeURIComponent(sid)}`;
+
+/** Roles whose people oversee others' work; interviewers, coders and reviewers follow their own work in their screens. */
+const OVERSIGHT_ROLES = ["data_manager", "site_pi", "project_pi", "interview_supervisor", "collaborator", "collaborator_pii", "admin"];
+
+/**
+ * Statistics (menu entry and Home button) is the oversight view: the roles above or admin
+ * (docs/policy/area-dashboard.md, "Who sees it"). The area API itself admits any grant; this only shapes the menu.
+ */
 export function statisticsAllowed(bootstrap: RoleBootstrap): boolean {
-  return Boolean(bootstrap.access?.is_admin || (bootstrap.access?.roles ?? []).length > 0);
+  return Boolean(bootstrap.access?.is_admin || (bootstrap.access?.roles ?? []).some((role) => OVERSIGHT_ROLES.includes(role)));
 }
 
 /**

@@ -788,6 +788,79 @@ class AreaCardTests(AreaDashboardFixture):
         self.assertEqual(site_pi_rows[self.SITE_ONE]["links"], {})
 
 
+class AreaOverdueTests(AreaDashboardFixture):
+    """Overdue interviews and codings (2026-11-04): ``case_list_service.waiting``
+    over the register, live, on every row and the card, never period-filtered.
+
+    Fixture submissions used: uuid:area-pa2 (smartva_pending, 20 days, PHC A1),
+    uuid:area-pa1 (ready_for_coding, 2 days, PHC A1), uuid:area-s22
+    (ready_for_coding, 40 days, sites-mode AS02). Register rows are added per
+    test and rolled back with it.
+    """
+
+    _number = 995000
+
+    def _case(self, *, unit=None, project=None, site=None, status="registered", dod_days=10, va_sid=None,
+              created_days=None):
+        AreaOverdueTests._number += 1
+        today = datetime.now(UTC).date()
+        case = VaDeathRegister(
+            project_id=project or self.TREE, site_id=site or self.TREE_SITE, death_number=self._number,
+            org_unit_id=unit.org_unit_id if unit else None, unique_id=f"AREA-OD-{self._number}",
+            deceased_name="Name", deceased_sex="female",
+            date_of_death=None if dod_days is None else today - timedelta(days=dod_days),
+            registered_by=self.interviewer.user_id, status=status, va_sid=va_sid,
+        )
+        if created_days is not None:
+            case.created_at = datetime.now(UTC) - timedelta(days=created_days)
+        db.session.add(case)
+        db.session.commit()
+        return case
+
+    def test_overdue_counts_on_rows_and_card_with_thresholds(self):
+        self._case(unit=self.chc_a, dod_days=61)
+        self._case(unit=self.chc_a, dod_days=60)  # exactly 60: not overdue
+        self._case(unit=self.chc_b, status="draft_identity", dod_days=None, created_days=61)  # date reported
+        self._case(unit=self.phc_a1, status="submitted", va_sid="uuid:area-pa2")  # 20 days awaiting
+        self._case(unit=self.phc_a1, status="submitted", va_sid="uuid:area-pa1")  # 2 days
+        self._case(unit=None, dod_days=90)  # unrouted
+        summary = area.area_summary(self.project_user, self.TREE)
+        self.assertEqual(summary["thresholds"], {"interview_days": 60, "coding_days": 15})
+        rows = self._by_key(summary)
+        district_1 = rows[str(self.district_1.org_unit_id)]["counts"]
+        self.assertEqual(district_1["overdue_interview"], 2)
+        self.assertEqual(district_1["overdue_coding"], 1)
+        self.assertEqual(rows[area.UNROUTED_KEY]["counts"]["overdue_interview"], 1)
+        self.assertEqual(rows[str(self.district_2.org_unit_id)]["counts"]["overdue_interview"], 0)
+        self.assertEqual(summary["card"]["counts"]["overdue_interview"], 3)
+        self.assertEqual(summary["card"]["counts"]["overdue_coding"], 1)
+        # Live: the period filters deaths reported, never the overdue counts.
+        recent = area.area_summary(self.project_user, self.TREE, period="30d")
+        self.assertEqual(recent["card"]["counts"]["overdue_interview"], 3)
+        self.assertEqual(recent["card"]["counts"]["overdue_coding"], 1)
+        # Drilled down, each child counts its own subtree.
+        children = self._by_key(area.area_summary(self.project_user, self.TREE, unit_id=str(self.district_1.org_unit_id)))
+        self.assertEqual(children[str(self.chc_a.org_unit_id)]["counts"]["overdue_interview"], 1)
+        self.assertEqual(children[str(self.chc_a.org_unit_id)]["counts"]["overdue_coding"], 1)
+        self.assertEqual(children[str(self.chc_b.org_unit_id)]["counts"]["overdue_interview"], 1)
+
+    def test_overdue_in_sites_mode_rows(self):
+        self._case(project=self.SITES, site=self.SITE_TWO, status="submitted", va_sid="uuid:area-s22")  # 40 days
+        self._case(project=self.SITES, site=self.SITE_ONE, dod_days=61)
+        rows = self._by_key(area.area_summary(self.base_admin_user, self.SITES))
+        self.assertEqual(rows[self.SITE_TWO]["counts"]["overdue_coding"], 1)
+        self.assertEqual(rows[self.SITE_ONE]["counts"]["overdue_interview"], 1)
+        self.assertEqual(rows[self.SITE_ONE]["counts"]["overdue_coding"], 0)
+
+    def test_csv_carries_both_measures(self):
+        self._case(unit=self.chc_a, dod_days=61)
+        text = area.summary_csv(area.area_summary(self.project_user, self.TREE))
+        self.assertIn("area,ARDT01,Area ARDT01,overdue_interview,1", text)
+        self.assertIn("area,ARDT01,Area ARDT01,overdue_coding,0", text)
+        self.assertIn("row,AD1,Unit AD1,overdue_interview,1", text)
+        self.assertIn("row,AD1,Unit AD1,overdue_coding,0", text)
+
+
 class AreaFinalCodTests(AreaDashboardFixture):
     """Final COD: a final cause of death holds authority, live.
 

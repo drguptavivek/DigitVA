@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-11-04
 ---
 
 # Submission Analytics Materialized Views
@@ -236,8 +236,14 @@ beads `digitva-stc`, `digitva-qfh8`). Code:
   - case counts over `va_death_register` (`_case_count_columns`, duplicates
     and cancelled cases out): `deaths_reported` in the period,
     `deaths_7_days`, `deaths_30_days`, `interviews_pending` (status in
-    `user_home_service.OPEN_CASE_STATES`) and `pending_over_7_days` /
-    `_30_days` by `created_at`;
+    `user_home_service.OPEN_CASE_STATES`), `pending_over_7_days` /
+    `_30_days` by `created_at`, and `overdue_interview` / `overdue_coding`
+    (`case_list_service.waiting`, the same SQL as `GET /api/v1/cases?overdue=`:
+    60 days from date of death, else date reported; 15 days from submission;
+    live, never period-filtered; the case's workflow and submission are
+    outer-joined on `va_sid`). The reply carries
+    `thresholds: {"interview_days": 60, "coding_days": 15}`; the CSV carries
+    both measures;
   - live counts over one `_live_flags` subquery of `va_submissions`
     (retired, confirmed-duplicate and inactive-pair submissions out):
     `final_cod` (an authority row naming a coder or reviewer assessment),

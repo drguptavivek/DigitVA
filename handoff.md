@@ -94,6 +94,10 @@ has neither, and its coding is one direct step with SmartVA visible.
   backup strings; `src/i18n.ts` REVIEW NEEDED note).
 - WHO data files' duplicated sha256 values: keep both, or add a drift check.
 - CI as the engine release source (after `digitva-9cll.11`).
+- Statistics tables omit sites-mode/legacy interviews with no register row
+  (`digitva-vfll`): extend the ODK case backfill to sites mode, or list them
+  from submissions. Staging count needs `aws login` (digitva profile).
+  Statistics Hindi strings: `digitva-omqx`.
 - InterVA2022/InSilicoVA2022 as experimental algorithms
   (`.tasks/2026-10-30-interva2022-insilicova2022-experimental.md`): needs a go.
 

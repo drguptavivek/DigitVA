@@ -1,5 +1,5 @@
 /** Pure rules of the Statistics screen: bar widths and number formatting. No React, so they are unit-tested directly. */
-import { DEFAULT_PERIOD, PERIODS, type AreaCounts, type AreaProject, type AreaRow, type Period } from "../../area/api";
+import type { AreaCounts, AreaRow } from "../../area/api";
 
 /** The three stages of one unit's bar. Interviewed = submissions received, coded = final cause of death. */
 export type PipelineCounts = Pick<AreaCounts, "deaths_reported" | "submitted" | "final_cod">;
@@ -35,52 +35,6 @@ export function soleOpenUnit(
   const [only] = summary.rows;
   return summary.rows.length === 1 && only.kind === "unit" && only.has_children ? only.key : null;
 }
-
-export interface AreaSelection {
-  project: string;
-  unit: string | null;
-  site: string | null;
-  period: Period;
-}
-
-type RawParam = string | string[] | undefined;
-const MAX_PARAM = 64;
-const one = (value: RawParam): string => ((Array.isArray(value) ? value[0] : value) ?? "").trim();
-
-/**
- * The view named by the URL (same query names as /api/v1/area/*), checked against the projects the server listed.
- * An unknown project or period falls back to the first project / all time; unit applies only to organization projects
- * and site only to sites projects. A unit or site the server refuses is handled by the screen (404), not here.
- * Null when the user has no project.
- */
-export function parseSelection(
-  raw: { project?: RawParam; unit?: RawParam; site?: RawParam; period?: RawParam },
-  projects: Pick<AreaProject, "project_id" | "mode">[],
-): AreaSelection | null {
-  const chosen = projects.find((row) => row.project_id === one(raw.project)) ?? projects[0];
-  if (!chosen) return null;
-  const valid = (value: string) => (value && value.length <= MAX_PARAM ? value : null);
-  const period = one(raw.period);
-  return {
-    project: chosen.project_id,
-    unit: chosen.mode === "organization" ? valid(one(raw.unit)) : null,
-    site: chosen.mode === "sites" ? valid(one(raw.site)) : null,
-    period: (PERIODS as readonly string[]).includes(period) ? (period as Period) : DEFAULT_PERIOD,
-  };
-}
-
-/** URL params of a selection; empty values and the default period are left out so links stay short. */
-export function selectionParams(selection: AreaSelection): Record<string, string> {
-  return {
-    project: selection.project,
-    ...(selection.unit ? { unit: selection.unit } : {}),
-    ...(selection.site ? { site: selection.site } : {}),
-    ...(selection.period !== DEFAULT_PERIOD ? { period: selection.period } : {}),
-  };
-}
-
-/** Above this many projects a drop-down replaces the row of buttons. */
-export const PROJECT_BUTTONS_MAX = 4;
 
 /** Median days with one decimal ("3.5"); null when the server had too little data. */
 export function formatDays(days: number | null): string | null {

@@ -4547,6 +4547,7 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     no case they could not already list). ``reporter_only`` is the set of
     the page's death ids reached that way alone, not by an interviewer
     grant: their rows carry the reporter's shape (``worklist_page``).
+    ``coding_status`` is ``{death_id: str | None}`` for the page (``_CODING_STATUS``).
     """
     for state in states or []:
         if state not in CASE_STATES:
@@ -4560,7 +4561,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
         reporter_scope = sa.and_(reporter_scope, VaDeathRegister.registered_by == user.user_id)
     scopes = [s for s in (interviewer_scope, reporter_scope) if s is not None]
     if not scopes:
-        return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}, "reporter_only": set()}
+        return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}, "reporter_only": set(),
+                "coding_status": {}}
     scope = scopes[0] if len(scopes) == 1 else sa.or_(*scopes)
     base = [scope]
     if project_id is not None:
@@ -4591,16 +4593,20 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
         )
         if cursor:
             filters.append(_after_worklist_cursor(cursor))
+    # Lazy: case_list_service imports this module.
+    from app.services.case_list_service import combined_status_case
+
     via_interviewer = interviewer_scope if interviewer_scope is not None else sa.false()
     rows = db.session.execute(
         _worklist_select(user)
-        .add_columns(via_interviewer.label("via_interviewer"))
+        .add_columns(combined_status_case().label("combined_status"), via_interviewer.label("via_interviewer"))
         .where(*filters)
         .order_by(*order_by)
         .limit(limit + 1)
     ).all()
     reporter_only = {row[0].death_id for row in rows[:limit] if not row[-1]}
-    page = [tuple(row)[:-1] for row in rows[:limit]]
+    coding_status = {row[0].death_id: _CODING_STATUS.get(row[-2]) for row in rows[:limit]}
+    page = [tuple(row)[:-2] for row in rows[:limit]]
     if len(rows) > limit:
         last = page[-1][0]
         next_cursor = (_encode_cursor(last.created_at, last.death_id) if sort == "reported"
@@ -4614,10 +4620,15 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
             {"death_id": str(row.death_id), "unique_id": row.unique_id}
         )
     return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible,
-            "reporter_only": reporter_only}
+            "reporter_only": reporter_only, "coding_status": coding_status}
 
 
 _TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
+#: A worklist row's ``coding_status`` from the case list's combined status
+#: (``case_list_service.combined_status_case``); any other status (no
+#: submission, refused, duplicate, cancelled) is None.
+_CODING_STATUS = {"submitted_awaiting_coding": "awaiting_coding", "in_coding": "in_coding",
+                  "coded": "coded", "not_codeable": "not_codeable"}
 
 
 def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
@@ -4638,7 +4649,10 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     project's rows never carry them (owner, 2026-10-20). Each row carries
     ``identifiers`` (``death_identifier_service.identifier_payloads``, loaded
     once for the page) and ``can_edit_identifiers`` (``can_edit_identifiers``,
-    one query for the page). *project_id* and *context* as ``list_worklist``.
+    one query for the page). ``coding_status``: ``awaiting_coding``,
+    ``in_coding``, ``coded``, ``not_codeable`` or None (no submission, or
+    refused / duplicate / cancelled), from the same select.
+    *project_id* and *context* as ``list_worklist``.
     """
     mine = (args.get("mine") or "").lower()
     if mine not in _TRUE + _FALSE:
@@ -4684,6 +4698,7 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
             serialized["latitude"] = fix.get("latitude")
             serialized["longitude"] = fix.get("longitude")
         serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
+        serialized["coding_status"] = result["coding_status"][row[0].death_id]
         # A case reached only as its reporter: no interview here, so nothing
         # about other interviewers' drafts (as _case_body, digitva-t6q).
         serialized["can_interview"] = row[0].death_id not in result["reporter_only"]

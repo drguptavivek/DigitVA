@@ -31,6 +31,7 @@ jest.mock("expo-router", () => ({
   useIsFocused: () => true,
   useRouter: () => ({ push: mockPush, replace: jest.fn(), setParams: mockSetParams, back: jest.fn() }),
   useLocalSearchParams: () => mockParams,
+  usePathname: () => "/collection",
 }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap, reload: jest.fn() }) }));
 jest.mock("../src/client/api", () => ({
@@ -226,6 +227,23 @@ describe("DeathsList cards", () => {
     expect(text(tree)).toContain("MCCD123");
     expect(text(tree)).toContain("idBadgeMissing:");
     expect(tree.root.findAll((n) => n.props["data-label"] === "idAddAction")).toHaveLength(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("says where coding stands on a submitted card, and nothing new without a coding status", async () => {
+    mockGetCases.mockResolvedValue({ cases: [
+      { ...rows[2], death_id: "c1", coding_status: "coded" },
+      { ...rows[2], death_id: "c2", coding_status: "not_codeable" },
+      { ...rows[2], death_id: "c3", coding_status: "awaiting_coding" },
+      { ...rows[2], death_id: "c4", coding_status: null },
+    ], counts: {}, next_cursor: null });
+    const tree = await render(<DeathsListPanel />);
+    const card = (id: string) => JSON.stringify(tree.root.findAll((n) => n.props.testID === `death-card-${id}`)[0].findAll((n) => typeof n.props.children === "string").map((n) => n.props.children));
+    expect(card("c1")).toContain("caseStatus_coded");
+    expect(card("c2")).toContain("caseStatus_not_codeable");
+    expect(card("c3")).toContain("caseStatus_submitted_awaiting_coding");
+    expect(card("c4")).toContain("state:submitted");
+    expect(card("c4")).not.toMatch(/caseStatus_/);
     await act(async () => tree.unmount());
   });
 

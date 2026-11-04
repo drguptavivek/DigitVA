@@ -48,6 +48,20 @@ export function serializeQueueParams(view: { projectId?: string; showHistory: bo
   };
 }
 
+/**
+ * How a settled queue view reaches the URL whose query is *search*: a project change pushes a history entry, so Back
+ * returns to the previous project; the first settle (no project in the URL yet) and tab or page changes replace it.
+ * `params` is the whole next query (other params kept, the queue's own rewritten).
+ */
+export function queueUrlStep(search: string, view: { projectId?: string; showHistory: boolean; offset: number }): { push: boolean; params: Record<string, string> } {
+  const query = new URLSearchParams(search);
+  const before = query.get("project");
+  for (const key of ["project", "tab", "offset"]) query.delete(key);
+  const params = Object.fromEntries(query);
+  for (const [key, value] of Object.entries(serializeQueueParams(view))) if (value !== undefined) params[key] = value;
+  return { push: before !== null && before !== params.project, params };
+}
+
 /** True while the URL names a queue (no case): a late queue report after opening a case must not write onto the case URL. */
 export function ownsQueueParams(search: string): boolean {
   return !new URLSearchParams(search).has("vaSid");

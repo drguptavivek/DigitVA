@@ -3,3 +3,5 @@ android/src/main/jniLibs/
 android/src/main/assets/
 android/.cxx/
 android/build/
+ios/DigitvaIcd11Engine.xcframework/
+ios/Icd11Data/

@@ -1,0 +1,219 @@
+name: iOS build
+
+# Compiles the DigitVA Collect iOS app for the iOS Simulator, unsigned, so the Swift of the local native modules
+# (mobile/digitva-collect/modules/*/ios) and the generated Xcode project are built on every change. No signing, no
+# secrets, nothing published: this proves the app compiles and links, not that it runs.
+#
+# build:  the plain app (APP_VARIANT unset): the engine modules are excluded by plugins/with-ios-collect-plus.js.
+# plus:   workflow_dispatch with plus=true. Builds SmartVA for iOS (scripts/build-smartva-ios.sh) and the Plus variant
+#         with SmartVA only. The ICD-11 engine for iOS has no pinned release yet, so DIGITVA_IOS_SKIP_ICD11=1 keeps the
+#         ICD-11 module out. TODO(digitva-nujw.4): once engine-src/build-ios.sh's archive is published and pinned, fetch
+#         and verify it here like collect-plus-release.yml does for Android and drop DIGITVA_IOS_SKIP_ICD11.
+
+on:
+  workflow_dispatch:
+    inputs:
+      plus:
+        description: Also build the Collect Plus variant (SmartVA only; ICD-11 is skipped until an iOS engine is pinned)
+        required: true
+        default: false
+        type: boolean
+  pull_request:
+    paths:
+      - mobile/digitva-collect/**
+      - scripts/build-smartva-ios.sh
+      - .github/workflows/ios-build.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPO_PUBLIC_API_BASE_URL: https://digitvav3.causeofdeathindia.com
+
+jobs:
+  build:
+    name: Build plain app (simulator, unsigned)
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # The newest Xcode on the image: React Native 0.86 needs a recent one, and the image's default can lag.
+      - name: Select Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/digitva-collect/package-lock.json
+
+      - name: Set up pnpm 11.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+
+      - name: Build the vendored WHO package
+        run: |
+          pnpm --dir vendor/who-va-2022 install --frozen-lockfile
+          pnpm --dir vendor/who-va-2022 run build
+
+      - name: Install mobile dependencies from the lockfile
+        working-directory: mobile/digitva-collect
+        run: npm ci
+
+      - name: Generate the native iOS project
+        working-directory: mobile/digitva-collect
+        run: npx expo prebuild --platform ios --clean --no-install --non-interactive
+
+      - name: Check the engine modules are excluded from the plain build
+        working-directory: mobile/digitva-collect/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'use_expo_modules!(exclude: ["digitva-icd11", "digitva-smartva"])' Podfile || {
+            echo "the plain Podfile does not exclude the engine modules: is ./plugins/with-ios-collect-plus in app.json?" >&2
+            exit 1
+          }
+
+      - name: Install pods
+        working-directory: mobile/digitva-collect/ios
+        run: pod install
+
+      - name: Check no engine pod was installed
+        working-directory: mobile/digitva-collect/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq '^  - Digitva(Icd11|Smartva) ' Podfile.lock; then
+            echo "an engine pod is in the plain build's Podfile.lock" >&2
+            exit 1
+          fi
+          grep -Eq '^  - DigitvaDeviceInfo ' Podfile.lock || { echo "DigitvaDeviceInfo pod missing" >&2; exit 1; }
+
+      - name: Build for the iOS Simulator (Debug, unsigned)
+        working-directory: mobile/digitva-collect/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(ls -d ./*.xcworkspace | head -1)"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          # arm64 only: the runner is Apple silicon and the Plus engines ship arm64 simulator slices only.
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/derived" \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+
+  plus:
+    name: Build Collect Plus (SmartVA only, simulator, unsigned)
+    if: github.event_name == 'workflow_dispatch' && inputs.plus
+    runs-on: macos-15
+    timeout-minutes: 120
+    env:
+      APP_VARIANT: plus
+      # TODO(digitva-nujw.4): remove once an iOS ICD-11 engine release is pinned and staged here.
+      DIGITVA_IOS_SKIP_ICD11: "1"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Select Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      # The engine source is the vendor/smartva-analyze submodule (public); only it is fetched.
+      - name: Fetch the SmartVA engine source
+        run: git submodule update --init --depth 1 vendor/smartva-analyze
+
+      - name: Build SmartVA for iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup target add --toolchain stable aarch64-apple-ios aarch64-apple-ios-sim
+          RUSTUP_TOOLCHAIN=stable scripts/build-smartva-ios.sh
+          test -f private/generated/smartva-ios/SmartvaRust.xcframework/Info.plist
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/digitva-collect/package-lock.json
+
+      - name: Set up pnpm 11.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@11.9.0 --activate
+
+      - name: Build the vendored WHO package
+        run: |
+          pnpm --dir vendor/who-va-2022 install --frozen-lockfile
+          pnpm --dir vendor/who-va-2022 run build
+
+      - name: Install mobile dependencies from the lockfile
+        working-directory: mobile/digitva-collect
+        run: npm ci
+
+      # Prebuild runs plugins/with-ios-collect-plus.js, which stages the xcframework into modules/digitva-smartva/ios.
+      - name: Generate the native iOS project
+        working-directory: mobile/digitva-collect
+        run: npx expo prebuild --platform ios --clean --no-install --non-interactive
+
+      - name: Install pods
+        working-directory: mobile/digitva-collect/ios
+        run: pod install
+
+      - name: Check SmartVA is linked and ICD-11 is not
+        working-directory: mobile/digitva-collect/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ../modules/digitva-smartva/ios/SmartvaRust.xcframework/Info.plist
+          grep -Eq '^  - DigitvaSmartva ' Podfile.lock || { echo "DigitvaSmartva pod missing" >&2; exit 1; }
+          if grep -Eq '^  - DigitvaIcd11 ' Podfile.lock; then echo "DigitvaIcd11 must be skipped" >&2; exit 1; fi
+
+      - name: Build for the iOS Simulator (Debug, unsigned)
+        working-directory: mobile/digitva-collect/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$(ls -d ./*.xcworkspace | head -1)"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/derived" \
+            ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+
+      # The engine must be in the linked app, not dead-stripped or missing: its C ABI symbols prove it.
+      - name: Check the SmartVA engine is in the app binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$(find "$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name '*.app' | head -1)"
+          binary="$app/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+          # A Debug build may put the code in <name>.debug.dylib beside the stub executable.
+          candidates=("$binary" "$app"/*.debug.dylib)
+          for file in "${candidates[@]}"; do
+            [[ -f "$file" ]] || continue
+            if nm -gU "$file" 2>/dev/null | grep -q ' _smartva_score_json$'; then echo "smartva_score_json in $(basename "$file")"; exit 0; fi
+          done
+          echo "smartva_score_json not found in the app binary" >&2
+          exit 1

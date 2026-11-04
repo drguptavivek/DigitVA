@@ -20,6 +20,7 @@
       "./plugins/with-android-abi-splits",
       "./plugins/with-android-legacy-gallery",
       "./plugins/with-android-collect-plus",
+      "./plugins/with-ios-collect-plus",
       [
         "expo-sqlite",
         {

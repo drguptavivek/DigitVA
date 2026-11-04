@@ -21,7 +21,8 @@
  * who-files.json with their size and sha256. The app verifies the staged copies against it and restores them when
  * missing (EngineData.kt), so the manifest is written from the staged copies, never from the spike's files by hand.
  *
- * CLI: `node stage-engine.js` stages; `--list <spike>` prints engineFiles(); `--spike` prints the spike folder found.
+ * CLI: `node stage-engine.js` stages; `--ios` stages for iOS (stageIcd11Ios); `--list <spike>` prints engineFiles();
+ * `--spike` prints the spike folder found.
  */
 const { execFileSync } = require("node:child_process");
 const crypto = require("node:crypto");
@@ -137,7 +138,70 @@ function stageEngine({ moduleDir = MODULE_DIR, env = process.env } = {}) {
   });
 }
 
-module.exports = { stageEngine, findSpike, engineFiles };
+// iOS (stageIcd11Ios): the engine is engine-src/build-ios.sh's xcframework, the data the same files as Android.
+const IOS_XCFRAMEWORK = "DigitvaIcd11Engine.xcframework";
+const IOS_ENGINE = ["private", "generated", "icd11-ios"];
+const IOS_DATA = "Icd11Data";
+const MISSING_IOS_ENGINE =
+  "Collect Plus for iOS needs the offline ICD-11 engine for iOS: build it on a Mac with engine-src/build-ios.sh " +
+  "private/generated/icd11-ios (writes DigitvaIcd11Engine.xcframework), or set DIGITVA_ICD11_IOS_ENGINE_DIR to a folder " +
+  "that holds DigitvaIcd11Engine.xcframework. Set DIGITVA_IOS_SKIP_ICD11=1 to build Plus without the ICD-11 engine.";
+
+/** The iOS engine xcframework: in $DIGITVA_ICD11_IOS_ENGINE_DIR, else the first ancestor's private/generated/icd11-ios. */
+function findIosEngine(env = process.env, from = MODULE_DIR) {
+  const candidates = [];
+  if (env.DIGITVA_ICD11_IOS_ENGINE_DIR) candidates.push(path.join(env.DIGITVA_ICD11_IOS_ENGINE_DIR, IOS_XCFRAMEWORK));
+  for (let dir = from; ; dir = path.dirname(dir)) {
+    candidates.push(path.join(dir, ...IOS_ENGINE, IOS_XCFRAMEWORK));
+    if (dir === path.dirname(dir)) break;
+  }
+  return candidates.find((dir) => fs.existsSync(path.join(dir, "Info.plist")));
+}
+
+/** One sha256 over every file's relative path and contents. */
+function treeDigest(dir) {
+  const hash = crypto.createHash("sha256");
+  for (const file of listFiles(dir).sort()) {
+    const content = fs.readFileSync(path.join(dir, file));
+    hash.update(`${file.split(path.sep).join("/")}\0${content.length}\0`).update(content);
+  }
+  return hash.digest("hex");
+}
+
+/**
+ * Stage the engine for an iOS Collect Plus build into ios/ of this module: the xcframework as is, and the data files
+ * engineFiles() lists (the Android library excepted) under ios/Icd11Data/{bundle,data} with their original names (an
+ * app bundle keeps .gz files as they are, so there is no ".bin" suffix), plus who-files.json written from the staged
+ * copies. The data comes from the same archive or spike folder as Android's. Files left from an older staging are removed.
+ */
+function stageIcd11Ios({ moduleDir = MODULE_DIR, env = process.env } = {}) {
+  const engine = findIosEngine(env, moduleDir);
+  if (!engine) throw new Error(MISSING_IOS_ENGINE);
+  return withEngineSource(env, moduleDir, (source) => {
+    const ios = path.join(moduleDir, "ios");
+    const data = path.join(ios, IOS_DATA);
+    const who = [];
+    const staged = new Set(["who-files.json"]);
+    for (const file of engineFiles(source)) {
+      if (file === ENGINE_LIB) continue;
+      const rel = file.startsWith(`bundle_min${path.sep}`) ? path.join("bundle", path.relative("bundle_min", file)) : file;
+      const from = path.join(source, file);
+      copyIfChanged(from, path.join(data, rel));
+      staged.add(rel);
+      if (isWhoFile(rel)) who.push({ path: rel.split(path.sep).join("/"), size: fs.statSync(from).size, sha256: sha256(from) });
+    }
+    for (const stale of listFiles(data).filter((file) => !staged.has(file))) fs.rmSync(path.join(data, stale));
+    fs.writeFileSync(path.join(data, "who-files.json"), `${JSON.stringify(who, null, 2)}\n`);
+    const destination = path.join(ios, IOS_XCFRAMEWORK);
+    if (!fs.existsSync(destination) || treeDigest(destination) !== treeDigest(engine)) {
+      fs.rmSync(destination, { recursive: true, force: true });
+      fs.cpSync(engine, destination, { recursive: true });
+    }
+    return { source, engine, destination, data, who };
+  });
+}
+
+module.exports = { stageEngine, findSpike, engineFiles, findIosEngine, stageIcd11Ios };
 
 if (require.main === module) {
   const [flag, arg] = process.argv.slice(2);
@@ -145,6 +209,9 @@ if (require.main === module) {
     if (flag === "--list") {
       if (!arg) throw new Error("usage: stage-engine.js --list <spike-or-engine-folder>");
       for (const file of engineFiles(arg)) console.log(file);
+    } else if (flag === "--ios") {
+      const { source, engine } = stageIcd11Ios();
+      console.log(`Collect Plus: iOS engine staged from ${engine}, data from ${source}`);
     } else if (flag === "--spike") {
       const spike = findSpike();
       if (!spike) throw new Error(MISSING_ENGINE);

@@ -4,10 +4,10 @@ const path = require("node:path");
 const moduleDir = path.join(__dirname, "..", "modules", "digitva-smartva");
 
 describe("SmartVA Android source boundary", () => {
-  it("is Android-only and runs in a private, isolated service process", () => {
+  it("on Android runs in a private, isolated service process", () => {
     const config = JSON.parse(fs.readFileSync(path.join(moduleDir, "expo-module.config.json"), "utf8"));
     const manifest = fs.readFileSync(path.join(moduleDir, "android/src/main/AndroidManifest.xml"), "utf8");
-    expect(config.platforms).toEqual(["android"]);
+    expect(config.platforms).toEqual(["android", "apple"]);
     expect(manifest).toContain('android:process=":smartva"');
     expect(manifest).toContain('android:exported="false"');
   });

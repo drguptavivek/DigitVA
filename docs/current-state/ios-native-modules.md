@@ -3,7 +3,7 @@ title: iOS Native Modules (Device Info, SmartVA, ICD-11)
 doc_type: current-state
 status: draft
 owner: drguptavivek
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # iOS native modules
@@ -90,6 +90,26 @@ names the inputs to verify (for example `libbootstrapperdll.o`, `libRuntime.Work
 `libSystem.Security.Cryptography.Native.Apple.a`, `libSystem.Net.Security.Native.a`). The iOS settings are passed to
 `dotnet publish` as properties, so `Bridge.csproj` and the Android build are unchanged. The WHO data is not in the iOS
 engine archive: both platforms stage it from the same engine archive.
+
+## Local build on a Mac
+
+`scripts/ios-local-build.sh [plain|plus-smartva|plus] [--run]` repeats the CI
+steps on a Mac with Xcode, CocoaPods, Node 22 and pnpm 11.9, and adds the full
+`plus` build CI cannot do yet:
+
+- `plain`: Collect without engines.
+- `plus-smartva`: Plus with SmartVA only, as CI builds it (needs Rust with
+  `aarch64-apple-ios` and `aarch64-apple-ios-sim`).
+- `plus`: SmartVA and the ICD-11 engine. Also needs .NET 10. WHO's assemblies
+  come from `ICDAPI_DIR`, or are copied once with Docker out of the image pinned
+  in `icd11-engine-build.yml`. WHO data comes from
+  `DIGITVA_ICD11_ENGINE_ARCHIVE`, or the pinned engine release is downloaded
+  with `gh` and checked against the sha256 in `collect-plus-release.yml`.
+
+It builds Release for the simulator, unsigned, so the JS bundle is inside the
+app and it runs without Metro; `--run` boots an iPhone simulator, installs and
+launches it. Outputs go to `private/generated` (git-ignored). Not for
+distribution.
 
 ## Verified and not verified
 

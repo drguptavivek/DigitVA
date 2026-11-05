@@ -84,8 +84,9 @@ has neither, and its coding is one direct step with SmartVA visible.
 12. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
     Android ICD/DORIS review findings.
 13. iOS port (`digitva-nujw`, draft PR #774 from `ios-port`): the plain
-    simulator app compiles on macOS CI (`ios-build.yml`); label a PR
-    `ios-plus` to build Plus with SmartVA. Next: simulator smoke test (`.7`),
+    simulator app and Plus with SmartVA (label `ios-plus`) compile and link on
+    macOS CI (`ios-build.yml`). Nothing has run yet. Next: simulator smoke
+    test (`.7`), a SmartVA scoring check on the simulator (`.3`),
     then ICD-11 NativeAOT for iOS and its memory on a 3-4 GB iPhone (`.8`).
     Distribution needs an Apple Developer account (`.5`).
 14. `make collect-plus-local`: container mode untested end to end (Docker 12 GB

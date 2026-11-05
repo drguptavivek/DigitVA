@@ -42,7 +42,7 @@ export const interviewerNameFromAccount = (name: string): string =>
 
 /**
  * Initial answers with the recalled ones in the empty slots; with no recall,
- * the account's display name for Id10010 (reduced to a valid name). Never overwrites an answer.
+ * the account's display name for Id10010. Id10010 is always reduced to a valid name (see above). Never overwrites a typed answer.
  */
 export function withInterviewerRecall(
   data: SubmissionData | undefined,
@@ -50,6 +50,13 @@ export function withInterviewerRecall(
   accountName?: string,
 ): SubmissionData {
   const out: SubmissionData = { ...(data ?? {}) };
+  // The server's and the cached prefill carry the raw account name; reduce it here so every path meets the constraint.
+  // `data` is the initial prefill only, never an answer the interviewer typed.
+  if (typeof out.Id10010 === "string") {
+    const valid = interviewerNameFromAccount(out.Id10010);
+    if (valid) out.Id10010 = valid;
+    else delete out.Id10010;
+  }
   const accountValue = accountName ? interviewerNameFromAccount(accountName) : "";
   const source: InterviewerRecall = recall ?? (accountValue ? { Id10010: accountValue } : {});
   for (const name of RECALL_NAMES) {

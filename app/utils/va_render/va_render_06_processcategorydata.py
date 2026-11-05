@@ -1,10 +1,11 @@
+import re
 from collections import OrderedDict
 from flask import url_for
 from app.services import attachment_service
 from app.utils.va_render.va_render_05_mapchoicevalue import va_render_mapchoicevalue
 from app.utils.va_render.va_render_02_standardizedate import va_render_standardizedate
 from app.utils.va_render.va_render_04_cleannumericvalue import va_render_cleannumericvalue
-from app.utils.va_render.va_render_03_formatdatetimeindian import va_render_formatdatetimeindian
+from app.utils.va_render.va_render_03_formatdatetimeindian import va_render_formatdatetimeindian, va_render_formattime
 
 
 va_dealwithdates = ["Id10021", "Id10023", "Id10024", "Id10012", "Id10071"]
@@ -124,6 +125,30 @@ def _list_answer_as_text(va_fieldid, value, va_mapping_choice):
     return " ".join(str(item) for item in value)
 
 
+_LABEL_REF_RE = re.compile(r"\$\{([^}]+)\}")
+_UNRESOLVED_UNIT_RE = re.compile(r"\s*\(in \$\{[^}]*\}\)")
+
+
+def _interpolate_label(label, va_data, va_mapping_choice):
+    """Replace ODK ``${field}`` references in a label with that field's answer, as ODK does.
+
+    A choice field shows its choice label (``sa_tu13`` = "hours" reads "Hours"). A reference with no
+    answer drops its "(in ${...})" wrapper, then any bare reference, so no raw placeholder reaches a reader.
+    """
+    if "${" not in label:
+        return label
+
+    def answer(match):
+        value = va_data.get(match.group(1))
+        if value is None or value == "":
+            return match.group(0)
+        choices = va_mapping_choice.get(match.group(1))
+        return str(_label_choice(choices, value) if choices else value)
+
+    label = _LABEL_REF_RE.sub(answer, label)
+    return _LABEL_REF_RE.sub("", _UNRESOLVED_UNIT_RE.sub("", label)).strip()
+
+
 def va_render_processcategorydata(
     va_data, va_form_id, va_datalevel, va_mapping_choice, va_partial, *, va_sid=None
 ):
@@ -149,6 +174,7 @@ def va_render_processcategorydata(
     for va_subcat, va_fieldmap in category_mapping.items():
         va_subcatresult = OrderedDict()
         for va_fieldid, va_label in va_fieldmap.items():
+            va_label = _interpolate_label(va_label, va_data, va_mapping_choice)
             if va_fieldid in va_data and va_data.get(va_fieldid) is not None:
                 value = va_data.get(va_fieldid)
                 # A list is skipped exactly when its space-joined string would be.
@@ -163,6 +189,8 @@ def va_render_processcategorydata(
                     if va_fieldid not in va_multipleselect:
                         va_subcatresult[va_label] = value
                         continue
+                if isinstance(value, str):
+                    value = va_render_formattime(value)
                 if va_fieldid in va_dealwithdates:
                     value = va_render_standardizedate(value)
                 if va_fieldid in va_dealwithdatetimes:

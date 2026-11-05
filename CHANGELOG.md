@@ -5,6 +5,31 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-05
 
+- **Screen-check fixes on the web app** (`digitva-kgjk`;
+  `docs/policy/digitva-who-form-overrides.md`), from a check of every input
+  screen at 375, 768 and 1366 px:
+  - NQA and Social Autopsy answer rows get padding, a 44 px height and
+    rounded corners; columns follow width and label length, and three short
+    options share one line (the flex basis subtracts the gaps).
+  - DORIS choice rows use the most columns in which every label fits on one
+    line ("Not stated" no longer wraps at 768 px); below desktop width the
+    page scrolls clear of the Notes button.
+  - Training coding, review and interview cases open again: the collection
+    gate read only the last segment of the route name.
+  - Social Autopsy labels fill `${sa_tu13}`-style references with the chosen
+    unit (or drop the "(in …)" part), and a bare ODK time shows as HH:MM;
+    both in the server's category rendering, so web, phone and the offline
+    pack agree.
+  - "Coding case released." shows in the success colour, not as an error.
+  - The interviewer-name prefill always passes WHO's letters-only rule.
+  - The interview's Sections button and the web menu draw their icons; the
+    ICD-11 coding-note ☰ stays (it is text).
+  - Id10004 (season of death) stays asked; WHO's "completed by the central
+    office" hint and guidance are replaced in English and Hindi (composed
+    version `2026081401-405dcd46c5`). French: `digitva-t620`.
+  - Hindi: "सहेजें" becomes "सेव" app-wide; the stale-save choice reads
+    "कौन से जवाब रखने हैं?" and "मेरे जवाबों को इस्तेमाल करें".
+
 - **Web controls draw state with vectors and theme tokens** (`digitva-mle7`):
   ticks, crosses, chevrons and radio dots are drawn shapes from the shared
   `src/ui/controls.tsx` (CheckMark, XMark, Checkbox, MenuChoiceRow,

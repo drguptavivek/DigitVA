@@ -18,14 +18,15 @@ describe("WHO web theme variables", () => {
 describe("choiceColumnsFor", () => {
   const short = ["< 3 sentences", "Absent", "Present"];
   const long = ["A label that is clearly longer than eighteen characters"];
-  it("uses 2 columns on phones and 3 elsewhere for short labels", () => {
-    expect(choiceColumnsFor(375, short)).toBe(2);
+  it("uses 2 columns on phones only for very short labels, 3 elsewhere for short labels", () => {
+    expect(choiceColumnsFor(375, ["Absent", "Present"])).toBe(2);
+    expect(choiceColumnsFor(375, short)).toBe(1);
     expect(choiceColumnsFor(700, short)).toBe(3);
     expect(choiceColumnsFor(1200, short)).toBe(3);
   });
-  it("keeps the width rule when any label is long", () => {
+  it("puts long labels in 1 column under 900 px and 2 above", () => {
     expect(choiceColumnsFor(375, long)).toBe(1);
-    expect(choiceColumnsFor(700, long)).toBe(2);
-    expect(choiceColumnsFor(1200, long)).toBe(3);
+    expect(choiceColumnsFor(700, long)).toBe(1);
+    expect(choiceColumnsFor(1200, long)).toBe(2);
   });
 });

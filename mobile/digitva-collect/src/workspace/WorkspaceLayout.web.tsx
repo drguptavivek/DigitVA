@@ -355,7 +355,7 @@ export function WorkspaceLayout({
   </View>;
 
   return <View style={webStyles.safe}>
-    <ScrollView keyboardDismissMode="on-drag" {...scrollMemory} style={webStyles.scroller} contentContainerStyle={[webStyles.page, phone && webStyles.pagePhone, phone && notes ? webStyles.pageWithNotesPill : null]}>
+    <ScrollView keyboardDismissMode="on-drag" {...scrollMemory} style={webStyles.scroller} contentContainerStyle={[webStyles.page, phone && webStyles.pagePhone, !wide && notes ? webStyles.pageWithNotesPill : null]}>
       <View style={webStyles.content}>
         {phone ? <View style={[webStyles.sectionBar, { boxShadow: themeUi.shadow } as any, categoriesOpen && webStyles.sectionBarBehind]}>
           <Pressable

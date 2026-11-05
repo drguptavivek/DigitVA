@@ -374,10 +374,12 @@
       "control": "singleChoice",
       "dataType": "string",
       "guidance": {
-        "en": "<span style=\"color:blue\">The project team should provide a list of months classified as wet or dry. Select wet or dry according to the list provided. How the information is completed varies by site, but ideally it is filled by the central office; with interviewers being able to edit the information if verified differently in consultation with the central office.</span>"
+        "en": "The interviewer answers this question. Select Wet or Dry for the month in which the death happened, using the list of wet and dry months the project provides. If the month of death is not known, select Doesn't know.",
+        "hi": "इस प्रश्न का उत्तर साक्षात्कारकर्ता देता है। जिस महीने मृत्यु हुई, उसके लिए परियोजना की गीले और सूखे महीनों की सूची के अनुसार गीला या सूखा चुनें। मृत्यु का महीना पता न हो तो 'नहीं जानता' चुनें।"
       },
       "hint": {
-        "en": "<span style=\"color:red\">Should be completed by the central office.</span>"
+        "en": "Choose by the month of death, using the project's list of wet and dry months.",
+        "hi": "मृत्यु के महीने के अनुसार चुनें; परियोजना की गीले और सूखे महीनों की सूची देखें।"
       },
       "label": {
         "en": "(Id10004) [During which season did (s)he die?]"
@@ -35611,5 +35613,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-65fa41ff53"
+  "version": "2026081401-405dcd46c5"
 }

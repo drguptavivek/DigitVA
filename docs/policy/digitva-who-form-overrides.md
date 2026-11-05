@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-05
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -63,6 +63,17 @@ Interviewers wrote a category ("home", "hospital") into the address question `Id
 | `Id10072` place of registration | Write the name of the place or office where the death was registered (town and district), not a category. | जिस स्थान या कार्यालय में मृत्यु पंजीकृत हुई उसका नाम लिखें (कस्बा और ज़िला), कोई श्रेणी नहीं। |
 
 Hints are part of the composed definition, so the version moved from `2026081401-0e105c1d52` to `2026081401-5a091ba784`; drafts pinned to the older version keep their old hints.
+
+### Season of death: the interviewer answers it (owner decision 2026-11-05)
+
+`Id10004` stays asked to the interviewer. WHO's hint (red, "Should be completed by the central office.") and guidance (blue, "ideally filled by the central office") are wrong for DigitVA, so an always-on core override in `vendor/who-va-2022/src/instrument.ts` (`SEASON_OF_DEATH_TEXT`) replaces both, en and hi, with plain text (no colour spans). The Hindi pack entry in `vendor/who-va-2022/src/languages/hi.ts` carries the same text, because a pack entry overrides the instrument's `hi`. Label, choices (Wet / Dry / Doesn't know), relevance, constraints and requiredness are untouched. The French pack (`fr.ts`) still has WHO's wording; it is not changed.
+
+| Field | English | Hindi |
+|---|---|---|
+| hint | Choose by the month of death, using the project's list of wet and dry months. | मृत्यु के महीने के अनुसार चुनें; परियोजना की गीले और सूखे महीनों की सूची देखें। |
+| guidance | The interviewer answers this question. Select Wet or Dry for the month in which the death happened, using the list of wet and dry months the project provides. If the month of death is not known, select Doesn't know. | इस प्रश्न का उत्तर साक्षात्कारकर्ता देता है। जिस महीने मृत्यु हुई, उसके लिए परियोजना की गीले और सूखे महीनों की सूची के अनुसार गीला या सूखा चुनें। मृत्यु का महीना पता न हो तो 'नहीं जानता' चुनें। |
+
+The composed definition version moved from `2026081401-65fa41ff53` to `2026081401-405dcd46c5`; drafts pinned to the older version keep the old text.
 
 ### Defaults and prefill for new interviews (owner decision 2026-10-23)
 

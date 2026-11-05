@@ -15,6 +15,7 @@ import type { SubmissionData, WhoVaHostPrefill } from "@drguptavivek/who-2022-va
 import { runInTransaction } from "./dbTransaction";
 import { getDraftPrefill, getDraftRow, getMeta, setMeta, type Db, type DraftBinding, purgeProjectData } from "./drafts";
 import { identifiersToSend } from "./identifiers";
+import { interviewerNameFromAccount } from "./interviewerRecall";
 import { normalisePhone } from "./phoneFormat";
 import {
   AGE_REVIEW_THRESHOLD,
@@ -504,9 +505,10 @@ export function prefillFromRegistration(
   if (fields.informant_name?.trim()) answers.Id10007 = fields.informant_name.trim();
   if (fields.father_name?.trim()) answers.Id10061 = fields.father_name.trim();
   if (fields.mother_name?.trim()) answers.Id10062 = fields.mother_name.trim();
-  const cachedInterviewer = interviewer && (interviewer.name?.trim() || interviewer.id?.trim())
+  const interviewerName = interviewerNameFromAccount(interviewer?.name ?? "");
+  const cachedInterviewer = interviewer && (interviewerName || interviewer.id?.trim())
     ? {
-        ...(interviewer.name?.trim() ? { name: interviewer.name.trim() } : {}),
+        ...(interviewerName ? { name: interviewerName } : {}),
         ...(interviewer.id?.trim() ? { id: interviewer.id.trim() } : {})
       }
     : undefined;

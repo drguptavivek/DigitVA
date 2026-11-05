@@ -22,6 +22,10 @@ describe("interviewer recall", () => {
     expect(withInterviewerRecall({}, undefined, "cho_123")).toEqual({ Id10010: "cho" });
     expect(withInterviewerRecall({}, undefined, "1234 .-")).toEqual({});
   });
+  it("reduces an invalid Id10010 already in the initial data (server or cached prefill) too", () => {
+    expect(withInterviewerRecall({ Id10010: "Test CHO SC01" }, undefined)).toEqual({ Id10010: "Test CHO SC" });
+    expect(withInterviewerRecall({ Id10010: "1234", Id10017: "Ravi" }, last)).toEqual({ Id10017: "Ravi", ...last });
+  });
   it("keeps only the four interviewer answers", () => {
     expect(recallFromData({ ...last, Id10017: "Ravi", Id10010a: "" })).toEqual({ Id10010: "Asha", Id10010b: "female", Id10010c: "A-7" });
     expect(recallFromData({ Id10017: "Ravi" })).toBeUndefined();

@@ -37,6 +37,8 @@ has neither, and its coding is one direct step with SmartVA visible.
    `d3c8e5a1f7b4`; then `flask cod-buckets rebuild` once and restart
    `minerva_celery_worker`. Until the rebuild, reports derive live (correct,
    slower). Audit old APKs first: stale-save 409s gained optional fields only.
+   The same deploy carries the screen-check fixes (`digitva-kgjk`), which
+   move the composed form version to `2026081401-405dcd46c5` (Id10004 hint).
 3. Verify on the USB Samsung (RZCW81QZT2Z): install
    `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (release-signed,
    updates 0.3.17 in place) for the 0.3.18 checks and the offline workspace;
@@ -103,9 +105,6 @@ has neither, and its coding is one direct step with SmartVA visible.
 - Statistics Hindi strings, including the new singular forms, and the new
   stale-save strings ("Use my answers", who changed it) need a native
   speaker's review (`digitva-omqx`).
-- The three-device rule wording in `docs/policy/mobile-sign-in.md`,
-  `field-data-collection.md` and `public-demo.md` now says a reset ends a
-  device's slot: confirm it reads as intended.
 - InterVA2022/InSilicoVA2022 as experimental algorithms
   (`.tasks/2026-10-30-interva2022-insilicova2022-experimental.md`): needs a go.
 

@@ -365,7 +365,9 @@ function NavigationMenu() {
         onPress={() => setDrawerOpen(true)}
         style={({ pressed }) => [navigationStyles.menuButton, { borderColor: theme.colors.border, opacity: pressed ? 0.78 : 1 }]}
       >
-        <Text style={[navigationStyles.menuIcon, { color: theme.colors.text }]}>☰</Text>
+        <Svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
+          <Path d="M4 6h16M4 12h16M4 18h16" stroke={theme.colors.text} strokeWidth={2.2} strokeLinecap="round" fill="none" />
+        </Svg>
       </Pressable>
       {linksFor(true)}
     </>
@@ -452,7 +454,6 @@ const navigationStyles = StyleSheet.create({
   linkText: { fontSize: 16, fontWeight: "600", flexShrink: 1 },
   subList: { paddingLeft: 8, marginLeft: 12, borderLeftWidth: 1 },
   menuButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
-  menuIcon: { fontSize: 20, lineHeight: 26 },
   drawerLayer: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 10, flexDirection: "row" },
   scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   drawer: { width: 280, maxWidth: "85%", height: "100%", padding: 16, borderRightWidth: 1, gap: 8, zIndex: 11 },

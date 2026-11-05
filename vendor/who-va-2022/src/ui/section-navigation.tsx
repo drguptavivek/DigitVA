@@ -383,7 +383,14 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
               <Text style={navStyles.moreNoteInline}>{messages.moreSectionsNote}</Text>
             ) : null}
           </View>
-          <Text style={navStyles.headerHint}>{`☰ ${messages.sections}`}</Text>
+          <View style={navStyles.headerHintRow}>
+            <View style={navStyles.menuBars}>
+              <View style={navStyles.menuBar} />
+              <View style={navStyles.menuBar} />
+              <View style={navStyles.menuBar} />
+            </View>
+            <Text style={navStyles.headerHint}>{messages.sections}</Text>
+          </View>
         </Pressable>
       </View>
     );
@@ -658,6 +665,13 @@ export const navStyles = {
   headerHint: withWebTheme(
     { color: T.textMuted, flexShrink: 0, fontSize: 13, fontWeight: "600" as const, lineHeight: 20 },
     { color: "muted" }
+  ),
+  headerHintRow: { alignItems: "center" as const, columnGap: 6, flexDirection: "row" as const, flexShrink: 0 },
+  // The menu mark, drawn as three bars so its size and colour do not depend on a font's glyph.
+  menuBars: { gap: 3, width: 14 },
+  menuBar: withWebTheme(
+    { backgroundColor: T.textMuted, borderRadius: 1, height: 2 },
+    { backgroundColor: "muted" }
   ),
   // Drawer
   overlay: withWebTheme(

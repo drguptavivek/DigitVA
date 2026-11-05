@@ -36,7 +36,7 @@ fn server_fixture_verifies() {
     assert_eq!(cfg.projects[0].sealed_field_ids.len(), 19);
     assert!(cfg.projects[0].consent.is_some());
     let options = cfg.projects[0].form_options.as_ref().expect("form_options");
-    assert_eq!(options["definition_sha256"], "53c7c003d70247bc872a4035011a8f125f5b86644826f090ef8a9e1d60a067ed");
+    assert_eq!(options["definition_sha256"], "0cf719367364db38625fe5ec682223b64212d323c926a4be378dbe7418d46da4");
     assert_eq!(cfg.projects[0].translations["hi"]["version"], 6);
     assert_eq!(cfg.projects[0].coding_mode, Some(Some("icd11_doris".to_string())));
     assert_eq!(verified.issued_at, Utc.with_ymd_and_hms(2026, 10, 21, 9, 30, 0).unwrap());

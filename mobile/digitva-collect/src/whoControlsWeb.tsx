@@ -5,10 +5,10 @@
  * controls intentionally only cover the small choice/text primitives used by
  * the app-owned screens, so those screens do not pull the interview bundle in.
  */
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View, type DimensionValue } from "react-native";
 
 import { useUiStyles } from "./ui";
-import { useTheme } from "./theme";
+import { radius, spacing, useTheme } from "./theme";
 import { CheckMark } from "./ui/controls";
 
 type LocalizedLabel = { en?: string; [locale: string]: string | undefined };
@@ -56,6 +56,14 @@ function questionLabel(question: LightweightQuestion, locale: string): string {
 
 function questionIssues(issues: readonly unknown[] | undefined): boolean {
   return Boolean(issues?.length);
+}
+
+/** One column's width in a wrapping row with 8 px gaps: its share of the row minus its share of the gaps, so n
+ * options fit on one line instead of the last wrapping alone. */
+function choiceBasis(columns: number): DimensionValue {
+  const n = Math.max(1, columns);
+  // Web only (react-native-web passes calc() through); RN's DimensionValue type has no calc().
+  return (n === 1 ? "100%" : `calc(${100 / n}% - ${(8 * (n - 1)) / n}px)`) as DimensionValue;
 }
 
 function ChoiceIndicator({ multiple, selected }: { multiple: boolean; selected: boolean }) {
@@ -169,7 +177,7 @@ function ChoiceControl({ multiple, question, value, locale, showEnglish, issues 
             }}
             style={({ pressed }) => [
               styles.secondary,
-              { flexDirection: "row", alignItems: "center", gap: 8, flexGrow: choiceColumns ? 1 : 0, flexBasis: choiceColumns ? `${100 / Math.max(1, choiceColumns)}%` : "100%", opacity: readOnly ? 0.6 : pressed ? 0.85 : 1 },
+              { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md, flexGrow: choiceColumns ? 1 : 0, flexBasis: choiceColumns ? choiceBasis(choiceColumns) : "100%", opacity: readOnly ? 0.6 : pressed ? 0.85 : 1 },
               isSelected && { backgroundColor: theme.ui.accent, borderColor: theme.ui.primary },
               questionIssues(issues) && { borderColor: theme.ui.destructiveText }
             ]}

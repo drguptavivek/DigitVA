@@ -58,7 +58,7 @@ type QueueData = {
 };
 
 type AllocationData = { api: WorkspaceApi; mode: "coding" | "reviewing"; generation: number; verified: boolean; snapshot: AllocationSnapshot | null };
-type QueueMessage = { scope: QueueScope; text: string };
+type QueueMessage = { scope: QueueScope; text: string; success?: boolean };
 
 function useQueueStyles() {
   const { colors, ui } = useTheme();
@@ -230,7 +230,7 @@ export function QueueScreen({
   const ActiveShell = Shell ?? Screen;
   const styles = useUiStyles();
   const q = useQueueStyles();
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   const [projectId, setProjectId] = useState<string | undefined>(initialView?.projectId);
   const [offset, setOffset] = useState(initialView?.offset ?? 0);
   const [showHistory, setShowHistory] = useState(initialView?.showHistory ?? false);
@@ -585,7 +585,7 @@ export function QueueScreen({
       else await api.releaseReviewer();
       if (!isCurrent(requestGeneration, requestScope)) return;
       actionError.current = null;
-      setMessage({ scope: requestScope, text: mode === "coding" ? "Coding case released." : "Review case released. Step 1 is kept; NQA and Social Autopsy are cleared." });
+      setMessage({ scope: requestScope, success: true, text: mode === "coding" ? "Coding case released." : "Review case released. Step 1 is kept; NQA and Social Autopsy are cleared." });
       setBusy(false);
       actionInFlight.current = false;
       await load();
@@ -996,7 +996,7 @@ export function QueueScreen({
         </View>
       ) : null}
       {loading ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
-      {currentMessage ? <Text accessibilityRole="alert" style={styles.error}>{currentMessage}</Text> : null}
+      {currentMessage ? <Text accessibilityRole={message?.success ? "text" : "alert"} style={[styles.error, message?.success && { color: ui.success }]}>{currentMessage}</Text> : null}
 
       {allocation && !currentData?.cachedHistoryAt ? (
         <View style={styles.card}>

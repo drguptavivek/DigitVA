@@ -19,7 +19,7 @@ export function RefusalPanel({ locale, age, sex, onAge, onSex, onSave, onChangeC
     <Text style={styles.text}>{hi ? "साक्षात्कार आगे नहीं बढ़ेगा। ये विवरण वैकल्पिक हैं।" : "The interview will not continue. These details are optional."}</Text>
     <Text style={styles.text}>{hi ? "आयु समूह" : "Age group"}</Text>{choices(ages, age, onAge)}
     <Text style={styles.text}>{hi ? "लिंग" : "Sex"}</Text>{choices(sexes, sex, onSex)}
-    <Button label={hi ? "इनकार सहेजें" : "Save refusal"} onPress={onSave} />
+    <Button label={hi ? "इनकार सेव करें" : "Save refusal"} onPress={onSave} />
     <Button kind="secondary" label={hi ? "सहमति बदलें" : "Change consent"} onPress={onChangeConsent} />
     <Button kind="secondary" label={hi ? "नया साक्षात्कार" : "New interview"} onPress={onNew} />
   </View>;

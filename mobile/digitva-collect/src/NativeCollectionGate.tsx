@@ -24,7 +24,9 @@ export default function NativeCollectionGate({
   const currentPathname = usePathname().replace(/\/$/, "") || "/";
   const pathname = routeName === undefined
     ? currentPathname
-    : `/${routeName.split("/").filter(Boolean).at(-1) ?? ""}`;
+    // The full route path, not its last segment: "training/coding/case" is the training workspace (it checks its own
+    // participation), not the collection route "/case". Group folders like "(tabs)" are not part of the path.
+    : `/${routeName.split("/").filter((segment) => segment && !/^\(.*\)$/.test(segment)).join("/")}`;
   const router = useRouter();
   const { ready, bootstrap } = useAppState();
   const styles = useUiStyles();

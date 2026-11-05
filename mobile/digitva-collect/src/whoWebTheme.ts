@@ -73,8 +73,14 @@ export function useWhoFormTheme(): FormTheme {
   return useMemo(() => whoFormTheme({ ui }), [ui]);
 }
 
-/** Short labels (<= 18 characters) use 2 columns on phones and 3 elsewhere; long ones keep the width-based rule. */
+/**
+ * Columns for a choice list. Phones: 2 only for very short labels (<= 10 characters, e.g. Yes/No, Absent/Present),
+ * since a phone column is ~150 px and longer labels wrap; else 1. Wider: short labels (<= 18) take 3. Long ones
+ * (Social Autopsy's "name — description") read as paragraphs: 1 column under 900 px, 2 above, never 3.
+ */
 export function choiceColumnsFor(width: number, labels: string[]): number {
-  if (labels.every((label) => [...label].length <= 18)) return width < 480 ? 2 : 3;
-  return width < 480 ? 1 : width < 900 ? 2 : 3;
+  const longest = Math.max(0, ...labels.map((label) => [...label].length));
+  if (width < 480) return longest <= 10 ? 2 : 1;
+  if (longest <= 18) return 3;
+  return width < 900 ? 1 : 2;
 }

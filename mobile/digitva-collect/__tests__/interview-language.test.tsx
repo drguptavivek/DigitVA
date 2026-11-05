@@ -1186,7 +1186,7 @@ describe("respondent consent before the interview", () => {
     await act(async () => { await panel.props.onDecision({client_id: "c2", decision: "refused"}); });
     expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
     expect(tree.root.findByProps({testID: "refusal-panel"})).toBeDefined();
-    const save = tree.root.findByProps({label: "इनकार सहेजें"});
+    const save = tree.root.findByProps({label: "इनकार सेव करें"});
     await act(async () => { save.props.onPress(); });
     expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: {} }, mockBootstrap.csrf, "revision-1");
     await act(async () => tree.unmount());

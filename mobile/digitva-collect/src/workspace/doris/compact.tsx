@@ -107,18 +107,21 @@ const ROW_CHROME_PX = 62;
  * Columns of a choice group. Before the group is measured (`inner` 0) the window stands in: phones 2, or 1 when any
  * label is long; wide screens one per option for up to four short options, else 3 columns for short labels and 2
  * for long ones. Once measured, the group's own width decides: the most columns (within that cap) in which every
- * label's longest word still fits its cell, else 1. A squeezed group in a narrow grid cell therefore drops to 1 column.
+ * label fits its cell on one line (four options never leave an orphan on a third column), else 2 where each label's
+ * longest word fits, else 1. A squeezed group in a narrow grid cell therefore drops to 1 column.
  */
 export function choiceColumns(width: number, labels: ReadonlyArray<string>, inner = 0): number {
   const long = labels.some((label) => [...label].length > LONG_LABEL);
   const cap = width < 768 ? (long ? 1 : 2) : labels.length <= 4 && !long ? Math.max(labels.length, 1) : long ? 2 : 3;
   if (inner <= 0) return cap;
+  const longestLabel = Math.max(0, ...labels.map((label) => [...label].length));
   const longestWord = Math.max(0, ...labels.flatMap((label) => label.split(/\s+/).map((word) => [...word].length)));
+  const room = (columns: number) => (inner - gap.md * (columns - 1)) / columns - ROW_CHROME_PX;
+  // Every label on one line first ("Not stated" must not wrap at 768px); failing that, two columns where each word fits.
   for (let columns = cap; columns > 1; columns -= 1) {
-    const cell = (inner - gap.md * (columns - 1)) / columns;
-    if (longestWord * CHAR_PX <= cell - ROW_CHROME_PX) return columns;
+    if (longestLabel * CHAR_PX <= room(columns)) return columns === 3 && labels.length === 4 ? 2 : columns;
   }
-  return 1;
+  return cap >= 2 && longestWord * CHAR_PX <= room(2) ? 2 : 1;
 }
 
 /**

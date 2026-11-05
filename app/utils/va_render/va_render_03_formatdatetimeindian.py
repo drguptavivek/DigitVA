@@ -1,4 +1,14 @@
+import re
 from datetime import datetime
+
+# An ODK `time` answer: 10:08:00.000+05:30 (offset and fraction optional).
+_ODK_TIME_RE = re.compile(r"^(\d{2}:\d{2}):\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$")
+
+
+def va_render_formattime(value):
+    """An ODK time answer as HH:MM; any other value comes back unchanged."""
+    match = _ODK_TIME_RE.match(value) if isinstance(value, str) else None
+    return match.group(1) if match else value
 
 
 def va_render_formatdatetimeindian(dt_string):

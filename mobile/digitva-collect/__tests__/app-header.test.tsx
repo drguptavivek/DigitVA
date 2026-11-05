@@ -474,12 +474,12 @@ describe("leave dialog of an open interview's navigation guard", () => {
     setUiLocale("hi");
     try {
       click(link("/app/coding"));
-      expect(body()).toBe("आपके नवीनतम उत्तर सहेजे नहीं जा सके। अपना कनेक्शन जाँचें, फिर दोबारा सहेजें।");
+      expect(body()).toBe("आपके नवीनतम उत्तर सेव नहीं किए जा सके। अपना कनेक्शन जाँचें, फिर दोबारा सेव करें।");
       failed = false;
       act(() => dialogButton("रुकें").click());
       click(link("/app/coding"));
-      expect(body()).toBe("आपके नवीनतम उत्तर अभी पूरी तरह सहेजे नहीं गए हैं। उन्हें सहेजने के लिए रुकें, या अभी सहेजें और जाएँ।");
-      expect(Array.from(dialog()!.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["रुकें", "सहेजें और जाएँ", "सहेजे बिना जाएँ"]);
+      expect(body()).toBe("आपके नवीनतम उत्तर अभी पूरी तरह सेव नहीं किए गए हैं। उन्हें सेव करने के लिए रुकें, या अभी सेव करें और जाएँ।");
+      expect(Array.from(dialog()!.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["रुकें", "सेव करें और जाएँ", "सेव किए बिना जाएँ"]);
       act(() => dialogButton("रुकें").click());
     } finally {
       setUiLocale("en");

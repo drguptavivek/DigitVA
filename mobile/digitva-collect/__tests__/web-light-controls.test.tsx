@@ -5,6 +5,8 @@ jest.mock("../src/ui", () => ({
   useUiStyles: () => ({ input: {}, secondary: {}, text: {} })
 }));
 jest.mock("../src/theme", () => ({
+  spacing: { xs: 8, sm: 12 },
+  radius: { md: 6 },
   useTheme: () => ({ ui: { primary: "#135", primaryForeground: "#fff", input: "#789", background: "#fff", accent: "#def", destructiveText: "#b00" } })
 }));
 

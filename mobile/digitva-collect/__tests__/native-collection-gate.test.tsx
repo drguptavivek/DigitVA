@@ -358,6 +358,21 @@ it("keeps an unknown native access state behind the gate until refresh succeeds"
   await act(async () => tree.unmount());
 });
 
+it("lets the training case routes through for a trainee without interviewer capability", async () => {
+  // The gate used to match the last segment, so training/coding/case was taken for the collection route /case.
+  for (const routeName of ["training/coding/case", "training/reviewing/case", "training/interview/case", "training/interview/form"]) {
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<BrowserCollectionGate routeName={routeName}>training screen</BrowserCollectionGate>); });
+    expect(JSON.stringify(tree.toJSON())).toContain("training screen");
+    await act(async () => tree.unmount());
+  }
+  // The top-level collection route is still gated.
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<BrowserCollectionGate routeName="case">browser intake screen</BrowserCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).not.toContain("browser intake screen");
+  await act(async () => tree.unmount());
+});
+
 it("blocks a direct browser collection route when the access summary has no interviewer capability", async () => {
   mockPathname = "/death-registration";
   let tree!: ReturnType<typeof create>;

@@ -293,6 +293,38 @@ class TestFieldMappingServiceStructure(BaseTestCase):
             "Small hospital",
         )
 
+    def test_14c_render_processcategorydata_resolves_label_references_and_formats_time(self):
+        """A ${field} in a label reads the field's choice label; an ODK time answer shows HH:MM."""
+        from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
+
+        datalevel = {
+            "social_autopsy": {
+                "social-autopsy": {
+                    "sa13": "12.1. Time taken to decide (in ${sa_tu13})",
+                    "sa14": "13.1. Time taken to arrange transport (in ${sa_tu14})",
+                    "sa19": "18.1. Time of Death",
+                }
+            }
+        }
+        choices = {"sa_tu13": {"hours": "Hours"}}
+
+        result = va_render_processcategorydata(
+            va_data={"sa13": "2", "sa14": "3", "sa_tu13": "hours", "sa19": "10:08:00.000+05:30"},
+            va_form_id="TEST001",
+            va_datalevel=datalevel,
+            va_mapping_choice=choices,
+            va_partial="social_autopsy",
+        )
+
+        self.assertEqual(
+            dict(result["social-autopsy"]),
+            {
+                "12.1. Time taken to decide (in Hours)": "2",
+                "13.1. Time taken to arrange transport": "3",
+                "18.1. Time of Death": "10:08",
+            },
+        )
+
     def test_15_fieldsitepi_category_order_matches_source(self):
         """Categories in fieldsitepi are in the correct display order."""
         result = self.service.get_fieldsitepi(self.form_type_code)

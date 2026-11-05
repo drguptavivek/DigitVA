@@ -194,6 +194,12 @@ describe("choice layout", () => {
     expect(choiceColumns(1200, sex, 1100)).toBe(4);
     expect(choiceColumns(1200, short, 1100)).toBe(4);
   });
+
+  it("keeps a label such as \"Not stated\" on one line at tablet width by using fewer columns", () => {
+    expect(choiceColumns(768, short, 520)).toBe(2); // 4 across would wrap "Not stated"; 3 would orphan the fourth
+    expect(choiceColumns(768, short, 700)).toBe(4);
+    expect(choiceColumns(1366, short, 1100)).toBe(4);
+  });
 });
 
 describe("MenuSelect dropdown", () => {

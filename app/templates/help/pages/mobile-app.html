@@ -13,6 +13,11 @@
     {% endfor %}
     {% if mobile_app_url %}<a class="btn btn-outline-primary" href="{{ mobile_app_url }}" rel="noopener">GitHub releases page</a>{% endif %}
   </p>
+  {% for apk in hosted_apks if apk.armeabi_v7a_url %}
+    <p class="small">If your phone says the app <em>isn't compatible</em>, it runs 32-bit Android:
+      <a href="{{ apk.armeabi_v7a_url }}" rel="noopener">download the 32-bit DigitVA Collect {{ apk.version }} (armeabi-v7a)</a>.
+      Collect Plus needs a 64-bit phone.</p>
+  {% endfor %}
 {% else %}
   <div class="alert alert-info" role="status">
     The Android APK has not been published for this environment yet. Ask your

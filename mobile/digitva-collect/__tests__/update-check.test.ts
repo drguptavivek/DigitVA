@@ -7,6 +7,12 @@ jest.mock("../src/preferences", () => ({
 jest.mock("../src/appVersion", () => ({ APP_VERSION: "0.3.2" }));
 let mockPlusVariant = false;
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlusVariant }));
+let mockSupports64Bit: boolean | undefined;
+jest.mock("expo", () => ({
+  ...jest.requireActual("expo"),
+  requireOptionalNativeModule: (name: string) =>
+    name === "DigitvaDeviceInfo" && mockSupports64Bit !== undefined ? { supports64Bit: () => mockSupports64Bit } : null,
+}));
 
 import { checkForUpdate, checkForUpdateDaily, checkServerCompatibility, GITHUB_RELEASES_URL, versionCode } from "../src/updateCheck";
 
@@ -33,6 +39,7 @@ const fetchMock = jest.fn(async (url: string) => {
 
 beforeEach(() => {
   mockPlusVariant = false;
+  mockSupports64Bit = undefined;
   for (const key of Object.keys(mockPrefs)) delete mockPrefs[key];
   routes = {};
   fetchMock.mockClear();
@@ -146,4 +153,25 @@ test("server compatibility validates contract and SHA but does not compare the S
   expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
   routes[COMPAT_URL] = new Error("offline");
   expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
+});
+
+test("a 32-bit-only phone skips the server's arm64 APK and is offered the GitHub armeabi-v7a asset", async () => {
+  mockSupports64Bit = false;
+  routes[SERVER_URL] = serverReply("0.3.10");
+  routes[GITHUB_RELEASES_URL] = ok([release("android-v0.3.9")]);
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "available", version: "0.3.9", url: "https://gh/android-v0.3.9/v7a.apk" });
+  expect(fetchMock).not.toHaveBeenCalledWith(SERVER_URL, expect.anything());
+});
+
+test("a 64-bit phone still takes the server's APK", async () => {
+  mockSupports64Bit = true;
+  routes[SERVER_URL] = serverReply("0.3.10");
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "available", version: "0.3.10", url: "https://va.example.org/download/android" });
+});
+
+test("Collect Plus on a 32-bit-only phone has no APK to offer", async () => {
+  mockSupports64Bit = false;
+  mockPlusVariant = true;
+  routes[GITHUB_RELEASES_URL] = ok([{ ...release("collect-plus-v0.3.3-plus.1"), assets: [{ name: "digitva-collect-plus-0.3.3-arm64-v8a.apk", browser_download_url: "https://gh/plus.apk" }] }]);
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "unknown" });
 });

@@ -75,6 +75,13 @@ class AppReleaseApiTests(BaseTestCase):
         self.assertIn("DigitVA Collect Plus 0.3.10", page)
         self.assertIn("6 bytes", page)
         self.assertIn("10 bytes", page)
+        # 32-bit phones cannot install the hosted arm64 APK; the page links the release's armeabi-v7a asset.
+        self.assertIn(
+            "https://github.com/drguptavivek/DigitVA/releases/download/android-v0.3.10/"
+            "digitva-collect-0.3.10-armeabi-v7a.apk",
+            page,
+        )
+        self.assertEqual(page.count("armeabi-v7a.apk"), 1)  # none for Plus, which ships arm64 only
 
     def test_plus_tag_is_null_unless_configured_for_the_selected_version(self):
         plus = "digitva-collect-plus-0.3.10-arm64-v8a.apk"

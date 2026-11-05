@@ -2,6 +2,8 @@
  * Checks the selected package's hosted APK first and matching GitHub release second. It only reports; the app never
  * installs anything. Failures are silent: "unknown" is shown as "Couldn't check" in Settings and nowhere else.
  */
+import { requireOptionalNativeModule } from "expo";
+
 import { APP_VERSION } from "./appVersion";
 import { assertOnline } from "./network";
 import { getUiPreference, setUiPreference } from "./preferences";
@@ -54,8 +56,17 @@ async function fromServer(server: string): Promise<Release> {
   return { version: body.version, url: body.url };
 }
 
-/** Newest matching Collect or Collect Plus release with its arm64 APK. */
-async function fromGitHub(): Promise<Release> {
+/** True only when the phone reports no 64-bit ABI; a build without the check, or web, reads as 64-bit. */
+function is32BitOnly(): boolean {
+  try {
+    return requireOptionalNativeModule<{ supports64Bit?: () => boolean }>("DigitvaDeviceInfo")?.supports64Bit?.() === false;
+  } catch {
+    return false;
+  }
+}
+
+/** Newest matching Collect or Collect Plus release with its APK for `abi` (Plus ships arm64 only). */
+async function fromGitHub(abi: string): Promise<Release> {
   const releases = (await getJson(GITHUB_RELEASES_URL)) as Array<{ tag_name?: string; draft?: boolean; prerelease?: boolean; assets?: Array<{ name?: string; browser_download_url?: string }> }>;
   const plus = isPlusVariant();
   let best: (Release & { code: number }) | undefined;
@@ -65,7 +76,8 @@ async function fromGitHub(): Promise<Release> {
       : /^android-v(\d+\.\d+\.\d+)$/.exec(release.tag_name ?? "")?.[1];
     if (!version || release.draft || (!plus && release.prerelease)) continue;
     const code = versionCode(version)! * 100 + Number(/-plus\.(\d+)$/.exec(version)?.[1] ?? 0);
-    const asset = release.assets?.find((item) => plus ? /plus.*arm64.*\.apk$/i.test(item.name ?? "") : /^(?!.*plus).*arm64.*\.apk$/i.test(item.name ?? ""));
+    const assetName = plus ? new RegExp(`plus.*${abi}.*\\.apk$`, "i") : new RegExp(`^(?!.*plus).*${abi}.*\\.apk$`, "i");
+    const asset = release.assets?.find((item) => assetName.test(item.name ?? ""));
     if (asset?.browser_download_url && (!best || code > best.code)) best = { version, url: asset.browser_download_url, code };
   }
   if (!best) throw new Error("no_release");
@@ -74,9 +86,11 @@ async function fromGitHub(): Promise<Release> {
 
 /** Whether a newer APK is released. `server` is the enrolled server's origin; undefined skips straight to GitHub. */
 export async function checkForUpdate(server?: string): Promise<UpdateResult> {
+  // The server hosts only the arm64 APK, so a 32-bit-only phone goes straight to its GitHub armeabi-v7a asset.
+  const abi = is32BitOnly() ? "armeabi-v7a" : "arm64";
   let latest: Release | undefined;
-  if (server) latest = await fromServer(server).catch(() => undefined);
-  if (!latest) latest = await fromGitHub().catch(() => undefined);
+  if (server && abi === "arm64") latest = await fromServer(server).catch(() => undefined);
+  if (!latest) latest = await fromGitHub(abi).catch(() => undefined);
   // Only an https link is ever handed to Linking (no intent:, javascript: or plain http from a bad reply).
   let downloadUrl: URL;
   try {

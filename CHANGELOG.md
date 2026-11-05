@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-05
 
+- **32-bit phones get the 32-bit APK** (`digitva-n5zf`): a Samsung on
+  Android 14 refused the arm64-v8a APK as "not compatible" because its
+  Android is 32-bit only. The mobile-app help page now links the release's
+  `armeabi-v7a` asset on GitHub, and the app's update check sends a phone
+  whose `DigitvaDeviceInfo.supports64Bit()` is false to that asset instead
+  of the server's arm64 APK. APKs already installed lack the check and keep
+  the old behaviour until updated once. Collect Plus stays arm64 only.
+
 - **Deployed to staging as `f01f3e68f`** (web `expo-web-v2026.11.05.1`;
   old-APK audit since `3ab5c2d69` found no blocker): the staging-bug batch
   and the 5 Nov reporting work, migration `d3c8e5a1f7b4` at head,

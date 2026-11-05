@@ -439,9 +439,14 @@ def page(slug):
             if name:
                 path = os.path.join(current_app.config["DIGITVA_ANDROID_APK_DIR"], name)
                 version = name.removeprefix("digitva-collect-plus-" if variant == "plus" else "digitva-collect-").removesuffix("-arm64-v8a.apk")
-                page_context["hosted_apks"].append({
-                    "variant": variant, "version": version, "size": os.path.getsize(path),
-                })
+                apk = {"variant": variant, "version": version, "size": os.path.getsize(path)}
+                if variant == "normal":
+                    # Every android-v* release also publishes the 32-bit build; the server hosts only arm64.
+                    apk["armeabi_v7a_url"] = (
+                        f"https://github.com/drguptavivek/DigitVA/releases/download/android-v{version}/"
+                        f"digitva-collect-{version}-armeabi-v7a.apk"
+                    )
+                page_context["hosted_apks"].append(apk)
     elif slug == "kpis":
         from app.services import kpi_registry
 

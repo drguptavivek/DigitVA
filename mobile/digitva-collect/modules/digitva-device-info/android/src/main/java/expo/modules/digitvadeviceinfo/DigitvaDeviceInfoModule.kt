@@ -93,5 +93,10 @@ class DigitvaDeviceInfoModule : Module() {
           "manufacturer" to manufacturerBucket(),
         )
     }
+
+    // False on a 32-bit-only Android (many budget phones), which cannot install the arm64-v8a APK.
+    Function("supports64Bit") {
+      Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
+    }
   }
 }

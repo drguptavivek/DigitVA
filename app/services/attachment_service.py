@@ -255,7 +255,15 @@ def can_access_submission_attachment(user, *, va_form_id: str, va_sid: str) -> b
     # photos, narration audio) carry it with no field-level flag; the
     # rendered page withholds them, so a guessed filename must not fetch
     # them either, whichever path below would grant it.
-    return can(user, READ_ATTACHMENTS, va_sid) and not redacts_pii(user)
+    if not can(user, READ_ATTACHMENTS, va_sid):
+        return False
+    # PII is per project (digitva-ssg7.3): the submission's own project.
+    project_id = db.session.scalar(
+        sa.select(VaForms.project_id)
+        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
+        .where(VaSubmissions.va_sid == va_sid)
+    )
+    return not redacts_pii(user, project_id=project_id)
 
 
 # The opaque token a rendered URL carries; anything else is not a token.

@@ -430,6 +430,14 @@ def _delete_locked(user_id, eligible, *, skip_locked: bool):
                 "(SELECT id FROM auth_sign_in_tokens WHERE user_id = :u OR redeemed_device_id IN :devices)")
         .bindparams(_bind("u", ids), _bind("devices", ids)), {"u": ids["u"], "devices": ids["devices"]},
     )
+    # A device another account still has a session on is kept (``_collect``);
+    # it stops naming this account's demo code, so the code and then the
+    # account can go. The device and the other account's session stay.
+    db.session.execute(
+        sa.text("UPDATE auth_devices SET enrolled_via = NULL WHERE enrolled_via IN "
+                "(SELECT id FROM auth_device_enrolment_codes WHERE created_by = :u)"),
+        {"u": ids["u"]},
+    )
     for table, where in PLAN:
         deleted = _run(table, where, ids)
         if deleted:

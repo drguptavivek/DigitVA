@@ -842,3 +842,78 @@ class MentorCliTests(Stage1bBase):
                 self.assertNotEqual(result.exit_code, 0)
                 self.assertIn("--actor must be", result.output)
         self.assertNotEqual(self._invoke("create", "MC8", "Eight").exit_code, 0)
+
+
+class LapsedMembershipTests(Stage1bBase):
+    """Deactivating an institute or removing a member (digitva-ssg7.1) must not
+    turn the former member's unit grants into Tier 3 PII."""
+
+    def setUp(self):
+        super().setUp()
+        db.session.get(VaProjectMaster, self.P1).project_structure_mode = "organization"
+        db.session.commit()
+
+    def _status(self, grant):
+        db.session.refresh(grant)
+        return grant.grant_status
+
+    def _sees_pii(self, user):
+        from app.services.viewer_pii_service import sees_pii_in_any_project
+
+        return sees_pii_in_any_project(db.session.get(VaUsers, user.user_id))
+
+    def _member_with_grants(self):
+        d1, _, chc, one = self._setup_one()
+        A, U = VaAccessRoles, VaAccessScopeTypes.org_unit
+        grants = {
+            "coder": self._grant(one, A.coder, U, unit=chc),
+            "site_pi": self._grant(one, A.site_pi, U, unit=chc),
+            "data_manager": self._grant(one, A.data_manager, U, unit=d1),
+        }
+        # Control: the same unit coder grant on a non-member is Tier 3 PII.
+        outsider = self._get_or_make_user("outsider.coder@test.local", "x")
+        self._grant(outsider, A.coder, U, unit=chc)
+        self.assertTrue(self._sees_pii(outsider))
+        return one, grants
+
+    def _assert_lapsed(self, one, grants):
+        self.assertEqual(self._status(grants["coder"]), VaStatuses.deactive)
+        self.assertEqual(self._status(grants["site_pi"]), VaStatuses.deactive)
+        self.assertEqual(self._status(grants["data_manager"]), VaStatuses.active)
+        # Only the exceptional data_manager PII path remains.
+        db.session.delete(grants["data_manager"])
+        db.session.commit()
+        self.assertFalse(self._sees_pii(one))
+
+    def test_deactivating_the_institute_deactivates_lapsing_grants(self):
+        one, grants = self._member_with_grants()
+        self.assertEqual(self._status(grants["coder"]), VaStatuses.active)
+        with self.assertLogs("GRANT_AUDIT", level="INFO") as logs:
+            mentors.set_institute_active("MC1", False)
+        db.session.commit()
+        self.assertIn("grants_deactivated=2", "\n".join(logs.output))
+        mentors.set_institute_active("MC1", True)  # reactivation restores nothing
+        db.session.commit()
+        self.assertEqual(self._status(grants["coder"]), VaStatuses.deactive)
+        mentors.set_institute_active("MC1", False)
+        db.session.commit()
+        self._assert_lapsed(one, grants)
+
+    def test_remove_member_deactivates_lapsing_grants(self):
+        one, grants = self._member_with_grants()
+        self.assertEqual(self._status(grants["site_pi"]), VaStatuses.active)
+        self.assertEqual(mentors.remove_member("MC1", one.email), 2)
+        db.session.commit()
+        self._assert_lapsed(one, grants)
+
+    def test_a_second_active_institute_covering_the_unit_keeps_the_grant(self):
+        d1, d2, chc, one, two = self._two_institutes()  # MC1: D01; MC2: D01+D02
+        mentors.add_member("MC1", two.email)
+        db.session.commit()
+        A, U = VaAccessRoles, VaAccessScopeTypes.org_unit
+        kept = self._grant(two, A.coder, U, unit=chc)
+        self.assertEqual(mentors.remove_member("MC1", two.email), 0)
+        mentors.set_institute_active("MC1", False)
+        db.session.commit()
+        self.assertEqual(self._status(kept), VaStatuses.active)
+        self.assertFalse(self._sees_pii(two))  # still Tier 2 through MC2

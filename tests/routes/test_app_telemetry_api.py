@@ -86,7 +86,7 @@ class AppTelemetryApiTests(AuthzFixtureMixin, BaseTestCase):
                 self.read_sizes.append(size)
                 return super().read(size)
 
-        stream = CountingStream(b"x" * (telemetry.MAX_BODY_BYTES + 2))
+        stream = CountingStream(b"x" * (telemetry.MAX_BODY_BYTES * 8))
         with patch.object(telemetry, "ingest") as ingest:
             response = self.client.open(
                 "/api/v1/analytics/app/batches", method="POST", input_stream=stream,
@@ -94,7 +94,9 @@ class AppTelemetryApiTests(AuthzFixtureMixin, BaseTestCase):
                 environ_overrides={"CONTENT_LENGTH": "", "wsgi.input_terminated": True},
             )
         self.assertEqual((response.status_code, response.get_json()["code"]), (413, "payload_too_large"))
-        self.assertEqual(stream.read_sizes, [telemetry.MAX_BODY_BYTES + 1])
+        # Werkzeug's app-wide MAX_CONTENT_LENGTH stream (digitva-ssg7.9) reads
+        # via readinto, so bound what was consumed rather than the read calls.
+        self.assertLessEqual(stream.tell(), telemetry.MAX_BODY_BYTES + 1)
         ingest.assert_not_called()
 
     def test_admin_report_is_aggregate_only_and_non_admin_is_refused(self):

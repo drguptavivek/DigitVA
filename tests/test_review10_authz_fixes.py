@@ -28,7 +28,7 @@ from app.models import (
 from app.services import authz
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import sees_pii_in_any_project
 from tests.base import BaseTestCase
 from tests.test_unit_scoped_dm_tester import UnitScopeFixture
 
@@ -102,7 +102,7 @@ class UnitRenameStaysInProjectTests(BaseTestCase):
 
 
 class PiiRedactionGrantRelationTests(UnitScopeFixture, BaseTestCase):
-    """#2 and #3: should_redact_pii counts only allowlisted roles on grants
+    """#2 and #3: PII visibility counts only allowlisted roles on grants
     the authz relation calls live."""
 
     def setUp(self):
@@ -121,26 +121,26 @@ class PiiRedactionGrantRelationTests(UnitScopeFixture, BaseTestCase):
                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_a.org_unit_id)
 
         self.assertTrue(authz.can(user, authz.Action.VIEW, "csc-r10-b"))
-        self.assertTrue(should_redact_pii(user))
+        self.assertFalse(sees_pii_in_any_project(user))
 
         # Tier 3 in-system interview_supervisor at org_unit scope sees PII.
         _grant(user, VaAccessRoles.interview_supervisor,
                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_a.org_unit_id)
-        self.assertFalse(should_redact_pii(user))
+        self.assertTrue(sees_pii_in_any_project(user))
 
     def test_pii_grant_on_a_deactivated_unit_does_not_lift_redaction(self):
         user = self._user("unit")
         _grant(user, VaAccessRoles.collaborator_pii,
                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_a.org_unit_id)
-        self.assertFalse(should_redact_pii(user))
+        self.assertTrue(sees_pii_in_any_project(user))
 
         org.set_unit_active(self.PROJECT, self.phc_a.org_unit_id, False)
         db.session.commit()
-        self.assertTrue(should_redact_pii(user))
+        self.assertFalse(sees_pii_in_any_project(user))
 
         org.set_unit_active(self.PROJECT, self.phc_a.org_unit_id, True)
         db.session.commit()
-        self.assertFalse(should_redact_pii(user))
+        self.assertTrue(sees_pii_in_any_project(user))
         grant = db.session.scalar(sa.select(VaUserAccessGrants).where(VaUserAccessGrants.user_id == user.user_id))
         self.assertEqual(grant.grant_status, VaStatuses.active)
 
@@ -159,15 +159,15 @@ class PiiRedactionGrantRelationTests(UnitScopeFixture, BaseTestCase):
         user = self._user("pair")
         _grant(user, VaAccessRoles.collaborator_pii,
                scope_type=VaAccessScopeTypes.project_site, project_site_id=pair.project_site_id)
-        self.assertFalse(should_redact_pii(user))
+        self.assertTrue(sees_pii_in_any_project(user))
 
         pair.project_site_status = VaStatuses.deactive
         db.session.commit()
-        self.assertTrue(should_redact_pii(user))
+        self.assertFalse(sees_pii_in_any_project(user))
 
         pair.project_site_status = VaStatuses.active
         db.session.commit()
-        self.assertFalse(should_redact_pii(user))
+        self.assertTrue(sees_pii_in_any_project(user))
         grant = db.session.scalar(sa.select(VaUserAccessGrants).where(VaUserAccessGrants.user_id == user.user_id))
         self.assertEqual(grant.grant_status, VaStatuses.active)
 

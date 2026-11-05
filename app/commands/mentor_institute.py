@@ -65,7 +65,10 @@ def create(code: str, name: str, actor_user_id) -> None:
 @_actor_option
 def deactivate(code: str, actor_user_id) -> None:
     _run(lambda: mentors.set_institute_active(code, False, actor_user_id=actor_user_id))
-    click.echo(f"Deactivated {code}. Grants are untouched; the guard stops applying to its staff.")
+    click.echo(
+        f"Deactivated {code}. Its staff's mentor, site_pi and interviewer unit grants in its "
+        "districts are deactivated (data_manager grants stay); the guard stops applying to them."
+    )
 
 
 @mentor_group.command("activate")
@@ -119,8 +122,8 @@ def add_user(code: str, email: str, actor_user_id) -> None:
 @click.argument("email")
 @_actor_option
 def remove_user(code: str, email: str, actor_user_id) -> None:
-    _run(lambda: mentors.remove_member(code, email, actor_user_id=actor_user_id))
-    click.echo(f"{email} removed from {code}. Existing grants are untouched.")
+    count = _run(lambda: mentors.remove_member(code, email, actor_user_id=actor_user_id))
+    click.echo(f"{email} removed from {code}. {count} unit grant(s) in its districts deactivated.")
 
 
 @mentor_group.command("set-admin")

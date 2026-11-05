@@ -12,7 +12,7 @@ from app.models import VaAccessRoles, VaAccessScopeTypes, VaDeathRegister, VaSub
 from app.services import area_dashboard_service as area
 from app.services.data_management_service import dm_submissions_page
 from app.services.submission_payload_version_service import ensure_active_payload_version
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import sees_pii_in_any_project
 from app.services.visit_note import note_from_payload, visit_note_for_viewer
 from tests.services.test_area_dashboard_service import AreaDashboardFixture
 
@@ -130,7 +130,7 @@ class VisitNoteDataManagerTests(VisitNoteFixture):
         self.assertEqual(self._page(self.project_user, org_unit="not-a-uuid")["total"], 0)
 
     def test_unredacted_viewer_sees_address_and_remarks(self):
-        self.assertFalse(should_redact_pii(self.project_user))
+        self.assertTrue(sees_pii_in_any_project(self.project_user))
         note = self._by_sid(self._page(self.project_user, visit_note="1"))["uuid:area-pa1"]["visit_note"]
         self.assertEqual(
             note,
@@ -138,7 +138,7 @@ class VisitNoteDataManagerTests(VisitNoteFixture):
         )
 
     def test_redacted_viewer_gets_the_date_only(self):
-        self.assertTrue(should_redact_pii(self.collaborator))
+        self.assertFalse(sees_pii_in_any_project(self.collaborator))
         # The same row is present and unredacted for the other viewer (above).
         rows = self._by_sid(self._page(self.collaborator, visit_note="1"))
         self.assertIn("uuid:area-pa1", rows)

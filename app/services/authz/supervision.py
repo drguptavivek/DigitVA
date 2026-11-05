@@ -60,10 +60,13 @@ def _covering_grants(
     reaches that whole project-site or project, and a ``project_pi`` grant on
     a tree project (depth -1) its whole project. ``site_pi`` reaches only
     through a unit grant (the In-charge) and ranks with
-    ``interview_supervisor`` at equal depth. Active grants, units, project
-    sites and projects only (closed-project dormancy via
-    ``active_project_condition``).
+    ``interview_supervisor`` at equal depth; a ``site_pi`` held by an active
+    mentoring-institute member confers nothing (``ResolvedGrants.oversees``).
+    Active grants, units, project sites and projects only (closed-project
+    dormancy via ``active_project_condition``).
     """
+    from app.services.mentor_institute_service import active_member_ids_select
+
     granted = aliased(MasOrgUnit, name="sup_granted_unit")
     covered = aliased(MasOrgUnit, name="sup_covered_unit")
     role_rank = sa.case(
@@ -92,6 +95,10 @@ def _covering_grants(
             *live,
             VaUserAccessGrants.role.in_(roles),
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            sa.or_(
+                VaUserAccessGrants.role != VaAccessRoles.site_pi,
+                VaUserAccessGrants.user_id.not_in(active_member_ids_select()),
+            ),
             granted.is_active.is_(True),
             covered.is_active.is_(True),
             active_project_condition(granted.project_id),

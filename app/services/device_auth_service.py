@@ -462,8 +462,10 @@ def enrol_demo_device(
     Devices carry no user column, so each demo account owns one hidden,
     already-revoked ``auth_device_enrolment_codes`` row (``created_by`` the
     account, a hash no one can present) that its devices name in
-    ``enrolled_via``. The account's three-device limit is checked before a
-    device row is created; no older device is silently evicted.
+    ``enrolled_via``. Both the three active-device limit (409
+    ``device_limit``) and ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT`` (429
+    ``demo_limit``, unopened devices included) are checked before a device
+    row is created; no older device is silently evicted.
     Raises DeviceAuthError; a refused credential is audited and committed.
     Caller commits a success."""
     from app.services import public_demo_service as demo
@@ -496,7 +498,35 @@ def enrol_demo_device(
         db.session.add(row)
         db.session.flush()
         code_id = row.id
+    _check_demo_device_cap(user, code_id)
     return _add_device(project_id, name, platform, version, code_id, client_device_uuid)
+
+
+def _check_demo_device_cap(user: VaUsers, code_id) -> None:
+    """Refuse a new demo device (429 ``demo_limit``) once the account holds
+    ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT`` unrevoked devices that count: those it
+    has a live session on, plus those its demo code *code_id* enrolled in the
+    last 24 hours that never had a session. ``check_device_slot`` counts only
+    signed-in devices, so without the second part an enrolment that never signs
+    in is unbounded; the 24 hour window keeps reinstalls from locking the
+    account out for good. The caller holds the account lock."""
+    now_live = sa.select(AuthDeviceSession.device_id).where(_live_session(user))
+    any_session = sa.select(AuthDeviceSession.device_id)
+    count = db.session.scalar(
+        sa.select(sa.func.count()).select_from(AuthDevice).where(
+            AuthDevice.revoked_at.is_(None),
+            sa.or_(
+                AuthDevice.device_id.in_(now_live),
+                sa.and_(
+                    AuthDevice.enrolled_via == code_id,
+                    AuthDevice.enrolled_at > _now() - timedelta(hours=24),
+                    AuthDevice.device_id.not_in(any_session),
+                ),
+            ),
+        )
+    ) or 0
+    if count >= int(current_app.config["PUBLIC_DEMO_DEVICES_PER_ACCOUNT"]):
+        raise DeviceAuthError("This demo account has reached its device limit.", "demo_limit", 429)
 
 
 def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = False, reason: str | None = None) -> int:
@@ -574,6 +604,19 @@ def _refuse(device: AuthDevice, user: VaUsers, message: str, code: str, status_c
     return DeviceAuthError(message, code, status_code)
 
 
+def _live_session(user: VaUsers):
+    """The condition on ``AuthDeviceSession`` for a session of *user* that can
+    still refresh. The device's own revocation is the caller's condition."""
+    return sa.and_(
+        AuthDeviceSession.user_id == user.user_id,
+        AuthDeviceSession.revoked_at.is_(None),
+        AuthDeviceSession.refresh_expires_at > _now(),
+        # A password or factor reset ended it: it can never refresh again
+        # (``_session_still_allowed``), so it holds no slot.
+        AuthDeviceSession.user_session_version == (user.auth_session_version or 0),
+    )
+
+
 def check_device_slot(user: VaUsers, device_id=None) -> None:
     """Lock *user* and refuse a new live device pair at the account cap.
 
@@ -585,16 +628,7 @@ def check_device_slot(user: VaUsers, device_id=None) -> None:
     db.session.execute(
         sa.select(VaUsers.user_id).where(VaUsers.user_id == user.user_id).with_for_update()
     )
-    now = _now()
-    live = sa.and_(
-        AuthDeviceSession.user_id == user.user_id,
-        AuthDeviceSession.revoked_at.is_(None),
-        AuthDeviceSession.refresh_expires_at > now,
-        # A password or factor reset ended it: it can never refresh again
-        # (``_session_still_allowed``), so it holds no slot.
-        AuthDeviceSession.user_session_version == (user.auth_session_version or 0),
-        AuthDevice.revoked_at.is_(None),
-    )
+    live = sa.and_(_live_session(user), AuthDevice.revoked_at.is_(None))
     if device_id is not None:
         try:
             device_id = uuid.UUID(str(device_id))

@@ -269,8 +269,12 @@ def get_section_data(
     category_config,
     visible_category_codes,
     user,
+    project_id: str | None,
 ) -> dict:
     """A category's payload-derived data for the viewer, from the section cache.
+
+    *project_id*: the submission's project; PII is decided per project
+    (``should_redact_pii``, digitva-ssg7.3), None redacts.
 
     Returns the cached dict: ``summary_items``, ``va_processedcategorydata``,
     the ``cod_attachments_*`` and ``cod_health_history_*`` of the workflow
@@ -289,7 +293,7 @@ def get_section_data(
     stripped before rendering, as ``_filter_export_payload``.
     """
     va_sid = va_submission.va_sid
-    redact_pii = should_redact_pii(user)
+    redact_pii = should_redact_pii(user, project_id=project_id)
     role = get_category_rendering_service().get_role_for_action(va_action)
     cache_key = section_data_cache_key(
         va_sid,

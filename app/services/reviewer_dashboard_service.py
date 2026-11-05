@@ -23,6 +23,7 @@ from app.services import training_scope
 from app.services.authz import Action, can, scope_filter
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
+from app.services.viewer_pii_service import pii_scope
 from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_ELIGIBLE,
@@ -129,6 +130,16 @@ def count_completed(user, project_id: str | None = None) -> int:
     return db.session.scalar(stmt)
 
 
+def _redact_collector(user, rows: list[dict]) -> list[dict]:
+    """Null ``va_data_collector`` (staff identity) on rows of projects where
+    *user* has no PII grant (digitva-ssg7.11); the key stays for old clients."""
+    pii = pii_scope(user)
+    for row in rows:
+        if not pii.sees(row["project_id"]):
+            row["va_data_collector"] = None
+    return rows
+
+
 def list_dashboard_forms(user) -> list[dict]:
     """Every in-scope submission with its review status, for the web dashboard."""
     tz_name = va_user_timezone_name(user)
@@ -225,7 +236,9 @@ def list_dashboard_forms(user) -> list[dict]:
         .all()
     )
     va_date_fields = ["va_submission_date", "va_coded_at", "va_reviewed_at"]
-    return [va_render_serialisedates(row, va_date_fields) for row in va_forms_raw]
+    return _redact_collector(
+        user, [va_render_serialisedates(row, va_date_fields) for row in va_forms_raw]
+    )
 
 
 def get_scoped_allocation(user) -> str | None:
@@ -331,7 +344,9 @@ def list_available(
         .all()
     )
     return (
-        [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]],
+        _redact_collector(
+            user, [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]]
+        ),
         len(rows) > limit,
     )
 
@@ -387,4 +402,4 @@ def list_history(
             row["va_reviewed_at"].replace(tzinfo=UTC).isoformat()
         )
         history.append(item)
-    return history, len(rows) > limit
+    return _redact_collector(user, history), len(rows) > limit

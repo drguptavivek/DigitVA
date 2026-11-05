@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # Submission Analytics Materialized Views
@@ -288,7 +288,8 @@ beads `digitva-stc`, `digitva-qfh8`). Code:
   over `va_web_intake_drafts` by owner (submitted, in progress), one over
   `map_case_contact_attempts` in the last 30 days. Confirmed duplicates
   excluded. At most 500 rows (`truncated`). When `should_redact_pii` hides
-  staff identity the queries do not run and the response is
+  staff identity in the area's project (PII is per project, digitva-ssg7.3)
+  the queries do not run and the response is
   `staff_identity_redacted: true` with no rows.
 
 Not all existing dashboard endpoints have been migrated to use the view yet.

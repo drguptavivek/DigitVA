@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-05
 ---
 
 # Access Control Model
@@ -76,12 +76,19 @@ Role allocation and personal-data (PII) visibility follow one fundamental bounda
    - In the exceptional case where someone from outside the health system (for example, a Mentoring Institution coordinator) genuinely requires PII access, they are **made part of the health system (Tier 3)** and granted a **`data_manager`** role at the **District (`org_unit`)** level.
    - Separate workaround roles such as `"Coder with PII"` or `collaborator_pii` ("Viewer with PII") are not needed in the role allocation workflow.
 
+4. **PII visibility is decided per project (owner decision 2026-11-05, `digitva-ssg7.3`):**
+   - A user sees PII (subject personal data, death identifiers, staff identity) on a case **only if they hold a PII grant (`ResolvedGrants.is_pii_grant`) in that case's project**. A Tier 3 grant in project A never unblinds project B, where the same user holds only non-PII grants (Tier 1 project-scope roles, Tier 2 mentoring-institute roles, plain `collaborator`).
+   - Lists, exports and dashboards that span several projects decide **per row (per project)**, never once per user.
+   - A screen with no project context fails closed: redacted.
+   - Unchanged: a global `admin` sees PII in every project; a public-demo account sees PII in the project where it holds a real (non-virtual) PII-role grant.
+   - Code: `viewer_pii_service.should_redact_pii(user, project_id=...)` for one case, `viewer_pii_service.pii_scope(user)` for a list (`.sees(project_id)` per row, `.condition(column)` in SQL).
+
 ## Roles
 
 DigitVA uses these roles:
 
 - `admin`
-- `project_pi` (Tier 1 — Project level, Non-PII)
+- `project_pi` (Tier 1 — Project level, Non-PII on a tree project; PII on a sites-only (legacy) project, owner 2026-11-05, `digitva-ssg7.8`)
 - `site_pi` (Tier 2 — Mentoring Institution / external site lead, Non-PII)
 - `in_charge` (Tier 3 — Health-system unit leader: District CS, CHC SMO, PHC MO, PII; *transition note: currently stored as `site_pi` at `org_unit` scope prior to enum split*)
 - `data_manager` (Tier 1 at `project` scope = Non-PII; Tier 3 at `org_unit` scope = PII)
@@ -113,11 +120,19 @@ May manage:
 
 ### `project_pi`
 
-Project-wide oversight within assigned projects (**Tier 1 — Outside the health system, Non-PII**; owner decision 2026-10-26, `digitva-ewa5`).
+Project-wide oversight within assigned projects (**Tier 1 — Outside the health system, Non-PII** on an organization-tree project; owner decision 2026-10-26, `digitva-ewa5`).
+
+On a **sites-only (legacy) project** (no organization tree) `project_pi` **is
+a PII role**, like the other operational roles in `SITES_MODE_PII_ROLES`
+(`app/services/authz/grants.py`) (owner decision 2026-11-05,
+`digitva-ssg7.8`). As on a tree project, an active mentoring-institute member
+gets PII on a sites-only project only from `data_manager`. A project is a tree
+project when it has an active organization level
+(`authz.grants.has_tree_condition`).
 
 May, in every project:
 
-- view data across all assigned sites in an assigned project (**without personal data / Non-PII**)
+- view data across all assigned sites in an assigned project (**without personal data / Non-PII** on a tree project; with personal data on a sites-only project)
 - view reporting for an assigned project
 - perform oversight actions allowed by workflow policy
 - set up the project and grant roles in it (see

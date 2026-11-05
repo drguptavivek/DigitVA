@@ -1,4 +1,5 @@
 import gc
+import re
 import uuid
 import os
 import weakref
@@ -21,6 +22,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flask_caching import Cache
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.http import http_date
 from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography.fernet import Fernet
@@ -259,26 +261,44 @@ def create_app(config_class=None, register_routes=True):
 
     app.before_request(open_trainer_tools)
 
-    # CSRFProtect reads multipart form data in its before_request hook. Bound
-    # organization imports before that hook can parse and spool an upload.
+    # CSRFProtect parses the request body in its before_request hook, before any
+    # route can set its own cap. Config.MAX_CONTENT_LENGTH bounds every body; this
+    # hook, registered before the CSRF one, raises it only for the uploads that
+    # legitimately exceed it. Routes may still set a stricter cap of their own.
+    from app.services.attachment_service import MAX_BYTES as _ATTACHMENT_MAX_BYTES
+    from app.services.bundle_ingest_service import MAX_BYTES as _BUNDLE_MAX_BYTES
+
+    _mib = 1024 * 1024
+    _slack = 64 * 1024  # multipart framing around a file
+    _upload_limits = (
+        ("PUT", r"/api/v1/intake/drafts/[^/]+/attachments/[^/]+", _ATTACHMENT_MAX_BYTES),
+        ("POST", r"/api/v1/intake/bundles(/validate)?", _BUNDLE_MAX_BYTES),
+        ("POST", r"/admin/api/organization/[^/]+/project-users/import", _mib + _slack),
+        ("POST", r"/admin/api/organization/[^/]+/import", 5 * _mib + _slack),
+        ("POST", r"/admin/api/instrument-translations/[^/]+/[^/]+/(import|xliff)", 5 * _mib + _slack),
+        ("POST", r"/admin/api/form-types/import", 10 * _mib + _slack),
+        # Policy and scheme JSON imports have no cap of their own.
+        ("POST", r"/admin/api/(icd10/2019-2|icd11/mms)/policy-import", 16 * _mib),
+        ("POST", r"/admin/api/cod-bucket-schemes/[^/]+/import", 16 * _mib),
+        ("POST", r"/api/v1/icd10/2019-2/policy-import", 16 * _mib),
+    )
+    _upload_limits = tuple((m, re.compile(p), cap) for m, p, cap in _upload_limits)
+
     @app.before_request
-    def _limit_organization_import_upload():
-        if request.method != "POST":
-            return None
-        parts = request.path.split("/")
-        if parts[:4] != ["", "admin", "api", "organization"]:
-            return None
-        if len(parts) == 7 and parts[5:] == ["project-users", "import"]:
-            limit_mb = 1
-        elif len(parts) == 6 and parts[5] == "import":
-            limit_mb = 5
-        else:
-            return None
-        limit = limit_mb * 1024 * 1024 + 64 * 1024
-        request.max_content_length = limit
-        if request.content_length is not None and request.content_length > limit:
-            return jsonify({"error": f"The upload exceeds the {limit_mb} MB limit.", "code": "payload_too_large"}), 413
+    def _raise_upload_body_limit():
+        for method, pattern, cap in _upload_limits:
+            if request.method == method and pattern.fullmatch(request.path):
+                request.max_content_length = cap
+                break
         return None
+
+    @app.errorhandler(RequestEntityTooLarge)
+    def _body_too_large(exc):
+        if request.path.startswith(("/api/", "/admin/api/")):
+            limit_mb = (request.max_content_length or 0) // (1024 * 1024)
+            message = f"The upload exceeds the {limit_mb} MB limit." if limit_mb else "The request body is too large."
+            return jsonify({"error": message, "code": "payload_too_large"}), 413
+        return exc
 
     # Fail closed before anything can serve an attachment: an S3 store with a
     # missing key must stop the app, never quietly fall back to local disk.
@@ -644,6 +664,10 @@ def create_app(config_class=None, register_routes=True):
                 return
             fresh_user = current_user._get_current_object()
         else:
+            # A cookie whose session version no longer matches (password
+            # reset) resolves to anonymous: no gating, so login can run.
+            if not current_user.is_authenticated:
+                return
             current_user_id = session.get("_user_id")
             if not current_user_id:
                 return

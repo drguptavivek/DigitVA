@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-05
 ---
 
 # Organization Model Policy
@@ -704,13 +704,21 @@ personal data (PII).
   `is_admin` flag (the institute admin). Staff are added and removed by a
   platform admin or by that institute's admin (below); the flag is set by a
   platform admin only.
-- Detaching, removing or deactivating never deletes grants; it only changes
-  what the guard allows on the next grant write. Grants already written stay
-  as they are (an admin revokes them in the grants panel). One exception:
-  removing a person through the institute staff API (`remove_staff`)
-  deactivates (never deletes) their active mentor-role unit grants inside
-  that institute's district subtrees, except units still covered by another
-  institute they remain active staff of; the count is returned and audited.
+- Detaching, removing or deactivating never deletes grants. Detaching a
+  district only changes what the guard allows on the next grant write; grants
+  already written stay (an admin revokes them in the grants panel). Removing
+  a person (institute staff API `remove_staff`, or the platform admin's
+  `flask mentor-institute remove-user`) or deactivating an institute
+  deactivates (never deletes) the person's (for deactivation: every active
+  member's) active `org_unit` grants inside that institute's district
+  subtrees for `coder`, `reviewer`, `coding_tester`, `collaborator`,
+  `site_pi`, `interviewer` and `interview_supervisor`: once the membership
+  lapses those would become Tier 3 PII (or a full In-charge). A unit still
+  covered by another active institute the person remains active staff of
+  keeps its grant (they stay Tier 2 there). A `data_manager` grant (the
+  exceptional PII path) is never touched. The count is returned and audited
+  in `grants.log` (`grants_deactivated=`). Reactivating an institute or
+  re-adding a member restores no grant (digitva-ssg7.1).
 
 Mentor access is through **ordinary unit grants**, which flow down the subtree
 like any unit grant; the maps are only a **guard** on writing a grant. When the
@@ -720,13 +728,20 @@ be all of:
 1. at `org_unit` scope (never `project`, `project_site` or `global`);
 2. on a unit inside the subtree (the district itself included) of a district
    unit attached to one of that person's institutes, in the same project;
-3. one of `site_pi` (Mentoring Institution PI), `coder`, `reviewer`,
-   `coding_tester`, `collaborator` (owner decision 2026-10-26,
-   `digitva-ewa5`). All mentoring-institute roles are **Non-PII (blinded)**.
-   Never `in_charge`, `interviewer`, `death_reporter`,
-   `interview_supervisor`, `project_pi` or `admin`. In the exceptional case
-   that an external person requires PII access, they are made part of the
-   health system (Tier 3) and granted `data_manager` at the District level.
+3. one of `coder`, `reviewer`, `coding_tester`, `collaborator`
+   (`MENTOR_ROLES`; owner decision 2026-10-26, `digitva-ewa5`). All
+   mentoring-institute roles are **Non-PII (blinded)**. Never `site_pi`
+   (`in_charge`), `interviewer`, `death_reporter`, `interview_supervisor`,
+   `data_manager` (see below), `project_pi` or `admin`. In the exceptional
+   case that an external person requires PII access, they are made part of
+   the health system (Tier 3) and granted `data_manager` at the District level.
+
+A `site_pi` unit grant the person already held when they became a member stays
+on the row but confers **no In-charge power** while the membership is active
+(`ResolvedGrants.oversees`): no data-manager or supervisor gate, no grant
+writing or Users page, no intake supervision, no In-charge report, and no PII
+(digitva-ssg7.2). When the membership lapses, the grant is deactivated if it
+lies inside that institute's districts (above); one outside them works again.
 
 Otherwise the write is refused with an operator message. The guard runs on
 grant create, on reactivating a grant, and in the project user import.

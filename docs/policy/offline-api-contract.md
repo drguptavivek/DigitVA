@@ -819,7 +819,7 @@ per-record `not_ready`, `allocation_exists` or `doris_pending` code on a
 
 Standalone push coding outcomes (17, in the 2xx reply's `offline_coding`, not
 HTTP errors): `pending` `not_ready`, `applied`, `refused` with
-`coding_grant_required`, `coding_mode_mismatch`, `coded_version_superseded`,
+`self_coding_required`, `coding_grant_required`, `coding_mode_mismatch`, `coded_version_superseded`,
 `not_available` or an allocation code.
 
 A client branches on `code`, never on `error` text, and treats an unknown
@@ -1141,6 +1141,7 @@ ignore the additive reply field; the server computes it without a new request ke
 | --- | --- | --- |
 | `pending` | `not_ready` | received and held; the server imports it once attachments and SmartVA are done |
 | `applied` | null | imported as the coder's final |
+| `refused` | `self_coding_required` | the project has self-coding off (`self_coding_enabled` false); the interview is kept (owner 2026-11-05, `digitva-ssg7.7`) |
 | `refused` | `coding_grant_required` | the account holds no `coder` grant that codes on the project (the self-coding grant included) |
 | `refused` | `coding_mode_mismatch` | the project is not unmasked DORIS on ICD-11 |
 | `refused` | `coded_version_superseded` | stale coding (above) |
@@ -1200,6 +1201,12 @@ and the server never trusts the UUID for access.
    [Sign-in by Mobile Number](mobile-sign-in.md) section 8). From an account
    without one, the interview is accepted and the coding is refused
    `coding_grant_required`; the case enters the normal coding queue.
+   **Self-coding off (owner 2026-11-05, `digitva-ssg7.7`).** A standalone
+   push follows the project's `self_coding_enabled` like an enrolled one:
+   when it is off, the interview is accepted as usual (no 4xx for the
+   request; older APKs push adopted Path C records from code-enrolled
+   phones) and only the coding is refused `self_coding_required`, at push
+   and again at import; the case enters the normal coding queue uncoded.
 
 **Routing.** `standalone.org_code` names a live unit of the project that the
 pushing interviewer may name: the interview starts in that unit and routes
@@ -1280,3 +1287,6 @@ included), attachments by the existing per-file `PUT`, resumable with backoff.
   `device_mismatch`, `standalone_invalid`, `offline_coding_invalid`,
   `coding_grant_required`, held import, disagreement codes and forced review
   (open points 1, 3, 4 and 5 resolved); notice versions gain `source`.
+- 2026-11-05: a standalone push's coding is refused `self_coding_required`
+  when the project has self-coding off, as the enrolled path's is; the
+  interview is still accepted (17, `digitva-ssg7.7`).

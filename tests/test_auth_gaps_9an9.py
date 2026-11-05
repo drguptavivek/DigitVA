@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import AuthSecurityEvent, MasLanguages, VaUsers
 from app.services import device_auth_service as devices
-from tests.authz.fixture import AuthzFixtureMixin, R, U
+from tests.authz.fixture import SP, AuthzFixtureMixin, P, R, U
 from tests.routes import test_device_api as device_tests
 from tests.test_account_onboarding import OnboardingTestBase, _mailbox
 from tests.test_mobile_sign_in import PASSWORD, PASSWORD_RE, REDEEM, _number
@@ -93,6 +93,25 @@ class BrowserTermsTests(OnboardingTestBase):
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         # Other JSON prefixes too, never a redirect.
         self.assertEqual(self.client.get("/admin/api/users").get_json()["code"], "terms_required")
+
+    def test_stale_session_after_reset_reaches_the_login_page(self):
+        """digitva-ssg7.5: a cookie from before the reset is anonymous, so the
+        terms gate must not bounce it into the login-protected terms page."""
+        stale = self.user.get_id()
+        self.user.bump_session_version()
+        db.session.commit()
+        self._login(stale)
+        # Login itself renders; the password step, lacking a preauth state,
+        # sends it back to the login page, never to the terms page.
+        self.assertEqual(self.client.get("/vaauth/valogin").status_code, 200)
+        response = self.client.get("/vaauth/valogin/password")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/vaauth/valogin"))
+        # The gate itself still holds for a valid session.
+        self._login(self.user.get_id())
+        page = self.client.get("/profile/")
+        self.assertEqual(page.status_code, 302)
+        self.assertIn("/profile/force-password-change", page.headers["Location"])
 
     def test_accept_terms_endpoint_records_acceptance(self):
         self.assertEqual(self.client.post(f"{PROFILE}/terms", json={"accept_terms": True}).status_code, 400)
@@ -381,6 +400,37 @@ class ResendVerificationTests(AuthzFixtureMixin, OnboardingTestBase):
         db.session.add(self._grant_row(user, R.reviewer, U, "P1"))
         db.session.commit()
         return user
+
+    def _wide_dm_resend(self, user):
+        self._login(str(self.users["dm_ta"].user_id))
+        return self.client.post(f"/data-management/api/users/{user.user_id}/resend-verification",
+                                headers=self._csrf_headers())
+
+    def test_wide_dm_resend_reaches_only_users_it_manages(self):
+        unassigned = self._email_user(verified=False, onboarded=False)
+        foreign = self._email_user(verified=False, onboarded=False)
+        db.session.add(self._grant_row(foreign, R.coder, P, SP))
+        db.session.commit()
+        with _mailbox() as send:
+            # Positive control first: an unassigned account is in reach.
+            self.assertEqual(self._wide_dm_resend(unassigned).status_code, 200)
+            send.queued.assert_called_once()
+        with _mailbox() as send:
+            response = self._wide_dm_resend(foreign)
+            self.assertEqual(response.status_code, 403)
+            send.queued.assert_not_called()
+        self.assertEqual(_events(foreign.user_id, "verification_email_sent"), [])
+
+    def test_resend_is_rate_limited(self):
+        from app import limiter
+
+        limiter.reset()
+        user = self._email_user(verified=False, onboarded=False)
+        with _mailbox():
+            codes = [self._wide_dm_resend(user).status_code for _ in range(21)]
+        self.assertEqual(codes[:20], [200] * 20)
+        self.assertEqual(codes[20], 429)
+        limiter.reset()
 
     def test_admin_resend_sends_and_audits(self):
         user = self._email_user(verified=False)

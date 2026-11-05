@@ -44,7 +44,7 @@ from app.services.submission_analytics_mv import (
     build_submission_analytics_demographics_mv_sql,
     build_submission_cod_detail_mv_sql,
 )
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import sees_pii_in_any_project
 from app.services.workflow.definition import (
     ALL_WORKFLOW_STATES,
     CODING_BUCKETS,
@@ -1092,10 +1092,28 @@ class AreaStaffTests(AreaStaffFixture):
     def test_plain_collaborator_gets_no_staff_identity(self):
         shown = self._staff(self.unit_user, self.chc_a)
         self.assertIn(self.interviewer.name, self._by_name(shown["interviewers"]))
-        self.assertTrue(should_redact_pii(self.collaborator))
+        self.assertFalse(sees_pii_in_any_project(self.collaborator))
         hidden = self._staff(self.collaborator, self.chc_a)
         self.assertTrue(hidden["staff_identity_redacted"])
         self.assertEqual(hidden["interviewers"], [])
+
+    def test_staff_identity_is_decided_per_project(self):
+        """digitva-ssg7.3: a PII grant in the sites-mode project (site_pi there)
+        does not lift redaction in the organization project, where the same
+        user is only a plain collaborator."""
+        both = self._get_or_make_user("area.both@test.local", "AreaUser123")
+        self._grant(both, VaAccessRoles.site_pi, VaAccessScopeTypes.project_site,
+                    project_site_id=self.site_one_ps)
+        self._grant(both, VaAccessRoles.collaborator, VaAccessScopeTypes.org_unit,
+                    org_unit_id=self.district_1.org_unit_id)
+        db.session.commit()
+        shown = self._staff(both, project=self.SITES, site_id=self.SITE_ONE)
+        self.assertFalse(shown["staff_identity_redacted"])
+        hidden = self._staff(both, self.chc_a)
+        self.assertTrue(hidden["staff_identity_redacted"])
+        self.assertEqual(hidden["interviewers"], [])
+        # The same area names staff for a Tier 3 viewer there.
+        self.assertIn(self.interviewer.name, self._by_name(self._staff(self.unit_user, self.chc_a)["interviewers"]))
 
     def test_outside_scope_or_without_one_area_is_not_found(self):
         self.assertTrue(self._staff(self.unit_user, self.phc_a1)["interviewers"])

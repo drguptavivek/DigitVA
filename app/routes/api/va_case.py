@@ -144,6 +144,11 @@ class _Case:
     recode_active: bool = False
     intake_only: bool = False
 
+    @property
+    def project_id(self) -> str | None:
+        """The case's project, for per-project PII (digitva-ssg7.3); None redacts."""
+        return getattr(self.project, "project_id", None)
+
 
 def _private(response):
     """``private, no-store``: PHI on a shared browser is never cached."""
@@ -625,7 +630,7 @@ def workspace(va_sid):
             assessments["reviewer_final"] = _reviewer_final_json(
                 get_latest_active_reviewer_final_assessment(va_sid, None)
             )
-        if should_redact_pii(current_user):
+        if should_redact_pii(current_user, project_id=case.project_id):
             # Staff free text can name people; a redacted viewer gets the codes only.
             for key, field in (("final", "remark"), ("reviewer_final", "remark"), ("not_codeable", "other")):
                 if assessments[key] is not None:
@@ -678,9 +683,9 @@ def workspace(va_sid):
         case,
         nav,
         payload_for_viewer(
-            viewer_source_payload(case.active_version, should_redact_pii(current_user)),
+            viewer_source_payload(case.active_version, should_redact_pii(current_user, project_id=case.project_id)),
             case.form_type_code,
-            should_redact_pii(current_user),
+            should_redact_pii(current_user, project_id=case.project_id),
         ),
     )
     body = {
@@ -755,7 +760,7 @@ def workspace(va_sid):
             project_mode=case.project_mode,
             submission=case.submission,
             active_version=case.active_version,
-            redact_pii=should_redact_pii(current_user),
+            redact_pii=should_redact_pii(current_user, project_id=case.project_id),
             step1=prefill if case.mode == "coding" else None,
             reviewer_initial=artifacts.va_reviewer_initial_assess,
             reviewer_final=artifacts.va_reviewer_final_assess,
@@ -764,7 +769,7 @@ def workspace(va_sid):
     if body["doris"] is not None:
         reset_certificate, reset_provenance = doris_initial(
             None, case.submission, case.project_mode,
-            should_redact_pii(current_user), case.active_version,
+            should_redact_pii(current_user, project_id=case.project_id), case.active_version,
         )
         body["doris"].update(reset_certificate=reset_certificate, reset_prefill_provenance=reset_provenance)
     return _private(jsonify(body))
@@ -866,6 +871,7 @@ def category(va_sid, code):
         category_config=config,
         visible_category_codes=case.visible_category_codes,
         user=current_user,
+        project_id=case.project_id,
     )
     subcategories = category_subcategories(section, config, ftc, code)
     block = (

@@ -129,6 +129,23 @@ class Grant:
         return path == self.unit_path or path.startswith(self.unit_path + ".")
 
 
+def has_tree_condition(project_id_expr):
+    """SQL: the project *project_id_expr* (a column or a literal id) is an
+    organization-tree project, i.e. it has an active ``MasOrgLevel``.
+
+    The one definition of "tree project" for authorization: grant resolution
+    (``ProjectSettings.has_tree``), grant writes and the bulk PII query all use
+    it, so the per-user and bulk answers agree. Levels, not units, because
+    coding scope and submission routing key off the active levels
+    (``org_unit_routing_service``), and ``project_structure_mode`` gates
+    editing only (docs/policy/organization-model.md, "Project structure mode").
+    """
+    return sa.exists(sa.select(1).where(
+        MasOrgLevel.project_id == project_id_expr,
+        MasOrgLevel.is_active.is_(True),
+    ))
+
+
 @dataclass(frozen=True)
 class ProjectSettings:
     project_id: str
@@ -254,8 +271,10 @@ class ResolvedGrants:
           non-mentor-institute user): All PII for In-charge (site_pi), Unit Data
           Manager (data_manager), Interview Supervisor, Interviewer, and In-System
           Doctors (coder, reviewer).
-        - Sites-only projects (no organization tree): operational roles keep PII,
-          while project_pi (Tier 1) and plain collaborator remain Non-PII.
+        - Sites-only (legacy) projects (no organization tree): the roles in
+          SITES_MODE_PII_ROLES keep PII, project_pi included (owner 2026-11-05,
+          digitva-ssg7.8); plain collaborator stays Non-PII. A mentoring-institute
+          member gets PII there only from data_manager, as on a tree project.
         """
         if grant.virtual:
             return False
@@ -265,7 +284,9 @@ class ResolvedGrants:
             if grant.role != VaAccessRoles.data_manager and self._mentor_member():
                 return False
             return True
-        return grant.role in SITES_MODE_PII_ROLES
+        if grant.role not in SITES_MODE_PII_ROLES:
+            return False
+        return grant.role == VaAccessRoles.data_manager or not self._mentor_member()
 
     def digest(self) -> str:
         """Short stable hash of the grants, for cache keys."""
@@ -376,10 +397,7 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
     (flagged ``demo_training`` only when it has an active form)."""
     level = sa.orm.aliased(MasOrgLevel, name="authz_scope_level")
     project = VaProjectMaster
-    has_tree = sa.exists(sa.select(1).where(
-        MasOrgLevel.project_id == project.project_id,
-        MasOrgLevel.is_active.is_(True),
-    ))
+    has_tree = has_tree_condition(project.project_id)
     has_active_form = sa.exists(sa.select(1).where(
         VaForms.project_id == project.project_id,
         VaForms.form_status == VaStatuses.active,

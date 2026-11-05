@@ -370,6 +370,32 @@ class PurgeTests(PurgeBase):
         self.assertEqual(bob_token.redeemed_device_id, b_device_id)
         self.assertEqual(db.session.get(AuthDevice, b_device_id).enrolled_via_sign_in_token, b_token_id)
 
+    def test_a_device_another_account_signs_in_on_stays_and_the_enroller_goes(self):
+        alice = self._account("demo.pgs")
+        bob = self._account("demo.pgt")
+        now = datetime.now(UTC)
+        code = self._add(AuthDeviceEnrolmentCode, project_id=PROJECT, created_by=alice.user_id,
+                         expires_at=now, revoked_at=now)
+        device = self._add(AuthDevice, project_id=PROJECT, enrolled_via=code.id)
+        b_session = self._add(AuthDeviceSession, device_id=device.device_id, user_id=bob.user_id,
+                              access_expires_at=now, refresh_expires_at=now + timedelta(days=1))
+        db.session.commit()
+        ids = (alice.user_id, code.id, device.device_id, b_session.session_id)
+        alice_id, code_id, device_id, session_id = ids
+        self.assertIsNotNone(db.session.get(AuthDeviceEnrolmentCode, code_id))
+        self._idle(alice, 40)
+        self._idle(bob, 1)
+
+        result = purge.purge_run(apply=True)
+
+        self.assertEqual((result["accounts"], result["failed"], result["refused"]), (1, 0, {}))
+        self.assertIsNone(db.session.get(VaUsers, alice_id))
+        self.assertIsNone(db.session.get(AuthDeviceEnrolmentCode, code_id))
+        kept = db.session.get(AuthDevice, device_id)
+        self.assertIsNotNone(kept)
+        self.assertIsNone(kept.enrolled_via)
+        self.assertIsNotNone(db.session.get(AuthDeviceSession, session_id))
+
     def test_a_second_full_account_leaves_no_trace_either(self):
         before = self._snapshot()
         alice = self._account("demo.pgc")

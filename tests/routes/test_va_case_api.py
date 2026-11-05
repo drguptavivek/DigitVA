@@ -985,6 +985,7 @@ class VaCaseApiTests(BaseTestCase):
         own = {**self._CERT, "Part1": [{"Conditions": [{"Code": "own"}]}]}
         db.session.add(VaReviewerInitialAssessments(
             va_sid=sid, va_riniassess_by=self.reviewer.user_id, va_immediate_cod=_COD,
+            payload_version_id=db.session.get(VaSubmissions, sid).active_payload_version_id,
             va_antecedent_cod="B20 HIV disease", doris_certificate=own, **self._RESULTS,
         ))
         db.session.commit()
@@ -1177,6 +1178,45 @@ class VaCaseApiTests(BaseTestCase):
         self.assertNotIn("Jane Realname", values)
         self.assertIsNotNone(flask_cache.get(f"{plain}:nopii"))
 
+    def test_pii_is_decided_per_project_in_the_workspace(self):
+        """digitva-ssg7.3: a data manager in the device project (PII there) and
+        a plain collaborator in the base project sees PII on the device
+        project's case only: categories and the workspace header."""
+        now = datetime.now(UTC)
+        device_form = f"{self.DEVICE_PROJECT_ID}{self.DEVICE_SITE_ID}P2"
+        if db.session.get(VaForms, device_form) is None:
+            db.session.add(VaForms(
+                form_id=device_form, project_id=self.DEVICE_PROJECT_ID, site_id=self.DEVICE_SITE_ID,
+                odk_form_id="XL43_P2_DEV", odk_project_id="46", form_type="Workspace API Form",
+                form_type_id=self.form_type_id, form_status=VaStatuses.active,
+                form_registered_at=now, form_updated_at=now,
+            ))
+        viewer = self._make_user(f"xl43p2.both.{uuid.uuid4().hex[:6]}@test.local", "Viewer123")
+        for role, project_id in ((VaAccessRoles.data_manager, self.DEVICE_PROJECT_ID),
+                                 (VaAccessRoles.collaborator, self.BASE_PROJECT_ID)):
+            db.session.add(VaUserAccessGrants(
+                user_id=viewer.user_id, role=role, scope_type=VaAccessScopeTypes.project,
+                project_id=project_id, notes="ssg7.3", grant_status=VaStatuses.active,
+            ))
+        db.session.commit()
+        payload = {"FldZ": "z-val", "FldPii": "Jane Realname", "survey_district": "Dist One"}
+        pii_sid = self._case(form_id=device_form, payload=payload, state="coder_finalized")
+        blind_sid = self._case(payload=payload, state="coder_finalized")
+
+        def values(sid):
+            response = self._get(sid, "categories/cat1", mode="view", user=str(viewer.user_id))
+            self.assertEqual(response.status_code, 200, response.get_json())
+            return {i["value"] for sub in response.get_json()["subcategories"] for i in sub["items"]}
+
+        self.assertIn("Jane Realname", values(pii_sid))  # the PII project first
+        blind = values(blind_sid)
+        self.assertIn("z-val", blind)
+        self.assertNotIn("Jane Realname", blind)
+        shown = self._workspace(pii_sid, mode="view", user=str(viewer.user_id))["case"]
+        hidden = self._workspace(blind_sid, mode="view", user=str(viewer.user_id))["case"]
+        self.assertEqual(shown["survey_district"], "Dist One")
+        self.assertIsNone(hidden["survey_district"])
+
     def test_the_reviewing_mode_serves_a_category_its_role_sees(self):
         sid = self._reviewing_case()
         response = self._get(sid, "categories/cat1", mode="reviewing", user=self.reviewer_id)
@@ -1233,6 +1273,7 @@ class VaCaseApiTests(BaseTestCase):
                 form_type_code=self.FORM_TYPE_CODE, va_action=action, va_partial="cat1",
                 category_config=category_service.get_category_config(self.FORM_TYPE_CODE, action, "cat1"),
                 visible_category_codes=visible, user=self.base_coder_user,
+                project_id=self.BASE_PROJECT_ID,
             )
 
         # The redacted variant, the only one cached; FldZ is not PII.

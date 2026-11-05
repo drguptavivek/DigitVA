@@ -55,7 +55,7 @@ from app.services.data_management_service import (
 from app.services.authz import resolve_grants
 from app.services.submission_analytics_mv import COD_SNAPSHOT_MV_NAME
 from app.services.submission_payload_version_service import ensure_active_payload_version
-from app.services.viewer_pii_service import pii_visible_user_ids, should_redact_pii
+from app.services.viewer_pii_service import PiiScope, pii_visible_user_ids, should_redact_pii
 from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
 from tests.base import BaseTestCase
 
@@ -106,28 +106,28 @@ class ShouldRedactPiiTests(BaseTestCase):
     def test_plain_collaborator_is_redacted(self):
         user = self._get_or_make_user("vpr.collab@test.local", "VprCollab123")
         self._grant(user, VaAccessRoles.collaborator)
-        self.assertTrue(should_redact_pii(user))
+        self.assertTrue(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_collaborator_pii_is_not_redacted(self):
         user = self._get_or_make_user("vpr.collab.pii@test.local", "VprCollabPii123")
         self._grant(user, VaAccessRoles.collaborator_pii)
-        self.assertFalse(should_redact_pii(user))
+        self.assertFalse(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_collaborator_plus_coder_is_not_redacted(self):
         """The coder grant wins: holding both sees personal data."""
         user = self._get_or_make_user("vpr.collab.coder@test.local", "VprCollabCoder123")
         self._grant(user, VaAccessRoles.collaborator)
         self._grant(user, VaAccessRoles.coder)
-        self.assertFalse(should_redact_pii(user))
+        self.assertFalse(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_data_manager_is_not_redacted(self):
         user = self._get_or_make_user("vpr.dm@test.local", "VprDm123")
         self._grant(user, VaAccessRoles.data_manager)
-        self.assertFalse(should_redact_pii(user))
+        self.assertFalse(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_user_with_no_grants_is_redacted(self):
         user = self._get_or_make_user("vpr.none@test.local", "VprNone123")
-        self.assertTrue(should_redact_pii(user))
+        self.assertTrue(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_inactive_collaborator_pii_grant_does_not_unlock_pii(self):
         user = self._get_or_make_user("vpr.collab.inactive@test.local", "VprInactive123")
@@ -135,7 +135,7 @@ class ShouldRedactPiiTests(BaseTestCase):
         self._grant(
             user, VaAccessRoles.collaborator_pii, grant_status=VaStatuses.deactive
         )
-        self.assertTrue(should_redact_pii(user))
+        self.assertTrue(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_pii_grant_on_a_closed_project_does_not_unlock_pii(self):
         """A collaborator_pii grant stops counting while its project is
@@ -164,16 +164,16 @@ class ShouldRedactPiiTests(BaseTestCase):
             grant_status=VaStatuses.active,
         ))
         db.session.commit()
-        self.assertFalse(should_redact_pii(user), "grant must unlock PII while active")
+        self.assertFalse(should_redact_pii(user, project_id=closed_project), "grant must unlock PII while active")
 
         project = db.session.get(VaProjectMaster, closed_project)
         project.project_status = VaStatuses.deactive
         db.session.flush()
-        self.assertTrue(should_redact_pii(user), "closed project's grant must not unlock PII")
+        self.assertTrue(should_redact_pii(user, project_id=closed_project), "closed project's grant must not unlock PII")
 
         project.project_status = VaStatuses.active
         db.session.flush()
-        self.assertFalse(should_redact_pii(user), "reopening restores it")
+        self.assertFalse(should_redact_pii(user, project_id=closed_project), "reopening restores it")
 
     def test_site_scoped_pii_grant_on_a_closed_project_does_not_unlock_pii(self):
         """Same rule for a project_site-scoped grant, whose project is reached
@@ -215,16 +215,16 @@ class ShouldRedactPiiTests(BaseTestCase):
             grant_status=VaStatuses.active,
         ))
         db.session.commit()
-        self.assertFalse(should_redact_pii(user), "site grant must unlock PII while active")
+        self.assertFalse(should_redact_pii(user, project_id=closed_project), "site grant must unlock PII while active")
 
         project = db.session.get(VaProjectMaster, closed_project)
         project.project_status = VaStatuses.deactive
         db.session.flush()
-        self.assertTrue(should_redact_pii(user), "closed project's site grant must not unlock PII")
+        self.assertTrue(should_redact_pii(user, project_id=closed_project), "closed project's site grant must not unlock PII")
 
         project.project_status = VaStatuses.active
         db.session.flush()
-        self.assertFalse(should_redact_pii(user), "reopening restores it")
+        self.assertFalse(should_redact_pii(user, project_id=closed_project), "reopening restores it")
 
     def test_admin_global_grant_still_unlocks_pii(self):
         """Global scope names no project, so the active-project condition must
@@ -237,7 +237,7 @@ class ShouldRedactPiiTests(BaseTestCase):
             grant_status=VaStatuses.active,
         ))
         db.session.commit()
-        self.assertFalse(should_redact_pii(user))
+        self.assertFalse(should_redact_pii(user, project_id=self.PROJECT))
 
     def test_three_tier_pii_boundary_on_organization_tree_project(self):
         """Three-Tier PII boundary on organization-tree projects (2026-10-26):
@@ -298,7 +298,7 @@ class ShouldRedactPiiTests(BaseTestCase):
             ))
             db.session.commit()
             invalidate_all()
-            self.assertTrue(should_redact_pii(u), f"Tier 1 {role} must be Non-PII (redacted)")
+            self.assertTrue(should_redact_pii(u, project_id=tree_project), f"Tier 1 {role} must be Non-PII (redacted)")
             tier1_users.append(u.user_id)
         self.assertEqual(pii_visible_user_ids(tier1_users), set())
 
@@ -321,7 +321,7 @@ class ShouldRedactPiiTests(BaseTestCase):
             ))
             db.session.commit()
             invalidate_all()
-            self.assertTrue(should_redact_pii(u), f"Tier 2 mentor {role} must be Non-PII (redacted)")
+            self.assertTrue(should_redact_pii(u, project_id=tree_project), f"Tier 2 mentor {role} must be Non-PII (redacted)")
             rg = resolve_grants(u)
             self.assertFalse(any(rg.oversees(g) for g in rg.grants))
             tier2_users.append(u.user_id)
@@ -346,7 +346,7 @@ class ShouldRedactPiiTests(BaseTestCase):
             ))
             db.session.commit()
             invalidate_all()
-            self.assertFalse(should_redact_pii(u), f"Tier 3 in-system {role} must be PII (unredacted)")
+            self.assertFalse(should_redact_pii(u, project_id=tree_project), f"Tier 3 in-system {role} must be PII (unredacted)")
             tier3_users.append(u.user_id)
         self.assertEqual(pii_visible_user_ids(tier3_users), set(tier3_users))
 
@@ -360,8 +360,75 @@ class ShouldRedactPiiTests(BaseTestCase):
         ))
         db.session.commit()
         invalidate_all()
-        self.assertFalse(should_redact_pii(exc_user), "Exceptional District data_manager grant unlocks PII")
+        self.assertFalse(should_redact_pii(exc_user, project_id=tree_project), "Exceptional District data_manager grant unlocks PII")
         self.assertEqual(pii_visible_user_ids([exc_user.user_id]), {exc_user.user_id})
+
+
+class SitesOnlyPiiParityTests(BaseTestCase):
+    """digitva-ssg7.8: ``should_redact_pii`` (per user, ``is_pii_grant``) and
+    ``pii_visible_user_ids`` (bulk SQL) agree on sites-only projects (project_pi
+    is PII there, owner 2026-11-05; a mentoring-institute member only via
+    data_manager) and on one tree definition (an active organization level)."""
+
+    SITES_PROJECT = "VPRSIT"
+    LEVELS_ONLY_PROJECT = "VPRLVL"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from app.services import mentor_institute_service as mentors
+        from app.services import organization_service as org
+
+        now = datetime.now(timezone.utc)
+        for project_id, mode in ((cls.SITES_PROJECT, "sites"), (cls.LEVELS_ONLY_PROJECT, "organization")):
+            if db.session.get(VaProjectMaster, project_id) is None:
+                db.session.add(VaProjectMaster(
+                    project_id=project_id,
+                    project_code=project_id,
+                    project_name=f"Viewer PII Parity {project_id}",
+                    project_nickname=project_id,
+                    project_status=VaStatuses.active,
+                    project_structure_mode=mode,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                ))
+        db.session.flush()
+        # Active levels, no units: a tree project under the shared definition.
+        org.seed_default_organization(cls.LEVELS_ONLY_PROJECT, include_cadres=False)
+        mentors.create_institute("VPRPAR", "VPR Parity Medical College")
+        db.session.commit()
+
+    def _case(self, name, project_id, role, *, mentor=False):
+        from app.services import mentor_institute_service as mentors
+        from app.services.authz import invalidate_all
+
+        user = self._get_or_make_user(f"vpr.parity.{name}@test.local", "VprParity123")
+        if mentor:
+            mentors.add_member("VPRPAR", user.email)
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=role,
+            scope_type=VaAccessScopeTypes.project, project_id=project_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        invalidate_all()
+        return user
+
+    def test_per_user_and_bulk_answers_agree(self):
+        cases = (
+            # name, project, role, mentor member, sees PII
+            ("sites_pi", self.SITES_PROJECT, VaAccessRoles.project_pi, False, True),
+            ("sites_mentor_coder", self.SITES_PROJECT, VaAccessRoles.coder, True, False),
+            ("sites_mentor_dm", self.SITES_PROJECT, VaAccessRoles.data_manager, True, True),
+            ("levels_pi", self.LEVELS_ONLY_PROJECT, VaAccessRoles.project_pi, False, False),
+            ("levels_coder", self.LEVELS_ONLY_PROJECT, VaAccessRoles.coder, False, False),
+        )
+        for name, project_id, role, mentor, sees in cases:
+            with self.subTest(name=name):
+                user = self._case(name, project_id, role, mentor=mentor)
+                self.assertEqual(should_redact_pii(user, project_id=project_id), not sees)
+                in_bulk = user.user_id in pii_visible_user_ids([user.user_id], project_id=project_id)
+                self.assertEqual(in_bulk, sees)
 
 
 class DmSearchConditionRedactionTests(BaseTestCase):
@@ -554,12 +621,31 @@ class DmSubmissionsPageStaffIdentityTests(BaseTestCase):
         user = self._get_or_make_user("vsp.dm.collab@test.local", "VspDmCollab123")
         self._grant(user, VaAccessRoles.data_manager)
         self._grant(user, VaAccessRoles.collaborator)
-        self.assertFalse(should_redact_pii(user))
+        self.assertFalse(should_redact_pii(user, project_id=self.PROJECT))
 
         result = dm_submissions_page(user, per_page=25)
         rows = [r for r in result["data"] if r["va_sid"] == self.va_sid]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["va_data_collector"], "Jane Collector")
+
+    def test_staff_identity_and_staff_search_follow_the_row_project(self):
+        """digitva-ssg7.3: PII in another project does not unblind this row,
+        and a staff-name search does not match it either."""
+        user = self._get_or_make_user("vsp.dm.rows@test.local", "VspDmRows123")
+        self._grant(user, VaAccessRoles.data_manager)
+
+        def row(scope, **kwargs):
+            with patch("app.services.data_management_service.pii_scope", return_value=scope):
+                result = dm_submissions_page(user, per_page=25, **kwargs)
+            return [r for r in result["data"] if r["va_sid"] == self.va_sid]
+
+        here = PiiScope(project_ids=frozenset({self.PROJECT}))
+        elsewhere = PiiScope(project_ids=frozenset({"VSPOTH"}))
+        self.assertEqual(row(here)[0]["va_data_collector"], "Jane Collector")
+        self.assertEqual(len(row(here, search="Jane Collector")), 1)
+        self.assertIsNone(row(elsewhere)[0]["va_data_collector"])
+        self.assertEqual(row(elsewhere, search="Jane Collector"), [])
+        self.assertEqual(len(row(elsewhere, sort_field="coded_by")), 1)
 
     def test_export_csv_never_includes_collector_base_column(self):
         """va_data_collector is never a base export column, for any role —
@@ -659,7 +745,7 @@ class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
     is by construction unredacted (see module docstring). The redacted branch
     is therefore reached by patching the single decision point where the
     export calls it — which is also the thing worth asserting: that the
-    export consults should_redact_pii at all, rather than deciding locally.
+    export consults pii_scope at all, rather than deciding locally.
     """
 
     PROJECT = "VEX001"
@@ -808,7 +894,7 @@ class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["final_assess_by"], str(self.coder_user.user_id))
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_export_blanks_every_staff_identity_column(self, _mock):
         csv_text = dm_submissions_export_csv(self.dm_user)
         rows = self._export_rows(csv_text)
@@ -817,21 +903,21 @@ class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
             self.assertEqual(rows[0][header], "", f"{header} was not redacted")
         self.assertNotIn(str(self.coder_user.user_id), csv_text)
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_export_keeps_the_same_columns(self, _mock):
         """Column order and offsets are a downstream contract: redaction
         empties cells, it must not drop or reorder headers."""
         redacted = dm_submissions_export_csv(self.dm_user)
         with patch(
-            "app.services.data_management_service.should_redact_pii",
-            return_value=False,
+            "app.services.data_management_service.pii_scope",
+            return_value=PiiScope(everywhere=True),
         ):
             unredacted = dm_submissions_export_csv(self.dm_user)
         self.assertEqual(
             redacted.splitlines()[0], unredacted.splitlines()[0]
         )
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_export_keeps_non_identity_columns(self, _mock):
         """Redaction is narrow: the coded cause of death still exports."""
         rows = self._export_rows(dm_submissions_export_csv(self.dm_user))
@@ -873,7 +959,7 @@ class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
             self.assertIn(column, header)
         self.assertIn("CC BY-ND 3.0 IGO", csv_text.strip().splitlines()[-1])
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_snapshot_blanks_every_staff_name(self, _mock):
         csv_text, rows = self._snapshot_rows()
         self.assertEqual(len(rows), 1)
@@ -881,7 +967,7 @@ class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
             self.assertEqual(rows[0][header], "", f"{header} was not redacted")
         self.assertNotIn(self.coder_user.name, csv_text)
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_snapshot_keeps_the_coded_cause_of_death(self, _mock):
         """Redaction is narrow: what the export exists for still exports."""
         _csv_text, rows = self._snapshot_rows()
@@ -1034,13 +1120,13 @@ class DmCoderDailyStatisticsRedactionTests(BaseTestCase):
         self.assertIn(str(self.coder_user.user_id), coder_ids)
         self.assertFalse(result["staff_identity_redacted"])
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_stats_return_no_rows(self, _mock):
         result = dm_coder_daily_statistics(self.dm_user)
         self.assertEqual(result["rows"], [])
         self.assertTrue(result["staff_identity_redacted"])
 
-    @patch("app.services.data_management_service.should_redact_pii", return_value=True)
+    @patch("app.services.data_management_service.pii_scope", return_value=PiiScope())
     def test_redacted_stats_keep_the_response_shape(self, _mock):
         """The dashboard renders the date header before the rows arrive, so
         the window must survive redaction even though the rows do not."""

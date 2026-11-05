@@ -3,6 +3,31 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-06
+
+- **Security audit run-5 fixes** (`digitva-ssg7`, 11 beads): an external
+  audit's 10 unvalidated findings were re-traced; 9 held, 1 more was found in
+  review. PII is now decided per project (`docs/policy/access-control-model.md`
+  rule 4): a PII grant in one project no longer unblinds another, lists and
+  exports decide per row, and blinded coders/reviewers no longer see the
+  interviewer's name. Deactivating a mentoring institute or removing a member
+  deactivates their unit grants in its districts, and a member's old `site_pi`
+  confers no In-Charge powers (`docs/policy/organization-model.md`). On
+  sites-only projects `project_pi` stays PII (owner), mentors get PII only as
+  data manager, and "has a tree" means an active org level everywhere. A
+  reviewer's Step 1 on replaced data no longer passes the final-review gate. A
+  stale cookie after a password reset no longer dead-ends web login. The demo
+  device cap is enforced (never-opened enrolments count for 24 h) and a shared
+  demo device no longer blocks account purge (`docs/policy/public-demo.md`). A
+  standalone push to a project with self-coding off keeps the interview and
+  refuses only the coding, `self_coding_required`; refusing code-enrolled
+  devices outright was rejected because older APKs push adopted records
+  through them (`docs/policy/offline-api-contract.md` 17). Request bodies are
+  capped at 2 MiB app-wide with per-upload limits before CSRF parsing.
+  Data-manager verification resends need profile-edit reach and are rate
+  limited. Full suite: 7,286 passed; the two failures it raised were adjusted
+  tests (one memoised query, Werkzeug's readinto) and pass.
+
 ## 2026-11-05
 
 - **32-bit phones get the 32-bit APK** (`digitva-n5zf`): a Samsung on

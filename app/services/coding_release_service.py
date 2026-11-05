@@ -23,6 +23,7 @@ from app.models import (
     VaFinalAssessments,
     VaInitialAssessments,
     VaReviewerFinalAssessments,
+    VaReviewerInitialAssessments,
     VaReviewerReview,
     VaSmartvaResults,
     VaStatuses,
@@ -131,6 +132,12 @@ def release_coding_for_changed_payload(va_sid: str, *, source: str, audit_by=Non
         VaReviewerReview.va_rreview_id, f"va_reviewerreview_deletion_during_{trigger}",
     )
     deactivate(
+        VaReviewerInitialAssessments, VaReviewerInitialAssessments.va_sid,
+        VaReviewerInitialAssessments.va_riniassess_status,
+        VaReviewerInitialAssessments.va_riniassess_id,
+        f"va_reviewerinitialasses_deletion_during_{trigger}",
+    )
+    deactivate(
         VaUsernotes, VaUsernotes.note_vasubmission, VaUsernotes.note_status,
         VaUsernotes.note_id, f"va_usernote_deletion_during_{trigger}",
     )
@@ -154,7 +161,7 @@ def release_coding_for_changed_payload(va_sid: str, *, source: str, audit_by=Non
 def deactivate_coding_for_accepted_change(va_sid: str, *, actor: WorkflowActor, audit_by) -> None:
     """Deactivate every coding artifact of a finalised submission whose new
     payload was accepted, so it re-enters coding from scratch: final and
-    initial assessments, coder and data-manager reviews, allocations, SmartVA
+    initial assessments, reviewer initial assessments, coder and data-manager reviews, allocations, SmartVA
     results, reviewer final assessments and reviews, narrative and social
     autopsy assessments. Deactivated, never deleted: the earlier COD stays as
     history. The reviewer, narrative and social-autopsy rows are audited under
@@ -173,6 +180,7 @@ def deactivate_coding_for_accepted_change(va_sid: str, *, actor: WorkflowActor, 
         (VaAllocations, VaAllocations.va_sid, VaAllocations.va_allocation_status),
         (VaSmartvaResults, VaSmartvaResults.va_sid, VaSmartvaResults.va_smartva_status),
         (VaReviewerFinalAssessments, VaReviewerFinalAssessments.va_sid, VaReviewerFinalAssessments.va_rfinassess_status),
+        (VaReviewerInitialAssessments, VaReviewerInitialAssessments.va_sid, VaReviewerInitialAssessments.va_riniassess_status),
     ):
         for row in db.session.scalars(
             sa.select(model).where(sid_col == va_sid, status_col == VaStatuses.active)

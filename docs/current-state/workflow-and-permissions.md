@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-11-05
 ---
 
 # Workflow And Permissions
@@ -975,8 +975,14 @@ concurrent MV refresh, is limited to 2 per minute.
 
 #### Redaction coverage of the data-management exports
 
-As of 2026-09-19 these surfaces consult `should_redact_pii` and blank staff
-identity for a viewer who must not see it:
+As of 2026-09-19 these surfaces consult the viewer's PII scope and blank staff
+identity for a viewer who must not see it. Since 2026-11-05 (digitva-ssg7.3)
+the decision is per row by project (`viewer_pii_service.pii_scope`): a PII
+grant in one project never unblinds another project's rows. The coder daily
+statistics count only submissions of projects where the viewer sees staff
+identity (none: no rows); the search matches staff names only on such rows;
+`coded_by` sorting falls back to the date for a viewer with no PII anywhere
+and otherwise sorts other projects' rows as uncoded.
 
 | Surface | Redacted |
 | --- | --- |

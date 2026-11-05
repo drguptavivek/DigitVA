@@ -127,11 +127,39 @@ class DemoEnrolTests(PublicDemoBase):
         self.assertEqual(self._enrol(username="demo.enrol2").status_code, 201)
         self.assertEqual(len([d for d in self._devices(other) if d.revoked_at is None]), 1)
 
-    def test_unopened_demo_devices_do_not_consume_active_slots(self):
-        bodies = [self._enrol().get_json() for _ in range(3)]
+    def test_unopened_demo_devices_count_toward_the_demo_device_cap(self):
+        cap = self.app.config["PUBLIC_DEMO_DEVICES_PER_ACCOUNT"]
+        statuses = [self._enrol().status_code for _ in range(cap)]
+        self.assertEqual(statuses, [201] * cap)
+        over = self._enrol()
+        self.assertEqual((over.status_code, over.get_json()["code"]), (429, "demo_limit"))
+        self.assertEqual(len([d for d in self._devices() if d.revoked_at is None]), cap)
+        # A revoked device frees its place.
+        self._devices()[0].revoked_at = datetime.now(UTC)
+        db.session.commit()
         self.assertEqual(self._enrol().status_code, 201)
-        self.assertTrue(all(db.session.get(AuthDevice, body["device_id"]).revoked_at is None for body in bodies))
-        self.assertEqual(len([d for d in self._devices() if d.revoked_at is None]), 4)
+
+    def test_a_never_opened_device_enrolled_over_a_day_ago_does_not_count(self):
+        cap = self.app.config["PUBLIC_DEMO_DEVICES_PER_ACCOUNT"]
+        self.assertEqual([self._enrol().status_code for _ in range(cap)], [201] * cap)
+        self.assertEqual(self._enrol().get_json()["code"], "demo_limit")
+        stale = self._devices()[0]
+        stale.enrolled_at = datetime.now(UTC) - timedelta(hours=25)
+        db.session.commit()
+        self.assertEqual(self._enrol().status_code, 201)
+
+    def test_a_device_the_account_signed_in_on_counts_toward_the_demo_device_cap(self):
+        other = self._account("demo.enrol3")
+        body = self._enrol(username="demo.enrol3").get_json()
+        signed_in = self.client.post("/api/v1/auth/sessions", json={
+            "device_id": body["device_id"], "device_secret": body["device_secret"],
+            "email": self.user.username, "password": PASSWORD,
+        })
+        self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+        self.assertEqual(len(self._devices(other)), 1)
+        cap = self.app.config["PUBLIC_DEMO_DEVICES_PER_ACCOUNT"]
+        self.assertEqual([self._enrol().status_code for _ in range(cap - 1)], [201] * (cap - 1))
+        self.assertEqual(self._enrol().get_json()["code"], "demo_limit")
 
     def test_flag_off_is_404_and_enrols_nothing(self):
         with mock.patch.dict(self.app.config, PUBLIC_DEMO_ENABLED=False):

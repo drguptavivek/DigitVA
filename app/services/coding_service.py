@@ -119,14 +119,15 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     payload_data = joined_payload(active_version) if active_version else {}
     # A nameless refusal has no category data to carry its visit note, so the
     # page header does.
+    form = db.session.get(VaForms, submission.va_form_id) if submission.va_form_id else None
     visit_note = visit_note_for_viewer(
-        note_from_payload(payload_data), redact_pii=should_redact_pii(current_user)
+        note_from_payload(payload_data),
+        redact_pii=should_redact_pii(current_user, project_id=form.project_id if form else None),
     )
     visible_codes = get_visible_category_codes(payload_data, submission.va_form_id)
     category_nav = category_service.get_category_nav(form_type_code, va_action, visible_codes)
     default_category_code = category_service.get_default_category_code(form_type_code, va_action, visible_codes)
     attachment_counts = _count_attachments_per_category(form_type_code, payload_data, submission.va_sid)
-    form = db.session.get(VaForms, submission.va_form_id) if submission.va_form_id else None
     project = db.session.get(VaProjectMaster, form.project_id) if form else None
     project_code = (
         (project.project_code if project and project.project_code else None)

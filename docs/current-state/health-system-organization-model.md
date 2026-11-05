@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-11-05
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -533,7 +533,7 @@ The query count is constant per project, whatever the number of units.
 | Tree, cadres, workers, export/import, unit label lookup for submission exports | `app/services/organization_service.py` |
 | Organization tree and web form options JSON API | `app/routes/api/organization.py` |
 | Unit-scoped grants, coding scope rule, coding gate and VA preset resolution | `app/services/org_grant_service.py` |
-| Mentoring institutes: management, grant guard, institute-admin staff management (create capped at 20 per institute per day, remove deactivates in-institute mentor grants), district data-manager reach, `mentors_for_unit` | `app/services/mentor_institute_service.py`, `app/services/user_account_service.py` (shared invited-user creation), `app/routes/admin_mentor_institute.py` (`/admin/api/mentor-institutes`), `app/routes/data_management.py` (data-manager grant routes), `flask mentor-institute` |
+| Mentoring institutes: management, grant guard, institute-admin staff management (create capped at 20 per institute per day, remove, CLI remove-user and institute deactivation deactivate the lapsing in-institute unit grants, never data_manager), district data-manager reach, `mentors_for_unit` | `app/services/mentor_institute_service.py`, `app/services/user_account_service.py` (shared invited-user creation), `app/routes/admin_mentor_institute.py` (`/admin/api/mentor-institutes`), `app/routes/data_management.py` (data-manager grant routes), `flask mentor-institute` |
 | Submission routing, ODK field preflight | `app/services/org_unit_routing_service.py` |
 | Runtime form materialization per mapping | `app/services/runtime_form_sync_service.py` |
 | List filtering and the allocation gate | `app/services/coder_workflow_service.py` |

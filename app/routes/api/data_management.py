@@ -58,7 +58,7 @@ from app.services.data_management_service import (
 )
 from app.services import smartva_service
 from app.services.authz import Action, AuthzError, can, require, scope_filter
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import pii_scope
 from app.utils import va_user_timezone_name
 from app.services import export_store_service as export_store
 from app.services.attachment_store import AttachmentStoreError
@@ -946,7 +946,8 @@ def unrouted_submissions():
 
     rows = db.session.execute(stmt).all()
     truncated = len(rows) > UNROUTED_QUEUE_MAX_ROWS
-    redact_pii = should_redact_pii(current_user)
+    # Per row by project (digitva-ssg7.3).
+    pii = pii_scope(current_user)
     return jsonify({
         "submissions": [
             {
@@ -954,7 +955,7 @@ def unrouted_submissions():
                 "submission_date": row.va_submission_date.isoformat()
                 if row.va_submission_date
                 else None,
-                "data_collector": None if redact_pii else row.va_data_collector,
+                "data_collector": row.va_data_collector if pii.sees(row.project_id) else None,
                 "project_id": row.project_id,
                 "site_id": row.site_id,
                 "resolution": row.org_unit_resolution,

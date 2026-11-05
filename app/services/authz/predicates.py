@@ -640,8 +640,9 @@ def _can_pin_to(g: ResolvedGrants, target) -> Decision:
 
 
 def _can_site_pi_report(g: ResolvedGrants, target) -> Decision:
-    """site_pi on the pair, or at a unit whose subtree holds the target unit;
-    project_pi on the target's project (access-control-model.md:72)."""
+    """site_pi on the pair, or the In-charge (``ResolvedGrants.oversees``) at
+    a unit whose subtree holds the target unit; project_pi on the target's
+    project (access-control-model.md:72)."""
     pi_projects = {x.project_id for x in g.of((_R.project_pi,))}
     holders = list(g.of((_R.site_pi, _R.project_pi)))
     if target[0] == "pair":
@@ -658,7 +659,7 @@ def _can_site_pi_report(g: ResolvedGrants, target) -> Decision:
             return _deny(Reason.NOT_FOUND)
         if g.is_admin or unit.project_id in pi_projects or any(
             x.covers_unit(unit.project_id, unit.path)
-            for x in g.of((_R.site_pi,), scope_types=(_U,))
+            for x in g.of((_R.site_pi,), scope_types=(_U,)) if g.oversees(x)
         ):
             return _ALLOWED
         return _deny(Reason.NO_ROLE if not holders else Reason.OUT_OF_SCOPE)

@@ -31,6 +31,7 @@ from app.services import smartva_service, training_scope
 from app.services.authz import Action, Reason, can
 from app.services.case_list_service import coding_names
 from app.services.case_transition_service import WebIntakeError
+from app.services.viewer_pii_service import should_redact_pii
 from app.services.coder_cod_service import (
     CoderCodingError,
     submit_coder_final_cod,
@@ -134,7 +135,12 @@ def get_allocation():
             if form and form.va_submission_date
             else None
         ),
-        "va_data_collector": form.va_data_collector if form else None,
+        # Staff identity: only where the user has a PII grant (ssg7.11).
+        "va_data_collector": (
+            form.va_data_collector
+            if form and not should_redact_pii(current_user, project_id=project_id)
+            else None
+        ),
         "va_deceased_age": form.va_deceased_age if form else None,
         "va_deceased_gender": form.va_deceased_gender if form else None,
         "actiontype": (

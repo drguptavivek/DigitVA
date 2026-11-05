@@ -21,7 +21,6 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
-    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -35,7 +34,12 @@ from app.services.authz.actions import (
     Reason,
 )
 from app.services.authz.consulted import mark_consulted
-from app.services.authz.grants import Grant, ResolvedGrants, resolve_grants
+from app.services.authz.grants import (
+    Grant,
+    ResolvedGrants,
+    has_tree_condition,
+    resolve_grants,
+)
 from app.services.authz.predicates import _ALLOWED, Decision, _deny, _subtree_select
 
 _R = VaAccessRoles
@@ -65,22 +69,15 @@ class _Where:
     has_tree: bool
 
 
-def _has_tree(project_id_expr):
-    return sa.exists(sa.select(1).where(
-        MasOrgLevel.project_id == project_id_expr,
-        MasOrgLevel.is_active.is_(True),
-    ))
-
-
 def _locate(target: GrantTarget) -> _Where | None:
     """One query: the target's project (and pair or unit) and its kind."""
     if target.scope_type == _P and target.project_id:
-        has_tree = db.session.scalar(sa.select(_has_tree(target.project_id)))
+        has_tree = db.session.scalar(sa.select(has_tree_condition(target.project_id)))
         return _Where(target.project_id, None, None, None, None, bool(has_tree))
     if target.scope_type == _PS and target.project_site_id:
         row = db.session.execute(
             sa.select(VaProjectSites.project_id, VaProjectSites.site_id,
-                      _has_tree(VaProjectSites.project_id).label("has_tree"))
+                      has_tree_condition(VaProjectSites.project_id).label("has_tree"))
             .where(VaProjectSites.project_site_id == target.project_site_id)
         ).first()
         if row is None:
@@ -90,7 +87,7 @@ def _locate(target: GrantTarget) -> _Where | None:
     if target.scope_type == _U and target.org_unit_id:
         row = db.session.execute(
             sa.select(MasOrgUnit.project_id, sa.cast(MasOrgUnit.path, sa.Text).label("path"),
-                      _has_tree(MasOrgUnit.project_id).label("has_tree"))
+                      has_tree_condition(MasOrgUnit.project_id).label("has_tree"))
             .where(MasOrgUnit.org_unit_id == target.org_unit_id,
                    MasOrgUnit.is_active.is_(True))
         ).first()
@@ -103,12 +100,13 @@ def _locate(target: GrantTarget) -> _Where | None:
 
 def writer_grants(g: ResolvedGrants) -> list[Grant]:
     """The actor's grants that confer any grant-writing power: project_pi,
-    data_manager at any scope, site_pi at a unit (the In-charge)."""
+    data_manager at any scope, site_pi at a unit (the In-charge) unless the
+    actor is an active mentoring-institute member (``ResolvedGrants.oversees``)."""
     return [
         x for x in g.grants
         if not x.virtual and (
             x.role in (_R.project_pi, _R.data_manager)
-            or (x.role == _R.site_pi and x.scope_type == _U)
+            or (x.role == _R.site_pi and g.oversees(x))
         )
     ]
 

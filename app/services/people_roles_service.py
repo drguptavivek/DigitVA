@@ -294,7 +294,7 @@ def _viewer_facts(viewer, resolved, scope: ResolvedGrants, project_id: str) -> d
         "whole_project": is_admin or any(g.scope_type == _P for g in mine),
         "sites": {g.project_site_id for g in mine if g.scope_type == _PS},
         "identity": identity,
-        "initials": not identity and should_redact_pii(viewer),
+        "initials": not identity and should_redact_pii(viewer, project_id=project_id, _grants=resolved),
         "audit_all": audit_all,
         "dm_units": [g for g in dm_grants if g.scope_type == _U],
         "dm_sites": {g.project_site_id for g in dm_grants if g.scope_type == _PS},

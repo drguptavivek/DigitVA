@@ -5,6 +5,8 @@ PH1 > SCA, SCB and CH1 > PH2 > SCC; CLS01 (site SM01) is a sites-mode project.
 Every "absent" assertion first asserts that an in-scope sibling is present.
 """
 import base64
+import csv
+import io
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -39,6 +41,7 @@ from app.services import organization_service as org
 from app.services import register_pii_accessor
 from app.services import web_intake_service as intake_svc
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
+from app.services.viewer_pii_service import PiiScope
 from tests.base import BaseTestCase
 
 R = VaAccessRoles
@@ -50,8 +53,8 @@ STAFF_FIELDS = ("reporter_name", "interviewer_name", "coder_name")
 
 @contextmanager
 def _redacted():
-    """The caller loses personal-data access (``should_redact_pii`` true)."""
-    with mock.patch.object(case_list, "should_redact_pii", return_value=True):
+    """The caller loses personal-data access in every project (``pii_scope`` empty)."""
+    with mock.patch.object(case_list, "pii_scope", return_value=PiiScope()):
         yield
 
 
@@ -1317,6 +1320,47 @@ class CaseListTests(BaseTestCase):
         self._login(str(self.admin.user_id))
         self.assertLess(self._statements(request(f"?preset=deaths&unregistered=1&limit=1&cursor={cursor}")), plain)
 
+    def test_pii_is_decided_per_project_never_per_caller(self):
+        """digitva-ssg7.3: a PII grant in one project never unblinds another.
+        dora is a data manager at project scope in both projects: PII in the
+        sites-mode project, Tier 1 (no PII) in the organization project. Staff
+        names show on the sites-mode rows only, in the list and the export."""
+        dora = self._get_or_make_user("cl.dora@test.local", "CaseList123")
+        for project_id in (SITES_PROJECT, PROJECT):
+            db.session.add(VaUserAccessGrants(
+                user_id=dora.user_id, role=R.data_manager, scope_type=VaAccessScopeTypes.project,
+                project_id=project_id, grant_status=VaStatuses.active, notes="ssg7.3"))
+        db.session.commit()
+        sites_sid = self._unregistered(form=f"{SITES_PROJECT}{SITES_SITE}01")
+        org_sid = self._unregistered(unit=self.sca)
+        rows = self._rows(dora, "?preset=deaths&unregistered=1&limit=200")
+        # The PII project first: its submission row names the interviewer.
+        self.assertEqual(rows[f"s:{sites_sid}"]["interviewer_name"], "cl-un")
+        self.assertIn(f"s:{org_sid}", rows)
+        self.assertNotIn("interviewer_name", rows[f"s:{org_sid}"])
+        f = str(self.f.death_id)
+        self.assertEqual(self._ids(self.dana)[f]["coder_name"], self.cody.name)  # Tier 3 there
+        self.assertIn(f, rows)
+        for field in ("deceased_name", *STAFF_FIELDS):
+            self.assertNotIn(field, rows[f])
+        reach = case_list._reach(dora)
+        self.assertTrue(reach.pii.sees(SITES_PROJECT))
+        self.assertFalse(reach.pii.sees(PROJECT))
+        self._login(str(dora.user_id))
+        response = self.client.get(f"{API}/export.csv?limit=200")
+        self.assertEqual(response.status_code, 200)
+        exported = {r["unique_id"]: r for r in csv.DictReader(io.StringIO(response.get_data(as_text=True)))}
+        self.assertIn(self.f.unique_id, exported)
+        self.assertEqual(exported[self.f.unique_id]["coder_name"], "")
+        self.assertEqual(self._export_coder(self.dana), self.cody.name)
+
+    def _export_coder(self, who):
+        self._login(str(who.user_id))
+        response = self.client.get(f"{API}/export.csv?limit=200")
+        self.assertEqual(response.status_code, 200)
+        rows = {r["unique_id"]: r for r in csv.DictReader(io.StringIO(response.get_data(as_text=True)))}
+        return rows[self.f.unique_id]["coder_name"]
+
     def test_the_export_stays_register_only(self):
         sid = self._unregistered(unit=self.sca)
         self.assertIn(f"s:{sid}", self._rows(self.dana, "?unregistered=1&limit=200"))
@@ -1489,7 +1533,7 @@ class CaseListTests(BaseTestCase):
         checked = 0
         for who, redacted in ((self.admin, False), (self.dana, False), (self.dana, True), (self.cody, False),
                               (self.cole, False), (self.pat, False), (self.ivy, False)):
-            with mock.patch.object(case_list, "should_redact_pii", return_value=True) if redacted else _nothing():
+            with _redacted() if redacted else _nothing():
                 for period in (None, since):
                     stage_query = f"?reported_from={period}&submitted_from={period}" if period else "?"
                     reply = self._stage(who, stage_query)

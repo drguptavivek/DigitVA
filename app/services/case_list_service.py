@@ -144,7 +144,7 @@ from app.services.death_identifier_service import (
     identifier_values_visible,
 )
 from app.services.odk_retirement_service import submission_is_in_odk
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import PiiScope, pii_scope
 from app.services.visit_note import has_visit_note_condition
 from app.services.web_intake_service import (
     _DEATH_REPORTER,
@@ -472,8 +472,9 @@ class _Reach:
     submission_scope: object
     submission_unit: object
     submission_staff: object
-    #: The caller has personal-data access (``should_redact_pii`` false).
-    pii: bool
+    #: Where the caller has personal-data access (``pii_scope``): per row
+    #: by project (digitva-ssg7.3), never once per caller.
+    pii: PiiScope
 
 
 def _on_submission(condition):
@@ -523,8 +524,12 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
         reporter = sa.and_(reporter, VaDeathRegister.registered_by == user.user_id)
     field = [c for c in (interviewer, reporter) if c is not None]
     via_field = sa.or_(*field) if field else sa.false()
+    # A site_pi counts only as the In-charge (``ResolvedGrants.oversees``:
+    # at a unit, not held by an active mentoring-institute member).
     oversees = any(
-        g.role in SUPERVISING_ROLES or g.role == VaAccessRoles.project_pi for g in grants.grants if not g.virtual
+        grants.oversees(g) if g.role == VaAccessRoles.site_pi
+        else g.role in SUPERVISING_ROLES or g.role == VaAccessRoles.project_pi
+        for g in grants.grants if not g.virtual
     )
     # The Expo scope (training vs real work) bounds every reach below. Kept a
     # bare ``false`` when the caller supervises nothing: ``case_list_counts``
@@ -537,8 +542,10 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
     via_submission = _on_submission(submissions)
 
     admin = sa.true() if grants.is_admin else sa.false()
-    # Per caller, as gps_projects: one grant read, a constant in the statement.
-    pii = sa.false() if should_redact_pii(user) else sa.true()
+    # Per row by project (digitva-ssg7.3): a PII grant in another project
+    # does not count. One grant read; the project list is a constant.
+    pii_projects = pii_scope(user, _grants=grants)
+    pii = pii_projects.condition(VaDeathRegister.project_id)
     dm_lens_raw = lens_filter(user, Lens.DM, _grants=grants)
     dm_lens = _on_submission(dm_lens_raw)
     other_lenses_raw = sa.or_(*(
@@ -630,8 +637,8 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
         # can_unit's lenses give it; staff as can_staff's.
         submission_scope=sa.or_(admin, submissions),
         submission_unit=sa.or_(admin, other_lenses_raw, in_system_coder_raw),
-        submission_staff=sa.and_(pii, sa.or_(admin, dm_lens_raw)),
-        pii=isinstance(pii, sa.sql.elements.True_),
+        submission_staff=sa.and_(pii_projects.condition(VaForms.project_id), sa.or_(admin, dm_lens_raw)),
+        pii=pii_projects,
     )
 
 
@@ -1189,7 +1196,7 @@ def _utc_iso(value) -> str | None:
 def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers: list,
                register: dict | None = None, pii: bool = False) -> dict:
     # ``register``: the row's opened name and fix (``list_cases``); None when not opened.
-    # ``pii``: the caller's personal-data access (``_Reach.pii``).
+    # ``pii``: the caller's personal-data access in this row's project (``_Reach.pii``).
     register = register or {}
     mine_reported = row.registered_by == user.user_id
     mine_started = row.started_by_user_id == user.user_id
@@ -1363,7 +1370,7 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
 
     Location (``latitude``/``longitude``) per policy decision 6, as
     ``worklist_page``: an organization project, and the caller has personal
-    data access (``should_redact_pii``) or registered the case; and only on
+    data access in the case's project (``pii_scope``) or registered the case; and only on
     a row the caller's interviewer or reporter reach opens (coders hold PII
     grants but code masked). Never on the supervision preset. *with_identifiers*
     False skips the registration numbers (no query, no decryption);
@@ -1383,10 +1390,8 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     rows = db.session.execute(statement).all()
     page = rows[:limit]
     org_projects = set()
-    redact = True
     if with_names and preset != "supervision" and any(r.via_field and r.has_location for r in page):
         org_projects = org_grant_service.projects_with_org_tree({r.project_id for r in page})
-        redact = should_redact_pii(user)
     # The export without number columns asks for none: nothing is decrypted.
     # A submission with no register row (death_id NULL) holds no numbers.
     registered = [r for r in page if r.death_id is not None]
@@ -1396,14 +1401,14 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     ) if with_identifiers else {}
     show_location = {
         r.death_id: bool(with_names and r.via_field and r.has_location and r.project_id in org_projects
-                         and (not redact or r.registered_by == user.user_id))
+                         and (reach.pii.sees(r.project_id) or r.registered_by == user.user_id))
         for r in page
     }
     opened = _open_page(page, show_location) if with_names else {}
     cases = [
         _serialize(user, row, preset, show_location=show_location[row.death_id],
                    identifiers=identifiers.get(row.death_id, []), register=opened.get(row.death_id),
-                   pii=reach.pii)
+                   pii=reach.pii.sees(row.project_id))
         for row in page
     ]
     key = page[-1].row_key if _lists_unregistered(preset, filters) and page else None

@@ -31,11 +31,17 @@ has neither, and its coding is one direct step with SmartVA visible.
    hand-kept `private/android-hosted`, which the deploy never touches.
    Dev `/app/` serves `mobile/digitva-collect/dist`: rebuild it locally to
    see new screens on dev.
-2. On staging, check by hand: refuse then re-consent a direct interview
+2. Security audit run-5 fixes (`digitva-ssg7`, CHANGELOG 2026-11-06) are on
+   main, not staging. Before deploying: count active
+   `va_reviewer_initial_assessments` rows with NULL `payload_version_id` (they
+   stop counting as Step 1; dev has none); PII is now per project, so check a
+   multi-project user's case list and export on staging. Audit report:
+   `/Users/vivekgupta/security-audit-skill/DigitVA/run-5/`.
+3. On staging, check by hand: refuse then re-consent a direct interview
    (HIV/malaria presets come back, `digitva-lgzl`); a DORIS cluster such as
    BD1Z with a causing condition shows the whole title on the certificate
    line (`digitva-iae8`); the other-interviewer banner names them.
-3. Verify on the USB Samsung (RZCW81QZT2Z): install
+4. Verify on the USB Samsung (RZCW81QZT2Z): install
    `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (release-signed,
    updates 0.3.17 in place) for the 0.3.18 checks and the offline workspace;
    the 0.3.19 build for the rest.
@@ -49,39 +55,39 @@ has neither, and its coding is one direct step with SmartVA visible.
      COD section, DORIS save; then close the bead. Known gaps: `.22.3`
      native category view, `.22.4` NQA/SA not cached, the phone strips with
      the bundled instrument rather than the draft's pin, `.22.9` label split.
-4. Browser interview attachments (`digitva-e621`): on staging after a deploy
+5. Browser interview attachments (`digitva-e621`): on staging after a deploy
    (owner's go), camera, image upload, audio and a PDF in Chrome on a phone and
    a desktop; submit and check the files reach the case; sign out with an
    unsent file (warning, deleted). Hindi strings: `digitva-ygo5`.
-5. Expo ICD-10 parity (`digitva-tk7j`): checked on dev web without a save. Try
+6. Expo ICD-10 parity (`digitva-tk7j`): checked on dev web without a save. Try
    a save on web and coding online on the phone. Flask's previous
    immediate/antecedent final causes are not in the workspace API. Check
    `digitva-2q7c` (workspace reloads when its tab becomes visible again) in a
    normal browser.
-6. Standalone engine (`digitva-xw1s`): CI green on `6be9169` (Linux
+7. Standalone engine (`digitva-xw1s`): CI green on `6be9169` (Linux
    integration 8/8 incl. WHO's certificates); `v0.1.0` tagged 1 Nov and its
    draft release built (4 archives, each only binary + LICENSE + NOTICE +
    README). The owner publishes the draft; then close the bead. Built
    binaries not yet run on Linux or Intel Mac; no Windows build
    (`src/hostfxr.rs`); Linux needs glibc 2.39+. The React DORIS component is
    not started.
-7. `digitva-9cll.5` phone proof: standalone certificate steps (search, Use,
+8. `digitva-9cll.5` phone proof: standalone certificate steps (search, Use,
    Build/axes, details, hierarchy, XK8G/NC72 refusals, DORIS, CoDEdit, save
    shows Coded), then an enrolled TST001 coder offline (the owner signs in),
    incl. when `:icd11` starts. Capture so far:
    `private/engine-measurements/20261030-coding-journey`.
-8. `digitva-9cll.22` coding parity children: `.22.2` online phone attachments
+9. `digitva-9cll.22` coding parity children: `.22.2` online phone attachments
    never load, `.22.4`, `.22.3`, `.22.5` offline not-codeable/remark, `.22.6`
    SmartVA sex raw code, `.22.9`.
-9. `digitva-9cll.23` standalone direct coding; `digitva-9cll.24` coded-case
+10. `digitva-9cll.23` standalone direct coding; `digitva-9cll.24` coded-case
    summary with Revise.
-10. `digitva-gt2v`, `digitva-bged`: offline reply-shape and Build/axes bugs.
-11. DORIS validation gaps (`docs/current-state/doris-validation-checks.md`):
+11. `digitva-gt2v`, `digitva-bged`: offline reply-shape and Build/axes bugs.
+12. DORIS validation gaps (`docs/current-state/doris-validation-checks.md`):
     `digitva-l0ey`, `digitva-2j57`, `digitva-e505`, `digitva-giym`,
     `digitva-o16a`, `digitva-37gr`.
-12. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
+13. `digitva-9cll.11` CI engine build not byte-identical; `digitva-9cll.13`–`.21`
     Android ICD/DORIS review findings.
-13. `make collect-plus-local`: container mode untested end to end (Docker 12 GB
+14. `make collect-plus-local`: container mode untested end to end (Docker 12 GB
     or more); `NATIVE=1` works on the Mac (4.5 min, debug-signed, never
     distributed).
 

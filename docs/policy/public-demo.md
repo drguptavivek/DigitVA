@@ -3,7 +3,7 @@ title: Public Demo
 doc_type: policy
 status: approved baseline
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # Public demo
@@ -152,6 +152,7 @@ Defaults, all configurable:
 | ICD-11 lookups | 300 per hour per account; 2000 per hour across all demo accounts |
 | Downloads | 10 per hour |
 | Devices per account (Android) | 3 active user-device logins; a fourth returns `409 device_limit` until one is decommissioned |
+| Demo enrolments per account (`PUBLIC_DEMO_DEVICES_PER_ACCOUNT`) | 3 unrevoked devices the account holds a live session on, plus devices it enrolled in the last 24 hours that never signed in (an older never-opened device no longer counts); another returns `429 demo_limit` |
 
 **Eviction at the cap (owner 2026-10-22).** When 500 accounts exist and someone
 signs up, the account with the oldest last sign-in (or creation, if never
@@ -211,8 +212,9 @@ touches only public-demo accounts and demo-project data, refuses an account
 with anything outside the demo project or a case shared with another account,
 runs only with `PUBLIC_DEMO_ENABLED` and `PUBLIC_DEMO_PURGE_ENABLED`, and
 refuses on a database that holds any other project. Security events are kept
-with the user reference cleared. Dashboard counts may drop
-accordingly. The audit records counts, never usernames or content.
+with the user reference cleared. A device another account still has a
+session on is kept with that session; it only stops naming the deleted
+account's enrolment. Dashboard counts may drop accordingly. The audit records counts, never usernames or content.
 
 The 30-day deletion is an owner decision (2026-10-22). Real data never lives
 on this database (section 1). The demo database is backed up nightly (owner

@@ -867,6 +867,28 @@ class IdentifierAccessTests(IdentifierFixture):
         finally:
             self._self_coding_on(False)
 
+    def test_values_are_decided_per_project_for_a_user_with_pii_in_another(self):
+        """digitva-ssg7.3: an interviewer in the sites-mode project (PII there)
+        who is also a project-scope coder in the organization project (Tier 1)
+        gets values in the first, a present flag only in the second."""
+        vic = self._get_or_make_user("idv.vic@test.local", "Identifier123")
+        for role, project_id in ((R.interviewer, SITES_PROJECT), (R.coder, PROJECT)):
+            db.session.add(VaUserAccessGrants(
+                user_id=vic.user_id, role=role, scope_type=VaAccessScopeTypes.project,
+                project_id=project_id, grant_status=VaStatuses.active, notes="ssg7.3"))
+        db.session.commit()
+        invalidate_all()
+        sites_case = intake_svc.register_death(
+            vic, project_id=SITES_PROJECT, site_id=SITES_SITE, org_unit_id=None,
+            deceased_name="Sites Case", deceased_sex="female", age_years=50, date_of_death=_dod(),
+            identifiers={"reqd": "12345"})
+        org_case = self._submitted_case(self.wally, unit=self.sca, identifiers={"crs": _number()})
+        db.session.commit()
+        self.assertEqual(ids.identifier_values_visible(vic, {PROJECT, SITES_PROJECT}), {SITES_PROJECT})
+        seen = ids.identifier_payloads(vic, [sites_case, org_case])
+        self.assertEqual(seen[sites_case.death_id], [{"code": "reqd", "label": "Required number", "value": "12345"}])
+        self.assertEqual(seen[org_case.death_id][0], self._crs_entry(str(org_case.death_id), value=False))
+
     def _crs_entry(self, death_id, *, value):
         if not value:
             return {"code": "crs", "label": "CRS number", "present": True}

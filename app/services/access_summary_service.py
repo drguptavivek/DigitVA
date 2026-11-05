@@ -40,7 +40,7 @@ from app.services.authz import action_reach, resolve_grants, role_flags
 from app.services.authz.actions import ADMIN_BYPASS
 from app.services.authz.consulted import mark_consulted
 from app.services.cod_entry_mode import project_mode
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import sees_pii_in_any_project
 
 _PS = VaAccessScopeTypes.project_site
 _U = VaAccessScopeTypes.org_unit
@@ -163,7 +163,9 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
             "privileged": bool(
                 {"admin", "data_manager"} & role_flags(user, _grants=resolved)
             ),
-            "pii_visible": not should_redact_pii(user, _grants=resolved),
+            # Account-level hint only (some project); each case decides per
+            # project (should_redact_pii, digitva-ssg7.3).
+            "pii_visible": sees_pii_in_any_project(user, _grants=resolved),
             "device_access": has_device_access(
                 user, context, register_context, _grants=resolved
             ),

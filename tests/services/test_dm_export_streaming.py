@@ -54,6 +54,7 @@ from app.services.data_management_service import (
 )
 from app.services.field_mapping_service import PiiSetStatus, get_mapping_service
 from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.viewer_pii_service import PiiScope
 from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
 from tests.base import BaseTestCase
 
@@ -265,7 +266,7 @@ class DmExportStreamingTests(BaseTestCase):
 
     def _submissions(self, *, redact):
         with patch(
-            "app.services.data_management_service.should_redact_pii", return_value=redact
+            "app.services.data_management_service.pii_scope", return_value=PiiScope(everywhere=not redact)
         ):
             return dm_submissions_export_csv(self.user, project=PROJECT)
 
@@ -327,7 +328,7 @@ class DmExportStreamingTests(BaseTestCase):
 
     def test_streaming_writers_give_the_same_text_as_the_string_wrappers(self):
         with patch(
-            "app.services.data_management_service.should_redact_pii", return_value=False
+            "app.services.data_management_service.pii_scope", return_value=PiiScope(everywhere=True)
         ):
             handle = io.StringIO()
             write_dm_submissions_export_csv(handle, self.user, project=PROJECT)

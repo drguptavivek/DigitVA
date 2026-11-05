@@ -281,6 +281,8 @@ def _require_partial_write(va_sid, va_partial, va_action, va_actiontype) -> None
 def renderpartial(va_sid, va_partial):
     va_submission = db.session.get(VaSubmissions, va_sid)
     project = _get_project_for_submission(va_sid) if va_submission else None
+    # PII is per project (digitva-ssg7.3); no project redacts.
+    pii_project_id = project.project_id if project else None
     project_mode = _project_mode(project)
     if (
         request.method == "POST"
@@ -518,6 +520,7 @@ def renderpartial(va_sid, va_partial):
             category_config=category_config,
             visible_category_codes=visible_category_codes,
             user=current_user,
+            project_id=pii_project_id,
         )
         summary_items = section["summary_items"]
         va_processedcategorydata = section["va_processedcategorydata"]
@@ -570,7 +573,7 @@ def renderpartial(va_sid, va_partial):
             and category_config.render_mode == "workflow_panel"
         ):
             doris_source, masked_reviewer_doris = doris_context_service.masked_reviewer_context(
-                va_sid, va_reviewer_initial_assess, smartva, should_redact_pii(current_user)
+                va_sid, va_reviewer_initial_assess, smartva, should_redact_pii(current_user, project_id=pii_project_id)
             )
         # Only the workflow panel carries the editor; other categories skip
         # the payload read.
@@ -582,7 +585,7 @@ def renderpartial(va_sid, va_partial):
             if category_config and category_config.render_mode == "workflow_panel"
             else None,
             project_mode,
-            should_redact_pii(current_user),
+            should_redact_pii(current_user, project_id=pii_project_id),
         )
         response = make_response(render_template(
             template_name,
@@ -828,7 +831,7 @@ def renderpartial(va_sid, va_partial):
                 )
             step2_context = (
                 doris_context_service.masked_step2_context(
-                    new_review, smartva, should_redact_pii(current_user)
+                    new_review, smartva, should_redact_pii(current_user, project_id=pii_project_id)
                 )
                 if project_mode == "masked_doris"
                 else {}
@@ -844,7 +847,7 @@ def renderpartial(va_sid, va_partial):
             va_action,
             recode_resume=va_actiontype == "varesumecoding",
         )
-        redact_pii = should_redact_pii(current_user)
+        redact_pii = should_redact_pii(current_user, project_id=pii_project_id)
         doris_initial_certificate, doris_prefill_provenance = doris_context_service.doris_initial(
             existing_assess.doris_certificate
             if existing_assess and existing_assess.doris_certificate
@@ -987,7 +990,7 @@ def renderpartial(va_sid, va_partial):
                 else prior_certificate or None,
                 va_submission if project_mode == "unmasked_doris" else None,
                 project_mode,
-                should_redact_pii(current_user),
+                should_redact_pii(current_user, project_id=pii_project_id),
             )
             return render_template(
                 f"va_form_partials/{va_partial}.html",
@@ -1049,7 +1052,7 @@ def renderpartial(va_sid, va_partial):
                 ),
                 **(
                     doris_context_service.masked_step2_context(
-                        va_initial_assess, smartva, should_redact_pii(current_user)
+                        va_initial_assess, smartva, should_redact_pii(current_user, project_id=pii_project_id)
                     )
                     if project_mode == "masked_doris"
                     else {}

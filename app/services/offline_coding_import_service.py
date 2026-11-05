@@ -387,12 +387,14 @@ def has_coding_grant(user: VaUsers, project_id: str) -> bool:
                for g in resolved.of({VaAccessRoles.coder}, virtual=False))
 
 
-def _push_refusal(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, coding: dict,
-                  *, enrolled_context: bool = False) -> str | None:
-    """Why this coding is not taken (the interview is, either way), or None."""
+def _push_refusal(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, coding: dict) -> str | None:
+    """Why this coding is not taken (the interview is, either way), or None.
+    Self-coding off refuses enrolled and standalone codings alike (owner
+    2026-11-05, digitva-ssg7.7): an older APK's adopted Path C record must not
+    self-code where the project forbids it."""
     if draft.va_sid is None or draft.status != "submitted":
         return "not_available"
-    if enrolled_context and not project.self_coding_enabled:
+    if not project.self_coding_enabled:
         return "self_coding_required"
     if not has_coding_grant(user, project.project_id):
         return "coding_grant_required"
@@ -432,7 +434,7 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
             return status_of(held)
         if held.status != "pending":
             raise OfflineCodingError("This coding revision conflicts with a completed upload.", "coding_conflict", 409)
-        refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
+        refusal = _push_refusal(user, project, draft, coding)
         held.result = {**held.result, "coding": coding, "profile_snapshot": profile_snapshot,
                        "enrolled_context": enrolled_context}
         held.content_sha256 = digest
@@ -441,7 +443,7 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
         if refusal:
             _audit(draft.va_sid, user.user_id, f"offline coding refused ({refusal})", draft.draft_id)
         return status_of(held)
-    refusal = _push_refusal(user, project, draft, coding, enrolled_context=enrolled_context)
+    refusal = _push_refusal(user, project, draft, coding)
     if draft.va_sid is None:
         # A superseded copy: no case of its own to hold the coding against.
         return {"status": "refused", "code": refusal, "coding_sha256": digest}
@@ -545,8 +547,7 @@ def apply_held(held: VaBundlePendingCoding) -> str:
     project = db.session.get(VaProjectMaster, held.project_id)
     if actor is None or actor.user_status != VaStatuses.active or draft is None:
         return _finish(client_id, va_sid, coding_sha256, "rejected", "not_available")
-    refusal = _push_refusal(actor, project, draft, coding,
-                            enrolled_context=bool(record.get("enrolled_context")))
+    refusal = _push_refusal(actor, project, draft, coding)
     if refusal is not None:
         return _finish(client_id, va_sid, coding_sha256, "rejected", refusal)
     try:
@@ -568,8 +569,7 @@ def apply_held(held: VaBundlePendingCoding) -> str:
         return held.status
     coding_sha256 = held.content_sha256
     record, coding = held.result, held.result["coding"]
-    refusal = _push_refusal(actor, project, draft, coding,
-                            enrolled_context=bool(record.get("enrolled_context")))
+    refusal = _push_refusal(actor, project, draft, coding)
     if refusal is not None:
         return _finish(client_id, va_sid, coding_sha256, "rejected", refusal, release_actor=actor)
     try:

@@ -1614,7 +1614,7 @@ def area_staff(user, project_id: str, unit_id=None, site_id: str | None = None) 
     in_area = _staff_area(scope, unit_id, site_id)
     result = {
         "project_id": scope.project_id,
-        "staff_identity_redacted": should_redact_pii(user),
+        "staff_identity_redacted": should_redact_pii(user, project_id=scope.project_id),
         "interviewers": [],
         "truncated": False,
     }

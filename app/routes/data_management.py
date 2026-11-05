@@ -948,11 +948,15 @@ def manage_user_detail(target_user_id):
 
 @data_management.post("/api/users/<uuid:target_user_id>/resend-verification")
 @role_required("data_manager", "admin")
+@limiter.limit("20 per hour")
 def manage_resend_verification(target_user_id):
-    """Resend email verification link for a user."""
+    """Resend email verification link for a user the caller may manage
+    (same reach as profile edits: ``_dm_can_manage_user_profile``)."""
     user = db.session.get(VaUsers, target_user_id)
     if not user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
+    if not _dm_can_manage_user_profile(user):
+        return _json_error("You may not manage this user.", 403)
     if user.email is None:
         return _json_error("This account has no email; issue a sign-in code instead.", 400)
     if user.email_verified:

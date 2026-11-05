@@ -26,7 +26,15 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
+from app.services.coding_release_service import (
+    SOURCE_DATASYNC,
+    deactivate_coding_for_accepted_change,
+    release_coding_for_changed_payload,
+)
 from app.services.doris_process_proof import ProcessProofCertificateChanged
+from app.services.reviewer_final_assessment_service import (
+    get_latest_active_reviewer_initial_assessment,
+)
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     submit_reviewer_final_cod,
@@ -768,3 +776,64 @@ class TestMaskedDorisReviewing(BaseTestCase):
         self.assertEqual(final.cod_entry_mode_snapshot["cod_entry_mode"], "simple")
         self.assertNotIn("final_ucod_source", final.cod_entry_mode_snapshot)
         self.assertIsNone(final.doris_certificate)
+
+    def _step1_after_payload_replaced(self, sid):
+        step1 = self._reviewer_step1(sid, certificate=None)
+        submission = db.session.get(VaSubmissions, sid)
+        ensure_active_payload_version(
+            submission,
+            payload_data={"changed": "answer"},
+            source_updated_at=datetime.now(UTC),
+        )
+        db.session.commit()
+        return step1
+
+    def test_step1_on_current_payload_is_returned(self):
+        self._mode(masked=True, doris=False)
+        sid = self._start_review()
+        step1 = self._reviewer_step1(sid, certificate=None)
+        found = get_latest_active_reviewer_initial_assessment(sid, self.reviewer.user_id)
+        self.assertIsNotNone(found)
+        self.assertEqual(found.va_riniassess_id, step1.va_riniassess_id)
+
+    def test_step1_on_replaced_payload_is_not_returned(self):
+        self._mode(masked=True, doris=False)
+        sid = self._start_review()
+        self._step1_after_payload_replaced(sid)
+        self.assertIsNone(
+            get_latest_active_reviewer_initial_assessment(sid, self.reviewer.user_id)
+        )
+
+    def test_payload_release_deactivates_reviewer_step1(self):
+        self._mode(masked=True, doris=False)
+        sid = self._start_review()
+        step1 = self._reviewer_step1(sid, certificate=None)
+        self.assertIsNotNone(
+            get_latest_active_reviewer_initial_assessment(sid, self.reviewer.user_id)
+        )
+        release_coding_for_changed_payload(sid, source=SOURCE_DATASYNC)
+        db.session.commit()
+        db.session.refresh(step1)
+        self.assertEqual(step1.va_riniassess_status, VaStatuses.deactive)
+        self.assertIsNone(
+            get_latest_active_reviewer_initial_assessment(sid, self.reviewer.user_id)
+        )
+
+    def test_accepted_change_deactivates_reviewer_step1(self):
+        from app.services.workflow.transitions import system_actor
+
+        self._mode(masked=True, doris=False)
+        sid = self._start_review()
+        step1 = self._reviewer_step1(sid, certificate=None)
+        self.assertIsNotNone(
+            get_latest_active_reviewer_initial_assessment(sid, self.reviewer.user_id)
+        )
+        deactivate_coding_for_accepted_change(
+            sid, actor=system_actor(), audit_by=None
+        )
+        db.session.commit()
+        db.session.refresh(step1)
+        self.assertEqual(step1.va_riniassess_status, VaStatuses.deactive)
+        self.assertIsNone(
+            get_latest_active_reviewer_initial_assessment(sid, self.reviewer.user_id)
+        )

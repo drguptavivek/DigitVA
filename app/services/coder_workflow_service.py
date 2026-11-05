@@ -28,6 +28,7 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.services import training_scope
+from app.services.viewer_pii_service import pii_scope
 from app.services.authz import (
     Action,
     Reason,
@@ -1383,13 +1384,24 @@ def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None 
     )
 
 
-def _with_names(user, forms: list[dict]) -> list[dict]:
+def _with_names(user, forms: list[dict], *, names: bool = True) -> list[dict]:
     """*forms* with ``deceased_name`` (``None`` unless the caller may see it:
-    ``case_list_service.coding_names``), the page's names in one batch."""
+    ``case_list_service.coding_names``), the page's names in one batch, and
+    ``va_data_collector`` nulled outside the user's PII projects. *names* False
+    skips the name lookup and adds no ``deceased_name``."""
     from app.services.case_list_service import coding_names
 
-    names = coding_names(user, [f["va_sid"] for f in forms])
-    return [{**f, "deceased_name": names.get(f["va_sid"])} for f in forms]
+    pii = pii_scope(user)
+    names_by_sid = coding_names(user, [f["va_sid"] for f in forms]) if names else None
+    return [
+        {
+            **f,
+            **({"deceased_name": names_by_sid.get(f["va_sid"])} if names else {}),
+            # Staff identity: only where the user has a PII grant (ssg7.11).
+            "va_data_collector": f["va_data_collector"] if pii.sees(f["project_id"]) else None,
+        }
+        for f in forms
+    ]
 
 
 def get_pick_available_forms(
@@ -1412,7 +1424,7 @@ def get_pick_available_forms(
             _pick_available_stmt(user, pick_form_ids, project_id)
         ).mappings().all()
     ]
-    return _with_names(user, forms) if with_names else forms
+    return _with_names(user, forms, names=with_names)
 
 
 def count_pick_available(user, pick_form_ids: list[str]) -> int:

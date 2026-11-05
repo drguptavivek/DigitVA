@@ -29,6 +29,7 @@ from app.services import organization_service as org
 from app.services import web_intake_service as intake_svc
 from app.services.authz import invalidate
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
+from app.services.viewer_pii_service import PiiScope
 from tests.base import BaseTestCase
 
 R = VaAccessRoles
@@ -383,7 +384,7 @@ class DeathReporterTests(BaseTestCase):
 
         # A caller without personal-data access keeps the fix of its own
         # registrations only (the case detail's rule), never of the team's.
-        with patch("app.services.web_intake_service.should_redact_pii", return_value=True):
+        with patch("app.services.web_intake_service.pii_scope", return_value=PiiScope()):
             rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
         self.assertIn(mine, rows)
         self.assertNotIn("latitude", rows[mine])
@@ -440,7 +441,7 @@ class DeathReporterTests(BaseTestCase):
         self.assertEqual(reported[mine]["latitude"], 12.971599)
 
         # Without personal-data access: only the caller's own registration.
-        with patch("app.services.web_intake_service.should_redact_pii", return_value=True):
+        with patch("app.services.web_intake_service.pii_scope", return_value=PiiScope()):
             other = self._detail_address(self.interviewer, mine)
             own = self._detail_address(self.interviewer, theirs)
             rows = self._register_rows(self.interviewer)

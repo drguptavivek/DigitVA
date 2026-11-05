@@ -118,7 +118,7 @@ from app.services.workflow.upstream_changes import (
     resolve_pending_upstream_change,
 )
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import pii_scope
 from app.services.visit_note import (
     has_visit_note_condition,
     visit_note_for_viewer,
@@ -230,7 +230,7 @@ UPSTREAM_REVIEW_HIDDEN_FIELDS = frozenset(
 )
 
 
-def _dm_search_condition(search: str, *, redact_staff_identity: bool = False):
+def _dm_search_condition(search: str, *, redact_staff_identity: bool = False, staff_visible=None):
     """Return the shared DM dashboard text-search predicate.
 
     ``redact_staff_identity`` drops every clause that can confirm a staff
@@ -238,6 +238,9 @@ def _dm_search_condition(search: str, *, redact_staff_identity: bool = False):
     Without this, a viewer who never sees a name rendered could still type
     a candidate name into search and learn, from a nonzero result, that it
     matches. See docs/policy/access-control-model.md, "collaborator".
+    *staff_visible* (SQL, optional) limits the staff-name clauses to the rows
+    it holds for: the projects where the viewer sees staff identity
+    (``PiiScope.condition``, PII per project, digitva-ssg7.3).
     """
     # autoescape: % and _ in the search text match literally (digitva-iv7).
     if redact_staff_identity:
@@ -259,11 +262,14 @@ def _dm_search_condition(search: str, *, redact_staff_identity: bool = False):
             VaUsers.name.icontains(search, autoescape=True),
         )
     )
-    return sa.or_(
-        VaSubmissions.va_uniqueid_masked.icontains(search, autoescape=True),
+    staff = sa.or_(
         VaSubmissions.va_data_collector.icontains(search, autoescape=True),
         VaSubmissions.va_sid.in_(coder_final_sids),
         VaSubmissions.va_sid.in_(reviewer_final_sids),
+    )
+    return sa.or_(
+        VaSubmissions.va_uniqueid_masked.icontains(search, autoescape=True),
+        staff if staff_visible is None else sa.and_(staff_visible, staff),
     )
 
 
@@ -814,8 +820,9 @@ def dm_submissions_page(
     out unless it is ``"all"`` or ``"missing_in_odk"``. ``visit_note`` ("1")
     keeps only cases whose active payload carries a visit note; ``org_unit``
     keeps the subtree of that organization unit (within the viewer's scope).
-    Each consent-refusal row carries ``visit_note`` (date only for a viewer
-    ``should_redact_pii`` redacts).
+    Each consent-refusal row carries ``visit_note`` (date only on a row of a
+    project where the viewer has no PII, ``pii_scope``). Staff identity is
+    decided per row by project (digitva-ssg7.3).
     """
     from app.utils import va_render_serialisedates
     tz_name = va_user_timezone_name(user)
@@ -858,7 +865,7 @@ def dm_submissions_page(
         .where(VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
         .subquery()
     )
-    redact_pii = should_redact_pii(user)
+    pii = pii_scope(user)
 
     analytics_age_band_column = (
         _mv_ref.c.analytics_age_band
@@ -963,9 +970,13 @@ def dm_submissions_page(
         "coded_by": coded_by_sort_col,
     }
     # A redacted viewer must not learn which cases share a coder by sorting
-    # on the hidden column (digitva-10fd); fall back to the default sort.
-    if redact_pii and sort_field == "coded_by":
-        sort_field = "va_submission_date"
+    # on the hidden column (digitva-10fd): no PII anywhere falls back to the
+    # default sort; else rows of projects without PII sort as uncoded.
+    if sort_field == "coded_by":
+        if not pii.any:
+            sort_field = "va_submission_date"
+        elif not pii.everywhere:
+            sort_fields["coded_by"] = sa.case((pii.condition(VaForms.project_id), coded_by_sort_col))
     sort_col = sort_fields.get(sort_field, sort_fields["va_submission_date"])
     # Empty values (no submission date, never coded) go last either way.
     order = (sort_col.desc() if sort_dir == "desc" else sort_col.asc()).nulls_last()
@@ -985,11 +996,14 @@ def dm_submissions_page(
         row["va_sid"] for row in rows if row.get("workflow_state") == "finalized_upstream_changed"
     )
 
-    # One query for the page's visit notes (consent refusals only).
-    visit_notes = visit_notes_for(
-        (row["va_sid"] for row in rows if str(row.get("va_consent") or "").strip().lower() == "no"),
-        redact_pii=redact_pii,
-    )
+    # The page's visit notes (consent refusals only): one query for the rows
+    # whose project shows PII, one for the rest, so a redacted row's sealed
+    # address is never opened.
+    refusals = [row for row in rows if str(row.get("va_consent") or "").strip().lower() == "no"]
+    visit_notes = {
+        **visit_notes_for([r["va_sid"] for r in refusals if pii.sees(r["project_id"])], redact_pii=False),
+        **visit_notes_for([r["va_sid"] for r in refusals if not pii.sees(r["project_id"])], redact_pii=True),
+    }
 
     data = []
     for row in rows:
@@ -997,6 +1011,7 @@ def dm_submissions_page(
             dict(row),
             ["va_submission_date", "va_dmreview_createdat"],
         )
+        redact_pii = not pii.sees(r["project_id"])
         r["visit_note"] = visit_note_for_viewer(visit_notes.get(r["va_sid"]), redact_pii=redact_pii)
         r["coded_on"] = _format_datetime_for_current_user(row.get("coded_on"))
         r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
@@ -1087,7 +1102,7 @@ def _dm_submission_query_parts(
 
     if search:
         conditions.append(
-            _dm_search_condition(search, redact_staff_identity=should_redact_pii(user))
+            _dm_search_condition(search, staff_visible=pii_scope(user).condition(VaForms.project_id))
         )
     if project_values:
         conditions.append(VaForms.project_id.in_(project_values))
@@ -1422,7 +1437,7 @@ def write_dm_submissions_export_csv(
     ``newline=""`` file) because the csv module writes its own line endings.
     """
     export_tz = va_user_timezone_name(user)
-    redact_pii = should_redact_pii(user)
+    pii = pii_scope(user)
     attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
         search=search,
@@ -1638,7 +1653,7 @@ def write_dm_submissions_export_csv(
                 org_unit_ids.add(row.get("org_unit_id"))
                 pickle.dump(
                     (
-                        _dm_submission_export_row(row, export_tz, redact_pii),
+                        _dm_submission_export_row(row, export_tz, not pii.sees(row.get("project_id"))),
                         payload,
                         row.get("org_unit_id"),
                     ),
@@ -1795,8 +1810,8 @@ def dm_coded_cod_snapshot_export_csv(
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> str:
-    """Return the active COD snapshot CSV for all filtered DM submissions."""
-    redact_pii = should_redact_pii(user)
+    """Return the active COD snapshot CSV for all filtered DM submissions.
+    Staff identity per row by project (``pii_scope``, digitva-ssg7.3)."""
     from app.services.submission_analytics_mv import (
         COD_SNAPSHOT_MV_NAME,
         NQA_EXPORT_DETAIL_COLUMNS,
@@ -2006,7 +2021,7 @@ def dm_coded_cod_snapshot_export_csv(
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
 
     rows = db.session.execute(query).mappings().all()
-    redact_pii = should_redact_pii(user)
+    pii = pii_scope(user)
 
     # Licence 1.2.2: an exported ICD-11 code travels with its linearization
     # URI, the URI of the primary stem the final buckets by (digitva-443q).
@@ -2025,7 +2040,7 @@ def dm_coded_cod_snapshot_export_csv(
             export_row[target] = uri_by_code.get(code, "") if code else ""
         _redact_staff_identity_export_row(
             export_row,
-            redact=redact_pii,
+            redact=not pii.sees(row.get("project_id")),
             headers=COD_SNAPSHOT_STAFF_IDENTITY_HEADERS,
         )
         writer.writerow(export_row)
@@ -2443,9 +2458,11 @@ def dm_coder_daily_statistics(
     rows rather than pseudonymized ones. Blanking the name would leave
     ``coder_id`` as a stable per-person key across days and across exports,
     which is the same disclosure by another route. See
-    docs/policy/access-control-model.md, "collaborator".
+    docs/policy/access-control-model.md, "collaborator". PII is per project
+    (digitva-ssg7.3): only submissions of projects where the viewer sees staff
+    identity are counted; with none, no rows.
     """
-    redact_pii = should_redact_pii(user)
+    pii = pii_scope(user)
     days = max(1, min(int(days or 7), 14))
     try:
         user_tz = pytz.timezone(timezone_name or "Asia/Kolkata")
@@ -2457,7 +2474,7 @@ def dm_coder_daily_statistics(
     date_window.reverse()
     window_start = date_window[0]
 
-    if redact_pii:
+    if not pii.any:
         return {
             "dates": [
                 {
@@ -2521,7 +2538,7 @@ def dm_coder_daily_statistics(
             mv_ref.c.va_sid == VaSubmissions.va_sid,
         )
     filtered_submissions_sq = filtered_submissions_sq.where(
-        sa.and_(*conditions)
+        sa.and_(*conditions, pii.condition(VaForms.project_id))
     ).subquery()
 
     local_event_day = sa.cast(

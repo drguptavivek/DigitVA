@@ -708,7 +708,9 @@ section 17 (wire names, codes). `POST /api/v1/intake/submissions` with a
   (project, language, text hash), never served in the consent config.
 - **Coding.** Held in `va_bundle_pending_coding` (key `client_draft_id`,
   `bundle_ids` empty, `result.origin = collect_plus_offline`); a refusal at push
-  is stored `rejected` with its code. The bundle applier
+  is stored `rejected` with its code. `_push_refusal` checks the project's
+  `self_coding_enabled` for standalone and enrolled codings alike (refused
+  `self_coding_required`, the interview kept, `digitva-ssg7.7`). The bundle applier
   (`apply_pending_coding`) hands these rows to `apply_held` once the case is
   ready: allocation for the pushing coder, the server's allowability re-check
   over `mas_icd11_mms` (no WHO call, no DORIS), the final saved with

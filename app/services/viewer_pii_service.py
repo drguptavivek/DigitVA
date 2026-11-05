@@ -13,15 +13,20 @@ coder, coding_tester, reviewer, interviewer, collaborator_pii. A plain
 A user holding both ``collaborator`` and, say, ``coder`` sees personal data
 via the coder grant.
 
-Call ``should_redact_pii`` wherever a screen decides whether to show subject
-PII (payload fields flagged ``is_pii``) or staff identity (who collected,
-coded, reviewed a death). Never re-implement this check per screen: a screen
-that checks only "is this read-only" and forgets this call fails OPEN (a
-plain viewer sees personal data), which is the failure mode that matters.
+Call ``should_redact_pii(user, project_id=...)`` wherever a screen decides
+whether to show subject PII (payload fields flagged ``is_pii``) or staff
+identity (who collected, coded, reviewed a death) on one case, and
+``pii_scope(user)`` for a list, export or dashboard spanning projects (per
+row). PII visibility is per project (owner 2026-11-05, digitva-ssg7.3): a
+PII grant in project A never unblinds project B. Never re-implement this
+check per screen: a screen that checks only "is this read-only" and forgets
+this call fails OPEN (a plain viewer sees personal data), which is the
+failure mode that matters.
 """
 
 import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 import sqlalchemy as sa
 
@@ -56,30 +61,73 @@ _PII_GRANTING_ROLES = frozenset({
 })
 
 
-def should_redact_pii(user, *, _grants=None) -> bool:
-    """Return True if ``user`` must not see subject PII or staff identity.
+@dataclass(frozen=True)
+class PiiScope:
+    """Where one viewer sees PII: every project (*everywhere*, a global admin)
+    or the projects in *project_ids* (a PII grant there). Built once per
+    request (``pii_scope``); per-row checks are set lookups, SQL uses
+    ``condition``. Policy: docs/policy/access-control-model.md, rule 4
+    ("PII visibility is decided per project", digitva-ssg7.3)."""
 
-    False (do not redact) when the user is an admin or holds a live PII-granting
-    grant per ``ResolvedGrants.is_pii_grant`` (Tier 3 In-System unit grants on
-    tree projects, or ``SITES_MODE_PII_ROLES`` on sites-only projects).
-    Tier 1 (project-level roles on tree projects) and Tier 2 (Mentoring Institute
-    members) return True (redacted).
-    """
+    everywhere: bool = False
+    project_ids: frozenset[str] = frozenset()
+
+    def sees(self, project_id: str | None) -> bool:
+        """PII visible on a case of *project_id*; None (no project) is redacted."""
+        return self.everywhere or (project_id is not None and project_id in self.project_ids)
+
+    def condition(self, project_column):
+        """SQL: the row's *project_column* is a project where PII shows."""
+        if self.everywhere:
+            return sa.true()
+        if not self.project_ids:
+            return sa.false()
+        return project_column.in_(sorted(self.project_ids))
+
+    @property
+    def any(self) -> bool:
+        return self.everywhere or bool(self.project_ids)
+
+
+def pii_scope(user, *, _grants=None) -> PiiScope:
+    """The ``PiiScope`` of *user*: a global admin everywhere; else the projects
+    of the live PII-granting grants (``ResolvedGrants.is_pii_grant``: Tier 3
+    unit grants on tree projects, ``SITES_MODE_PII_ROLES`` on sites-only
+    projects); a public-demo account also the projects of its real
+    ``_PII_GRANTING_ROLES`` grants. Tier 1 and Tier 2 grants add nothing.
+    One memoised grant read."""
     # Imported here: app.services.authz imports this module at package load.
     from app.services.authz.grants import resolve_grants
 
     if not getattr(user, "user_id", None):
-        return True
+        return PiiScope()
     resolved = _grants if _grants is not None else resolve_grants(user)
     if resolved.is_admin:
-        return False
-    if getattr(user, "is_public_demo", False) and any(
-        not g.virtual and g.role in _PII_GRANTING_ROLES for g in resolved.grants
-    ):
-        return False
-    return not any(
-        resolved.is_pii_grant(g) for g in resolved.grants
-    )
+        return PiiScope(everywhere=True)
+    demo = getattr(user, "is_public_demo", False)
+    return PiiScope(project_ids=frozenset(
+        g.project_id for g in resolved.grants
+        if resolved.is_pii_grant(g)
+        or (demo and not g.virtual and g.role in _PII_GRANTING_ROLES)
+    ))
+
+
+def should_redact_pii(user, *, project_id: str | None, _grants=None) -> bool:
+    """Return True if ``user`` must not see subject PII or staff identity on a
+    case of *project_id*.
+
+    False (do not redact) when the user is an admin or holds a PII grant in
+    that project (``pii_scope``). A PII grant in another project does not
+    count. *project_id* None (the screen has no project) redacts unless admin.
+    """
+    return not pii_scope(user, _grants=_grants).sees(project_id)
+
+
+def sees_pii_in_any_project(user, *, _grants=None) -> bool:
+    """User-wide: *user* sees PII in at least one project. Only for an
+    account-level summary (``/me`` ``account.pii_visible``); never to decide
+    what a case shows, which is ``should_redact_pii(project_id=...)``."""
+    return pii_scope(user, _grants=_grants).any
 
 
 def pii_visible_user_ids(
@@ -93,7 +141,11 @@ def pii_visible_user_ids(
     to that project count (plus global admins).
     """
     # Imported here: app.services.authz imports this module at package load.
-    from app.services.authz.grants import SITES_MODE_PII_ROLES, TIER3_UNIT_PII_ROLES
+    from app.services.authz.grants import (
+        SITES_MODE_PII_ROLES,
+        TIER3_UNIT_PII_ROLES,
+        has_tree_condition,
+    )
     from app.services.org_grant_service import active_project_condition
 
     ids = sorted(set(user_ids))
@@ -103,16 +155,8 @@ def pii_visible_user_ids(
     site = sa.orm.aliased(VaProjectSites, name="pii_grant_site")
     unit = sa.orm.aliased(MasOrgUnit, name="pii_grant_unit")
     level = sa.orm.aliased(MasOrgLevel, name="pii_grant_level")
-    tree_unit = sa.orm.aliased(MasOrgUnit, name="pii_tree_unit")
     resolved_project = sa.func.coalesce(grant.project_id, site.project_id, unit.project_id)
-    has_tree_cond = sa.exists(
-        sa.select(1)
-        .select_from(tree_unit)
-        .where(
-            tree_unit.project_id == resolved_project,
-            tree_unit.is_active.is_(True),
-        )
-    )
+    has_tree_cond = has_tree_condition(resolved_project)
     is_mentor_cond = sa.exists(
         sa.select(1)
         .select_from(MapMentorInstituteUser)

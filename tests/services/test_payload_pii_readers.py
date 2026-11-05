@@ -14,6 +14,7 @@ from unittest import mock
 import sqlalchemy as sa
 
 from app import db
+from app.services.viewer_pii_service import PiiScope
 from app.models import (
     MapCaseTransition,
     VaDeathRegister,
@@ -137,7 +138,7 @@ class JoinedPayloadTests(SplitReaderBase):
                 case_content_service.get_section_data(
                     va_submission=sub, active_version=version, form_type_code="WHO_2022_VA",
                     va_action="vacode", va_partial="vademographicdetails", category_config=None,
-                    visible_category_codes=[], user=SimpleNamespace(),
+                    visible_category_codes=[], user=SimpleNamespace(), project_id=None,
                 )
             self.assertTrue(captured)
             self.assertIn("Id10019", captured[0])
@@ -347,7 +348,7 @@ class NoteRedactionRoutingTests(SplitReaderBase):
         view = intake.supervised_case_detail
         while hasattr(view, "__wrapped__"):
             view = view.__wrapped__
-        death = SimpleNamespace(va_sid=sub.va_sid)
+        death = SimpleNamespace(va_sid=sub.va_sid, project_id=None)
         for redact in (False, True):
             with (
                 self.app.test_request_context("/"),
@@ -391,13 +392,14 @@ class DmReaderTests(DataManagementAcceptRejectTests):
         user = self._create_dm_user()
         for redact in (False, True):
             with (
-                mock.patch.object(dm, "should_redact_pii", return_value=redact),
+                mock.patch.object(dm, "pii_scope", return_value=PiiScope(everywhere=not redact)),
                 mock.patch.object(dm, "visit_notes_for", wraps=dm.visit_notes_for) as notes,
             ):
                 rows = {r["va_sid"]: r for r in dm.dm_submissions_page(
                     user, project=self.PROJECT_ID, odk_sync="all", per_page=100)["data"]}
             self.assertIn(va_sid, rows)  # subject present
-            self.assertEqual(notes.call_args.kwargs["redact_pii"], redact)
+            self.assertEqual(
+                [c.kwargs["redact_pii"] for c in notes.call_args_list if va_sid in c.args[0]], [redact])
             note = rows[va_sid]["visit_note"]
             self.assertEqual(note["date"], "2026-10-01")
             self.assertEqual(note["address"], None if redact else ADDRESS)

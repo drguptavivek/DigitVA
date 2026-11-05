@@ -410,6 +410,31 @@ class StandalonePushTests(BaseTestCase):
             project.self_coding_enabled = True
             db.session.commit()
 
+    def test_standalone_coding_requires_self_coding_but_the_interview_is_kept(self):
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.self_coding_enabled = False
+        db.session.commit()
+        try:
+            client_uuid, headers = self._device(self.coder)
+            response, draft_id = self._push(headers, client_uuid)
+            self.assertEqual(response.status_code, 201, response.get_json())
+            self.assertEqual(self._coding_receipt(response), {"status": "refused", "code": "self_coding_required"})
+            va_sid = response.get_json()["va_sid"]
+            self.assertIsNotNone(self._draft(draft_id))
+            self.assertIsNotNone(db.session.get(VaSubmissions, va_sid))
+            self.assertEqual(self._audits(va_sid, "offline coding refused"),
+                             ["offline coding refused (self_coding_required)"])
+            self.assertEqual(self._apply(va_sid)["applied"], 0)
+            # The case is in the normal coding queue, uncoded.
+            self.assertEqual(get_submission_workflow_state(va_sid), "ready_for_coding")
+            self.assertIsNone(self._final(va_sid))
+            held = db.session.get(VaBundlePendingCoding, draft_id)
+            self.assertEqual((held.status, held.code, held.result["enrolled_context"]),
+                             ("rejected", "self_coding_required", False))
+        finally:
+            project.self_coding_enabled = True
+            db.session.commit()
+
     def test_enrolled_coding_is_refused_if_grant_is_revoked_before_apply(self):
         client_uuid, headers = self._device(self.coder)
         response, draft_id = self._push_enrolled(headers, client_uuid)

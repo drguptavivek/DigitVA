@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # Runtime And Operations
@@ -484,8 +484,15 @@ the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
   interview uploads need megabytes). The intake blueprint caps each route's body
   itself (`app/routes/api/intake.py`, `_body_limit`): 16 KB for every call that
   carries registration numbers (413 `payload_too_large`, checked from
-  `Content-Length` and again while reading), and the reverse proxy caps the
-  rest (`client_max_body_size 55m` in `deploy/ingress-routes.conf`). The same
+  `Content-Length` and again while reading). Every other body is capped by
+  `Config.MAX_CONTENT_LENGTH` (env `MAX_CONTENT_LENGTH`, default 2 MiB), which
+  applies before the CSRF hook parses the form; the uploads that need more (draft
+  attachments and offline bundles 50 MB, organization and translation imports,
+  form-type and policy JSON imports) are listed in `_upload_limits` in
+  `app/__init__.py`, applied by a hook registered before CSRF. Over the cap is
+  413 `payload_too_large` JSON on `/api/` and `/admin/api/` paths. The reverse
+  proxy still bounds the edge (`client_max_body_size 55m` in
+  `deploy/ingress-routes.conf`). The same
   file gives `/api/v1/cases/export.csv` `proxy_buffering off` and
   `proxy_max_temp_file_size 0`, so the plaintext CSV stream is never buffered or
   spooled to ingress disk; `EXPORT_MAX_ROWS` (default 200000) caps its rows. A write

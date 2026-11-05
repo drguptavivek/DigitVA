@@ -26,7 +26,11 @@ from app.models import (
 from app.services import organization_service as org
 from app.services import people_roles_service as service
 from app.services.authz import resolve_grants
-from app.services.viewer_pii_service import pii_visible_user_ids, should_redact_pii
+from app.services.viewer_pii_service import (
+    pii_visible_user_ids,
+    sees_pii_in_any_project,
+    should_redact_pii,
+)
 from tests.base import BaseTestCase
 from tests.test_unit_scoped_dm_tester import UnitScopeFixture
 
@@ -509,7 +513,7 @@ class RedactionTests(PeopleRolesBase):
         self._user("coder1").name = "Priya Sharma Rao"
         db.session.commit()
         # The role is outside the PII allowlist, so it unredacts nothing.
-        self.assertTrue(should_redact_pii(reporter))
+        self.assertTrue(should_redact_pii(reporter, project_id=self.PROJECT))
         result = self._call(reporter)
         self.assertEqual(result["viewer"]["names"], "initials")
         row = self._row(result, self.coder1)  # present first: an in-scope peer is listed
@@ -566,7 +570,11 @@ class PiiVisibleUserIdsTests(PeopleRolesBase):
             user_id=both.user_id, role=R.coder, scope_type=VaAccessScopeTypes.project,
             project_id=self.BASE_PROJECT_ID, grant_status=ACTIVE))
         db.session.commit()
-        self.assertFalse(should_redact_pii(both))          # elsewhere: sees PII
+        # PII is per project (digitva-ssg7.3): the sites-mode coder grant shows
+        # PII in its own project only, never here.
+        self.assertFalse(should_redact_pii(both, project_id=self.BASE_PROJECT_ID))
+        self.assertTrue(should_redact_pii(both, project_id=self.PROJECT))
+        self.assertTrue(should_redact_pii(both, project_id=None))
         self.assertIn(both.user_id, pii_visible_user_ids([both.user_id]))
         self.assertNotIn(both.user_id, pii_visible_user_ids([both.user_id], project_id=self.PROJECT))
         row = self._row(self._call(self.base_admin_user), both)
@@ -608,7 +616,9 @@ class PiiVisibleUserIdsTests(PeopleRolesBase):
             in_project = pii_visible_user_ids([u.user_id for u in users.values()], project_id=self.PROJECT)
             for name, user in users.items():
                 with self.subTest(name=name, project=label):
-                    self.assertEqual(user.user_id in visible, not should_redact_pii(user))
+                    self.assertEqual(user.user_id in visible, sees_pii_in_any_project(user))
+                    self.assertEqual(user.user_id in in_project,
+                                     not should_redact_pii(user, project_id=self.PROJECT))
                     # Restricted to CSC001: an admin, or a live PII grant that resolves there.
                     resolved = resolve_grants(user)
                     expected = resolved.is_admin or any(

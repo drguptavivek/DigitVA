@@ -45,9 +45,14 @@ def get_latest_active_reviewer_initial_assessment(
     va_sid: str,
     reviewer_user_id=None,
 ) -> VaReviewerInitialAssessments | None:
-    """Return the latest active reviewer initial-COD row for a submission."""
+    """Return the latest active reviewer initial-COD row for a submission,
+    made on its active payload version (a Step 1 on a replaced payload is stale)."""
     filters = [
         VaReviewerInitialAssessments.va_sid == va_sid,
+        VaReviewerInitialAssessments.payload_version_id
+        == sa.select(VaSubmissions.active_payload_version_id)
+        .where(VaSubmissions.va_sid == va_sid)
+        .scalar_subquery(),
         VaReviewerInitialAssessments.va_riniassess_status == VaStatuses.active,
     ]
     if reviewer_user_id is not None:

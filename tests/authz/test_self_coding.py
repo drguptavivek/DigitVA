@@ -253,9 +253,13 @@ class ImpliedInterviewerCacheTests(AuthzFixtureMixin, BaseTestCase):
         _set_project(TA, self_coding_enabled=True, web_intake_mode="direct")
         user = self.users["mentor"]
         self.assertFalse(any(self._resolve(user).of({R.interviewer}, virtual=False)))
+        self.assertTrue(any(self._resolve(user).of({R.coder}, virtual=False)))
         mentors.remove_member("AZMI", user.email)
         db.session.commit()
-        self.assertEqual(len(list(self._resolve(user).of({R.interviewer}, virtual=False))), 1)
+        # Removal deactivates the unit coder grant (digitva-ssg7.1); a stale
+        # cached entry would still show it.
+        self.assertFalse(any(self._resolve(user).of({R.coder}, virtual=False)))
+        self.assertFalse(any(self._resolve(user).of({R.interviewer}, virtual=False)))
 
     def test_flipping_the_institute_drops_its_members_cached_entry(self):
         from app.services import mentor_institute_service as mentors
@@ -263,9 +267,13 @@ class ImpliedInterviewerCacheTests(AuthzFixtureMixin, BaseTestCase):
         _set_project(TA, self_coding_enabled=True, web_intake_mode="direct")
         user = self.users["mentor"]
         self.assertFalse(any(self._resolve(user).of({R.interviewer}, virtual=False)))
+        self.assertTrue(any(self._resolve(user).of({R.coder}, virtual=False)))
         mentors.set_institute_active("AZMI", False)
         db.session.commit()
-        self.assertEqual(len(list(self._resolve(user).of({R.interviewer}, virtual=False))), 1)
+        # Deactivation deactivates the unit coder grant (digitva-ssg7.1); a
+        # stale cached entry would still show it.
+        self.assertFalse(any(self._resolve(user).of({R.coder}, virtual=False)))
+        self.assertFalse(any(self._resolve(user).of({R.interviewer}, virtual=False)))
         mentors.set_institute_active("AZMI", True)
         db.session.commit()
-        self.assertFalse(any(self._resolve(user).of({R.interviewer}, virtual=False)))
+        self.assertFalse(any(self._resolve(user).of({R.coder}, virtual=False)))

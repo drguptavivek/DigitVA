@@ -189,7 +189,7 @@ def supervises_project(user, project_id: str) -> bool:
         if g.virtual or g.project_id != project_id:
             continue
         if g.role == VaAccessRoles.site_pi:
-            if g.scope_type == VaAccessScopeTypes.org_unit:
+            if resolved.oversees(g):
                 return True
         elif g.role in SUPERVISING_ROLES:
             return True

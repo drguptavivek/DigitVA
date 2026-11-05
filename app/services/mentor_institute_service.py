@@ -5,10 +5,12 @@ district-level units (``map_mentor_institute_org_unit``) and staffed by users
 (``map_mentor_institute_user``). Mentor access is through ordinary unit
 grants; the maps only *guard* writing them: ``check_mentor_grant`` refuses a
 member any grant outside an attached district's subtree or outside
-``MENTOR_ROLES``. Detach and remove soft-deactivate (``is_active``), so they
-are reversible and leave grants alone, except ``remove_staff`` (institute staff
-API), which also deactivates the person's mentor grants inside the institute's
-districts.
+``MENTOR_ROLES``. Detach, remove and deactivate soft-deactivate (``is_active``).
+Detach leaves grants alone; removing a person (``remove_member``,
+``remove_staff``) or deactivating an institute also deactivates the person's
+unit grants inside the institute's districts that would otherwise turn into
+Tier 3 PII once the membership lapses (``_deactivate_institute_grants``).
+Reactivating restores neither membership-lapsed grants nor anything else.
 
 An institute admin (``map_mentor_institute_user.is_admin``) creates and
 removes their own institute's staff only; they never give grants. Who may
@@ -61,6 +63,15 @@ MENTOR_ROLES = frozenset(
     }
 )
 _MENTOR_ROLE_NAMES = ", ".join(sorted(role.value for role in MENTOR_ROLES))
+
+# Unit roles that are Non-PII only while the holder is institute staff and
+# become Tier 3 PII (or full In-charge) once the membership lapses, so they are
+# deactivated with it. data_manager is the exceptional PII path and stays.
+_LAPSING_UNIT_ROLES = MENTOR_ROLES | {
+    VaAccessRoles.site_pi,
+    VaAccessRoles.interviewer,
+    VaAccessRoles.interview_supervisor,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -152,21 +163,36 @@ def create_institute(code: object, name: str, *, actor_user_id=None) -> MasMento
 
 
 def set_institute_active(code: object, active: bool, *, actor_user_id=None) -> MasMentorInstitute:
+    """Activate or deactivate an institute (caller commits).
+
+    Membership of an inactive institute does not count (member_user_ids), so
+    deactivating also deactivates each active member's lapsing unit grants
+    inside the institute's districts (``_deactivate_institute_grants``);
+    reactivating restores none of them.
+    """
     institute = _institute(code)
     institute.is_active = active
-    # Membership of an inactive institute does not count (member_user_ids), so
-    # the flip changes each active member's implied roles.
-    for member_id in db.session.scalars(
+    db.session.flush()  # so _covered_by_institutes no longer counts this institute
+    member_ids = db.session.scalars(
         sa.select(MapMentorInstituteUser.user_id).where(
             MapMentorInstituteUser.institute_id == institute.institute_id,
             MapMentorInstituteUser.is_active.is_(True),
         )
-    ):
-        _forget_grants(member_id)
+    ).all()
+    if active:
+        for member_id in member_ids:
+            _forget_grants(member_id)
+        log_mentor_institute_action(
+            action="mentor_institute_activated",
+            actor_user_id=actor_user_id,
+            institute=institute.institute_code,
+        )
+        return institute
     log_mentor_institute_action(
-        action="mentor_institute_activated" if active else "mentor_institute_deactivated",
+        action="mentor_institute_deactivated",
         actor_user_id=actor_user_id,
         institute=institute.institute_code,
+        grants_deactivated=_deactivate_institute_grants(institute, member_ids),
     )
     return institute
 
@@ -257,20 +283,25 @@ def add_member(institute_code, email: str | None = None, *, user_id=None, actor_
     )
 
 
-def remove_member(institute_code, email: str, *, actor_user_id=None) -> None:
+def remove_member(institute_code, email: str, *, actor_user_id=None) -> int:
+    """Platform-admin removal of a member (caller commits); returns how many of
+    their lapsing unit grants inside the institute's districts were deactivated."""
     institute = _institute(institute_code)
     user = _user_by_email(email)
     link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id))
     if link is None:
         raise OrganizationError("That user is not staff of that institute.")
     link.is_active = False
-    _forget_grants(user.user_id)
+    db.session.flush()  # so _covered_by_institutes sees only the remaining memberships
+    grants_deactivated = _deactivate_institute_grants(institute, [user.user_id])
     log_mentor_institute_action(
         action="mentor_member_removed",
         actor_user_id=actor_user_id,
         institute=institute.institute_code,
         target=user.user_id,
+        grants_deactivated=grants_deactivated,
     )
+    return grants_deactivated
 
 
 def set_member_admin(institute_code, email: str | None, is_admin: bool, *, user_id=None, actor_user_id=None) -> None:
@@ -398,7 +429,8 @@ def remove_staff(
     """Remove a person from *institute*'s staff; returns (account deactivated, grants deactivated).
 
     Membership is deactivated, and so are (never deleted) the person's active
-    mentor-role unit grants inside this institute's attached district subtrees,
+    lapsing unit grants (mentor roles, site_pi, interviewer, interview_supervisor)
+    inside this institute's attached district subtrees,
     except units another institute they remain staff of still covers. The
     account is deactivated only when this institute created it and the person
     belongs to no other active institute, so an institute never switches off
@@ -415,7 +447,7 @@ def remove_staff(
     link.is_active = False
     link.is_admin = False
     db.session.flush()  # so _covered_by_institutes sees only the remaining memberships
-    grants_deactivated = _deactivate_institute_grants(institute, user_id)
+    grants_deactivated = _deactivate_institute_grants(institute, [user_id])
     user = db.session.get(VaUsers, user_id)
     deactivated = False
     if (
@@ -437,10 +469,15 @@ def remove_staff(
     return deactivated, grants_deactivated
 
 
-def _deactivate_institute_grants(institute: MasMentorInstitute, user_id) -> int:
-    """Deactivate the user's active mentor-role unit grants inside *institute*'s
-    district subtrees (any attachment, active or not) that no remaining
-    membership of theirs covers. Returns the count."""
+def _deactivate_institute_grants(institute: MasMentorInstitute, user_ids) -> int:
+    """Deactivate (never delete) the users' active ``_LAPSING_UNIT_ROLES`` unit
+    grants inside *institute*'s district subtrees (any attachment, active or
+    not) that no remaining active membership of the same user covers. One
+    UPDATE for all *user_ids*; the caller flushes the membership or institute
+    change first. Returns the count."""
+    user_ids = list(user_ids)
+    if not user_ids:
+        return 0
     district = sa.orm.aliased(MasOrgUnit, name="removed_district")
     unit = sa.orm.aliased(MasOrgUnit, name="removed_unit")
     in_institute = (
@@ -458,18 +495,21 @@ def _deactivate_institute_grants(institute: MasMentorInstitute, user_id) -> int:
         sa.select(VaUserAccessGrants.grant_id)
         .join(unit, unit.org_unit_id == VaUserAccessGrants.org_unit_id)
         .where(
-            VaUserAccessGrants.user_id == user_id,
+            VaUserAccessGrants.user_id.in_(user_ids),
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            VaUserAccessGrants.role.in_(MENTOR_ROLES),
+            VaUserAccessGrants.role.in_(_LAPSING_UNIT_ROLES),
             in_institute,
-            sa.not_(_covered_by_institutes(user_id, VaUserAccessGrants.org_unit_id)),
+            sa.not_(
+                _covered_by_institutes(VaUserAccessGrants.user_id, VaUserAccessGrants.org_unit_id)
+            ),
         )
     )
     # A Core UPDATE escapes the ORM hooks that bump the grant cache.
     from app.services.authz import invalidate
 
-    invalidate(user_id)
+    for user_id in user_ids:
+        invalidate(user_id)
     return db.session.execute(
         sa.update(VaUserAccessGrants)
         .where(VaUserAccessGrants.grant_id.in_(grant_ids))

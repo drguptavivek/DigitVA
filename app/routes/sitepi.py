@@ -70,6 +70,7 @@ def _report_options(user):
     held_units = sorted(
         str(x.org_unit_id)
         for x in g.of((VaAccessRoles.site_pi,), scope_types=(VaAccessScopeTypes.org_unit,))
+        if g.oversees(x)
     )
     pi_trees = [p for p in pi_projects if g.has_tree(p)]
     units = []

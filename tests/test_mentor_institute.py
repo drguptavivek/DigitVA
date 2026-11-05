@@ -5,11 +5,14 @@ org_grant_service.validate_org_unit_grant. Policy:
 docs/policy/organization-model.md, "Mentoring institutes".
 """
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapMentorInstituteUser,
+    MasMentorInstitute,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
@@ -18,9 +21,15 @@ from app.models import (
     VaStatuses,
     VaUserAccessGrants,
 )
+from app.services import case_list_service
 from app.services import mentor_institute_service as mentors
 from app.services import org_grant_service as og
 from app.services import organization_service as org
+from app.services.authz.actions import Action
+from app.services.authz.grant_writes import GrantTarget, can_grant
+from app.services.authz.grants import invalidate
+from app.services.authz.predicates import can
+from app.services.authz.supervision import supervising_grant
 from tests.base import BaseTestCase
 
 REFUSED = org.OrganizationError
@@ -358,3 +367,53 @@ class MentorGrantApiTests(MentorBase):
             f"/admin/api/access-grants/{grant_id}/toggle", headers=self._csrf_headers()
         )
         self.assertEqual(again.status_code, 400, again.get_json())
+
+
+class MentorPreExistingSitePiTests(MentorBase):
+    """digitva-ssg7.2: a site_pi unit grant the user held before joining an
+    institute confers no In-charge power while the membership is active, the
+    same rule as ``ResolvedGrants.oversees``."""
+
+    def _member_with_site_pi(self):
+        d1, _, chc, user = self._setup_one()
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.site_pi,
+                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=d1.org_unit_id,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        invalidate(user.user_id)
+        return chc, user
+
+    def _set_membership(self, user, active):
+        institute = db.session.scalar(
+            sa.select(MasMentorInstitute).where(MasMentorInstitute.institute_code == "MC1")
+        )
+        db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id)).is_active = active
+        db.session.commit()
+        invalidate(user.user_id)
+
+    def _powers(self, user, chc):
+        other = self._get_or_make_user("not.a.mentor@test.local", "x")
+        writes_dm = bool(can_grant(
+            user,
+            GrantTarget(VaAccessRoles.data_manager, VaAccessScopeTypes.org_unit, org_unit_id=chc.org_unit_id),
+            grantee_id=other.user_id,
+        ))
+        case = SimpleNamespace(project_id=self.P1, site_id=None, org_unit_id=chc.org_unit_id)
+        supervises = supervising_grant(user.user_id, case) is not None
+        reaches = not isinstance(case_list_service._reach(user).supervised, sa.sql.elements.False_)
+        reports = bool(can(user, Action.SITE_PI_REPORT, ("unit", chc.org_unit_id)))
+        return {"writes_dm": writes_dm, "supervises": supervises, "reaches": reaches, "reports": reports}
+
+    def test_active_member_site_pi_confers_no_in_charge_powers(self):
+        chc, user = self._member_with_site_pi()
+        self._set_membership(user, False)
+        self.assertTrue(all(self._powers(user, chc).values()))  # present first
+        self._set_membership(user, True)
+        self.assertEqual(
+            self._powers(user, chc),
+            {"writes_dm": False, "supervises": False, "reaches": False, "reports": False},
+        )

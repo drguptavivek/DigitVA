@@ -95,7 +95,7 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     consent_is_valid,
     normalize_consent,
 )
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import pii_scope
 from app.services.visit_note import has_visit_note_condition
 from app.services.web_form_instruments import DEFAULT_LOCALE
 from app.services.web_form_relevance_service import (
@@ -4729,7 +4729,7 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     link) only in organization projects (``projects_with_org_tree``, the
     notion ``_require_scope`` uses), and there only where the case detail
     would show the household address: a caller with personal-data access
-    (``should_redact_pii``), or the death's own reporter. A sites-mode
+    in the row's project (``pii_scope``), or the death's own reporter. A sites-mode
     project's rows never carry them (owner, 2026-10-20). Each row carries
     ``identifiers`` (``death_identifier_service.identifier_payloads``, loaded
     once for the page) and ``can_edit_identifiers`` (``can_edit_identifiers``,
@@ -4760,7 +4760,7 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     )
     possible = result["possible_duplicates"]
     # One grant read and one org-tree read per page, not per row.
-    redact = should_redact_pii(user)
+    pii = pii_scope(user)
     org_projects = org_grant_service.projects_with_org_tree(
         {row[0].project_id for row in result["cases"]}) if result["cases"] else set()
     identifiers = death_identifiers.identifier_payloads(user, [row[0] for row in result["cases"]])
@@ -4770,14 +4770,14 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     deaths = [row[0] for row in result["cases"]]
     names = register_pii_accessor.open_register_pii(deaths, only=("deceased_name",))
     shows_fix = [d for d in deaths if d.has_location and d.project_id in org_projects
-                 and (not redact or d.registered_by == user.user_id)]
+                 and (pii.sees(d.project_id) or d.registered_by == user.user_id)]
     fixes = register_pii_accessor.open_register_pii(shows_fix, only=("latitude", "longitude"))
     rows = []
     for row in result["cases"]:
         serialized = serialize_worklist_row(user, *row, register=names[row[0].death_id])
         serialized["identifiers"] = identifiers[row[0].death_id]
         serialized["can_edit_identifiers"] = editable[row[0].death_id]
-        if row[0].project_id in org_projects and (not redact or serialized["registered_by_me"]):
+        if row[0].project_id in org_projects and (pii.sees(row[0].project_id) or serialized["registered_by_me"]):
             fix = fixes.get(row[0].death_id) or {}
             serialized["latitude"] = fix.get("latitude")
             serialized["longitude"] = fix.get("longitude")
@@ -5055,13 +5055,15 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
 def gps_projects(user: VaUsers, project_ids: set[str]) -> set[str]:
     """The projects among *project_ids* where *user* sees the GPS fix of a
     death someone else registered: organization projects
-    (``projects_with_org_tree``) and only for a caller with personal-data
-    access (``should_redact_pii``). One grant read and one org-tree read, so
+    (``projects_with_org_tree``) and only those where the caller has
+    personal-data access (``pii_scope``, per project). One grant read and one org-tree read, so
     call it once per request, not per row. ``shows_gps`` adds the reporter's
     own registrations (owner, 2026-10-20; docs/policy/web-intake.md)."""
-    if not project_ids or should_redact_pii(user):
+    pii = pii_scope(user)
+    visible = {p for p in project_ids if pii.sees(p)} if project_ids else set()
+    if not visible:
         return set()
-    return org_grant_service.projects_with_org_tree(set(project_ids))
+    return org_grant_service.projects_with_org_tree(visible)
 
 
 def shows_gps(user: VaUsers, death: VaDeathRegister, visible_projects: set[str]) -> bool:

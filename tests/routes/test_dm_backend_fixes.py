@@ -100,9 +100,11 @@ class DmBackendFixesTests(BaseTestCase):
         # data_manager unlocks PII on its own (should_redact_pii is an OR), so use
         # viewer-only users with a patched scope instead.
         from unittest.mock import patch
-        with patch("app.services.data_management_service.should_redact_pii", return_value=True):
+
+        from app.services.viewer_pii_service import PiiScope
+        with patch("app.services.data_management_service.pii_scope", return_value=PiiScope()):
             redacted = self._order_by_sql(collab, sort_field="coded_by", sort_dir="asc")
-        with patch("app.services.data_management_service.should_redact_pii", return_value=False):
+        with patch("app.services.data_management_service.pii_scope", return_value=PiiScope(everywhere=True)):
             open_ = self._order_by_sql(pii, sort_field="coded_by", sort_dir="asc")
         self.assertIn(".name", open_)
         self.assertNotIn(".name", redacted)

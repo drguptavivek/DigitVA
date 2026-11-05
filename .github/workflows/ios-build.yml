@@ -5,7 +5,8 @@ name: iOS build
 # secrets, nothing published: this proves the app compiles and links, not that it runs.
 #
 # build:  the plain app (APP_VARIANT unset): the engine modules are excluded by plugins/with-ios-collect-plus.js.
-# plus:   workflow_dispatch with plus=true. Builds SmartVA for iOS (scripts/build-smartva-ios.sh) and the Plus variant
+# plus:   workflow_dispatch with plus=true, or a pull request labelled ios-plus (dispatch needs the workflow on the default
+#         branch, and macOS minutes are too dear to spend on every PR). Builds SmartVA for iOS (scripts/build-smartva-ios.sh) and the Plus variant
 #         with SmartVA only. The ICD-11 engine for iOS has no pinned release yet, so DIGITVA_IOS_SKIP_ICD11=1 keeps the
 #         ICD-11 module out. TODO(digitva-nujw.4): once engine-src/build-ios.sh's archive is published and pinned, fetch
 #         and verify it here like collect-plus-release.yml does for Android and drop DIGITVA_IOS_SKIP_ICD11.
@@ -19,6 +20,7 @@ on:
         default: false
         type: boolean
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - mobile/digitva-collect/**
       - scripts/build-smartva-ios.sh
@@ -37,6 +39,8 @@ env:
 jobs:
   build:
     name: Build plain app (simulator, unsigned)
+    # Adding a label changes no code, so it only starts the plus job.
+    if: github.event.action != 'labeled'
     runs-on: macos-15
     timeout-minutes: 90
     steps:
@@ -118,7 +122,9 @@ jobs:
 
   plus:
     name: Build Collect Plus (SmartVA only, simulator, unsigned)
-    if: github.event_name == 'workflow_dispatch' && inputs.plus
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.plus) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ios-plus'))
     runs-on: macos-15
     timeout-minutes: 120
     env:

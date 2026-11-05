@@ -50,7 +50,7 @@ export function whoFormTheme({ ui }: Pick<Theme, "ui">): FormTheme {
     dangerSoft: ui.destructiveSoft,
     success: ui.success,
     focus: ui.ring,
-    scrim: "rgba(0, 0, 0, 0.5)"
+    scrim: ui.scrim
   };
 }
 

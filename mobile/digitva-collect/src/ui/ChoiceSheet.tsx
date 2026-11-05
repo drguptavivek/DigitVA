@@ -8,6 +8,7 @@ import { FlatList, Pressable, Text, TextInput, View } from "react-native";
 
 import { t } from "../i18n";
 import { BottomSheet } from "../nativeShell/BottomSheet";
+import { CheckMark } from "./controls";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 
 export interface ChoiceRow { key: string; label: string; selected?: boolean; onPick(): void }
@@ -67,7 +68,7 @@ function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
             >
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <Text numberOfLines={1} style={{ ...typography.body, color: ui.popoverForeground, flex: 1 }}>{item.row.label}</Text>
-                {item.row.selected ? <Text accessibilityElementsHidden style={{ ...typography.body, color: ui.primary }}>✓</Text> : null}
+                {item.row.selected ? <CheckMark color={ui.primary} size={18} /> : null}
               </View>
             </Pressable>
           )

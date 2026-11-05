@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
-import { radius } from "../theme";
+import { radius, useTheme } from "../theme";
+import { BulletItem } from "../ui/controls";
 import { ensureVendorCss } from "./vendorCss.web";
 import { useWebStyles, type WebPalette } from "./webPalette";
 import { useScrollMemory } from "./useScrollMemory";
@@ -119,6 +120,7 @@ function CategoryNavigation({
   smartvaPanel,
 }: Pick<WorkspaceLayoutProps, "categories" | "selectedCode" | "onSelectCategory"> & { formId: string; smartvaAvailable: boolean; icdClassification?: "icd10" | "icd11" | null; open: boolean; narrow: boolean; phone: boolean; setOpen: (open: boolean) => void; smartvaPanel?: React.ReactNode }) {
   const [webStyles, w] = useWebStyles(makeStyles);
+  const themeUi = useTheme().ui;
   const categoryItem = (item: (typeof categories)[number], compact: boolean) => {
     const selected = selectedCode === item.code;
     const attachmentCount = typeof (item as { attachment_count?: unknown }).attachment_count === "number"
@@ -144,7 +146,7 @@ function CategoryNavigation({
   const drawerA11y = narrow
     ? { role: "dialog", "aria-modal": true, "aria-label": "Case categories" }
     : { role: "complementary", "aria-label": "Case categories" };
-  const drawer = <View nativeID="digitva-category-drawer" {...(drawerA11y as any)} style={[webStyles.categoryDrawer, !narrow && webStyles.categoryDrawerDesktop, narrow && webStyles.categoryDrawerNarrow]}>
+  const drawer = <View nativeID="digitva-category-drawer" {...(drawerA11y as any)} style={[webStyles.categoryDrawer, { boxShadow: themeUi.shadow } as any, !narrow && webStyles.categoryDrawerDesktop, narrow && webStyles.categoryDrawerNarrow]}>
     <View style={webStyles.categoryDrawerHeader}>
       <Text style={webStyles.categoryDrawerTitle}>{formId || "Categories"}</Text>
       <Pressable nativeID="digitva-category-drawer-close" accessibilityRole="button" accessibilityLabel="Close category names" onPress={() => setOpen(false)} style={webStyles.categoryDrawerClose}><FaIcon name="fa-times" color={w.blue} /></Pressable>
@@ -160,7 +162,7 @@ function CategoryNavigation({
   </View>;
 
   const layer = open ? <View style={narrow ? webStyles.categoryDrawerLayer : webStyles.categoryDrawerInline} {...(narrow ? { accessibilityViewIsModal: true } : {})}>
-    {narrow ? <Pressable accessibilityRole="button" accessibilityLabel="Close category names" onPress={() => setOpen(false)} style={webStyles.categoryDrawerBackdrop} /> : null}
+    {narrow ? <Pressable accessibilityRole="button" accessibilityLabel="Close category names" onPress={() => setOpen(false)} style={[webStyles.categoryDrawerBackdrop, { backgroundColor: themeUi.scrim }]} /> : null}
     {drawer}
   </View> : null;
   if (phone) return layer;
@@ -201,6 +203,7 @@ export function WorkspaceLayout({
   smartvaPanel,
 }: WebWorkspaceLayoutProps) {
   const [webStyles, w] = useWebStyles(makeStyles);
+  const themeUi = useTheme().ui;
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_BREAKPOINT;
   const phone = width < PHONE_BREAKPOINT;
@@ -319,14 +322,14 @@ export function WorkspaceLayout({
   const projectSite = `${workspace.case.project_code ?? "-"}/${workspace.case.site_code ?? "-"}`;
   const projectLabel = workspace.case.is_demo_project ? `${projectSite} - TESTING PROJECT` : projectSite;
   const hints = hintText(identity.mode);
-  const hintsCard = <View style={webStyles.hintsCard}>
+  const hintsCard = <View style={[webStyles.hintsCard, { boxShadow: themeUi.shadow } as any]}>
     <View style={webStyles.cardHeadingRow}>
       <Text style={webStyles.hintsHeading}><FaIcon name="fa-info-circle" color={w.blue} /> Hints</Text>
       <WebButton label="Back to Dashboard" onPress={onExit} />
     </View>
     <Text style={webStyles.hintLead}>{identity.mode === "reviewing" ? "Verbal Autopsy Quality Assurance" : identity.mode === "view" ? "Verbal Autopsy Submission (read-only)" : "Verbal Autopsy Cause of Death Ascertainment"}</Text>
     <View style={webStyles.hintList}>
-      {hints.map((hint) => <Text key={hint} style={webStyles.hint}><Text style={webStyles.hintNumber}>• </Text>{hint}</Text>)}
+      {hints.map((hint) => <BulletItem key={hint} textStyle={webStyles.hint}>{hint}</BulletItem>)}
     </View>
   </View>;
   const caseSummary = <View style={webStyles.caseSummary} accessibilityLabel={`Age ${age}, ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}${workspace.case.is_demo_project ? ", DEMO" : ""}`}>
@@ -334,7 +337,7 @@ export function WorkspaceLayout({
     <Text style={webStyles.caseSummaryText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text>
     {workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}
   </View>;
-  const detailsCard = <View style={webStyles.detailsCard}>
+  const detailsCard = <View style={[webStyles.detailsCard, { boxShadow: themeUi.shadow } as any]}>
     <View style={webStyles.cardHeadingRow}>
       <Text style={webStyles.blueHeading}><FaIcon name="fa-file-alt" color={w.blue} /> VA Form Details</Text>
       <Text style={webStyles.sidPill}><FaIcon name="fa-clipboard-check" color={w.blue} /> SID: {workspace.case.va_sid}</Text>
@@ -354,7 +357,7 @@ export function WorkspaceLayout({
   return <View style={webStyles.safe}>
     <ScrollView keyboardDismissMode="on-drag" {...scrollMemory} style={webStyles.scroller} contentContainerStyle={[webStyles.page, phone && webStyles.pagePhone, phone && notes ? webStyles.pageWithNotesPill : null]}>
       <View style={webStyles.content}>
-        {phone ? <View style={[webStyles.sectionBar, categoriesOpen && webStyles.sectionBarBehind]}>
+        {phone ? <View style={[webStyles.sectionBar, { boxShadow: themeUi.shadow } as any, categoriesOpen && webStyles.sectionBarBehind]}>
           <Pressable
             nativeID="digitva-category-drawer-trigger"
             accessibilityRole="button"
@@ -412,10 +415,10 @@ export function WorkspaceLayout({
 
     <BodyOverlay>
     {notes ? <>
-      <Pressable nativeID="digitva-notes-trigger" accessibilityRole="button" accessibilityLabel="Open Notes" onPress={() => setNotesOpen(true)} style={[webStyles.notesTab, !wide && webStyles.notesTabMobile, (notesOpen || (phone && categoriesOpen)) && webStyles.notesTabOpen]}>
+      <Pressable nativeID="digitva-notes-trigger" accessibilityRole="button" accessibilityLabel="Open Notes" onPress={() => setNotesOpen(true)} style={[webStyles.notesTab, !wide && webStyles.notesTabMobile, (notesOpen || (phone && categoriesOpen)) && webStyles.notesTabOpen, { boxShadow: themeUi.shadow } as any]}>
         <FaIcon name="fa-paperclip" color={w.onBar} /><Text style={webStyles.notesTabText}>Notes</Text>
       </Pressable>
-      <View nativeID="digitva-notes-panel" {...((wide ? { role: "complementary", "aria-label": "Notes panel" } : { role: "dialog", "aria-modal": true, "aria-label": "Notes panel" }) as any)} style={[webStyles.notesPanel, !wide && webStyles.notesPanelMobile, notesOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}>
+      <View nativeID="digitva-notes-panel" {...((wide ? { role: "complementary", "aria-label": "Notes panel" } : { role: "dialog", "aria-modal": true, "aria-label": "Notes panel" }) as any)} style={[webStyles.notesPanel, { boxShadow: themeUi.shadow } as any, !wide && webStyles.notesPanelMobile, notesOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}>
         <View style={webStyles.notesHeader}><Text style={webStyles.notesTitle}><FaIcon name="fa-sticky-note" color={w.onBar} /> Notes / Observations</Text><Pressable nativeID="digitva-notes-close" accessibilityRole="button" accessibilityLabel="Close Notes" onPress={() => setNotesOpen(false)}><FaIcon name="fa-times" color={w.onBar} /></Pressable></View>
         <Text style={webStyles.noteFormId}>VA Form ID: {workspace.case.instance_name}</Text>
         <View style={webStyles.notesBody}><NotesCloseContext.Provider value={() => setNotesOpen(false)}>{notes}</NotesCloseContext.Provider></View>
@@ -425,7 +428,7 @@ export function WorkspaceLayout({
     <View
       nativeID="digitva-case-info-panel"
       {...((wide ? { role: "complementary", "aria-label": "Case details and hints" } : { role: "dialog", "aria-modal": true, "aria-label": "Case details and hints" }) as any)}
-      style={[webStyles.notesPanel, !wide && webStyles.notesPanelMobile, infoOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}
+      style={[webStyles.notesPanel, { boxShadow: themeUi.shadow } as any, !wide && webStyles.notesPanelMobile, infoOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}
     >
       <View style={webStyles.notesHeader}>
         <Text style={webStyles.notesTitle}><FaIcon name="fa-info-circle" color={w.onBar} /> VA Form Details & Hints</Text>
@@ -455,15 +458,14 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   safe: { flex: 1, width: "100%", minHeight: 0, backgroundColor: w.page, fontFamily: ROBOTO } as any,
   page: { paddingVertical: 16, paddingHorizontal: 16, alignItems: "center", backgroundColor: w.page, minHeight: "100%", width: "100%", boxSizing: "border-box" } as any,
   content: { width: "100%", maxWidth: 1270, gap: 24 } as any,
-  hintsCard: { backgroundColor: w.card, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderColor: w.cardEdge, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, gap: 10, minHeight: 199 } as any,
-  detailsCard: { backgroundColor: w.card, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderColor: w.cardEdge, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, gap: 12, minHeight: 206 } as any,
+  hintsCard: { backgroundColor: w.card, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderColor: w.cardEdge, gap: 10, minHeight: 199 } as any,
+  detailsCard: { backgroundColor: w.card, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderColor: w.cardEdge, gap: 12, minHeight: 206 } as any,
   cardHeadingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" } as any,
   blueHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18, lineHeight: 25 } as any,
   hintsHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: 30 } as any,
   hintLead: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: 27.2, fontWeight: "700", marginTop: 4 } as any,
   hintList: { gap: 4, paddingLeft: 6 },
   hint: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: 27.2 },
-  hintNumber: { color: w.blue, fontWeight: "700" },
   sidPill: { color: w.blue, fontFamily: ROBOTO, fontSize: 12, borderWidth: 1, borderColor: w.pillBorder, borderRadius: radius.full, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: w.pillBg, maxWidth: "100%", flexShrink: 1 } as any,
   rule: { height: 1, backgroundColor: w.border },
   detailsGrid: { flexDirection: "row", gap: 12, flexWrap: "wrap" },
@@ -495,11 +497,11 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   smartvaRail: { width: 50, minHeight: 48, alignItems: "center", justifyContent: "center", borderTopWidth: 1, borderTopColor: w.borderSoft } as any,
   categoryDrawerLayer: { position: "fixed", left: 0, right: 0, top: 0, bottom: 0, zIndex: 50, flexDirection: "row" } as any,
   categoryDrawerInline: { position: "absolute", left: 58, top: 0, zIndex: 50 } as any,
-  categoryDrawerBackdrop: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.36)" } as any,
-  categoryDrawer: { width: 300, maxWidth: "84%", height: "100%", overflowY: "auto", backgroundColor: w.card, borderRightWidth: 1, borderRightColor: w.border, paddingTop: 12, zIndex: 51, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 3, height: 0 } } as any,
+  categoryDrawerBackdrop: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 } as any,
+  categoryDrawer: { width: 300, maxWidth: "84%", height: "100%", overflowY: "auto", backgroundColor: w.card, borderRightWidth: 1, borderRightColor: w.border, paddingTop: 12, zIndex: 51 } as any,
   categoryDrawerNarrow: { width: "80%", maxWidth: 320, paddingTop: "max(12px, env(safe-area-inset-top))", paddingBottom: "env(safe-area-inset-bottom)", paddingLeft: "env(safe-area-inset-left)" } as any,
   // Sticks to the top of the page scroller; solid page colour, below the drawer (50) and Notes panel (45, above the app header at 40).
-  sectionBar: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, position: "sticky", top: 0, zIndex: 20, backgroundColor: w.page, marginHorizontal: -8, marginTop: -8, paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: w.border, boxShadow: "0 2px 4px rgba(0,0,0,0.12)" } as any,
+  sectionBar: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, position: "sticky", top: 0, zIndex: 20, backgroundColor: w.page, marginHorizontal: -8, marginTop: -8, paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: w.border } as any,
   // react-native-web gives the scroller a transform, which would make the fixed drawer scroll with the page.
   // overflowAnchor: late content above the viewport must not shift a restored offset.
   scroller: { transform: "none", overflowAnchor: "none" } as any,
@@ -550,11 +552,11 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   nextControl: { alignItems: "flex-end", gap: 6, maxWidth: "70%" } as any,
   nextBlockedReason: { color: w.blocked, fontFamily: ROBOTO, fontSize: 12, lineHeight: 17, textAlign: "right" },
   notesTab: { position: "fixed", right: 0, top: "42%", backgroundColor: w.bar, paddingVertical: 12, paddingHorizontal: 8, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, zIndex: 46, flexDirection: "row", alignItems: "center", gap: 5, transform: [{ rotate: "-90deg" }, { translateX: -30 }] } as any,
-  notesTabMobile: { top: "auto", bottom: "calc(12px + env(safe-area-inset-bottom))", right: 12, transform: [], minHeight: 44, borderRadius: radius.full, paddingVertical: 10, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } } as any,
+  notesTabMobile: { top: "auto", bottom: "calc(12px + env(safe-area-inset-bottom))", right: 12, transform: [], minHeight: 44, borderRadius: radius.full, paddingVertical: 10, paddingHorizontal: 16 } as any,
   notesTabOpen: { opacity: 0, pointerEvents: "none" } as any,
   notesTabText: { color: w.onBar, fontFamily: ROBOTO, fontWeight: "700", fontSize: 12 },
-  notesPanel: { position: "fixed", right: 0, top: 0, bottom: 0, width: 360, maxWidth: "92%", backgroundColor: w.card, borderLeftWidth: 1, borderColor: w.border, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: -3, height: 0 }, zIndex: 45 } as any,
-  notesPanelMobile: { left: 0, right: 0, top: "auto", bottom: 0, width: "100%", maxWidth: "100%", maxHeight: "82%", borderLeftWidth: 0, borderTopWidth: 1, shadowOffset: { width: 0, height: -3 } } as any,
+  notesPanel: { position: "fixed", right: 0, top: 0, bottom: 0, width: 360, maxWidth: "92%", backgroundColor: w.card, borderLeftWidth: 1, borderColor: w.border, zIndex: 45 } as any,
+  notesPanelMobile: { left: 0, right: 0, top: "auto", bottom: 0, width: "100%", maxWidth: "100%", maxHeight: "82%", borderLeftWidth: 0, borderTopWidth: 1 } as any,
   notesPanelClosed: { display: "none" },
   notesPanelOpen: { display: "flex" },
   notesHeader: { minHeight: 54, paddingHorizontal: 16, backgroundColor: w.bar, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

@@ -543,3 +543,12 @@ describe("desktop station", () => {
     expect(labels).not.toContain("Sign out");
   });
 });
+
+test("bottom tab labels wrap at spaces only, never inside a word", () => {
+  mountAll();
+  const rule = host.querySelector("style")!.textContent!.match(/\.dva-bottom-label\{[^}]*\}/)![0];
+  expect(rule).toContain("word-break:normal");
+  expect(rule).toContain("overflow-wrap:normal");
+  expect(rule).toContain("hyphens:none");
+  expect(rule).not.toMatch(/anywhere|break-all|break-word/);
+});

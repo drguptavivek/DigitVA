@@ -5,6 +5,7 @@ import type { DmSubmissionRow } from "../../data/api";
 import { rowState, sortBy, type ColumnDef, type ColumnKey, type DataQuery } from "../../data/query";
 import { t, type StringKey } from "../../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../../theme";
+import { Chevron } from "../Chevron";
 import { StatPressable } from "../stats/controls";
 import { workflowLabel } from "./DataFilters";
 
@@ -150,8 +151,11 @@ export function DataTable({ rows, columns, query, handlers, onQuery }: {
       "th",
       { key: column.key, scope: "col", "aria-sort": column.sort ? (sorted ? (query.sortDir === "asc" ? "ascending" : "descending") : "none") : undefined, style: { ...cellStyle, fontWeight: 600, color: ui.mutedForeground, whiteSpace: "nowrap", verticalAlign: "middle" } },
       column.sort ? (
-        <StatPressable label={t("dataSortBy", { column: label })} onPress={() => onQuery(sortBy(query, column.sort!))} style={{ minHeight: 32, justifyContent: "center" }}>
-          <Text numberOfLines={1} style={{ fontSize: fontSize.body, fontWeight: "600", color: sorted ? ui.foreground : ui.mutedForeground }}>{`${label}${sorted ? (query.sortDir === "asc" ? " ▲" : " ▼") : ""}`}</Text>
+        <StatPressable label={t("dataSortBy", { column: label })} onPress={() => onQuery(sortBy(query, column.sort!))} style={{ minHeight: 44, justifyContent: "center" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
+            <Text numberOfLines={1} style={{ fontSize: fontSize.body, fontWeight: "600", color: sorted ? ui.foreground : ui.mutedForeground }}>{label}</Text>
+            {sorted ? <Chevron expanded direction={query.sortDir === "asc" ? "up" : "down"} size={14} color={ui.foreground} /> : null}
+          </View>
         </StatPressable>
       ) : label,
     );

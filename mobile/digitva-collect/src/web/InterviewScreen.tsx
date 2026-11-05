@@ -24,6 +24,7 @@ import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type Cons
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
 import { radius, useTheme } from "../theme";
+import { MenuChoiceRow } from "../ui/controls";
 import { useWhoFormTheme } from "../whoWebTheme";
 import { applyTranslations } from "../translations";
 import { Button, errorReference, useUiStyles } from "../ui";
@@ -84,12 +85,13 @@ function initialDataFromLoadedRuntime(core: WhoCoreRuntime, prefill: Prefill | u
  * shows beside it while it is pinned at the top.
  */
 export const INTERVIEW_FORM_CSS = `
+  /* The attribute selectors match the colours the WHO package hard-codes; the replacements are theme variables. */
   #digitva-who-form-theme [stroke="#004687"] {
     stroke: var(--who-2022-web-color-brand-deep) !important;
   }
   #digitva-who-form-theme [stroke="#ffffff"],
   #digitva-who-form-theme [stroke="#fff"] {
-    stroke: var(--who-2022-web-color-on-accent, #ffffff) !important;
+    stroke: var(--who-2022-web-color-on-accent) !important;
   }
   @media (max-width: 767px) {
     #digitva-who-form-theme div:has(> div > [data-testid="form-footer"]) {
@@ -1298,6 +1300,7 @@ export default function InterviewScreen() {
           {revision ? (
             <View>
               <Text style={styles.headline}>{t("revisionReason")}</Text>
+              <View accessibilityRole="radiogroup" accessibilityLabel={t("revisionReason")}>
               {([
                 ["interviewer_correction", "revisionReasonInterviewerCorrection", "revisionReasonMessageInterviewerCorrection"],
                 ["respondent_correction", "revisionReasonRespondentCorrection", "revisionReasonMessageRespondentCorrection"],
@@ -1306,10 +1309,10 @@ export default function InterviewScreen() {
                   ? [["finish_partial", "revisionReasonFinishPartial", "revisionReasonMessageFinishPartial"]]
                   : [])
               ] as Array<[RevisionReasonCode, StringKey, StringKey]>).map(([code, labelKey]) => (
-                <Button
+                <MenuChoiceRow
                   key={code}
-                  kind="secondary"
-                  label={`${t(labelKey)}${revisionReason === code ? " ✓" : ""}`}
+                  label={t(labelKey)}
+                  selected={revisionReason === code}
                   onPress={() => {
                     if (!pendingRevisionRef.current && !busy) {
                       setRevisionReason(code);
@@ -1318,6 +1321,7 @@ export default function InterviewScreen() {
                   }}
                 />
               ))}
+              </View>
               {revisionReason ? (
                 <Text style={styles.muted}>
                   {t(({
@@ -1536,27 +1540,12 @@ function QuestionnaireLanguageMenu({
         <View
           accessibilityRole="radiogroup"
           accessibilityLabel={t("formLanguage")}
-          style={[languageStyles.popover, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+          style={[languageStyles.popover, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, boxShadow: theme.ui.shadow } as object]}
         >
           {locales.map((entry) => {
             const selected = entry.code === locale;
             return (
-              <Pressable
-                key={entry.code}
-                accessibilityRole="radio"
-                accessibilityLabel={entry.label}
-                accessibilityState={{ checked: selected, disabled: busy }}
-                aria-checked={selected}
-                disabled={busy}
-                onPress={() => void selectLocale(entry.code)}
-                style={({ pressed }) => [
-                  languageStyles.option,
-                  { backgroundColor: selected ? theme.colors.accentSoft : "transparent", opacity: pressed ? 0.78 : 1 }
-                ]}
-              >
-                <Text style={[languageStyles.optionLabel, { color: theme.colors.text }]}>{entry.label}</Text>
-                <Text style={[languageStyles.check, { color: theme.colors.accent }]}>{selected ? "✓" : ""}</Text>
-              </Pressable>
+              <MenuChoiceRow key={entry.code} label={entry.label} selected={selected} disabled={busy} onPress={() => void selectLocale(entry.code)} />
             );
           })}
         </View>
@@ -1614,10 +1603,7 @@ const languageStyles = StyleSheet.create({
   anchor: { position: "relative", zIndex: 20 },
   trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   triggerText: { fontSize: 16, fontWeight: "700" },
-  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
-  option: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
-  optionLabel: { fontSize: 16, lineHeight: 22, flexShrink: 1 },
-  check: { width: 20, fontSize: 18, fontWeight: "700", textAlign: "center" }
+  popover: { position: "absolute", right: 0, top: "100%", marginTop: 8, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, elevation: 4 },
 });
 
 const welcomeStyles = StyleSheet.create({

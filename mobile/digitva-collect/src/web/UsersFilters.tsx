@@ -20,14 +20,14 @@ export const ROLE_FILTERS = ["interviewer", "death_reporter", "coder", "reviewer
 type Patch = Partial<UserFilters>;
 
 function useStyles() {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   return useMemo(() => StyleSheet.create({
     input: {
       minHeight: controls.minHeight, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
       paddingHorizontal: spacing.sm, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily,
     },
-    backdropSheet: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
-    backdropSide: { flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.35)" },
+    backdropSheet: { flex: 1, justifyContent: "flex-end", backgroundColor: ui.scrim },
+    backdropSide: { flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: ui.scrim },
     sheet: { maxHeight: "88%", width: "100%", backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
     side: { height: "100%", width: 400, maxWidth: "100%", backgroundColor: colors.background, borderLeftWidth: 1, borderColor: colors.border },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs, padding: spacing.sm, borderBottomWidth: 1, borderColor: colors.border },
@@ -49,7 +49,7 @@ function useStyles() {
       borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
     },
     filterButtonText: { ...typography.subhead, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
-  }), [colors]);
+  }), [colors, ui]);
 }
 
 /** The "Filters" button with the number of filters set. */

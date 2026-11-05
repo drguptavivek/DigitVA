@@ -64,7 +64,7 @@ export function UpstreamChangesDialog({ formId, details, loading, error, onAccep
   }, [onClose]);
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: ui.scrim }}>
         <View
           accessibilityViewIsModal
           accessibilityRole={"dialog" as never}

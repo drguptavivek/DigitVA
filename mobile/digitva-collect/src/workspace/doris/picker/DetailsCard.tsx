@@ -5,12 +5,17 @@ import { parseDorisDetails, type DorisDetails } from "../guidance";
 import type { PickerItem } from "./expression";
 import { LoadView, Panel } from "./Panel";
 import { useLoad, type Post } from "./transport";
+import { BulletItem } from "../../../ui/controls";
 
 function Section({ title, children }: { title: string; children: string | string[] }) {
+  const label = <Label>{title}</Label>;
+  if (!Array.isArray(children)) return <View style={{ gap: gap.xs }}>{label}<Body>{children}</Body></View>;
   return (
     <View style={{ gap: gap.xs }}>
-      <Label>{title}</Label>
-      {(Array.isArray(children) ? children : [children]).map((line, index) => <Body key={`${index}:${line}`}>{Array.isArray(children) ? `• ${line}` : line}</Body>)}
+      {label}
+      <View role="list" style={{ gap: gap.xs }}>
+        {children.map((line, index) => <View key={`${index}:${line}`} role="listitem"><BulletItem>{line}</BulletItem></View>)}
+      </View>
     </View>
   );
 }

@@ -241,7 +241,7 @@ describe("StateView", () => {
 
   it("renders the requested number of skeleton rows and the persistent offline notice", async () => {
     await render(<SkeletonCards count={4} />);
-    expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.importantForAccessibility === "no-hide-descendants")).toHaveLength(4);
+    expect(tree.root.findAll((n) => typeof n.type === "string" && n.props["aria-hidden"] === true)).toHaveLength(4);
     await act(async () => tree.unmount());
     await render(<OfflineNotice />);
     expect(text(tree)).toContain("You are offline. Work is saved on this phone and sent later.");

@@ -184,8 +184,8 @@ describe("header and tabs", () => {
     expect(byLabel(tree, "हिन्दी")).toHaveLength(0);
     await press(tree, label);
     expect(mockChooseLocale).not.toHaveBeenCalled();
-    expect(byLabel(tree, "English")[0].props.accessibilityState).toEqual({ selected: true });
-    expect(byLabel(tree, "हिन्दी")[0].props.accessibilityState).toEqual({ selected: false });
+    expect(byLabel(tree, "English")[0].props.accessibilityState).toEqual({ selected: true, disabled: false });
+    expect(byLabel(tree, "हिन्दी")[0].props.accessibilityState).toEqual({ selected: false, disabled: false });
     await press(tree, "English");
     expect(mockChooseLocale).not.toHaveBeenCalled();
     expect(byLabel(tree, "हिन्दी")).toHaveLength(0);

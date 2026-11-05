@@ -1,7 +1,8 @@
 import { act, create, type ReactTestInstance } from "react-test-renderer";
 
 import type { DmSubmissionRow, UpstreamChangeDetails } from "../src/data/api";
-import { rowActions } from "../src/web/data/DataTable";
+import { parseDataQuery } from "../src/data/query";
+import { DataTable, rowActions } from "../src/web/data/DataTable";
 import { UpstreamChangesDialog } from "../src/web/data/UpstreamChangesDialog";
 
 const row = (over: Partial<DmSubmissionRow>) => ({ va_sid: "s1", workflow_state: "coded", revision_requested: false, ...over }) as DmSubmissionRow;
@@ -17,6 +18,19 @@ describe("row actions", () => {
     expect(actions(row({}), true)).toEqual(["view", "edit"]);
     expect(actions(row({ workflow_state: "finalized_upstream_changed" }), true)).toEqual(["view", "changes"]);
     expect(actions(row({ workflow_state: "finalized_upstream_changed", revision_requested: true }), true)).toEqual(["view", "cancel"]);
+  });
+});
+
+describe("sortable headers", () => {
+  test("only the active column reports aria-sort, with a vector arrow instead of a glyph", () => {
+    const query = parseDataQuery({ sort_field: "site_id", sort_dir: "desc" });
+    const columns = [{ key: "site_id", sort: "site_id", defaultVisible: true }, { key: "project_id", sort: "project_id", defaultVisible: true }] as never;
+    let tree!: ReturnType<typeof create>;
+    act(() => { tree = create(<DataTable rows={[]} columns={columns} query={query} handlers={{ manage: false, onAction: () => undefined }} onQuery={() => undefined} />); });
+    const root = tree.root;
+    const heads = root.findAll((n) => n.type === "th" && n.props.scope === "col" && n.props["aria-sort"]);
+    expect(heads.map((h) => h.props["aria-sort"])).toEqual(["descending", "none"]);
+    expect(JSON.stringify(tree.toJSON())).not.toMatch(/[▲▼]/);
   });
 });
 

@@ -17,6 +17,7 @@ import {
 import { t } from "../i18n";
 import { fontSize, radius, spacing, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { BulletItem } from "../ui/controls";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { RoleSentence } from "../ui/RoleChip";
@@ -607,9 +608,9 @@ export default function MentoringScreen() {
                   <Text style={styles.muted}>No districts attached yet.</Text>
                 ) : (
                   inst.districts.map((d) => (
-                    <Text key={d.org_unit_id} style={styles.text}>
-                      {`• ${d.unit_name} (${d.unit_code}) in ${d.project_name}`}
-                    </Text>
+                    <BulletItem key={d.org_unit_id} textStyle={styles.text}>
+                      {`${d.unit_name} (${d.unit_code}) in ${d.project_name}`}
+                    </BulletItem>
                   ))
                 )}
               </View>

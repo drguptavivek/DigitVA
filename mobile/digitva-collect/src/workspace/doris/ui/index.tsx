@@ -7,6 +7,7 @@ import { useMemo, useRef, useState, type ComponentProps, type ReactNode } from "
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import { BUTTON_MIN_WIDTH, buttonTone, fontSize, uiRadius, useTheme, type ButtonSize, type ButtonVariant, type ChartToken, type UiTokens } from "../../../theme";
+import { Chevron } from "../../../web/Chevron";
 
 export { uiRadius };
 export type { ChartToken, UiTokens };
@@ -390,7 +391,8 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
   return (
     <View ref={trigger} collapsable={false}>
       <FieldButton accessibilityLabel={triggerLabel} accessibilityValue={accessibilityValue} accessibilityState={{ expanded: open }} onPress={() => (open ? close() : openMenu())} style={style}>
-        <ControlText>{`${valueText} ▾`}</ControlText>
+        <ControlText style={{ flexShrink: 1 }}>{valueText}</ControlText>
+        <Chevron expanded size={18} color={t.mutedForeground} />
       </FieldButton>
       {open ? (
         <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={close}>

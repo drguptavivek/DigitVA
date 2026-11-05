@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ClientCsrf } from "../api";
 import {
@@ -16,17 +16,16 @@ import {
 } from "../roster";
 import { t } from "../i18n";
 import { phoneDisplay } from "../phoneFormat";
-import { fontSize, palette, radius, ui } from "../theme";
+import { fontSize, radius, useTheme } from "../theme";
+import { CheckMark, Checkbox } from "../ui/controls";
 
-const webTheme = {
-  colors: {
-    accent: ui.light.chart[2].bar,
-    canvas: palette.light.background,
-    ink: palette.light.text,
-    muted: palette.light.textMuted,
-    border: palette.light.border,
-  },
-};
+const TICK_LABELS = {
+  is_reporter: "role_death_reporter",
+  is_interviewer: "role_interviewer",
+  is_supervisor: "stationRoleSupervisor",
+  is_coder: "role_coder",
+  active: "stationColActive",
+} as const;
 
 export interface StationActorBarProps {
   csrf: ClientCsrf;
@@ -45,6 +44,8 @@ export function StationActorBar({
   onActorSwitched,
   onOpenRosterSettings,
 }: StationActorBarProps) {
+  const { colors, ui } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, ui), [colors, ui]);
   const [snapshot, setSnapshot] = useState<StationRosterSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
@@ -159,6 +160,8 @@ export function StationActorBar({
               return (
                 <Pressable
                   key={m.member_id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected, disabled: busy }}
                   disabled={busy}
                   onPress={() => void handleSelectMember(m.member_id)}
                   style={[styles.actorPill, selected && styles.actorPillSelected]}
@@ -185,6 +188,8 @@ export function StationActorBar({
               return (
                 <Pressable
                   key={role}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected, disabled: busy }}
                   disabled={busy}
                   onPress={() => void handleSelectRole(role)}
                   style={[
@@ -268,6 +273,8 @@ export function StationRosterScreen({
   onActorSwitched,
   onClose,
 }: StationRosterScreenProps) {
+  const { colors, ui } = useTheme();
+  const styles = useMemo(() => makeStyles(colors, ui), [colors, ui]);
   const [snapshot, setSnapshot] = useState<StationRosterSnapshot | null>(null);
   const [name, setName] = useState("");
   const [designation, setDesignation] = useState("medical_officer");
@@ -540,16 +547,15 @@ export function StationRosterScreen({
                 ["active", m.active],
               ] as const
             ).map(([field, checked]) => (
-              <Pressable
-                key={field}
-                disabled={!editable || busy}
-                onPress={() => void handleToggleMemberTick(m, field)}
-                style={[styles.tickCol, styles.tickCell]}
-              >
-                <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-                  <Text style={styles.checkboxMark}>{checked ? "✓" : ""}</Text>
-                </View>
-              </Pressable>
+              <View key={field} style={[styles.tickCol, styles.tickCell]}>
+                <Checkbox
+                  hideLabel
+                  checked={checked}
+                  disabled={!editable || busy}
+                  label={`${m.name}, ${t(TICK_LABELS[field])}`}
+                  onChange={() => void handleToggleMemberTick(m, field)}
+                />
+              </View>
             ))}
             {isProvisioned ? (
               <View style={[styles.tickCol, styles.tickCell]}>
@@ -629,6 +635,8 @@ export function StationRosterScreen({
                 {snapshot.designations.map((d) => (
                   <Pressable
                     key={d.code}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: designation === d.code || designation === d.label }}
                     onPress={() => setDesignation(d.code)}
                     style={[
                       styles.actorPill,
@@ -662,13 +670,13 @@ export function StationRosterScreen({
             ).map(([label, val, setter]) => (
               <Pressable
                 key={label}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: val }}
                 onPress={() => setter(!val)}
-                style={[styles.actorPill, val && styles.actorPillSelected]}
+                style={[styles.actorPill, styles.actorPillRow, val && styles.actorPillSelected]}
               >
-                <Text style={[styles.actorPillText, val && styles.actorPillTextSelected]}>
-                  {val ? "✓ " : ""}
-                  {label}
-                </Text>
+                {val ? <CheckMark color={colors.onAccent} size={12} /> : null}
+                <Text style={[styles.actorPillText, val && styles.actorPillTextSelected]}>{label}</Text>
               </Pressable>
             ))}
           </View>
@@ -696,11 +704,14 @@ export function StationRosterScreen({
   );
 }
 
-const styles = StyleSheet.create({
+type ThemeNow = ReturnType<typeof useTheme>;
+
+/** Styles of both screens; rebuilt only when the theme changes so dark mode applies. */
+const makeStyles = (colors: ThemeNow["colors"], ui: ThemeNow["ui"]) => StyleSheet.create({
   actorBar: {
-    backgroundColor: palette.light.background,
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: palette.light.border,
+    borderBottomColor: colors.border,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -716,13 +727,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   modeBadgeSandbox: {
-    backgroundColor: ui.light.warningBorder,
+    backgroundColor: ui.warningBorder,
   },
   modeBadgeProvisioned: {
-    backgroundColor: webTheme.colors.accent,
+    backgroundColor: ui.chart[2].bar,
   },
   modeBadgeText: {
-    color: palette.light.onAccent,
+    color: colors.onAccent,
     fontSize: fontSize.caption,
     fontWeight: "700",
   },
@@ -737,7 +748,7 @@ const styles = StyleSheet.create({
   actorLabel: {
     fontSize: fontSize.caption,
     fontWeight: "600",
-    color: palette.light.text,
+    color: colors.text,
   },
   pillRow: {
     flexDirection: "row",
@@ -751,36 +762,41 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.light.border,
-    backgroundColor: palette.light.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   actorPillSelected: {
-    backgroundColor: webTheme.colors.accent,
-    borderColor: webTheme.colors.accent,
+    backgroundColor: ui.chart[2].bar,
+    borderColor: ui.chart[2].bar,
+  },
+  actorPillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   rolePill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: palette.light.border,
-    backgroundColor: palette.light.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   rolePillSelected: {
-    backgroundColor: palette.light.accent,
-    borderColor: palette.light.accent,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   coderRolePillSelected: {
-    backgroundColor: ui.light.chart[4].bar,
-    borderColor: ui.light.chart[4].bar,
+    backgroundColor: ui.chart[4].bar,
+    borderColor: ui.chart[4].bar,
   },
   actorPillText: {
     fontSize: fontSize.caption,
-    color: palette.light.text,
+    color: colors.text,
     fontWeight: "500",
   },
   actorPillTextSelected: {
-    color: palette.light.onAccent,
+    color: colors.onAccent,
     fontWeight: "700",
   },
   rosterButton: {
@@ -789,47 +805,47 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.light.borderStrong,
-    backgroundColor: palette.light.surface,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
   },
   rosterButtonText: {
     fontSize: fontSize.caption,
     fontWeight: "600",
-    color: palette.light.text,
+    color: colors.text,
   },
   coderMaskNotice: {
     marginTop: 4,
     fontSize: fontSize.caption,
-    color: ui.light.chart[4].bar,
+    color: ui.chart[4].bar,
     fontWeight: "600",
   },
   pinUnlockBox: {
     marginTop: 8,
     padding: 10,
-    backgroundColor: ui.light.warning,
+    backgroundColor: ui.warning,
     borderWidth: 1,
-    borderColor: ui.light.warningBorder,
+    borderColor: ui.warningBorder,
     borderRadius: radius.md,
     gap: 8,
   },
   pinWarningText: {
     fontSize: fontSize.caption,
-    color: ui.light.warningForeground,
+    color: ui.warningForeground,
     fontWeight: "600",
   },
   pinInput: {
     borderWidth: 1,
-    borderColor: palette.light.border,
+    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: 10,
     paddingVertical: 6,
     fontSize: fontSize.body,
-    backgroundColor: palette.light.surface,
+    backgroundColor: colors.surface,
     minWidth: 180,
   },
   container: {
     flex: 1,
-    backgroundColor: webTheme.colors.canvas,
+    backgroundColor: colors.background,
   },
   content: {
     padding: 20,
@@ -845,16 +861,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fontSize.heading,
     fontWeight: "700",
-    color: webTheme.colors.ink,
+    color: colors.text,
   },
   subtitle: {
     fontSize: fontSize.body,
-    color: webTheme.colors.muted,
+    color: colors.textMuted,
     marginTop: 2,
   },
   sandboxBanner: {
-    backgroundColor: ui.light.warning,
-    borderColor: ui.light.warningBorder,
+    backgroundColor: ui.warning,
+    borderColor: ui.warningBorder,
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: 12,
@@ -863,16 +879,16 @@ const styles = StyleSheet.create({
   sandboxBannerTitle: {
     fontSize: fontSize.body,
     fontWeight: "700",
-    color: ui.light.warningForeground,
+    color: ui.warningForeground,
   },
   sandboxBannerText: {
     fontSize: fontSize.body,
-    color: ui.light.warningForeground,
+    color: ui.warningForeground,
     fontWeight: "600",
   },
   provisionedBanner: {
-    backgroundColor: ui.light.chart[2].tint,
-    borderColor: webTheme.colors.accent,
+    backgroundColor: ui.chart[2].tint,
+    borderColor: ui.chart[2].bar,
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: 12,
@@ -881,15 +897,15 @@ const styles = StyleSheet.create({
   provisionedBannerTitle: {
     fontSize: fontSize.body,
     fontWeight: "700",
-    color: ui.light.chart[2].foreground,
+    color: ui.chart[2].foreground,
   },
   provisionedBannerText: {
     fontSize: fontSize.body,
-    color: ui.light.chart[2].foreground,
+    color: ui.chart[2].foreground,
   },
   expiryWarningBanner: {
-    backgroundColor: palette.light.dangerSoft,
-    borderColor: palette.light.danger,
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: 12,
@@ -897,42 +913,42 @@ const styles = StyleSheet.create({
   expiryWarningText: {
     fontSize: fontSize.body,
     fontWeight: "700",
-    color: palette.light.danger,
+    color: colors.danger,
   },
   card: {
-    backgroundColor: palette.light.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: 16,
     borderWidth: 1,
-    borderColor: webTheme.colors.border,
+    borderColor: colors.border,
     gap: 12,
   },
   sectionTitle: {
     fontSize: fontSize.input,
     fontWeight: "700",
-    color: webTheme.colors.ink,
+    color: colors.text,
   },
   tableHeader: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: palette.light.border,
+    borderBottomColor: colors.border,
     paddingBottom: 8,
   },
   tableRow: {
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: palette.light.surfaceMuted,
+    borderBottomColor: colors.surfaceMuted,
     paddingVertical: 8,
   },
   cellHeader: {
     fontSize: fontSize.caption,
     fontWeight: "700",
-    color: palette.light.textMuted,
+    color: colors.textMuted,
   },
   cellText: {
     fontSize: fontSize.body,
-    color: palette.light.text,
+    color: colors.text,
   },
   nameCol: {
     flex: 2,
@@ -946,25 +962,6 @@ const styles = StyleSheet.create({
   },
   tickCell: {
     justifyContent: "center",
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: palette.light.borderStrong,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: palette.light.surface,
-  },
-  checkboxChecked: {
-    backgroundColor: webTheme.colors.accent,
-    borderColor: webTheme.colors.accent,
-  },
-  checkboxMark: {
-    color: palette.light.onAccent,
-    fontSize: fontSize.caption,
-    fontWeight: "700",
   },
   formRow: {
     flexDirection: "row",
@@ -980,38 +977,38 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.caption,
     fontWeight: "600",
-    color: palette.light.text,
+    color: colors.text,
   },
   input: {
     borderWidth: 1,
-    borderColor: palette.light.border,
+    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: 10,
     paddingVertical: 7,
     fontSize: fontSize.body,
-    backgroundColor: palette.light.surface,
+    backgroundColor: colors.surface,
   },
   primaryBtn: {
     alignSelf: "flex-start",
-    backgroundColor: webTheme.colors.accent,
+    backgroundColor: ui.chart[2].bar,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: radius.md,
   },
   primaryBtnText: {
-    color: palette.light.onAccent,
+    color: colors.onAccent,
     fontSize: fontSize.body,
     fontWeight: "700",
   },
   secondaryBtn: {
     borderWidth: 1,
-    borderColor: webTheme.colors.accent,
+    borderColor: ui.chart[2].bar,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: radius.md,
   },
   secondaryBtnText: {
-    color: webTheme.colors.accent,
+    color: ui.chart[2].bar,
     fontSize: fontSize.caption,
     fontWeight: "600",
   },
@@ -1020,28 +1017,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.light.border,
-    backgroundColor: palette.light.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   closeBtnText: {
     fontSize: fontSize.body,
     fontWeight: "600",
-    color: palette.light.text,
+    color: colors.text,
   },
   divider: {
     height: 1,
-    backgroundColor: palette.light.border,
+    backgroundColor: colors.border,
     marginVertical: 4,
   },
   errorBox: {
-    backgroundColor: palette.light.dangerSoft,
-    borderColor: palette.light.danger,
+    backgroundColor: colors.dangerSoft,
+    borderColor: colors.danger,
     borderWidth: 1,
     borderRadius: radius.md,
     padding: 10,
   },
   errorText: {
-    color: palette.light.danger,
+    color: colors.danger,
     fontSize: fontSize.body,
   },
 });

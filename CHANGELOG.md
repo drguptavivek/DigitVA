@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-05
 
+- **Web controls draw state with vectors and theme tokens** (`digitva-mle7`):
+  ticks, crosses, chevrons and radio dots are drawn shapes from the shared
+  `src/ui/controls.tsx` (CheckMark, XMark, Checkbox, MenuChoiceRow,
+  RemovableChip), not text glyphs that render differently per font; scrims
+  and shadows use the `ui.scrim`/`ui.shadow` tokens, so dark mode follows.
+  The Area filter splits into a scope choice (all, my field areas, one unit)
+  and a unit list with breadcrumbs. Merged onto the Statistics filter panel
+  and applied-filter chips already on main.
+
 - **Staging's slow pages and failures fixed** (`digitva-20z5`;
   `docs/policy/cod-bucket-reporting.md`,
   `docs/current-state/cod-bucket-reporting.md`, `docs/policy/web-intake.md`,

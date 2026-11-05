@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { Alert, Body, Button, Muted, Separator, font, gap, useUi } from "../ui";
+import { Chevron } from "../../../web/Chevron";
 import { parseDorisOptions, parseDorisPostcoordination, type DorisAxis, type DorisOption, type DorisPostcoordination } from "../guidance";
 import { CAUSING_AXIS, buildExpression, isExtension, requiredSatisfied, toggleOption, type PickerItem, type Selection } from "./expression";
 import { OptionRow } from "./OptionRow";
@@ -144,7 +145,7 @@ function AxisSection({ axis, chosen, expanded, unknown, post, onPick, onExpand, 
           <Text style={{ flexShrink: 1, fontSize: font.body, lineHeight: 20, fontWeight: "600", color: t.foreground }}>
             {open ? title : `${axis.label} (optional)${chosen.length ? ` · ${chosen.length} chosen` : ""}`}
           </Text>
-          <Text style={{ fontSize: font.title, color: t.mutedForeground }}>{open ? "▾" : "▸"}</Text>
+          <Chevron expanded={open} size={20} color={t.mutedForeground} />
         </Pressable>
       ) : (
         <Text accessibilityRole="header" style={{ fontSize: font.body, lineHeight: 20, fontWeight: "600", color: t.foreground }}>{title}</Text>

@@ -58,7 +58,7 @@ jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchPara
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, onBeforeLock: () => () => undefined, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
 // The real `ui` tokens, so the form theme the screen derives is the app's own; `mockColorMode` flips light and dark.
 let mockColorMode: "light" | "dark" = "light";
-jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
+jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, spacing: jest.requireActual("../src/theme").spacing, typography: jest.requireActual("../src/theme").typography, controls: jest.requireActual("../src/theme").controls, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
   useUiStyles: () => ({}),
@@ -523,7 +523,7 @@ it("keeps a valid revision editable and refuses the POST when consent is missing
   (postRevision as jest.Mock).mockReset();
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<InterviewScreen />); });
-  const reasonButton = tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t("revisionReasonInterviewerCorrection"))[0];
+  const reasonButton = tree.root.findAll((node) => node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === t("revisionReasonInterviewerCorrection") && typeof node.props.onPress === "function")[0];
   expect(reasonButton).toBeDefined();
   await act(async () => { reasonButton?.props.onPress(); });
   const form = tree.root.findByType(WhoVaForm);
@@ -559,7 +559,7 @@ it.each([
   store.save({ ...currentDraft, data: data as typeof currentDraft.data });
   await act(async () => { form.props.onChange(); });
   const reasonButton = tree.root.findAll((node) =>
-    String(node.type) === "mock-button" && node.props.label === t("revisionReasonInterviewerCorrection"),
+    node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === t("revisionReasonInterviewerCorrection") && typeof node.props.onPress === "function",
   )[0];
   await act(async () => { reasonButton.props.onPress(); });
   await act(async () => { await form.props.onComplete({ valid, issues: [], data }); });

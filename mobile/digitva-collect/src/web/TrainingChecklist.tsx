@@ -8,6 +8,7 @@ import { t, type StringKey } from "../i18n";
 import { getTrainingMe, type TrainingMe } from "../training";
 import { spacing } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { BulletItem } from "../ui/controls";
 import { browserErrorText, WebShell } from "./common";
 import { openServerPage } from "./roleHome";
 
@@ -71,7 +72,7 @@ export function TrainingChecklistView({ area, me, error = "" }: { area: Training
       <Text style={styles.headline}>{t("trainingChecklist")}</Text>
       <Text style={styles.muted}>{t("trainingOnlyHere")}</Text>
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
-      {steps.map((key) => <Text key={key} style={styles.text}>{`• ${t(key)}`}</Text>)}
+      {steps.map((key) => <BulletItem key={key} textStyle={styles.text}>{t(key)}</BulletItem>)}
       {area === "coding" && slot ? <Text style={styles.muted}>{t("trainingCoderSlot", { slot })}</Text> : null}
       {area === "review" && bootstrap ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>

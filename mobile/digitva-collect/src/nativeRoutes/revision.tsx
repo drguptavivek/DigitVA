@@ -63,6 +63,7 @@ import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
 import { useTheme } from "../theme";
 import { Button, Row, Screen, useUiStyles } from "../ui";
+import { Chevron } from "../web/Chevron";
 import { useWhoFormTheme } from "../whoWebTheme";
 
 const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
@@ -726,7 +727,7 @@ export default function Revision() {
             <Text numberOfLines={1} style={[reason ? styles.text : styles.muted, { flex: 1 }]}>
               {reason ? t(REASONS.find((item) => item.code === reason)!.label as never) : t("revisionReason")}
             </Text>
-            <Text style={styles.text}>▾</Text>
+            <Chevron expanded size={18} />
           </Pressable>
           {reason ? (
             <Pressable accessibilityRole="button" accessibilityLabel={t(REASONS.find((item) => item.code === reason)!.message as never)} testID="revision-notice-toggle" onPress={() => setNoticeOpen((open) => !open)} style={{ minHeight: 40, minWidth: 40, alignItems: "center", justifyContent: "center" }}>

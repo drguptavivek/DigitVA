@@ -38,7 +38,7 @@ export function PipelineRow({ row, scale, showReported = true, onOpen, link }: {
   const body = (
     <View style={{ gap: spacing.xs }}>
       <Text style={{ ...typography.body, fontWeight: "600", color: ui.foreground }}>{row.name}</Text>
-      <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={{ height: 10, borderRadius: radius.sm, backgroundColor: ui.secondary, overflow: "hidden" }}>
+      <View aria-hidden style={{ height: 10, borderRadius: radius.sm, backgroundColor: ui.secondary, overflow: "hidden" }}>
         {stages.map((stage) => (
           <View key={stage.key} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${stage.width}%`, backgroundColor: stage.colour }} />
         ))}

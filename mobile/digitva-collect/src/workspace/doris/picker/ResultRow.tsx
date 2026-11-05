@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions, type LayoutChan
 
 import { controlText } from "../../../theme";
 import { Button, font, gap, uiRadius, useUi } from "../ui";
+import { Chevron } from "../../../web/Chevron";
 import { isComplete, isMandatory, notFinal, type PickerItem } from "./expression";
 import { MaternalIcon, PerinatalIcon, UseIcon } from "./icons";
 
@@ -161,7 +162,7 @@ export function ResultRow({ item, onTitle, onUse, onDetails, onRelated, onBuild,
           ) : null}
           {refused?.kind === "category" ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Choose a more specific code under ${item.code}`} hitSlop={8} onPress={onTitle} style={pillBox(t.primary, t.background)}>
-              <Text maxFontSizeMultiplier={PILL_SCALE} style={pillText(t.primary)}>Choose specific ▸</Text>
+              <Text maxFontSizeMultiplier={PILL_SCALE} style={pillText(t.primary)}>Choose specific</Text><Chevron expanded={false} size={16} color={t.primary} />
             </Pressable>
           ) : refused ? (
             <View accessible accessibilityLabel={`Extension code ${item.code}: add it to a stem`} style={pillBox(t.border, t.muted)}>

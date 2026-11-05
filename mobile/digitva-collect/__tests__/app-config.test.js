@@ -198,6 +198,16 @@ describe("Expo release configuration", () => {
       expect(resolved.ios.buildNumber).toBe("1");
     });
 
+    it("declares only exempt encryption (OS crypto and HTTPS) for every variant", () => {
+      for (const variant of [undefined, "plus", "development"]) {
+        if (variant) process.env.APP_VARIANT = variant;
+        else delete process.env.APP_VARIANT;
+        const plist = resolve().ios.infoPlist;
+        expect(plist).toHaveProperty("ITSAppUsesNonExemptEncryption");
+        expect(plist.ITSAppUsesNonExemptEncryption).toBe(false);
+      }
+    });
+
     it("leaves the build number at 1 outside a release build even when one is set", () => {
       process.env.DIGITVA_IOS_BUILD_NUMBER = "77";
       expect(resolve().ios.buildNumber).toBe("1");

@@ -75,7 +75,8 @@
     "ios": {
       "bundleIdentifier": "com.causeofdeathindia.digitvacollect",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data."
+        "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "web": {

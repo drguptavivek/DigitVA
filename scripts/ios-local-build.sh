@@ -78,6 +78,9 @@ elif [[ $variant == plus ]]; then
     fi
   fi
   [[ -s $ICDAPI_DIR/ICD-API.dll ]] || die "WHO assemblies missing in $ICDAPI_DIR"
+  # The iOS build declares only OS crypto (docs/policy/ios-client.md): a bundled managed crypto library would break that.
+  crypto_libs="$(ls "$ICDAPI_DIR" | grep -iE 'bouncy|crypt|identitymodel|sodium|openssl' || true)"
+  [[ -z $crypto_libs ]] || die "WHO assemblies include a crypto library; re-check ITSAppUsesNonExemptEncryption first: $crypto_libs"
   export ICDAPI_DIR
   "$app/modules/digitva-icd11/engine-src/build-ios.sh" "$gen/icd11-ios"
 

@@ -3,7 +3,7 @@ title: iOS Client (DigitVA Collect on iPhone and iPad)
 doc_type: policy
 status: draft
 owner: drguptavivek
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # iOS Client Policy
@@ -71,10 +71,37 @@ native engines behaves as plain Collect. On iOS the offline device identity
 lives in the Keychain (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`); unlike the Android
 Keystore, a Keychain item can survive an uninstall and reinstall.
 
+## Encryption and export compliance
+
+Owner decision 2026-11-05 (`digitva-nujw.9`): the app keeps full encryption,
+uses only standard algorithms through the operating system's crypto or HTTPS,
+and declares `ITSAppUsesNonExemptEncryption = false` in `app.json`. The flag
+is an export-control declaration, not an encryption switch.
+
+Audit of 2026-11-05 (what backs each use on iOS):
+
+- Local store and passphrase backup: SQLCipher (AES-256, PBKDF2-HMAC-SHA512,
+  per-page HMAC) built with `-DSQLCIPHER_CRYPTO_CC`, i.e. Apple CommonCrypto
+  (`node_modules/expo-sqlite/ios/ExpoSQLite.podspec`).
+- Keys and identity: Keychain via `expo-secure-store` (Security.framework);
+  key material from `SecRandomCopyBytes` via `expo-crypto`.
+- Integrity hashes and IDs: `expo-crypto` (CommonCrypto SHA-256, `UUID()`).
+- Transport: HTTPS through NSURLSession.
+- SmartVA (Rust, `mobile-core`): no crypto crates. ICD-11 engine: `Bridge.cs`
+  uses no crypto or TLS; its runtime would use Apple's crypto.
+
+Rules that keep the declaration true:
+
+- No bundled crypto library (OpenSSL, BoringSSL, libsodium, pure-JS ciphers)
+  and no custom or non-standard algorithm for encryption, key derivation or
+  authentication. Encryption goes through CommonCrypto/CryptoKit,
+  Security.framework or the OS TLS stack.
+- Two hand-written SHA-256 functions exist for non-security hashing only
+  (consent-notice text integrity in `src/consent.ts`, the demo sign-up
+  proof-of-work in `src/pow.ts`). Hashing for integrity is not encryption;
+  moving them to `expo-crypto` is tracked in `digitva-nujw.12`.
+- A new dependency, a WHO assembly with a crypto library, or end-to-end
+  encryption between users means re-checking this declaration before release.
+
 ## Open owner decisions
 
-- **Export compliance (`ITSAppUsesNonExemptEncryption`).** The app uses
-  SQLCipher for the local store. Whether it qualifies for an exemption, and so
-  how this key is set, is an open owner decision. Until it is decided the key is
-  not set in the app config, and App Store Connect asks the question on each
-  upload.

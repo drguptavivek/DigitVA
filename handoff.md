@@ -88,7 +88,10 @@ has neither, and its coding is one direct step with SmartVA visible.
     macOS CI (`ios-build.yml`). Nothing has run yet. Next: simulator smoke
     test (`.7`), a SmartVA scoring check on the simulator (`.3`),
     then ICD-11 NativeAOT for iOS and its memory on a 3-4 GB iPhone (`.8`).
-    Distribution needs an Apple Developer account (`.5`).
+    Distribution needs an Apple Developer account (`.5`). On a Mac:
+    `scripts/ios-local-build.sh plus --run`. Export compliance is decided
+    (`ITSAppUsesNonExemptEncryption=false`, OS crypto only:
+    `docs/policy/ios-client.md`).
 14. `make collect-plus-local`: container mode untested end to end (Docker 12 GB
     or more); `NATIVE=1` works on the Mac (4.5 min, debug-signed, never
     distributed).
@@ -109,8 +112,7 @@ has neither, and its coding is one direct step with SmartVA visible.
 - Statistics Hindi strings, including the new singular forms, and the new
   stale-save strings ("Use my answers", who changed it) need a native
   speaker's review (`digitva-omqx`).
-- iOS: `ITSAppUsesNonExemptEncryption` for SQLCipher (`digitva-nujw.9`);
-  offline identity in the Keychain survives reinstall (`digitva-nujw.10`);
+- iOS: offline identity in the Keychain survives reinstall (`digitva-nujw.10`);
   Apple Developer account and TestFlight (`digitva-nujw.5`).
 - The three-device rule wording in `docs/policy/mobile-sign-in.md`,
   `field-data-collection.md` and `public-demo.md` now says a reset ends a

@@ -29,6 +29,9 @@ from app.models import (
     MapDeathIdentifier,
     MapIdentifierAudit,
     MapPayloadVersionPii,
+    MapSubmissionCodBucket,
+    MasCodBucketScheme,
+    MasCodBucketSchemeAgeBand,
     MapUserNotification,
     MasDeathIdentifierType,
     MasPiiAccessLog,
@@ -199,6 +202,13 @@ class PurgeBase(PublicDemoBase):
         sub = db.session.get(VaSubmissions, sid)
         sub.active_payload_version_id = pv.payload_version_id
         self._add(MapPayloadVersionPii, va_sid=sid, payload_version_id=pv.payload_version_id)
+        # A precomputed cause-group row (derived; purged with the case).
+        scheme = self._add(MasCodBucketScheme, scheme_code=f"PURGE{sid[-8:]}", scheme_name="Purge")
+        band = self._add(MasCodBucketSchemeAgeBand, scheme_id=scheme.scheme_id, age_label="All",
+                         min_age_value=0, min_age_unit="days", max_age_value=150, max_age_unit="years")
+        self._add(MapSubmissionCodBucket, va_sid=sid, scheme_id=scheme.scheme_id,
+                  age_band_id=band.age_band_id, icd_classification="icd10", final_icd="A00",
+                  form_id=self.form_id, age_days=0, is_reportable=True)
         # Files: one shared by the submission and its draft upload, one only a draft holds.
         shared, draft_only = uuid.uuid4().hex, uuid.uuid4().hex
         self._file(shared)

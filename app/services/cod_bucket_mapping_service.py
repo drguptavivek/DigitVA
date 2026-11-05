@@ -25,12 +25,15 @@ from app.models import (
     VaDeathRegister,
     VaSmartvaResults,
     VaForms,
+    VaProjectSites,
+    VaStatuses,
     VaSubmissions,
 )
 from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
 )
+from app.services.cod_bucket_materialization import mark_scheme_stale
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -727,6 +730,8 @@ def _get_or_create_scheme(
 
 
 def _replace_scheme_contents(scheme: MasCodBucketScheme) -> None:
+    # Core deletes: the rebuild listener cannot see them.
+    mark_scheme_stale(scheme.scheme_id)
     # Every classification goes: the nodes are rebuilt, so ICD-11 rows would
     # cascade with them anyway. A native scheme then has no ICD-11 table
     # until `flask cod-buckets generate-icd11` runs again, so say so.
@@ -1170,6 +1175,8 @@ def _apply_who_2022_va_admin_overrides(
 
 
 def _replace_scheme_scope_contents(scheme: MasCodBucketScheme, age_scope: str | None) -> None:
+    # Core deletes: the rebuild listener cannot see them.
+    mark_scheme_stale(scheme.scheme_id)
     db.session.execute(
         sa.delete(MapIcdCodBucket).where(
             MapIcdCodBucket.scheme_id == scheme.scheme_id,
@@ -3361,215 +3368,58 @@ def aggregate_coded_submissions_by_bucket(
         allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
-    field_node = sa.orm.aliased(MasCodBucketNode)
-    parent_node = sa.orm.aliased(MasCodBucketNode)
-    grandparent_node = sa.orm.aliased(MasCodBucketNode)
-
-    category_label = sa.case(
-        (field_node.parent_node_id.is_(None), sa.null()),
-        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.node_label),
-        else_=grandparent_node.node_label,
-    ).label("bucket_category")
-    category_sort_order = sa.case(
-        (field_node.parent_node_id.is_(None), 0),
-        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.sort_order),
-        else_=grandparent_node.sort_order,
-    ).label("bucket_category_sort_order")
-    subcategory_label = sa.case(
-        (field_node.parent_node_id.is_(None), sa.null()),
-        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.node_label),
-        else_=sa.null(),
-    ).label("bucket_subcategory")
-    subcategory_sort_order = sa.case(
-        (field_node.parent_node_id.is_(None), 0),
-        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.sort_order),
-        else_=0,
-    ).label("bucket_subcategory_sort_order")
-    gender_normalized = sa.func.lower(sa.func.coalesce(base_rows.c.gender, "unknown"))
-    male_count = sa.func.sum(
-        sa.case((gender_normalized == "male", 1), else_=0)
-    ).label("male_count")
-    female_count = sa.func.sum(
-        sa.case((gender_normalized == "female", 1), else_=0)
-    ).label("female_count")
-    unknown_count = sa.func.sum(
-        sa.case(
-            (
-                sa.and_(
-                    gender_normalized != "male",
-                    gender_normalized != "female",
-                ),
-                1,
-            ),
-            else_=0,
-        )
-    ).label("unknown_count")
-
-    select_columns = [
-        base_rows.c.age_scope,
-        base_rows.c.age_scope_label,
-        base_rows.c.age_scope_sort_order,
-        category_label,
-        category_sort_order,
-        subcategory_label,
-        subcategory_sort_order,
-        field_node.node_label.label("bucket_field"),
-        field_node.sort_order.label("bucket_field_sort_order"),
-        male_count,
-        female_count,
-        unknown_count,
-        sa.func.count().label("coded_count"),
-    ]
-    group_by_columns = [
-        base_rows.c.age_scope,
-        base_rows.c.age_scope_label,
-        base_rows.c.age_scope_sort_order,
-        category_label,
-        category_sort_order,
-        subcategory_label,
-        subcategory_sort_order,
-        field_node.node_label,
-        field_node.sort_order,
-    ]
-    order_by_columns = [
-        base_rows.c.age_scope_sort_order.asc(),
-        category_sort_order.asc(),
-        subcategory_sort_order.asc(),
-        field_node.sort_order.asc(),
-    ]
-
-    if not collapse_scope:
-        select_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *select_columns,
-        ]
-        group_by_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *group_by_columns,
-        ]
-        order_by_columns = [
-            base_rows.c.project_id.asc(),
-            base_rows.c.site_id.asc(),
-            base_rows.c.form_id.asc(),
-            *order_by_columns,
-        ]
-
-    query = (
-        sa.select(*select_columns)
-        .select_from(base_rows)
-        .join(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                sa.or_(
-                    sa.and_(
-                        MapIcdCodBucket.age_scope.is_(None),
-                        base_rows.c.age_scope.is_(None),
-                    ),
-                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
-                ),
-            ),
-        )
-        .join(field_node, field_node.node_id == MapIcdCodBucket.node_id)
-        .outerjoin(parent_node, parent_node.node_id == field_node.parent_node_id)
-        .outerjoin(grandparent_node, grandparent_node.node_id == parent_node.parent_node_id)
-        .group_by(*group_by_columns)
-        .order_by(*order_by_columns)
+    scope = _scope_columns(base_rows, collapse_scope)
+    counted = (
+        sa.select(*scope, base_rows.c.age_band_id, base_rows.c.node_id,
+                  *_gender_count_columns(base_rows.c.gender))
+        .where(base_rows.c.node_id.is_not(None))
+        .group_by(*scope, base_rows.c.age_band_id, base_rows.c.node_id)
+        .subquery("cod_bucket_counted")
     )
-    rows = [dict(row) for row in db.session.execute(query).mappings().all()]
+    age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
+    banded = sa.select(
+        counted, age_band.age_scope, age_band.age_label, age_band.sort_order
+    ).join_from(counted, age_band, age_band.age_band_id == counted.c.age_band_id).subquery(
+        "cod_bucket_banded"
+    )
+    rows = _bucket_count_rows(
+        banded,
+        keys=[
+            banded.c.age_scope.label("age_scope"),
+            banded.c.age_label.label("age_scope_label"),
+            banded.c.sort_order.label("age_scope_sort_order"),
+        ],
+        sort_keys=[banded.c.sort_order],
+        collapse_scope=collapse_scope,
+    )
 
     if not _uses_reporting_age_band_detail_sections(scheme):
         return rows
 
-    reporting_age_scope = _reporting_age_band_sql(
-        base_rows.c.age_normalized_days
-    ).label("age_scope")
-    reporting_age_scope_label = reporting_age_scope.label("age_scope_label")
-    reporting_age_scope_sort_order = _detailed_reporting_age_scope_sort_sql(
-        base_rows.c.age_normalized_days
-    ).label("age_scope_sort_order")
-
-    reporting_select_columns = [
-        reporting_age_scope,
-        reporting_age_scope_label,
-        reporting_age_scope_sort_order,
-        category_label,
-        category_sort_order,
-        subcategory_label,
-        subcategory_sort_order,
-        field_node.node_label.label("bucket_field"),
-        field_node.sort_order.label("bucket_field_sort_order"),
-        male_count,
-        female_count,
-        unknown_count,
-        sa.func.count().label("coded_count"),
-    ]
-    reporting_group_by_columns = [
-        reporting_age_scope,
-        reporting_age_scope_label,
-        reporting_age_scope_sort_order,
-        category_label,
-        category_sort_order,
-        subcategory_label,
-        subcategory_sort_order,
-        field_node.node_label,
-        field_node.sort_order,
-    ]
-    reporting_order_by_columns = [
-        reporting_age_scope_sort_order.asc(),
-        category_sort_order.asc(),
-        subcategory_sort_order.asc(),
-        field_node.sort_order.asc(),
-    ]
-
-    if not collapse_scope:
-        reporting_select_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *reporting_select_columns,
-        ]
-        reporting_group_by_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *reporting_group_by_columns,
-        ]
-        reporting_order_by_columns = [
-            base_rows.c.project_id.asc(),
-            base_rows.c.site_id.asc(),
-            base_rows.c.form_id.asc(),
-            *reporting_order_by_columns,
-        ]
-
-    reporting_query = (
-        sa.select(*reporting_select_columns)
-        .select_from(base_rows)
-        .join(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                MapIcdCodBucket.age_scope.is_(None),
-                base_rows.c.age_scope.is_(None),
-            ),
+    reporting_age_scope = _reporting_age_band_sql(base_rows.c.age_normalized_days)
+    reporting_sort_order = _detailed_reporting_age_scope_sort_sql(base_rows.c.age_normalized_days)
+    detail = (
+        sa.select(
+            *scope,
+            reporting_age_scope.label("age_scope"),
+            reporting_sort_order.label("age_scope_sort_order"),
+            base_rows.c.node_id,
+            *_gender_count_columns(base_rows.c.gender),
         )
-        .join(field_node, field_node.node_id == MapIcdCodBucket.node_id)
-        .outerjoin(parent_node, parent_node.node_id == field_node.parent_node_id)
-        .outerjoin(grandparent_node, grandparent_node.node_id == parent_node.parent_node_id)
-        .group_by(*reporting_group_by_columns)
-        .order_by(*reporting_order_by_columns)
+        .where(base_rows.c.node_id.is_not(None), base_rows.c.age_scope.is_(None))
+        .group_by(*scope, reporting_age_scope, reporting_sort_order, base_rows.c.node_id)
+        .subquery("cod_bucket_detail_counted")
     )
-    rows.extend(dict(row) for row in db.session.execute(reporting_query).mappings().all())
+    rows.extend(_bucket_count_rows(
+        detail,
+        keys=[
+            detail.c.age_scope,
+            detail.c.age_scope.label("age_scope_label"),
+            detail.c.age_scope_sort_order,
+        ],
+        sort_keys=[detail.c.age_scope_sort_order],
+        collapse_scope=collapse_scope,
+    ))
     return rows
 
 
@@ -3605,57 +3455,26 @@ def summarize_unmatched_coded_submissions_by_bucket(
         allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
-    select_columns = [
-        base_rows.c.age_scope,
-        base_rows.c.age_scope_label,
-        base_rows.c.age_scope_sort_order,
-        sa.func.count().label("unmatched_count"),
+    scope = _scope_columns(base_rows, collapse_scope)
+    counted = (
+        sa.select(*scope, base_rows.c.age_band_id, sa.func.count().label("unmatched_count"))
+        .where(base_rows.c.node_id.is_(None))
+        .group_by(*scope, base_rows.c.age_band_id)
+        .subquery("cod_bucket_unmatched")
+    )
+    age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
+    counted_scope = _scope_columns(counted, collapse_scope)
+    keys = [
+        *counted_scope,
+        age_band.age_scope.label("age_scope"),
+        age_band.age_label.label("age_scope_label"),
+        age_band.sort_order.label("age_scope_sort_order"),
     ]
-    group_by_columns = [base_rows.c.age_scope, base_rows.c.age_scope_label, base_rows.c.age_scope_sort_order]
-    order_by_columns = [base_rows.c.age_scope_sort_order.asc()]
-
-    if not collapse_scope:
-        select_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *select_columns,
-        ]
-        group_by_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *group_by_columns,
-        ]
-        order_by_columns = [
-            base_rows.c.project_id.asc(),
-            base_rows.c.site_id.asc(),
-            base_rows.c.form_id.asc(),
-            *order_by_columns,
-        ]
-
     query = (
-        sa.select(*select_columns)
-        .select_from(base_rows)
-        .outerjoin(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                sa.or_(
-                    sa.and_(
-                        MapIcdCodBucket.age_scope.is_(None),
-                        base_rows.c.age_scope.is_(None),
-                    ),
-                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
-                ),
-            ),
-        )
-        .where(MapIcdCodBucket.mapping_id.is_(None))
-        .group_by(*group_by_columns)
-        .order_by(*order_by_columns)
+        sa.select(*keys, _summed(counted.c.unmatched_count))
+        .join_from(counted, age_band, age_band.age_band_id == counted.c.age_band_id)
+        .group_by(*keys)
+        .order_by(*(column.asc() for column in counted_scope), age_band.sort_order.asc())
     )
     rows = [dict(row) for row in db.session.execute(query).mappings().all()]
 
@@ -3669,57 +3488,15 @@ def summarize_unmatched_coded_submissions_by_bucket(
     reporting_age_scope_sort_order = _detailed_reporting_age_scope_sort_sql(
         base_rows.c.age_normalized_days
     ).label("age_scope_sort_order")
-
-    reporting_select_columns = [
-        reporting_age_scope,
-        reporting_age_scope_label,
-        reporting_age_scope_sort_order,
-        sa.func.count().label("unmatched_count"),
-    ]
-    reporting_group_by_columns = [
-        reporting_age_scope,
-        reporting_age_scope_label,
-        reporting_age_scope_sort_order,
-    ]
-    reporting_order_by_columns = [reporting_age_scope_sort_order.asc()]
-
-    if not collapse_scope:
-        reporting_select_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *reporting_select_columns,
-        ]
-        reporting_group_by_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *reporting_group_by_columns,
-        ]
-        reporting_order_by_columns = [
-            base_rows.c.project_id.asc(),
-            base_rows.c.site_id.asc(),
-            base_rows.c.form_id.asc(),
-            *reporting_order_by_columns,
-        ]
-
+    group_by = [*scope, reporting_age_scope, reporting_age_scope_label, reporting_age_scope_sort_order]
     reporting_query = (
-        sa.select(*reporting_select_columns)
+        sa.select(*group_by, sa.func.count().label("unmatched_count"))
         .select_from(base_rows)
-        .outerjoin(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                MapIcdCodBucket.age_scope.is_(None),
-                base_rows.c.age_scope.is_(None),
-            ),
-        )
-        .where(MapIcdCodBucket.mapping_id.is_(None))
-        .group_by(*reporting_group_by_columns)
-        .order_by(*reporting_order_by_columns)
+        # The all-ages detail section: a death in a scoped band never
+        # matches here, so it counts as unmatched (as it always has).
+        .where(sa.or_(base_rows.c.node_id.is_(None), base_rows.c.age_scope.is_not(None)))
+        .group_by(*group_by)
+        .order_by(*(column.asc() for column in scope), reporting_age_scope_sort_order.asc())
     )
     rows.extend(dict(row) for row in db.session.execute(reporting_query).mappings().all())
     return rows
@@ -3757,71 +3534,36 @@ def list_unmatched_coded_submission_icds_by_bucket(
         allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
-    select_columns = [
-        base_rows.c.age_scope,
-        base_rows.c.age_scope_label,
-        base_rows.c.age_scope_sort_order,
-        base_rows.c.final_icd.label("icd_code"),
-        base_rows.c.icd_classification,
-        base_rows.c.reporting_icd,
-        sa.func.count().label("unmatched_count"),
+    scope = _scope_columns(base_rows, collapse_scope)
+    icd_columns = [base_rows.c.final_icd, base_rows.c.icd_classification, base_rows.c.reporting_icd]
+    counted = (
+        sa.select(*scope, base_rows.c.age_band_id, *icd_columns, sa.func.count().label("unmatched_count"))
+        .where(base_rows.c.node_id.is_(None))
+        .group_by(*scope, base_rows.c.age_band_id, *icd_columns)
+        .subquery("cod_bucket_unmatched_icds")
+    )
+    age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
+    counted_scope = _scope_columns(counted, collapse_scope)
+    keys = [
+        *counted_scope,
+        age_band.age_scope.label("age_scope"),
+        age_band.age_label.label("age_scope_label"),
+        age_band.sort_order.label("age_scope_sort_order"),
+        counted.c.final_icd.label("icd_code"),
+        counted.c.icd_classification,
+        counted.c.reporting_icd,
     ]
-    group_by_columns = [
-        base_rows.c.age_scope,
-        base_rows.c.age_scope_label,
-        base_rows.c.age_scope_sort_order,
-        base_rows.c.final_icd,
-        base_rows.c.icd_classification,
-        base_rows.c.reporting_icd,
-    ]
-    order_by_columns = [
-        base_rows.c.age_scope_sort_order.asc(),
-        sa.func.count().desc(),
-        base_rows.c.final_icd.asc(),
-    ]
-
-    if not collapse_scope:
-        select_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *select_columns,
-        ]
-        group_by_columns = [
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            *group_by_columns,
-        ]
-        order_by_columns = [
-            base_rows.c.project_id.asc(),
-            base_rows.c.site_id.asc(),
-            base_rows.c.form_id.asc(),
-            *order_by_columns,
-        ]
-
+    unmatched_count = _summed(counted.c.unmatched_count)
     query = (
-        sa.select(*select_columns)
-        .select_from(base_rows)
-        .outerjoin(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                sa.or_(
-                    sa.and_(
-                        MapIcdCodBucket.age_scope.is_(None),
-                        base_rows.c.age_scope.is_(None),
-                    ),
-                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
-                ),
-            ),
+        sa.select(*keys, unmatched_count)
+        .join_from(counted, age_band, age_band.age_band_id == counted.c.age_band_id)
+        .group_by(*keys)
+        .order_by(
+            *(column.asc() for column in counted_scope),
+            age_band.sort_order.asc(),
+            sa.func.sum(counted.c.unmatched_count).desc(),
+            counted.c.final_icd.asc(),
         )
-        .where(MapIcdCodBucket.mapping_id.is_(None))
-        .group_by(*group_by_columns)
-        .order_by(*order_by_columns)
     )
     rows = [dict(row) for row in db.session.execute(query).mappings().all()]
 
@@ -3833,67 +3575,28 @@ def list_unmatched_coded_submission_icds_by_bucket(
         reporting_age_scope_sort_order = _detailed_reporting_age_scope_sort_sql(
             base_rows.c.age_normalized_days
         ).label("age_scope_sort_order")
-
-        reporting_select_columns = [
+        group_by = [
+            *scope,
             reporting_age_scope,
             reporting_age_scope_label,
             reporting_age_scope_sort_order,
             base_rows.c.final_icd.label("icd_code"),
             base_rows.c.icd_classification,
             base_rows.c.reporting_icd,
-            sa.func.count().label("unmatched_count"),
         ]
-        reporting_group_by_columns = [
-            reporting_age_scope,
-            reporting_age_scope_label,
-            reporting_age_scope_sort_order,
-            base_rows.c.final_icd,
-            base_rows.c.icd_classification,
-            base_rows.c.reporting_icd,
-        ]
-        reporting_order_by_columns = [
-            reporting_age_scope_sort_order.asc(),
-            sa.func.count().desc(),
-            base_rows.c.final_icd.asc(),
-        ]
-
-        if not collapse_scope:
-            reporting_select_columns = [
-                base_rows.c.project_id,
-                base_rows.c.site_id,
-                base_rows.c.form_id,
-                *reporting_select_columns,
-            ]
-            reporting_group_by_columns = [
-                base_rows.c.project_id,
-                base_rows.c.site_id,
-                base_rows.c.form_id,
-                *reporting_group_by_columns,
-            ]
-            reporting_order_by_columns = [
-                base_rows.c.project_id.asc(),
-                base_rows.c.site_id.asc(),
-                base_rows.c.form_id.asc(),
-                *reporting_order_by_columns,
-            ]
-
         reporting_query = (
-            sa.select(*reporting_select_columns)
+            sa.select(*group_by, sa.func.count().label("unmatched_count"))
             .select_from(base_rows)
-            .outerjoin(
-                MapIcdCodBucket,
-                sa.and_(
-                    MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                    MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                    MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                    MapIcdCodBucket.is_active.is_(True),
-                    MapIcdCodBucket.age_scope.is_(None),
-                    base_rows.c.age_scope.is_(None),
-                ),
+            # The all-ages detail section: a death in a scoped band never
+            # matches here, so it counts as unmatched (as it always has).
+            .where(sa.or_(base_rows.c.node_id.is_(None), base_rows.c.age_scope.is_not(None)))
+            .group_by(*group_by)
+            .order_by(
+                *(column.asc() for column in scope),
+                reporting_age_scope_sort_order.asc(),
+                sa.func.count().desc(),
+                base_rows.c.final_icd.asc(),
             )
-            .where(MapIcdCodBucket.mapping_id.is_(None))
-            .group_by(*reporting_group_by_columns)
-            .order_by(*reporting_order_by_columns)
         )
         rows.extend(
             dict(row) for row in db.session.execute(reporting_query).mappings().all()
@@ -3961,57 +3664,197 @@ def list_unmatched_coded_submission_icds_by_bucket(
     return classified_rows
 
 
-def _matched_cod_bucket_rows_subquery(*, scheme, base_rows):
+def _scope_columns(source, collapse_scope: bool) -> list:
+    """The (project, site, form) columns of *source*, none when collapsed."""
+    if collapse_scope:
+        return []
+    return [source.c.project_id, source.c.site_id, source.c.form_id]
+
+
+def _gender_count_columns(gender_column) -> list:
+    """male / female / unknown / coded counts, as the bucket tables show them
+    (``lower(coalesce(gender, 'unknown'))``, untrimmed)."""
+    normalized = sa.func.lower(sa.func.coalesce(gender_column, "unknown"))
+    return [
+        sa.func.sum(sa.case((normalized == "male", 1), else_=0)).label("male_count"),
+        sa.func.sum(sa.case((normalized == "female", 1), else_=0)).label("female_count"),
+        sa.func.sum(
+            sa.case((sa.and_(normalized != "male", normalized != "female"), 1), else_=0)
+        ).label("unknown_count"),
+        sa.func.count().label("coded_count"),
+    ]
+
+
+def _summed(column):
+    """Re-sum a pre-aggregated count, kept an int (sum(bigint) is numeric)."""
+    return sa.cast(sa.func.sum(column), sa.BigInteger).label(column.key)
+
+
+def _bucket_hierarchy(source, node_id_column):
+    """(join of *source* to the leaf node and its two ancestors, the label and
+    sort-order columns of the bucket tables). Joined after the counts are
+    grouped by id, so the labels are joined once per group, not per death."""
     field_node = sa.orm.aliased(MasCodBucketNode)
     parent_node = sa.orm.aliased(MasCodBucketNode)
     grandparent_node = sa.orm.aliased(MasCodBucketNode)
-
-    category_label = sa.case(
-        (field_node.parent_node_id.is_(None), sa.null()),
-        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.node_label),
-        else_=grandparent_node.node_label,
-    ).label("bucket_category")
-    subcategory_label = sa.case(
-        (field_node.parent_node_id.is_(None), sa.null()),
-        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.node_label),
-        else_=sa.null(),
-    ).label("bucket_subcategory")
-
-    query = (
-        sa.select(
-            base_rows.c.age_scope,
-            base_rows.c.age_scope_label,
-            base_rows.c.age_scope_sort_order,
-            base_rows.c.age_normalized_days,
-            base_rows.c.gender,
-            base_rows.c.country,
-            base_rows.c.submission_year,
-            category_label,
-            subcategory_label,
-            field_node.node_label.label("bucket_field"),
-        )
-        .select_from(base_rows)
-        .join(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                sa.or_(
-                    sa.and_(
-                        MapIcdCodBucket.age_scope.is_(None),
-                        base_rows.c.age_scope.is_(None),
-                    ),
-                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
-                ),
-            ),
-        )
-        .join(field_node, field_node.node_id == MapIcdCodBucket.node_id)
+    joined = (
+        sa.join(source, field_node, field_node.node_id == node_id_column)
         .outerjoin(parent_node, parent_node.node_id == field_node.parent_node_id)
         .outerjoin(grandparent_node, grandparent_node.node_id == parent_node.parent_node_id)
     )
-    return query.subquery("matched_cod_bucket_rows")
+    labels = {
+        "bucket_category": sa.case(
+            (field_node.parent_node_id.is_(None), sa.null()),
+            (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.node_label),
+            else_=grandparent_node.node_label,
+        ).label("bucket_category"),
+        "bucket_category_sort_order": sa.case(
+            (field_node.parent_node_id.is_(None), 0),
+            (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.sort_order),
+            else_=grandparent_node.sort_order,
+        ).label("bucket_category_sort_order"),
+        "bucket_subcategory": sa.case(
+            (field_node.parent_node_id.is_(None), sa.null()),
+            (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.node_label),
+            else_=sa.null(),
+        ).label("bucket_subcategory"),
+        "bucket_subcategory_sort_order": sa.case(
+            (field_node.parent_node_id.is_(None), 0),
+            (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.sort_order),
+            else_=0,
+        ).label("bucket_subcategory_sort_order"),
+        "bucket_field": field_node.node_label.label("bucket_field"),
+        "bucket_field_sort_order": field_node.sort_order.label("bucket_field_sort_order"),
+    }
+    return joined, labels
+
+
+def _bucket_count_rows(source, *, keys: list, sort_keys: list, collapse_scope: bool) -> list[dict]:
+    """Gender-split counts of a pre-grouped *source* (``node_id`` plus the
+    ``_gender_count_columns``) by *keys* and the bucket hierarchy, in the
+    bucket tables' order: scope, then *sort_keys*, then the hierarchy."""
+    scope = _scope_columns(source, collapse_scope)
+    joined, labels = _bucket_hierarchy(source, source.c.node_id)
+    group_by = [*scope, *keys, *labels.values()]
+    query = (
+        sa.select(
+            *group_by,
+            _summed(source.c.male_count),
+            _summed(source.c.female_count),
+            _summed(source.c.unknown_count),
+            _summed(source.c.coded_count),
+        )
+        .select_from(joined)
+        .group_by(*group_by)
+        .order_by(
+            *(column.asc() for column in scope),
+            *(column.asc() for column in sort_keys),
+            labels["bucket_category_sort_order"].asc(),
+            labels["bucket_subcategory_sort_order"].asc(),
+            labels["bucket_field_sort_order"].asc(),
+        )
+    )
+    return [dict(row) for row in db.session.execute(query).mappings().all()]
+
+
+def _reporting_breakdown_groups(*, scheme, base_rows) -> list[dict]:
+    """The matched rows counted at the finest grain the dashboard breakdowns
+    need, in one statement: every breakdown is a roll-up of these groups.
+    Counted by id first, then joined to the labels once per group.
+
+    Adds the derived keys (``first_level_label``, ``age_filter_*``) and, for
+    each label a breakdown orders by, its ``dense_rank`` in the database's own
+    collation (ASC, NULLs last, as the per-breakdown queries ordered), so the
+    Python roll-ups sort exactly as SQL did.
+    """
+    reporting_age_band = _reporting_age_band_sql(base_rows.c.age_normalized_days)
+    reporting_sort_order = _reporting_age_band_sort_sql(base_rows.c.age_normalized_days)
+    id_keys = [
+        base_rows.c.node_id,
+        base_rows.c.age_band_id,
+        base_rows.c.gender,
+        VaForms.form_smartvacountry.label("country"),
+        base_rows.c.submission_year,
+        reporting_age_band.label("reporting_age_band"),
+        reporting_sort_order.label("reporting_age_band_sort_order"),
+    ]
+    counted = (
+        sa.select(*id_keys, sa.func.count().label("coded_count"))
+        .join_from(base_rows, VaForms, VaForms.form_id == base_rows.c.form_id)
+        .where(base_rows.c.node_id.is_not(None))
+        .group_by(*id_keys)
+        .subquery("cod_bucket_breakdown_counted")
+    )
+    age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
+    joined, labels = _bucket_hierarchy(
+        sa.join(counted, age_band, age_band.age_band_id == counted.c.age_band_id),
+        counted.c.node_id,
+    )
+    dimensions = [
+        labels["bucket_category"],
+        labels["bucket_subcategory"],
+        labels["bucket_field"],
+        counted.c.gender,
+        counted.c.country,
+        counted.c.submission_year,
+        age_band.age_scope.label("age_scope"),
+        age_band.age_label.label("age_scope_label"),
+        age_band.sort_order.label("age_scope_sort_order"),
+        counted.c.reporting_age_band,
+        counted.c.reporting_age_band_sort_order,
+    ]
+    grouped = (
+        sa.select(*dimensions, _summed(counted.c.coded_count))
+        .select_from(joined)
+        .group_by(*dimensions)
+        .subquery("cod_bucket_breakdown_groups")
+    )
+    g = grouped.c
+    first_level_label = (
+        g.bucket_field
+        if scheme.scheme_code == SCHEME_CODE_CMEA10
+        else sa.func.coalesce(g.bucket_category, g.bucket_field)
+    )
+    if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
+        age_filter_key = sa.func.coalesce(g.age_scope, sa.literal("__none__"))
+        age_filter_label = sa.func.coalesce(g.age_scope_label, sa.literal("All Ages"))
+        age_filter_sort_order = sa.func.coalesce(g.age_scope_sort_order, sa.literal(999))
+    else:
+        age_filter_key = g.reporting_age_band
+        age_filter_label = g.reporting_age_band
+        age_filter_sort_order = g.reporting_age_band_sort_order
+
+    def rank(expression):
+        return sa.func.dense_rank().over(order_by=expression.asc())
+
+    query = sa.select(
+        *g,
+        first_level_label.label("first_level_label"),
+        age_filter_key.label("age_filter_key"),
+        age_filter_label.label("age_filter_label"),
+        age_filter_sort_order.label("age_filter_sort_order"),
+        rank(g.bucket_field).label("field_rank"),
+        rank(g.bucket_category).label("category_rank"),
+        rank(g.bucket_subcategory).label("subcategory_rank"),
+        rank(first_level_label).label("first_level_rank"),
+        rank(g.gender).label("gender_rank"),
+        rank(age_filter_label).label("age_filter_rank"),
+    )
+    return [dict(row) for row in db.session.execute(query).mappings()]
+
+
+def _roll_up(rows: list[dict], keys: tuple[str, ...]) -> list[dict]:
+    """Sum ``coded_count`` of *rows* by *keys*, in first-seen order. Each
+    result keeps its first row's other columns (the ranks of its keys)."""
+    totals: dict[tuple, dict] = {}
+    for row in rows:
+        key = tuple(row[name] for name in keys)
+        total = totals.get(key)
+        if total is None:
+            totals[key] = dict(row)
+        else:
+            total["coded_count"] += row["coded_count"]
+    return list(totals.values())
 
 
 def count_coded_submissions_by_cause(
@@ -4049,17 +3892,20 @@ def count_coded_submissions_by_cause(
     total = int(db.session.scalar(sa.select(sa.func.count()).select_from(base_rows)) or 0)
     if not total:
         return 0, []
-    matched = _matched_cod_bucket_rows_subquery(scheme=scheme, base_rows=base_rows)
-    counted = sa.func.count()
+    counted = (
+        sa.select(base_rows.c.node_id, sa.func.count().label("coded_count"))
+        .where(base_rows.c.node_id.is_not(None))
+        .group_by(base_rows.c.node_id)
+        .subquery("cod_bucket_cause_counted")
+    )
+    joined, labels = _bucket_hierarchy(counted, counted.c.node_id)
+    keys = [labels["bucket_category"], labels["bucket_subcategory"], labels["bucket_field"]]
+    counted_total = sa.func.sum(counted.c.coded_count)
     rows = db.session.execute(
-        sa.select(
-            matched.c.bucket_category,
-            matched.c.bucket_subcategory,
-            matched.c.bucket_field,
-            counted.label("coded_count"),
-        )
-        .group_by(matched.c.bucket_category, matched.c.bucket_subcategory, matched.c.bucket_field)
-        .order_by(counted.desc(), matched.c.bucket_field)
+        sa.select(*keys, sa.cast(counted_total, sa.BigInteger).label("coded_count"))
+        .select_from(joined)
+        .group_by(*keys)
+        .order_by(counted_total.desc(), labels["bucket_field"])
     ).all()
     causes = [
         {
@@ -4124,11 +3970,8 @@ def summarize_cod_bucket_reporting_breakdowns(
         allowed_project_site_pairs=allowed_project_site_pairs,
         allowed_org_unit_ids=allowed_org_unit_ids,
     )
-    matched_rows = _matched_cod_bucket_rows_subquery(scheme=scheme, base_rows=base_rows)
-
-    matched_total = int(
-        db.session.scalar(sa.select(sa.func.count()).select_from(matched_rows)) or 0
-    )
+    groups = _reporting_breakdown_groups(scheme=scheme, base_rows=base_rows)
+    matched_total = sum(row["coded_count"] for row in groups)
     if matched_total == 0:
         return {
             "scheme_used": scheme.scheme_name,
@@ -4151,97 +3994,53 @@ def summarize_cod_bucket_reporting_breakdowns(
             "matched_total": 0,
         }
 
-    top_cause_rows = db.session.execute(
-        sa.select(
-            matched_rows.c.bucket_category,
-            matched_rows.c.bucket_subcategory,
-            matched_rows.c.bucket_field,
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .group_by(
-            matched_rows.c.bucket_category,
-            matched_rows.c.bucket_subcategory,
-            matched_rows.c.bucket_field,
-        )
-        .order_by(
-            sa.func.count().desc(),
-            matched_rows.c.bucket_field.asc(),
-            matched_rows.c.bucket_category.asc().nullslast(),
-            matched_rows.c.bucket_subcategory.asc().nullslast(),
-        )
-        .limit(top_n)
-    ).mappings().all()
-
-    first_level_label = (
-        matched_rows.c.bucket_field
-        if scheme.scheme_code == SCHEME_CODE_CMEA10
-        else sa.func.coalesce(matched_rows.c.bucket_category, matched_rows.c.bucket_field)
-    ).label("first_level_label")
-    first_level_rows = db.session.execute(
-        sa.select(
-            first_level_label,
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .group_by(first_level_label)
-        .order_by(sa.func.count().desc(), first_level_label.asc())
-    ).mappings().all()
-
+    # Every output below is a roll-up of the one grouped statement, ordered
+    # as its own SQL was: the *_rank columns carry the database collation.
+    cause_keys = ("bucket_category", "bucket_subcategory", "bucket_field")
+    cause_order = lambda row: (  # noqa: E731
+        -row["coded_count"], row["field_rank"], row["category_rank"], row["subcategory_rank"]
+    )
+    top_cause_rows = sorted(_roll_up(groups, cause_keys), key=cause_order)[:top_n]
+    first_level_rows = sorted(
+        _roll_up(groups, ("first_level_label",)),
+        key=lambda row: (-row["coded_count"], row["first_level_rank"]),
+    )
     if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
-        age_band_rows = db.session.execute(
-            sa.select(
-                matched_rows.c.age_scope.label("age_band_key"),
-                matched_rows.c.age_scope_label.label("age_band"),
-                matched_rows.c.age_scope_sort_order.label("sort_order"),
-                matched_rows.c.gender,
-                sa.func.count().label("coded_count"),
+        age_band_rows = [
+            {
+                "age_band_key": row["age_scope"],
+                "age_band": row["age_scope_label"],
+                "sort_order": row["age_scope_sort_order"],
+                "gender": row["gender"],
+                "coded_count": row["coded_count"],
+            }
+            for row in sorted(
+                _roll_up(groups, ("age_scope", "age_scope_label", "age_scope_sort_order", "gender")),
+                key=lambda row: (
+                    row["age_scope_sort_order"] is None,
+                    row["age_scope_sort_order"] or 0,
+                    row["gender_rank"],
+                ),
             )
-            .select_from(matched_rows)
-            .group_by(
-                matched_rows.c.age_scope,
-                matched_rows.c.age_scope_label,
-                matched_rows.c.age_scope_sort_order,
-                matched_rows.c.gender,
-            )
-            .order_by(
-                matched_rows.c.age_scope_sort_order.asc(),
-                matched_rows.c.gender.asc(),
-            )
-        ).mappings().all()
+        ]
     else:
-        age_band_label = _reporting_age_band_sql(
-            matched_rows.c.age_normalized_days
-        ).label("age_band")
-        age_band_sort_order = _reporting_age_band_sort_sql(
-            matched_rows.c.age_normalized_days
-        ).label("sort_order")
-        age_band_rows = db.session.execute(
-            sa.select(
-                age_band_label.label("age_band_key"),
-                age_band_label,
-                age_band_sort_order,
-                matched_rows.c.gender,
-                sa.func.count().label("coded_count"),
+        age_band_rows = [
+            {
+                "age_band_key": row["reporting_age_band"],
+                "age_band": row["reporting_age_band"],
+                "sort_order": row["reporting_age_band_sort_order"],
+                "gender": row["gender"],
+                "coded_count": row["coded_count"],
+            }
+            for row in sorted(
+                _roll_up(groups, ("reporting_age_band", "reporting_age_band_sort_order", "gender")),
+                key=lambda row: (row["reporting_age_band_sort_order"], row["gender_rank"]),
             )
-            .select_from(matched_rows)
-            .group_by(
-                age_band_label,
-                age_band_sort_order,
-                matched_rows.c.gender,
-            )
-            .order_by(age_band_sort_order.asc(), matched_rows.c.gender.asc())
-        ).mappings().all()
-
-    gender_rows = db.session.execute(
-        sa.select(
-            matched_rows.c.gender,
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .group_by(matched_rows.c.gender)
-        .order_by(sa.func.count().desc(), matched_rows.c.gender.asc().nullslast())
-    ).mappings().all()
+        ]
+    gender_rows = sorted(
+        _roll_up(groups, ("gender",)),
+        key=lambda row: (-row["coded_count"], row["gender_rank"]),
+    )
 
     top_causes = []
     for index, row in enumerate(top_cause_rows, start=1):
@@ -4315,42 +4114,11 @@ def summarize_cod_bucket_reporting_breakdowns(
             }
         )
 
-    if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
-        age_filter_key_expr = sa.func.coalesce(
-            matched_rows.c.age_scope,
-            sa.literal("__none__"),
-        ).label("age_filter_key")
-        age_filter_label_expr = sa.func.coalesce(
-            matched_rows.c.age_scope_label,
-            sa.literal("All Ages"),
-        ).label("age_filter_label")
-        age_filter_sort_expr = sa.func.coalesce(
-            matched_rows.c.age_scope_sort_order,
-            sa.literal(999),
-        ).label("age_filter_sort_order")
-    else:
-        age_filter_key_expr = _reporting_age_band_sql(
-            matched_rows.c.age_normalized_days
-        ).label("age_filter_key")
-        age_filter_label_expr = age_filter_key_expr.label("age_filter_label")
-        age_filter_sort_expr = _reporting_age_band_sort_sql(
-            matched_rows.c.age_normalized_days
-        ).label("age_filter_sort_order")
-
-    age_filter_rows = db.session.execute(
-        sa.select(
-            age_filter_key_expr,
-            age_filter_label_expr,
-            age_filter_sort_expr,
-        )
-        .select_from(matched_rows)
-        .group_by(
-            age_filter_key_expr,
-            age_filter_label_expr,
-            age_filter_sort_expr,
-        )
-        .order_by(age_filter_sort_expr.asc(), age_filter_label_expr.asc())
-    ).mappings().all()
+    age_filter_keys = ("age_filter_key", "age_filter_label", "age_filter_sort_order")
+    age_filter_rows = sorted(
+        _roll_up(groups, age_filter_keys),
+        key=lambda row: (row["age_filter_sort_order"], row["age_filter_rank"]),
+    )
     age_filters = [{"key": "all", "label": "All ages"}] + [
         {
             "key": row["age_filter_key"],
@@ -4358,56 +4126,14 @@ def summarize_cod_bucket_reporting_breakdowns(
         }
         for row in age_filter_rows
     ]
-
-    top_cause_by_age_rows = db.session.execute(
-        sa.select(
-            age_filter_key_expr,
-            age_filter_label_expr,
-            age_filter_sort_expr,
-            matched_rows.c.bucket_category,
-            matched_rows.c.bucket_subcategory,
-            matched_rows.c.bucket_field,
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .group_by(
-            age_filter_key_expr,
-            age_filter_label_expr,
-            age_filter_sort_expr,
-            matched_rows.c.bucket_category,
-            matched_rows.c.bucket_subcategory,
-            matched_rows.c.bucket_field,
-        )
-        .order_by(
-            age_filter_sort_expr.asc(),
-            sa.func.count().desc(),
-            matched_rows.c.bucket_field.asc(),
-            matched_rows.c.bucket_category.asc().nullslast(),
-            matched_rows.c.bucket_subcategory.asc().nullslast(),
-        )
-    ).mappings().all()
-
-    first_level_by_age_rows = db.session.execute(
-        sa.select(
-            age_filter_key_expr,
-            age_filter_label_expr,
-            age_filter_sort_expr,
-            first_level_label,
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .group_by(
-            age_filter_key_expr,
-            age_filter_label_expr,
-            age_filter_sort_expr,
-            first_level_label,
-        )
-        .order_by(
-            age_filter_sort_expr.asc(),
-            sa.func.count().desc(),
-            first_level_label.asc(),
-        )
-    ).mappings().all()
+    top_cause_by_age_rows = sorted(
+        _roll_up(groups, (*age_filter_keys, *cause_keys)),
+        key=lambda row: (row["age_filter_sort_order"], *cause_order(row)),
+    )
+    first_level_by_age_rows = sorted(
+        _roll_up(groups, (*age_filter_keys, "first_level_label")),
+        key=lambda row: (row["age_filter_sort_order"], -row["coded_count"], row["first_level_rank"]),
+    )
 
     top_causes_by_age = {"all": top_causes}
     age_totals_by_key = {}
@@ -4544,31 +4270,8 @@ def summarize_cod_bucket_reporting_breakdowns(
         return serialized
 
     top_cause_labels = [row["bucket_field"] for row in top_cause_rows]
-    top_cause_heatmap_base = db.session.execute(
-        sa.select(
-            matched_rows.c.bucket_field,
-            matched_rows.c.country,
-            matched_rows.c.submission_year,
-            matched_rows.c.gender,
-            matched_rows.c.age_scope_label,
-            matched_rows.c.age_scope_sort_order,
-            _reporting_age_band_sql(matched_rows.c.age_normalized_days).label("reporting_age_band"),
-            _reporting_age_band_sort_sql(matched_rows.c.age_normalized_days).label("reporting_age_band_sort_order"),
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .where(matched_rows.c.bucket_field.in_(top_cause_labels))
-        .group_by(
-            matched_rows.c.bucket_field,
-            matched_rows.c.country,
-            matched_rows.c.submission_year,
-            matched_rows.c.gender,
-            matched_rows.c.age_scope_label,
-            matched_rows.c.age_scope_sort_order,
-            _reporting_age_band_sql(matched_rows.c.age_normalized_days),
-            _reporting_age_band_sort_sql(matched_rows.c.age_normalized_days),
-        )
-    ).mappings().all() if top_cause_labels else []
+    top_cause_label_set = set(top_cause_labels)
+    top_cause_heatmap_base = [row for row in groups if row["bucket_field"] in top_cause_label_set]
 
     top_cause_lookup = {row["bucket_field"]: row["display_label"] for row in top_causes}
     serialized_top_cause_heatmap = _serialize_heatmap_dimensions(
@@ -4579,31 +4282,10 @@ def summarize_cod_bucket_reporting_breakdowns(
     )
 
     first_level_labels = [row["label"] for row in first_level_counts]
-    first_level_heatmap_base = db.session.execute(
-        sa.select(
-            first_level_label.label("first_level_label"),
-            matched_rows.c.country,
-            matched_rows.c.submission_year,
-            matched_rows.c.gender,
-            matched_rows.c.age_scope_label,
-            matched_rows.c.age_scope_sort_order,
-            _reporting_age_band_sql(matched_rows.c.age_normalized_days).label("reporting_age_band"),
-            _reporting_age_band_sort_sql(matched_rows.c.age_normalized_days).label("reporting_age_band_sort_order"),
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .where(first_level_label.in_(first_level_labels))
-        .group_by(
-            first_level_label,
-            matched_rows.c.country,
-            matched_rows.c.submission_year,
-            matched_rows.c.gender,
-            matched_rows.c.age_scope_label,
-            matched_rows.c.age_scope_sort_order,
-            _reporting_age_band_sql(matched_rows.c.age_normalized_days),
-            _reporting_age_band_sort_sql(matched_rows.c.age_normalized_days),
-        )
-    ).mappings().all() if first_level_labels else []
+    first_level_label_set = set(first_level_labels)
+    first_level_heatmap_base = [
+        row for row in groups if row["first_level_label"] in first_level_label_set
+    ]
     first_level_lookup = {row["label"]: row["label"] for row in first_level_counts}
     serialized_first_level_heatmap = _serialize_heatmap_dimensions(
         first_level_heatmap_base,
@@ -4612,21 +4294,9 @@ def summarize_cod_bucket_reporting_breakdowns(
         display_lookup=first_level_lookup,
     )
 
-    treemap_rows = db.session.execute(
-        sa.select(
-            matched_rows.c.bucket_category,
-            matched_rows.c.bucket_subcategory,
-            matched_rows.c.bucket_field,
-            sa.func.count().label("coded_count"),
-        )
-        .select_from(matched_rows)
-        .group_by(
-            matched_rows.c.bucket_category,
-            matched_rows.c.bucket_subcategory,
-            matched_rows.c.bucket_field,
-        )
-        .order_by(sa.func.count().desc(), matched_rows.c.bucket_field.asc())
-    ).mappings().all()
+    # The category and subcategory break the count-and-label ties SQL left
+    # unordered (one label under two categories).
+    treemap_rows = sorted(_roll_up(groups, cause_keys), key=cause_order)
     treemap = [
         {
             "group": row["bucket_field"] if scheme.scheme_code == SCHEME_CODE_CMEA10 else (row["bucket_category"] or row["bucket_field"]),
@@ -4660,7 +4330,17 @@ def summarize_cod_bucket_reporting_breakdowns(
     }
 
 
-def export_cod_bucket_reporting_csv(
+def export_cod_bucket_reporting_csv(**filters) -> str:
+    """The CSV export for the current COD bucket reporting scope, as one
+    string (``iter_cod_bucket_reporting_csv`` joined)."""
+    return "".join(iter_cod_bucket_reporting_csv(**filters))
+
+
+#: Rows fetched per round trip while streaming the CSV export.
+_CSV_FETCH_ROWS = 2000
+
+
+def iter_cod_bucket_reporting_csv(
     *,
     scheme_code: str,
     project_id: str | None = None,
@@ -4671,14 +4351,18 @@ def export_cod_bucket_reporting_csv(
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
     allowed_org_unit_ids: set | None = None,
-) -> str:
-    """Return a CSV export for the current COD bucket reporting scope."""
+):
+    """Yield the CSV export for the current COD bucket reporting scope: one
+    row per death and age band, unmatched deaths included. The header comes
+    first, then the rows in chunks fetched ``_CSV_FETCH_ROWS`` at a time, so
+    the export is never held in memory whole. The scheme levels' width is the
+    deepest path among the buckets in scope (one bounded DISTINCT)."""
     if (
         allowed_project_site_pairs is not None
         and not allowed_project_site_pairs
         and not allowed_org_unit_ids
     ):
-        return ""
+        return
 
     scheme, base_rows = _cod_bucket_aggregate_base_subquery(
         scheme_code=scheme_code,
@@ -4692,59 +4376,19 @@ def export_cod_bucket_reporting_csv(
         allowed_org_unit_ids=allowed_org_unit_ids,
     )
 
-    query = (
-        sa.select(
-            base_rows.c.va_sid,
-            base_rows.c.project_id,
-            base_rows.c.site_id,
-            base_rows.c.form_id,
-            base_rows.c.submission_year,
-            base_rows.c.final_icd,
-            base_rows.c.reporting_icd,
-            base_rows.c.gender,
-            base_rows.c.age_scope_label,
-            base_rows.c.age_normalized_days,
-            base_rows.c.age_normalized_years,
-            MapIcdCodBucket.node_id,
+    nodes_by_id = {
+        row.node_id: row
+        for row in db.session.execute(
+            sa.select(
+                MasCodBucketNode.node_id,
+                MasCodBucketNode.parent_node_id,
+                MasCodBucketNode.node_label,
+            ).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.is_active.is_(True),
+            )
         )
-        .select_from(base_rows)
-        .outerjoin(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
-                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
-                MapIcdCodBucket.is_active.is_(True),
-                sa.or_(
-                    sa.and_(
-                        MapIcdCodBucket.age_scope.is_(None),
-                        base_rows.c.age_scope.is_(None),
-                    ),
-                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
-                ),
-            ),
-        )
-        .order_by(
-            base_rows.c.project_id.asc(),
-            base_rows.c.site_id.asc(),
-            base_rows.c.form_id.asc(),
-            base_rows.c.submission_year.asc(),
-            base_rows.c.va_sid.asc(),
-        )
-    )
-    rows = [dict(row) for row in db.session.execute(query).mappings().all()]
-
-    node_rows = db.session.execute(
-        sa.select(
-            MasCodBucketNode.node_id,
-            MasCodBucketNode.parent_node_id,
-            MasCodBucketNode.node_label,
-        ).where(
-            MasCodBucketNode.scheme_id == scheme.scheme_id,
-            MasCodBucketNode.is_active.is_(True),
-        )
-    ).mappings().all()
-    nodes_by_id = {row["node_id"]: dict(row) for row in node_rows}
+    }
     path_cache: dict[uuid.UUID, list[str]] = {}
 
     def _node_path(node_id):
@@ -4758,13 +4402,16 @@ def export_cod_bucket_reporting_csv(
             node = nodes_by_id.get(current_id)
             if node is None:
                 break
-            labels.append(node["node_label"])
-            current_id = node["parent_node_id"]
+            labels.append(node.node_label)
+            current_id = node.parent_node_id
         path = list(reversed(labels))
         path_cache[node_id] = path
         return path
 
-    max_levels = max((len(_node_path(row["node_id"])) for row in rows), default=0)
+    used_node_ids = db.session.scalars(
+        sa.select(base_rows.c.node_id).where(base_rows.c.node_id.is_not(None)).distinct()
+    ).all()
+    max_levels = max((len(_node_path(node_id)) for node_id in used_node_ids), default=0)
     headers = [
         "SID",
         "Age",
@@ -4777,32 +4424,68 @@ def export_cod_bucket_reporting_csv(
         "Form code",
         "Year",
     ]
-
     handle = StringIO()
     writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
+
+    def _flush() -> str:
+        text = handle.getvalue()
+        handle.seek(0)
+        handle.truncate()
+        return text
+
     writer.writeheader()
-    for row in rows:
-        path = _node_path(row["node_id"])
-        age_group = (
-            row["age_scope_label"]
-            if scheme.scheme_code == SCHEME_CODE_SRS_INDIA
-            else _reporting_age_band_label_for_days(row["age_normalized_days"])
+    yield _flush()
+
+    age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
+    query = (
+        sa.select(
+            base_rows.c.va_sid,
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            base_rows.c.submission_year,
+            base_rows.c.final_icd,
+            base_rows.c.gender,
+            age_band.age_label.label("age_scope_label"),
+            base_rows.c.age_normalized_days,
+            base_rows.c.age_normalized_years,
+            base_rows.c.node_id,
         )
-        export_row = {
-            "SID": row["va_sid"],
-            "Age": row["age_normalized_years"],
-            "Age group": age_group,
-            "Sex": _normalize_gender_label(row["gender"]),
-            "Final authoritative COD": row["final_icd"],
-            "Project": row["project_id"],
-            "Site": row["site_id"],
-            "Form code": row["form_id"],
-            "Year": int(row["submission_year"]) if row["submission_year"] is not None else "",
-        }
-        for index in range(max_levels):
-            export_row[f"Scheme level {index + 1}"] = path[index] if index < len(path) else ""
-        writer.writerow(export_row)
-    return handle.getvalue()
+        .join_from(base_rows, age_band, age_band.age_band_id == base_rows.c.age_band_id)
+        .order_by(
+            base_rows.c.project_id.asc(),
+            base_rows.c.site_id.asc(),
+            base_rows.c.form_id.asc(),
+            base_rows.c.submission_year.asc(),
+            base_rows.c.va_sid.asc(),
+            # A death in two overlapping bands: its rows in band order.
+            age_band.sort_order.asc(),
+        )
+        .execution_options(yield_per=_CSV_FETCH_ROWS)
+    )
+    for chunk in db.session.execute(query).mappings().partitions():
+        for row in chunk:
+            path = _node_path(row["node_id"])
+            age_group = (
+                row["age_scope_label"]
+                if scheme.scheme_code == SCHEME_CODE_SRS_INDIA
+                else _reporting_age_band_label_for_days(row["age_normalized_days"])
+            )
+            export_row = {
+                "SID": row["va_sid"],
+                "Age": row["age_normalized_years"],
+                "Age group": age_group,
+                "Sex": _normalize_gender_label(row["gender"]),
+                "Final authoritative COD": row["final_icd"],
+                "Project": row["project_id"],
+                "Site": row["site_id"],
+                "Form code": row["form_id"],
+                "Year": int(row["submission_year"]) if row["submission_year"] is not None else "",
+            }
+            for index in range(max_levels):
+                export_row[f"Scheme level {index + 1}"] = path[index] if index < len(path) else ""
+            writer.writerow(export_row)
+        yield _flush()
 
 
 def _icd11_reporting_code_subquery(scheme, final_icd11_column):
@@ -4814,57 +4497,30 @@ def _icd11_reporting_code_subquery(scheme, final_icd11_column):
     all-ages scope). A row counts only when it is active, its leaf node is
     active, and its code matches case-insensitively: the same rule as the
     COD snapshot view's ``_who_2026_bucket_sql`` (docs/policy/icd11-cod-bucket-schemes.md,
-    "Which mapping rows resolve"). Seeded from the distinct stems in use, so
-    it walks a handful of chains, not the catalogue. A stem with no mapped
-    code on its chain, or absent from the catalogue, gets no row.
+    "Which mapping rows resolve"). A stem with no mapped code on its chain,
+    or absent from the catalogue, gets no row.
+
+    The catalogue has no path column, so the one recursion left is the
+    parent walk: once per statement, seeded from the distinct stems in use
+    (a handful of chains, not the catalogue) and bounded at depth 20 against
+    a parent cycle in bad data. The mappings are then plain joins on the
+    flat (stem, ancestor, depth) chain and the nearest match wins.
     """
-    scopes = (
-        sa.select(MasCodBucketSchemeAgeBand.age_scope.label("age_scope"))
-        .where(
-            MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id,
-            MasCodBucketSchemeAgeBand.is_active.is_(True),
-        )
-        .distinct()
-        .subquery("icd11_report_scopes")
-    )
     stems = (
         sa.select(final_icd11_column.label("stem"))
         .where(final_icd11_column.is_not(None))
         .distinct()
         .subquery("icd11_stems")
     )
-
-    def mapping(code_column, age_scope_column):
-        """The scheme's active icd11 row for *code_column* in *age_scope_column*."""
-        return (
-            sa.select(MapIcdCodBucket.icd_code)
-            .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
-            .where(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
-                MapIcdCodBucket.is_active.is_(True),
-                MasCodBucketNode.is_active.is_(True),
-                sa.func.upper(MapIcdCodBucket.icd_code) == sa.func.upper(code_column),
-                # The unique index's own expression, so the probe is an index seek:
-                # IS NOT DISTINCT FROM cannot use it and cost ~24 s per report
-                # (37k-row catalogue scan). The index already makes NULL and '' one key.
-                sa.func.coalesce(MapIcdCodBucket.age_scope, "") == sa.func.coalesce(age_scope_column, ""),
-            )
-            .limit(1)
-            .scalar_subquery()
-        )
-
     chain = (
         sa.select(
             stems.c.stem.label("start_code"),
-            scopes.c.age_scope.label("age_scope"),
             MasIcd11Mms.code.label("code"),
             MasIcd11Mms.parent_linearization_uri.label("parent_uri"),
             sa.literal(0).label("depth"),
         )
         .select_from(stems)
         .join(MasIcd11Mms, sa.func.upper(MasIcd11Mms.code) == sa.func.upper(stems.c.stem))
-        .join(scopes, sa.true())
         .where(MasIcd11Mms.release == DEFAULT_ICD11_RELEASE)
         .cte("icd11_report_chain", recursive=True)
     )
@@ -4872,52 +4528,65 @@ def _icd11_reporting_code_subquery(scheme, final_icd11_column):
     chain = chain.union_all(
         sa.select(
             chain.c.start_code,
-            chain.c.age_scope,
             parent.code,
             parent.parent_linearization_uri,
             chain.c.depth + 1,
         ).where(
             parent.release == DEFAULT_ICD11_RELEASE,
             parent.linearization_uri == chain.c.parent_uri,
-            sa.or_(chain.c.code.is_(None), mapping(chain.c.code, chain.c.age_scope).is_(None)),
-            # A parent cycle in bad catalogue data must not hang the report.
             chain.c.depth < 20,
         )
     )
+    age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
     return (
         sa.select(
             chain.c.start_code,
-            chain.c.age_scope,
-            mapping(chain.c.code, chain.c.age_scope).label("reporting_code"),
+            age_band.age_scope.label("age_scope"),
+            MapIcdCodBucket.icd_code.label("reporting_code"),
         )
-        .where(mapping(chain.c.code, chain.c.age_scope).is_not(None))
-        .distinct(chain.c.start_code, chain.c.age_scope)
-        .order_by(chain.c.start_code, chain.c.age_scope, chain.c.depth)
+        .select_from(chain)
+        .join(
+            age_band,
+            sa.and_(
+                age_band.scheme_id == scheme.scheme_id,
+                age_band.is_active.is_(True),
+            ),
+        )
+        .join(
+            MapIcdCodBucket,
+            sa.and_(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+                MapIcdCodBucket.is_active.is_(True),
+                sa.func.upper(MapIcdCodBucket.icd_code) == sa.func.upper(chain.c.code),
+                # The unique index's own expression, so the probe is an index
+                # seek; it already makes NULL and '' one key.
+                sa.func.coalesce(MapIcdCodBucket.age_scope, "")
+                == sa.func.coalesce(age_band.age_scope, ""),
+            ),
+        )
+        .join(
+            MasCodBucketNode,
+            sa.and_(
+                MasCodBucketNode.node_id == MapIcdCodBucket.node_id,
+                MasCodBucketNode.is_active.is_(True),
+            ),
+        )
+        .distinct(chain.c.start_code, age_band.age_scope)
+        .order_by(chain.c.start_code, age_band.age_scope, chain.c.depth)
         .subquery("icd11_reporting_code")
     )
 
 
-def _cod_bucket_aggregate_base_subquery(
-    *,
-    scheme_code: str,
-    project_id: str | None = None,
-    site_id: str | None = None,
-    form_id: str | None = None,
-    gender: str | None = None,
-    submission_date_from=None,
-    submission_date_to=None,
-    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
-    allowed_org_unit_ids: set | None = None,
-    death_date_from=None,
-):
-    """Return the filtered coded submission set joined to scheme age bands.
+def _cod_bucket_resolved_rows(scheme: MasCodBucketScheme, *, va_sids=None):
+    """SELECT of every coded death's bucket rows in *scheme*: layer (a).
 
-    ``death_date_from`` keeps deaths on or after that date: the case
-    register's date of death when the submission has a case, else the
-    submission date (ODK submissions synced before cases existed have none).
-
-    Submissions retired from ODK are never part of the set
-    (docs/policy/odk-retired-submissions.md).
+    One row per death x active age band of the scheme that its age falls in
+    (``_age_bound_days_sql``: ``>= min``, ``< max``), so a band gap gives no
+    row and an overlap two. The columns are ``map_submission_cod_bucket``'s:
+    the table is built from this SELECT and the live report reads it as a
+    subquery, so the two cannot drift. No read-time filter is applied here;
+    ``is_reportable`` carries the exclusions the reports apply.
 
     Each death is bucketed through the scheme rows of its own classification
     (``icd_classification``), decided by the final COD's code shape:
@@ -4925,17 +4594,22 @@ def _cod_bucket_aggregate_base_subquery(
     the code to join ``map_icd_cod_buckets`` on: for ICD-10 the legacy
     reporting alias, else the code; for ICD-11 the code itself or, when the
     scheme has no row for it, its nearest catalogue ancestor that has one. A
-    scheme with no icd11 rows leaves every ICD-11 death unmatched.
-    """
-    scheme = db.session.scalar(
-        sa.select(MasCodBucketScheme).where(
-            MasCodBucketScheme.scheme_code == scheme_code,
-            MasCodBucketScheme.is_active.is_(True),
-        )
-    )
-    if scheme is None:
-        raise LookupError(f"Unknown active COD bucket scheme: {scheme_code}")
+    scheme with no icd11 rows leaves every ICD-11 death unmatched, so it
+    skips the catalogue walk. ``node_id`` is the leaf of the active mapping
+    for (classification, reporting_icd, age scope), NULL when none matches;
+    the node's own ``is_active`` is not checked here (the ICD-11 ancestor
+    walk checks it, the ICD-10 path never has).
 
+    ``event_date`` is the earliest case date of death over non-duplicate,
+    non-cancelled cases, else the submission date (ODK submissions synced
+    before cases existed have none). ``is_reportable``: not retired from ODK
+    (docs/policy/odk-retired-submissions.md) and not a confirmed-duplicate
+    web case (app/services/duplicate_exclusion.py). The one recursion is the
+    ICD-11 parent walk (``_icd11_reporting_code_subquery``), once per
+    statement; everything else is plain joins.
+
+    *va_sids* limits the rows to those submissions.
+    """
     core = sa.table(
         CORE_MV_NAME,
         sa.column("va_sid"),
@@ -4947,7 +4621,6 @@ def _cod_bucket_aggregate_base_subquery(
     demo = sa.table(
         DEMOGRAPHICS_MV_NAME,
         sa.column("va_sid"),
-        sa.column("analytics_age_band"),
         sa.column("analytics_age_normalized_days"),
         sa.column("has_human_final_cod"),
     )
@@ -4958,91 +4631,79 @@ def _cod_bucket_aggregate_base_subquery(
         sa.column("final_icd11"),
     )
     reporting_alias = sa.orm.aliased(MapIcd10LegacyReportingAlias)
-    icd11_resolved = _icd11_reporting_code_subquery(scheme, cod.c.final_icd11)
     is_icd10 = cod.c.final_icd.is_not(None)
+    scheme_has_icd11_rows = db.session.scalar(
+        sa.select(
+            sa.exists().where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+            )
+        )
+    )
+    icd11_resolved = (
+        _icd11_reporting_code_subquery(scheme, cod.c.final_icd11)
+        if scheme_has_icd11_rows
+        else None
+    )
 
     submission_age_days = sa.cast(demo.c.analytics_age_normalized_days, sa.Numeric())
     age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
-    gender_filter = _normalize_gender_filter(gender)
-
-    conditions = [
-        sa.or_(is_icd10, cod.c.final_icd11.is_not(None)),
-        demo.c.has_human_final_cod.is_(True),
-        # Submissions retired from ODK are not reported
-        # (docs/policy/odk-retired-submissions.md).
-        core.c.odk_missing.is_(False),
-        # Nor are confirmed-duplicate web cases (app/services/duplicate_exclusion.py).
-        not_confirmed_duplicate_condition(core.c.va_sid),
-        _gender_filter_clause(VaSubmissions.va_deceased_gender, gender_filter),
-    ]
-    if project_id:
-        conditions.append(core.c.project_id == project_id)
-    if site_id:
-        conditions.append(core.c.site_id == site_id)
-    if form_id:
-        conditions.append(VaSubmissions.va_form_id == form_id)
-    if submission_date_from:
-        conditions.append(core.c.submission_date >= submission_date_from)
-    if submission_date_to:
-        conditions.append(core.c.submission_date <= submission_date_to)
-    if death_date_from:
-        case_date_of_death = (
-            sa.select(sa.func.min(VaDeathRegister.date_of_death))
-            .where(
-                VaDeathRegister.va_sid == core.c.va_sid,
-                VaDeathRegister.status.not_in((DUPLICATE_CASE_STATUS, "cancelled")),
-            )
-            .scalar_subquery()
+    mapping = sa.orm.aliased(MapIcdCodBucket)
+    icd_classification = sa.case(
+        (is_icd10, ICD_CLASSIFICATION_ICD10),
+        else_=ICD_CLASSIFICATION_ICD11,
+    )
+    reporting_icd = sa.case(
+        (
+            is_icd10,
+            _reporting_icd_sql(cod.c.final_icd, reporting_alias.reporting_code),
+        ),
+        else_=(
+            sa.func.coalesce(icd11_resolved.c.reporting_code, cod.c.final_icd11)
+            if icd11_resolved is not None
+            else cod.c.final_icd11
+        ),
+    )
+    # One grouped pass over the case register instead of two correlated
+    # subqueries per row: the earliest live case date of death, and whether
+    # any case is a confirmed duplicate (``not_confirmed_duplicate_condition``'s
+    # predicate, set-based).
+    cases = (
+        sa.select(
+            VaDeathRegister.va_sid.label("va_sid"),
+            sa.func.min(VaDeathRegister.date_of_death)
+            .filter(VaDeathRegister.status.not_in((DUPLICATE_CASE_STATUS, "cancelled")))
+            .label("date_of_death"),
+            sa.func.bool_or(VaDeathRegister.status == DUPLICATE_CASE_STATUS).label("is_duplicate"),
         )
-        conditions.append(
-            sa.func.coalesce(case_date_of_death, core.c.submission_date) >= death_date_from
-        )
-    if allowed_project_site_pairs is not None:
-        # Whole project-sites, plus (for a unit grant) the deaths routed into
-        # the grant's subtree on an active pair, as the grid lists them:
-        # never a unit grant's whole site.
-        allowed = []
-        if allowed_project_site_pairs:
-            allowed.append(
-                sa.tuple_(core.c.project_id, core.c.site_id).in_(
-                    list(allowed_project_site_pairs)
-                )
-            )
-        if allowed_org_unit_ids:
-            from app.services.authz import active_pair
-
-            allowed.append(sa.and_(
-                VaSubmissions.org_unit_id.in_(sorted(allowed_org_unit_ids)),
-                active_pair(core.c.project_id, core.c.site_id),
-            ))
-        conditions.append(sa.or_(*allowed) if allowed else sa.false())
+        .where(VaDeathRegister.va_sid.is_not(None))
+        .group_by(VaDeathRegister.va_sid)
+        .subquery("cod_bucket_cases")
+    )
 
     query = (
         sa.select(
             core.c.va_sid.label("va_sid"),
+            sa.literal(scheme.scheme_id, sa.Uuid()).label("scheme_id"),
+            age_band.age_band_id.label("age_band_id"),
+            age_band.age_scope.label("age_scope"),
+            icd_classification.label("icd_classification"),
+            sa.func.coalesce(cod.c.final_icd, cod.c.final_icd11).label("final_icd"),
+            reporting_icd.label("reporting_icd"),
+            mapping.node_id.label("node_id"),
             core.c.project_id.label("project_id"),
             core.c.site_id.label("site_id"),
             VaSubmissions.va_form_id.label("form_id"),
-            age_band.age_scope.label("age_scope"),
-            age_band.age_label.label("age_scope_label"),
-            age_band.sort_order.label("age_scope_sort_order"),
-            submission_age_days.label("age_normalized_days"),
-            VaSubmissions.va_deceased_age_normalized_years.label("age_normalized_years"),
+            VaSubmissions.org_unit_id.label("org_unit_id"),
             VaSubmissions.va_deceased_gender.label("gender"),
-            VaForms.form_smartvacountry.label("country"),
-            sa.extract("year", core.c.submission_date).label("submission_year"),
-            sa.case(
-                (is_icd10, ICD_CLASSIFICATION_ICD10),
-                else_=ICD_CLASSIFICATION_ICD11,
-            ).label("icd_classification"),
-            sa.func.coalesce(cod.c.final_icd, cod.c.final_icd11).label("final_icd"),
-            sa.case(
-                (
-                    is_icd10,
-                    _reporting_icd_sql(cod.c.final_icd, reporting_alias.reporting_code),
-                ),
-                else_=sa.func.coalesce(icd11_resolved.c.reporting_code, cod.c.final_icd11),
-            ).label("reporting_icd"),
+            submission_age_days.label("age_days"),
+            VaSubmissions.va_deceased_age_normalized_years.label("age_years"),
+            core.c.submission_date.label("submission_date"),
+            sa.func.coalesce(cases.c.date_of_death, core.c.submission_date).label("event_date"),
+            sa.and_(
+                core.c.odk_missing.is_(False),
+                sa.func.coalesce(cases.c.is_duplicate, False).is_(False),
+            ).label("is_reportable"),
         )
         .select_from(core)
         .join(demo, demo.c.va_sid == core.c.va_sid)
@@ -5050,6 +4711,7 @@ def _cod_bucket_aggregate_base_subquery(
         .join(VaSubmissions, VaSubmissions.va_sid == core.c.va_sid)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .outerjoin(reporting_alias, reporting_alias.legacy_code == cod.c.final_icd)
+        .outerjoin(cases, cases.c.va_sid == core.c.va_sid)
         .join(
             age_band,
             sa.and_(
@@ -5065,13 +4727,143 @@ def _cod_bucket_aggregate_base_subquery(
                 ),
             ),
         )
-        .outerjoin(
+    )
+    if icd11_resolved is not None:
+        query = query.outerjoin(
             icd11_resolved,
             sa.and_(
                 icd11_resolved.c.start_code == cod.c.final_icd11,
                 icd11_resolved.c.age_scope.is_not_distinct_from(age_band.age_scope),
             ),
         )
+    query = query.outerjoin(
+        mapping,
+        sa.and_(
+            mapping.scheme_id == scheme.scheme_id,
+            mapping.icd_classification == icd_classification,
+            mapping.icd_code == reporting_icd,
+            mapping.is_active.is_(True),
+            sa.or_(
+                sa.and_(mapping.age_scope.is_(None), age_band.age_scope.is_(None)),
+                mapping.age_scope == age_band.age_scope,
+            ),
+        ),
+    ).where(
+        sa.or_(is_icd10, cod.c.final_icd11.is_not(None)),
+        demo.c.has_human_final_cod.is_(True),
+    )
+    if va_sids is not None:
+        query = query.where(core.c.va_sid.in_(sorted(va_sids)))
+    return query
+
+
+def _reporting_source(scheme: MasCodBucketScheme):
+    """Where *scheme*'s bucket rows are read from: the precomputed table once
+    the scheme is built (``reporting_rows_built_at`` set), else layer (a)
+    live. Whole-scheme: one report never mixes the two."""
+    from app.models import MapSubmissionCodBucket
+
+    if scheme.reporting_rows_built_at is not None:
+        return MapSubmissionCodBucket.__table__
+    return _cod_bucket_resolved_rows(scheme).subquery("cod_bucket_resolved")
+
+
+def _cod_bucket_aggregate_base_subquery(
+    *,
+    scheme_code: str,
+    project_id: str | None = None,
+    site_id: str | None = None,
+    form_id: str | None = None,
+    gender: str | None = None,
+    submission_date_from=None,
+    submission_date_to=None,
+    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
+    death_date_from=None,
+):
+    """(scheme, the filtered coded rows): layer (b).
+
+    Reads ``_reporting_source`` and applies the request's filters the same
+    way to the table and to the live rows. Ids only (``age_band_id``,
+    ``node_id``, ``form_id``): each report counts by id first and joins the
+    band, bucket and form labels once per group afterwards. ``death_date_from`` keeps deaths
+    whose ``event_date`` is on or after it. Retired and confirmed-duplicate
+    submissions are never part of the set (``is_reportable``). ``node_id``
+    is the matched leaf, NULL when the death is unmatched.
+    """
+    scheme = db.session.scalar(
+        sa.select(MasCodBucketScheme).where(
+            MasCodBucketScheme.scheme_code == scheme_code,
+            MasCodBucketScheme.is_active.is_(True),
+        )
+    )
+    if scheme is None:
+        raise LookupError(f"Unknown active COD bucket scheme: {scheme_code}")
+
+    rows = _reporting_source(scheme)
+    gender_filter = _normalize_gender_filter(gender)
+
+    conditions = [
+        rows.c.scheme_id == scheme.scheme_id,
+        # Bare, not IS TRUE, so the planner matches the partial indexes.
+        rows.c.is_reportable,
+        _gender_filter_clause(rows.c.gender, gender_filter),
+    ]
+    if project_id:
+        conditions.append(rows.c.project_id == project_id)
+    if site_id:
+        conditions.append(rows.c.site_id == site_id)
+    if form_id:
+        conditions.append(rows.c.form_id == form_id)
+    if submission_date_from:
+        conditions.append(rows.c.submission_date >= submission_date_from)
+    if submission_date_to:
+        conditions.append(rows.c.submission_date <= submission_date_to)
+    if death_date_from:
+        conditions.append(rows.c.event_date >= death_date_from)
+    if allowed_project_site_pairs is not None:
+        # Whole project-sites, plus (for a unit grant) the deaths routed into
+        # the grant's subtree on an active pair, as the grid lists them:
+        # never a unit grant's whole site.
+        allowed = []
+        if allowed_project_site_pairs:
+            allowed.append(
+                sa.tuple_(rows.c.project_id, rows.c.site_id).in_(
+                    list(allowed_project_site_pairs)
+                )
+            )
+        if allowed_org_unit_ids:
+            allowed.append(sa.and_(
+                rows.c.org_unit_id.in_(sorted(allowed_org_unit_ids)),
+                # authz ``active_pair`` as an uncorrelated IN: one hashed
+                # probe of va_project_sites, not an EXISTS per row (an EXISTS
+                # under OR is not turned into a semi-join).
+                sa.tuple_(rows.c.project_id, rows.c.site_id).in_(
+                    sa.select(VaProjectSites.project_id, VaProjectSites.site_id).where(
+                        VaProjectSites.project_site_status == VaStatuses.active
+                    )
+                ),
+            ))
+        conditions.append(sa.or_(*allowed) if allowed else sa.false())
+
+    query = (
+        sa.select(
+            rows.c.va_sid.label("va_sid"),
+            rows.c.project_id.label("project_id"),
+            rows.c.site_id.label("site_id"),
+            rows.c.form_id.label("form_id"),
+            rows.c.age_band_id.label("age_band_id"),
+            rows.c.age_scope.label("age_scope"),
+            rows.c.age_days.label("age_normalized_days"),
+            rows.c.age_years.label("age_normalized_years"),
+            rows.c.gender.label("gender"),
+            sa.extract("year", rows.c.submission_date).label("submission_year"),
+            rows.c.icd_classification.label("icd_classification"),
+            rows.c.final_icd.label("final_icd"),
+            rows.c.reporting_icd.label("reporting_icd"),
+            rows.c.node_id.label("node_id"),
+        )
+        .select_from(rows)
         .where(sa.and_(*conditions))
     )
     return scheme, query.subquery("cod_bucket_base")

@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-11-04
 ---
 
 # COD Bucket Reporting
@@ -398,6 +398,76 @@ Current normalization baseline:
 - `A90` -> `A97`
 - `A91` -> `A97`
 - `I84` -> `K64`
+
+## Precomputed rows: `map_submission_cod_bucket`
+
+Policy: [COD Bucket Reporting](../policy/cod-bucket-reporting.md),
+"Precomputed reporting rows". Migration `d3c8e5a1f7b4`.
+
+- **Grain.** One row per submission x active scheme x active age band its age
+  falls in (`_age_bound_days_sql`: months x 365/12, years x 365, `>= min`,
+  `< max`), keyed `(va_sid, scheme_id, age_band_id)`. A band gap gives no
+  row, an overlap two; a NULL or out-of-band age none. Unmatched deaths are
+  kept with `node_id` NULL.
+- **Columns.** Bucket: `age_scope` (denormalised), `icd_classification`,
+  `final_icd`, `reporting_icd`, `node_id`. Filters: `project_id`, `site_id`,
+  `form_id`, `org_unit_id` (no path column, so reparenting a unit needs no
+  rebuild), raw `gender` (the reports normalise it two ways), `age_days`,
+  `age_years`, `submission_date`, `event_date` (earliest non-duplicate,
+  non-cancelled case date of death, else the submission date) and
+  `is_reportable` (not missing in ODK, not a confirmed duplicate). Labels,
+  `country` and the active project-site check stay read-time joins to
+  `mas_cod_bucket_*`, `va_forms` and `va_project_sites`.
+- **Indexes.** The primary key; `ix_..._report` partial `WHERE is_reportable`
+  on `(scheme_id, project_id, site_id, form_id)` INCLUDE the bucket and
+  filter columns; `ix_..._unit` partial on `(scheme_id, org_unit_id)`;
+  `(scheme_id, age_band_id)` for the diff-sync and the band FK;
+  `(node_id)` for the node FK's `ON DELETE SET NULL`.
+- **One derivation.** `_cod_bucket_resolved_rows` (layer a) is both the
+  table's `INSERT ... SELECT` and the live fallback's subquery;
+  `_cod_bucket_aggregate_base_subquery` (layer b) applies the request filters
+  to either. `_reporting_source` picks the table once the scheme's
+  `mas_cod_bucket_schemes.reporting_rows_built_at` is set, else live: per
+  scheme, never mixed. The reports count by id first and join the band,
+  bucket and form labels once per group; the dashboard breakdowns are one
+  grouped statement rolled up in Python (ordering by SQL `dense_rank`, so
+  the database collation still decides ties). The one recursion left is the
+  ICD-11 parent walk inside layer (a) (no path column in `mas_icd11_mms`),
+  once per build, seeded from the distinct stems and bounded at depth 20;
+  reads from the table run none. Predicates kept as live: the ICD-10 path
+  checks the mapping's `is_active` only, the ICD-11 walk also the node's.
+  The final COD is `va_submission_cod_detail_mv`'s, not the snapshot
+  view's precedence.
+- **Build.** `app/services/cod_bucket_materialization.py`:
+  `rebuild_scheme(scheme_id, va_sids=None)` diff-syncs one scheme in one
+  transaction under `pg_advisory_xact_lock(hashtext('map_submission_cod_bucket:<id>'))`
+  with JIT off: layer (a) into a temp table, then one `DELETE ... NOT EXISTS`
+  and one `INSERT ... ON CONFLICT DO UPDATE ... WHERE (...) IS DISTINCT FROM`,
+  so only differing rows change (`computed_at` moves only on those) and a
+  rerun changes nothing. A full sync stamps the scheme; an inactive scheme
+  loses its rows and stamp. `rebuild_all_active()` runs every scheme.
+- **Worker.** `refresh_submission_analytics_mv_task` queues
+  `rebuild_cod_bucket_rows_task` after each successful refresh (hourly), which
+  queues one `rebuild_cod_bucket_scheme_task` per scheme. No beat row of its
+  own. An `after_flush` listener collects the schemes of edited
+  `MapIcdCodBucket`, `MasCodBucketNode`, `MasCodBucketSchemeAgeBand` and
+  `MasCodBucketScheme` rows (a `MapIcd10LegacyReportingAlias` edit means
+  every scheme), plus Core bulk deletes marked with `mark_scheme_stale`, and
+  `after_commit` queues the rebuilds; a rollback drops them. An ICD-11
+  catalogue import marks every scheme. Final-COD, site, duplicate, case and
+  unit changes reach the table at the next sweep, after the hourly MV refresh
+  they already wait for. `COD_BUCKET_REBUILD_ON_COMMIT` is off in tests.
+- **CLI.** `flask cod-buckets rebuild [--scheme-code X]` prints per-scheme
+  counts and seconds.
+- **Size (dev, 2026-11-04).** 31,533 rows over 4 schemes, about 219 bytes a
+  row, 16 MB with indexes; a full build is about 0.25 s per scheme.
+- **Rollout.** Migrate (no backfill; reports stay live), then run
+  `flask cod-buckets rebuild` once, or wait for the next sweep after a
+  worker restart; reports switch per scheme as each is stamped.
+- **Bounded responses.** The API and the area summary only ask for
+  bucket-level counts (`collapse_scope=True`); the CLI `aggregate` does too,
+  narrowed with its options. The CSV export is the one row-level output and
+  streams in chunks (`iter_cod_bucket_reporting_csv`).
 
 Current command-line aggregation:
 

@@ -139,6 +139,29 @@ class DeviceLimitServiceTests(BaseTestCase):
 
         devices.check_device_slot(self.user)
 
+    def test_sessions_ended_by_a_password_reset_free_their_slots(self):
+        # A password or factor reset bumps the session version: the old phones' sessions can never
+        # refresh again (``_session_still_allowed``), so they must not keep the account at its cap.
+        for index in range(3):
+            device, _secret = self._device(f"reset-phone-{index}")
+            self._session(self.user, device, refresh=f"reset-refresh-{index}")
+        with self.assertRaises(devices.DeviceAuthError) as refused:
+            devices.check_device_slot(self.user)
+        self.assertEqual(refused.exception.code, "device_limit")
+
+        self.user.bump_session_version()
+        db.session.flush()
+        devices.check_device_slot(self.user)
+        issued, _user = devices._open_authorized_session(self._device("after-reset")[0], self.user)
+        self.assertIsNone(issued.session.revoked_at)
+
+        # The new session counts: two more fill the cap again.
+        for index in range(2):
+            device, _secret = self._device(f"fresh-phone-{index}")
+            self._session(self.user, device, refresh=f"fresh-refresh-{index}")
+        with self.assertRaises(devices.DeviceAuthError):
+            devices.check_device_slot(self.user)
+
     def test_shared_phone_only_ends_the_signing_in_users_pair(self):
         device, _secret = self._device("shared")
         other_session = self._session(self.other_user, device, refresh="other-refresh")

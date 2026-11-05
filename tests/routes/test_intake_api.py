@@ -11,6 +11,7 @@ The route layer is thin, so these cover what only it can decide:
 """
 import hashlib
 import json
+import logging
 import re
 import uuid
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -1278,6 +1279,199 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual((stale.status_code, stale.get_json()["code"]), (409, "draft_stale"))
         live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
         self.assertEqual((live.status, live.va_sid), ("draft", None))
+
+    # ── refusal log: why a draft write was refused, never what it carried ──
+
+    _REFUSAL_LOGGER = "app.routes.api.intake"
+
+    def _refusal_lines(self, captured):
+        return [line for line in captured.output if "intake draft write refused" in line]
+
+    def test_a_refused_save_logs_its_code_and_check_but_no_answer(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        with self.assertLogs(self._REFUSAL_LOGGER, level="WARNING") as captured:
+            refused = self._browser_save(
+                draft["draft_id"], {"background": {"Id10007": "Ramesh Secretname"}}, meta={"locale": "en_IN"},
+            )
+        self.assertEqual(refused.status_code, 400)
+        # The reply keeps the contract shape old clients parse.
+        self.assertEqual(refused.get_json(), {"error": "Invalid locale.", "code": "invalid_request"})
+        lines = self._refusal_lines(captured)
+        self.assertEqual(len(lines), 1, captured.output)
+        self.assertIn("endpoint=save_draft", lines[0])
+        self.assertIn("status=400", lines[0])
+        self.assertIn("reason=invalid_request", lines[0])
+        self.assertIn("at=_clean_locale_meta:", lines[0])
+        self.assertIn(f"draft={draft['draft_id']}", lines[0])
+        self.assertIn(f"user={self.interviewer_id}", lines[0])
+        for leaked in ("Ramesh", "Secretname", "en_IN", "Invalid locale"):
+            self.assertNotIn(leaked, "\n".join(captured.output))
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        self.assertNotIn("Id10007", self._answers(live))
+
+    def test_the_two_stale_save_refusals_log_different_checks(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        before = draft["updated_at"]
+        self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4())
+        with self.assertLogs(self._REFUSAL_LOGGER, level="WARNING") as captured:
+            stale = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}, if_updated_at=before)
+            unbased = self._browser_save(draft["draft_id"], {}, resume_refused=True)
+        self.assertEqual((stale.status_code, stale.get_json()["code"]), (409, "draft_stale"))
+        self.assertEqual((unbased.status_code, unbased.get_json()["code"]), (409, "draft_stale"))
+        first, second = self._refusal_lines(captured)
+        self.assertIn("reason=draft_stale", first)
+        self.assertIn("at=save_draft:", first)
+        self.assertIn("at=save_draft:", second)
+        self.assertNotEqual(first.split("at=")[1].split(" ")[0], second.split("at=")[1].split(" ")[0])
+
+    def test_a_save_to_a_closed_draft_and_a_refused_submit_are_logged(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        with self.assertLogs(self._REFUSAL_LOGGER, level="WARNING") as captured:
+            refused_submit = self.client.post(
+                f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
+                json={"completion": {"valid": True, "issues": [], "data": {"Id10019": "male"}}},
+                headers=self._csrf_headers(),
+            )
+            self.client.post(f"/api/v1/intake/drafts/{draft['draft_id']}/discard", headers=self._csrf_headers())
+            closed = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}})
+        self.assertEqual(refused_submit.status_code, 422, refused_submit.get_json())
+        self.assertEqual(closed.status_code, 409)
+        submit_line, save_line = self._refusal_lines(captured)
+        self.assertIn("endpoint=submit_draft", submit_line)
+        self.assertIn("status=422", submit_line)
+        self.assertIn("endpoint=save_draft", save_line)
+        self.assertIn("reason=conflict", save_line)
+        self.assertIn("at=get_draft:", save_line)
+
+    def test_a_csrf_refusal_before_the_handler_is_logged_too(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        with self.assertLogs(self._REFUSAL_LOGGER, level="WARNING") as captured:
+            refused = self.client.patch(
+                f"/api/v1/intake/drafts/{draft['draft_id']}", json={"sections": {}}, headers={"X-CSRFToken": "bogus"},
+            )
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (400, "csrf_failed"))
+        (line,) = self._refusal_lines(captured)
+        self.assertIn("reason=csrf_failed", line)
+        self.assertIn("at=-", line)
+
+    # ── stale saves: who changed it, and "Use my answers" ─────────────────
+
+    def _named_interviewer(self):
+        # The fixture's display name is its email: give it a real one so a leak shows.
+        self.interviewer.name = "Asha Worker"
+        db.session.commit()
+
+    def test_a_stale_save_names_the_change_by_display_name_only(self):
+        self._named_interviewer()
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        before = draft["updated_at"]
+        self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4())
+        stale = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}, if_updated_at=before)
+        body = stale.get_json()
+        self.assertEqual((stale.status_code, body["code"]), (409, "draft_stale"))
+        current = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()
+        self.assertEqual(body["updated_at"], current["draft"]["updated_at"])
+        self.assertEqual(body["last_change"], {
+            "at": current["draft"]["updated_at"], "via": "phone", "by_you": True, "name": "Asha Worker", "refusal": False,
+        })
+        self.assertEqual(current["last_change"], body["last_change"])
+        self.assertNotIn("api.interviewer@test.local", json.dumps(body))
+        self.assertNotIn("api.interviewer@test.local", json.dumps(current))
+        # A browser save is the browser's change.
+        saved = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}},
+                                   if_updated_at=current["draft"]["updated_at"])
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        after = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["last_change"]
+        self.assertEqual((after["via"], after["by_you"], after["refusal"]), ("browser", True, False))
+
+    def test_a_draft_saved_before_this_was_kept_has_no_editor(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        row = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        row.meta = {**(row.meta or {}), "lastChange": {"at": "2020-01-01T00:00:00+00:00", "channel": "device"}}
+        db.session.commit()
+        change = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["last_change"]
+        self.assertEqual({k: change[k] for k in ("via", "by_you", "name", "refusal")},
+                         {"via": None, "by_you": None, "name": None, "refusal": False})
+
+    def test_another_interviewer_sees_neither_the_draft_nor_its_editor(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        other = self._get_or_make_user("api.other.interviewer@test.local", "IntakeApi123")
+        db.session.add(VaUserAccessGrants(
+            user_id=other.user_id, role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT_ID, notes="second interviewer", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._login(str(other.user_id))
+        for response in (
+            self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}"),
+            self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}},
+                               if_updated_at="2020-01-01T00:00:00+00:00", overwrite=True),
+        ):
+            self.assertEqual(response.status_code, 404)
+            self.assertNotIn("last_change", response.get_json())
+
+    def test_use_my_answers_replaces_the_phone_version_whole_and_keeps_it_as_history(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        before = draft["updated_at"]
+        self._sync(death_id, {"Id10019": "female", "Id10017": "Bina"}, cid=uuid.uuid4())
+        current = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["draft"]["updated_at"]
+        # A stale "use my answers" and one with no base are refused like any stale save.
+        for extra in ({"if_updated_at": before}, {}):
+            refused = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}, overwrite=True, **extra)
+            self.assertEqual((refused.status_code, refused.get_json()["code"]), (409, "draft_stale"))
+            self.assertIn("last_change", refused.get_json())
+        with self.assertLogs(self._REFUSAL_LOGGER, level="INFO") as captured:
+            forced = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}},
+                                        overwrite=True, if_updated_at=current)
+        self.assertEqual(forced.status_code, 200, forced.get_json())
+        self.assertEqual(set(forced.get_json()), {"saved_sections", "draft"})  # the reply shape is unchanged
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        self.assertEqual(self._answers(live), {"Id10019": "male"})  # the phone's Id10017 is gone too
+        history = self._rows(death_id, "replaced")
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0].meta["overwrittenBy"], "web")
+        self.assertEqual(self._answers(history[0]), {"Id10019": "female", "Id10017": "Bina"})
+        logged = "\n".join(captured.output)
+        self.assertIn(f"intake draft overwritten by the browser | draft={draft['draft_id']}", logged)
+        self.assertNotIn("Bina", logged)
+        self.assertNotIn("male", logged)
+
+    def test_keep_the_newer_version_needs_no_server_call_and_changes_nothing(self):
+        # "Keep the newer version" only reloads the page: the phone's version stays and no history row appears.
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        before = draft["updated_at"]
+        self._sync(death_id, {"Id10019": "female"}, cid=uuid.uuid4())
+        self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}}, if_updated_at=before)
+        live = db.session.get(VaWebIntakeDraft, uuid.UUID(draft["draft_id"]))
+        self.assertEqual(self._answers(live), {"Id10019": "female"})
+        self.assertEqual(self._rows(death_id, "replaced"), [])
+
+    def test_a_refused_interview_is_reported_as_a_refusal(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        saved = self._browser_save(draft["draft_id"], {"consented": {"Id10013": "no"}})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        change = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["last_change"]
+        self.assertTrue(change["refusal"])
+
+    def test_an_accepted_save_logs_no_refusal(self):
+        death_id = self._case()
+        draft = self._start_draft(death_id=death_id)
+        with self.assertLogs(self._REFUSAL_LOGGER, level="DEBUG") as captured:
+            logging.getLogger(self._REFUSAL_LOGGER).debug("marker")  # assertLogs needs one record
+            saved = self._browser_save(draft["draft_id"], {"background": {"Id10019": "male"}})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertIn("marker", "\n".join(captured.output))
+        self.assertEqual(self._refusal_lines(captured), [])
 
     def test_a_browser_key_overrides_the_phones_value_with_no_section_merge(self):
         death_id = self._case()

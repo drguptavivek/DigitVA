@@ -94,6 +94,8 @@ DELETE_TABLES = (
     "va_submissions_auditlog",
     "va_smartva_form_runs",
     "va_daily_kpi_aggregates",
+    # Derived reporting rows; the next rebuild after the reseed restores them.
+    "map_submission_cod_bucket",
     "map_payload_version_pii",
     "va_submission_payload_versions",
     "va_submissions",

@@ -551,6 +551,8 @@ def _authenticate_device(device_id, device_secret) -> AuthDevice:
     # The enrolment project does not bound the device's life: a device serves
     # every project its worker is an interviewer in, so only a revoke ends it.
     if device.revoked_at is not None:
+        # Before the credentials are checked: audited with no user.
+        _sign_in_failed(device, None, "device_revoked")
         raise DeviceAuthError("This device has been revoked.", "device_revoked", 403)
     return device
 
@@ -577,7 +579,8 @@ def check_device_slot(user: VaUsers, device_id=None) -> None:
 
     A device already holding a live session for this user is a re-login and
     does not consume another slot. Only native device sessions are counted;
-    browser sessions have no ``AuthDeviceSession`` row.
+    browser sessions have no ``AuthDeviceSession`` row, and a session a
+    password or factor reset ended (older ``user_session_version``) is not.
     """
     db.session.execute(
         sa.select(VaUsers.user_id).where(VaUsers.user_id == user.user_id).with_for_update()
@@ -587,6 +590,9 @@ def check_device_slot(user: VaUsers, device_id=None) -> None:
         AuthDeviceSession.user_id == user.user_id,
         AuthDeviceSession.revoked_at.is_(None),
         AuthDeviceSession.refresh_expires_at > now,
+        # A password or factor reset ended it: it can never refresh again
+        # (``_session_still_allowed``), so it holds no slot.
+        AuthDeviceSession.user_session_version == (user.auth_session_version or 0),
         AuthDevice.revoked_at.is_(None),
     )
     if device_id is not None:
@@ -791,7 +797,12 @@ def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTo
         raise _refuse(device, user, "Site is under maintenance.", "maintenance", 403)
 
     # The code stays ``no_interviewer_grant``: the app matches on it.
-    return _open_authorized_session(device, user)
+    try:
+        return _open_authorized_session(device, user)
+    except DeviceAuthError as exc:
+        if exc.code == "device_limit":
+            _sign_in_failed(device, user, "device_limit")
+        raise
 
 
 def _revoke(session: AuthDeviceSession, reason: str) -> None:

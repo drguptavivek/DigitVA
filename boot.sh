@@ -18,4 +18,4 @@ flask instrument-translations import-missing-sources
 # GUNICORN_CMD_ARGS, which gunicorn reads itself. --preload imports the app
 # once in the master so the workers share those pages copy-on-write; each
 # worker drops the inherited DB pool after fork (app/__init__.py).
-exec gunicorn --preload -w "${GUNICORN_WORKERS:-1}" -b :5000 --access-logfile - --error-logfile - run:app
+exec gunicorn -c gunicorn_app.conf.py --preload -w "${GUNICORN_WORKERS:-1}" -b :5000 --access-logfile - --error-logfile - run:app

@@ -122,6 +122,7 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("va_smartva_results", "va_sid IN :sids"),
     ("va_smartva_runs", "va_sid IN :sids"),
     ("va_submission_attachments", "va_sid IN :sids"),
+    ("map_submission_cod_bucket", "va_sid IN :sids"),
     ("map_payload_version_pii", "va_sid IN :sids"),
     ("va_submission_payload_versions", "va_sid IN :sids"),
     ("map_bundle_records",

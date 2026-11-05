@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-31
+last_updated: 2026-11-04
 ---
 
 # Web Intake Policy
@@ -830,6 +830,41 @@ shows the other-draft warning. The reply to the final upload is unchanged:
 `POST /submissions` with the same `client_draft_id` completes the same draft.
 Contract: [Device Collection API](../current-state/device-collection-api.md),
 "Draft sync".
+
+#### Stale browser saves (owner 2026-11-04)
+
+A browser save refused 409 `draft_stale` (the draft changed since the page
+last saw it) is never merged and never silently resent. The refusal carries,
+as optional fields, the version that won (`updated_at`) and `last_change`:
+when it changed, on which channel (`phone` for a phone sync or upload,
+`browser` for a browser save), by whom (`by_you`, and the editor's display
+name only, never an email or number) and whether a consent refusal cleared
+it. `GET /intake/drafts/<id>` carries the same `last_change`. Only the
+draft's owner reaches either, the one user who may edit it, so in practice
+the editor is the interviewer themselves on their phone or in another tab.
+Unknown fields are null (a version saved before this was recorded, or a
+change that wrote no answer).
+
+The page then offers one explicit choice:
+
+- **Keep the newer version**: this page's unsaved answers are given up and
+  the draft reloads.
+- **Use my answers**: a deliberate forced save (`PATCH` with `overwrite: true`
+  and the `updated_at` the refusal showed). It replaces the draft whole: the
+  page's sections are written and every other saved section, the phone's
+  included, is emptied. The version it replaces is kept as a `replaced`
+  draft row (`overwrittenBy: web`), the same history a phone/browser
+  conflict keeps, and the overwrite is logged without answers. A still newer
+  version is refused 409 `draft_stale` again; `overwrite` without
+  `if_updated_at` is refused 409 `draft_stale`. The ordinary stale check is
+  unchanged, and consent, refusal and locked-prefill rules apply as to any
+  save.
+
+The same choice is offered when the page reloads with answers this tab kept
+(sessionStorage) on an older version. Over a consent refusal only Keep the
+newer version is offered, and kept answers are dropped, so refused answers
+are never restored. Phones and older clients see the same status codes and
+reply shapes; the new fields are additive.
 
 Not built (`digitva-xz83`): the Android app's side of the sync (`mobile/`),
 and a browser answer the interviewer *clears* after a phone win comes back

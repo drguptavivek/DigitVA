@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { isTrainingProject, TRAINING_INTERVIEW_HOME } from "../training";
-import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
+import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, startDraft, submitDraft, type DraftLastChange, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
@@ -27,6 +27,7 @@ import { radius, useTheme } from "../theme";
 import { useWhoFormTheme } from "../whoWebTheme";
 import { applyTranslations } from "../translations";
 import { Button, errorReference, useUiStyles } from "../ui";
+import { formatDisplayTimestamp } from "../ui/CaseCard";
 import { AppHeaderBar } from "./AppHeader";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -188,6 +189,17 @@ const SUMMARY_ANSWER_KEYS = [
   "dob_year",
 ] as const;
 
+/** Who changed the draft, where and when, from a `last_change` (display name only, never an email or number). */
+export function draftChangeText(change: DraftLastChange): string {
+  const time = formatDisplayTimestamp(change.at);
+  if (change.refusal) return t("staleRefusal", { time });
+  if (change.by_you === true && change.via === "phone") return t("staleByYouPhone", { time });
+  if (change.by_you === true && change.via === "browser") return t("staleByYouBrowser", { time });
+  if (change.by_you === false && change.name && change.via === "phone") return t("staleByOtherPhone", { name: change.name, time });
+  if (change.by_you === false && change.name && change.via === "browser") return t("staleByOtherBrowser", { name: change.name, time });
+  return t("staleElsewhere", { time });
+}
+
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
 export function interviewErrorText(error: unknown, instrument?: InstrumentDefinition, language = "en"): string {
   const definitionText = definitionErrorText(error);
@@ -303,6 +315,10 @@ export default function InterviewScreen() {
   const [busy, setBusy] = useState(false);
   // The cookie session died mid-interview: autosave is paused until the user signs in again (digitva-fvbc).
   const [signedOut, setSignedOut] = useState(false);
+  // The server refused a save: autosave is paused until the user presses Try saving again.
+  const [saveHeld, setSaveHeld] = useState(false);
+  // This tab's kept answers were overtaken by a newer server version: the interviewer picks one before editing.
+  const [overtaken, setOvertaken] = useState<DraftLastChange>();
   const [translationFallback, setTranslationFallback] = useState(false);
   // The draft's own form could not be recovered and it now uses the current one.
   const [formAdopted, setFormAdopted] = useState(false);
@@ -603,10 +619,16 @@ export default function InterviewScreen() {
             if (!isCurrent()) return;
             saveFailedRef.current = true;
             setSignedOut(true);
+          },
+          onSaveHeld: () => {
+            if (!isCurrent()) return;
+            saveFailedRef.current = true;
+            setSaveHeld(true);
           }
         });
     if (nextStore instanceof ServerDraftStore) await nextStore.load(nextDraftId);
     if (!isCurrent()) return;
+    setOvertaken(nextStore instanceof ServerDraftStore ? nextStore.overtakenAnswers() : undefined);
     setFormOptions(options);
     setWelcomePending(shouldShowWelcome);
     setLiveAnswers({
@@ -653,6 +675,8 @@ export default function InterviewScreen() {
     dirtyRef.current = false;
     changedDataRef.current = undefined;
     saveFailedRef.current = false;
+    setSaveHeld(false);
+    setOvertaken(undefined);
     setRevisionReason(undefined);
     setNeedsNewSnapshot(false);
     setConsentGate(undefined);
@@ -987,6 +1011,8 @@ export default function InterviewScreen() {
   // or after it failed.
   useNavigationGuard(() => dirtyRef.current, saveForLeave, () => saveFailedRef.current);
 
+  const staleHeld = saveHeld && store instanceof ServerDraftStore ? store.heldStaleChange()?.change : undefined;
+  const staleChange = overtaken ?? staleHeld;
   const localeLabel = useMemo(() => locales?.find((entry) => entry.code === locale)?.label ?? locale, [locale, locales]);
   const availableLocales = locales ?? [];
   const showCaseStrip = Boolean(draft);
@@ -1105,9 +1131,65 @@ export default function InterviewScreen() {
   }, [store, updateLiveAnswers]);
   const handleDraftError = useCallback((error: unknown) => {
     saveFailedRef.current = true;
-    if (store instanceof ServerDraftStore && store.isSignedOut()) return;
+    // Signed out or held: the store's own prompt and its first error stay on screen.
+    if (store instanceof ServerDraftStore && (store.isSignedOut() || store.isSaveHeld())) return;
     setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
   }, [revision, store]);
+
+  const reloadDraft = useCallback(() => {
+    dirtyRef.current = false;
+    saveFailedRef.current = false;
+    if (typeof window !== "undefined" && draftId) window.location.replace(draftReloadUrl(window.location.href, draftId));
+  }, [draftId]);
+
+  /** The stale-save choice, while a save is held or at load: keep the server's newer version or use this tab's. */
+  const chooseStaleVersion = useCallback(async (useMine: boolean) => {
+    if (!(store instanceof ServerDraftStore)) return;
+    if (!useMine) {
+      if (overtaken) {
+        store.discardOvertakenAnswers();
+        setOvertaken(undefined);
+        return;
+      }
+      store.keepNewerVersion();
+      setSaveHeld(false);
+      reloadDraft();
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      if (overtaken) {
+        // The form opened on the server's version: reload it to show the answers just saved.
+        await store.useOvertakenAnswers();
+        reloadDraft();
+      } else {
+        setSaveHeld(false);
+        await store.useMyAnswers();
+        saveFailedRef.current = false;
+      }
+    } catch (error) {
+      // Refused again (a still newer change): onSaveHeld shows the new details.
+      if (overtaken) setMessage(interviewErrorText(error));
+    } finally {
+      setBusy(false);
+    }
+  }, [overtaken, reloadDraft, store]);
+
+  const retryHeldSave = useCallback(async () => {
+    if (!(store instanceof ServerDraftStore)) return;
+    setBusy(true);
+    setSaveHeld(false);
+    setMessage("");
+    try {
+      await store.retrySave();
+      saveFailedRef.current = false;
+    } catch {
+      // Refused again: onSaveHeld and onError show it; anything else is the store's onError.
+    } finally {
+      setBusy(false);
+    }
+  }, [store]);
 
   const resumeAfterSignIn = useCallback(async () => {
     if (!(store instanceof ServerDraftStore)) return;
@@ -1270,6 +1352,22 @@ export default function InterviewScreen() {
               <Button kind="secondary" loading={busy} label={t("sessionEndedResume")} onPress={() => void resumeAfterSignIn()} />
             </View>
           ) : null}
+          {saveHeld && !signedOut && !staleHeld ? (
+            <View testID="save-held-prompt" accessibilityRole="alert" style={{ gap: 8 }}>
+              <Text style={styles.error}>{t("saveHeldKept")}</Text>
+              <Button kind="secondary" loading={busy} label={t("saveHeldRetry")} onPress={() => void retryHeldSave()} />
+            </View>
+          ) : null}
+          {staleChange && !signedOut ? (
+            <View testID="stale-choice-prompt" accessibilityRole="alert" style={{ gap: 8 }}>
+              <Text style={styles.error}>{draftChangeText(staleChange)}</Text>
+              <Text style={styles.error}>{t(staleChange.refusal ? "staleRefusalKeep" : overtaken ? "staleChoiceKept" : "staleChoiceHeld")}</Text>
+              <Button kind="secondary" loading={busy} label={t("staleKeepNewer")} onPress={() => void chooseStaleVersion(false)} />
+              {staleChange.refusal ? null : (
+                <Button kind="secondary" loading={busy} label={t("staleUseMine")} onPress={() => void chooseStaleVersion(true)} />
+              )}
+            </View>
+          ) : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           {attachments.unavailable ? <Text style={styles.muted} testID="web-attachments-unavailable">{t("webAttachmentsUnavailable")}</Text> : null}
           {attachments.status ? <Text style={styles.muted} testID="web-attachments-status">{attachments.status}</Text> : null}
@@ -1336,7 +1434,7 @@ export default function InterviewScreen() {
               </View>
             </View>
           ) : null}
-          {consentPending || changingConsent || consentRefused || whoRefused || welcomePending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
+          {consentPending || changingConsent || consentRefused || whoRefused || welcomePending || overtaken ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaFormComponent
               theme={whoTheme}
               key={`${draftId}:${locale}`}
@@ -1347,7 +1445,7 @@ export default function InterviewScreen() {
               draftId={draftId}
               draftStore={store}
               autoSaveDraftOnChange
-              autoSaveDraftIntervalMs={signedOut ? false : undefined}
+              autoSaveDraftIntervalMs={signedOut || saveHeld ? false : undefined}
               onDraftController={setController}
               onChange={handleFormChange}
               onDraftSaved={handleDraftSaved}

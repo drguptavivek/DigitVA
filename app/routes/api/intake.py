@@ -11,7 +11,9 @@ Policy: docs/policy/web-intake.md, docs/policy/field-data-collection.md.
 import hashlib
 import hmac
 import json
+import logging
 import re
+import sys
 import uuid
 from contextlib import contextmanager
 
@@ -57,6 +59,7 @@ from app.services.viewer_pii_service import should_redact_pii
 from app.services.visit_note import visit_note_for_viewer, visit_notes_for
 
 bp = Blueprint("intake_api", __name__)
+log = logging.getLogger(__name__)
 
 #: Request body caps: one interview upload; the outstanding-work report (up
 #: to OUTSTANDING_MAX_IDS case ids, draft UUIDs and registration UUIDs, about
@@ -146,6 +149,60 @@ def _no_store(response):
     return response
 
 
+#: The draft writes whose refusals are logged (``_log_draft_refusal``).
+_LOGGED_DRAFT_WRITES = frozenset({"save_draft", "submit_draft"})
+
+
+def _note_refusal_site(frame) -> None:
+    """Remember where this request was refused (``function:line``) for
+    ``_log_draft_refusal``: the code alone does not tell apart the many
+    ``invalid_request`` / ``conflict`` checks behind one route."""
+    g.intake_refusal_at = f"{frame.f_code.co_name}:{frame.f_lineno}"
+
+
+def _note_raise_site(exc: BaseException) -> None:
+    tb = exc.__traceback__
+    if tb is None:
+        return
+    while tb.tb_next is not None:
+        tb = tb.tb_next
+    _note_refusal_site(tb.tb_frame)
+
+
+def _refuse(message, code, status_code, **extra):
+    """``error`` for a refusal returned directly by a draft write handler."""
+    _note_refusal_site(sys._getframe(1))
+    return error(message, code, status_code, **extra)
+
+
+def _stale_extra(draft) -> dict:
+    """The optional fields of a 409 ``draft_stale`` (web-intake.md, "Stale
+    browser saves"): the version that won and who changed it. Only the
+    draft's owner reaches a stale check (``get_draft``)."""
+    return {"updated_at": draft.updated_at.isoformat(), "last_change": intake_svc.last_change(draft, current_user)}
+
+
+@bp.after_request
+def _log_draft_refusal(response):
+    """One warning per refused draft save or submit (400, 409, 422): the
+    machine code, the check that refused it, the draft and user ids. Never the
+    message or the body, which can carry field names and answers. Staging
+    logs showed only the status of a browser retrying one refused save."""
+    # Popped on every response: g can outlive a request (tests push one app context).
+    refused_at = g.pop("intake_refusal_at", "-")
+    endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
+    if endpoint not in _LOGGED_DRAFT_WRITES or response.status_code not in (400, 409, 422):
+        return response
+    body = response.get_json(silent=True)
+    log.warning(
+        "intake draft write refused | endpoint=%s | status=%s | reason=%s | at=%s | draft=%s | user=%s",
+        endpoint, response.status_code, body.get("code") if isinstance(body, dict) else None,
+        refused_at, (request.view_args or {}).get("draft_id"),
+        getattr(current_user, "user_id", None),
+    )
+    return response
+
+
 @bp.errorhandler(RequestEntityTooLarge)
 def _too_large(_exc):
     return error("The request body is too large.", "payload_too_large", 413)
@@ -153,6 +210,7 @@ def _too_large(_exc):
 
 @bp.errorhandler(devices.DeviceAuthError)
 def _project_or_client_error(exc):
+    _note_raise_site(exc)
     db.session.rollback()
     fields = getattr(exc, "fields", None)
     return error(str(exc), exc.code, exc.status_code, **({"fields": fields} if fields else {}))
@@ -160,6 +218,7 @@ def _project_or_client_error(exc):
 
 @bp.errorhandler(intake_svc.WebIntakeError)
 def _intake_error(exc):
+    _note_raise_site(exc)
     db.session.rollback()
     if exc.code == "refusal_stale" and getattr(exc, "draft_id", None):
         return error(str(exc), exc.code, exc.status_code, draft_id=exc.draft_id)
@@ -168,12 +227,14 @@ def _intake_error(exc):
 
 @bp.errorhandler(offline_import.OfflineCodingError)
 def _offline_coding_error(exc):
+    _note_raise_site(exc)
     db.session.rollback()
     return error(str(exc), exc.code, exc.status_code)
 
 
 @bp.errorhandler(consent_svc.ConsentError)
 def _consent_error(exc):
+    _note_raise_site(exc)
     db.session.rollback()
     return error(str(exc), exc.code, exc.status_code, **({"fields": exc.fields} if exc.fields else {}))
 
@@ -743,6 +804,7 @@ def get_draft(draft_id):
     return jsonify(
         {
             "draft": intake_svc.serialize_draft(draft),
+            "last_change": intake_svc.last_change(draft, current_user),
             "envelope": intake_svc.load_draft_envelope(draft),
             "prefill": draft.prefill or {},
             # The hash of the exact answers text held now (null for a browser
@@ -757,13 +819,21 @@ def get_draft(draft_id):
 def save_draft(draft_id):
     """Browser autosave. Optional ``if_updated_at``: the ``draft.updated_at`` of
     the last reply the page saw; a newer saved version (the phone's sync) is
-    409 ``draft_stale`` and nothing is written."""
+    409 ``draft_stale`` (with ``updated_at`` and ``last_change``) and nothing
+    is written. ``overwrite: true`` is the interviewer's "Use my answers"
+    after one: it needs the current ``if_updated_at``, keeps the version it
+    replaces as a ``replaced`` row and empties every saved section the body
+    leaves out, so the page's answers replace the draft whole."""
     p = parse_body()
     draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, require_open=True))
+    overwrite = p.get("overwrite") is True
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
-        return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
+        return _refuse(intake_svc.SYNC_MESSAGE, "draft_stale", 409, **_stale_extra(draft))
     if p.get("resume_refused") is True and p.get("if_updated_at") is None:
-        return error("Reload the draft before changing the refusal decision.", "draft_stale", 409)
+        return _refuse("Reload the draft before changing the refusal decision.", "draft_stale", 409)
+    if overwrite and p.get("if_updated_at") is None:
+        return _refuse("Reload the draft before replacing it with your answers.", "draft_stale", 409,
+                       **_stale_extra(draft))
     sections = p.get("sections") or {}
     if isinstance(sections, dict):
         if len(sections) > 128:
@@ -798,6 +868,10 @@ def save_draft(draft_id):
                 intake_svc.check_refusal_resume(
                     draft, base_updated_at=p.get("if_updated_at"), resume_refused=p.get("resume_refused") is True,
                 )
+        if overwrite:
+            log.info("intake draft overwritten by the browser | draft=%s | user=%s | replaced_version_kept=%s",
+                     draft.draft_id, current_user.user_id, bool(draft.sections))
+            sections = intake_svc.prepare_browser_overwrite(draft, sections)
     written = intake_svc.save_draft_sections(
         draft,
         sections=sections,
@@ -989,7 +1063,7 @@ def submit_draft(draft_id):
             consent_svc.check_refusal_answers(completion["data"])
     if draft.status == "submitted":
         if (draft.meta or {}).get("interviewOutcome") == "refused":
-            return error("A submitted refusal cannot be changed here.", "consent_refused", 422)
+            return _refuse("A submitted refusal cannot be changed here.", "consent_refused", 422)
         # A stale tab, or a second completion of an interview the phone or
         # this page already submitted: the later completion is a correction
         # (last completed version wins), decided before the draft write lock,
@@ -1000,7 +1074,7 @@ def submit_draft(draft_id):
     # Same stale-tab guard as autosave: a tab that missed the phone's newer
     # version must not submit its own silently.
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
-        return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
+        return _refuse(intake_svc.SYNC_MESSAGE, "draft_stale", 409, **_stale_extra(draft))
     if isinstance(completion, dict) and isinstance(completion.get("data"), dict):
         death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
         if not consent_svc.interview_refused(death=death, client_draft_id=draft.client_draft_id,
@@ -1011,7 +1085,7 @@ def submit_draft(draft_id):
     if (str(intake_svc._answers_of(draft).get("Id10013") or "").lower() == "no"
             and isinstance(completion, dict) and isinstance(completion.get("data"), dict)
             and str(completion["data"].get("Id10013") or "").lower() != "no"):
-        return error("Record the new consent decision before resuming the interview.", "consent_refused", 422)
+        return _refuse("Record the new consent decision before resuming the interview.", "consent_refused", 422)
     # The case's winner is the caller's own earlier draft: this completion is a
     # correction of it (decided under the case lock), not a teammate's copy.
     folded = intake_svc.fold_into_own_submission(current_user, draft, completion=p.get("completion") or {})

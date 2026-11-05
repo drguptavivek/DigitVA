@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import itertools
 import uuid
 from datetime import datetime
 
-from flask import Blueprint, Response, jsonify, request, session
+from flask import Blueprint, Response, jsonify, request, session, stream_with_context
 from flask_login import current_user
 
 from app import db
@@ -15,12 +16,13 @@ from app.routes.api.request_helpers import error as api_error
 from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
     default_reporting_scheme_code,
-    export_cod_bucket_reporting_csv,
+    iter_cod_bucket_reporting_csv,
     list_unmatched_coded_submission_icds_by_bucket,
     list_cod_bucket_schemes,
     summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
 )
+from app.services.case_list_service import _jit_off
 from app.services.data_management_service import (
     dm_grant_scope,
     dm_scoped_forms,
@@ -70,11 +72,12 @@ def _bad_param(exc: _BadParam):
 
 
 def _checked_scheme_code() -> str:
-    """Requested scheme code (or the default); raises 400 when none/unknown."""
+    """Requested scheme code (or the default); raises 400 when none, unknown
+    or inactive (the reports know active schemes only)."""
     code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
     if not code:
         raise _BadParam("No active COD bucket scheme is configured.", "no_active_scheme")
-    if code not in {scheme.scheme_code for scheme in list_cod_bucket_schemes()}:
+    if code not in {scheme.scheme_code for scheme in list_cod_bucket_schemes() if scheme.is_active}:
         raise _BadParam("Unknown COD bucket scheme.", "unknown_scheme")
     return code
 
@@ -96,10 +99,11 @@ def _resolved_scope_user():
     return current_user
 
 
-def _csv_response(csv_text: str, filename_prefix: str) -> Response:
+def _csv_response(chunks, filename_prefix: str) -> Response:
+    """Stream *chunks* (an iterable of CSV text) as a download, BOM first."""
     filename = f"{filename_prefix}-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
     return Response(
-        "\ufeff" + csv_text,
+        stream_with_context(itertools.chain(("\ufeff",), chunks)),
         content_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
@@ -141,54 +145,57 @@ def aggregates():
     date_to = _parse_iso_date(request.args.get("date_to"))
     scheme_code = _checked_scheme_code()
 
-    rows = aggregate_coded_submissions_by_bucket(
-        scheme_code=scheme_code,
-        project_id=project_id,
-        site_id=site_id,
-        form_id=form_id,
-        gender=gender,
-        submission_date_from=date_from,
-        submission_date_to=date_to,
-        allowed_project_site_pairs=allowed_pairs,
-        allowed_org_unit_ids=allowed_units,
-        collapse_scope=True,
-    )
-    unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
-        scheme_code=scheme_code,
-        project_id=project_id,
-        site_id=site_id,
-        form_id=form_id,
-        gender=gender,
-        submission_date_from=date_from,
-        submission_date_to=date_to,
-        allowed_project_site_pairs=allowed_pairs,
-        allowed_org_unit_ids=allowed_units,
-        collapse_scope=True,
-    )
-    unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
-        scheme_code=scheme_code,
-        project_id=project_id,
-        site_id=site_id,
-        form_id=form_id,
-        gender=gender,
-        submission_date_from=date_from,
-        submission_date_to=date_to,
-        allowed_project_site_pairs=allowed_pairs,
-        allowed_org_unit_ids=allowed_units,
-        collapse_scope=True,
-    )
-    reporting_breakdowns = summarize_cod_bucket_reporting_breakdowns(
-        scheme_code=scheme_code,
-        project_id=project_id,
-        site_id=site_id,
-        form_id=form_id,
-        gender=gender,
-        submission_date_from=date_from,
-        submission_date_to=date_to,
-        allowed_project_site_pairs=allowed_pairs,
-        allowed_org_unit_ids=allowed_units,
-        top_n=10,
-    )
+    # JIT compiling the ICD-11 parent-chain CTE costs ~0.4 s per statement
+    # against ~35 ms to run it, and each report issues ~18 of them.
+    with _jit_off():
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code=scheme_code,
+            project_id=project_id,
+            site_id=site_id,
+            form_id=form_id,
+            gender=gender,
+            submission_date_from=date_from,
+            submission_date_to=date_to,
+            allowed_project_site_pairs=allowed_pairs,
+            allowed_org_unit_ids=allowed_units,
+            collapse_scope=True,
+        )
+        unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
+            scheme_code=scheme_code,
+            project_id=project_id,
+            site_id=site_id,
+            form_id=form_id,
+            gender=gender,
+            submission_date_from=date_from,
+            submission_date_to=date_to,
+            allowed_project_site_pairs=allowed_pairs,
+            allowed_org_unit_ids=allowed_units,
+            collapse_scope=True,
+        )
+        unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
+            scheme_code=scheme_code,
+            project_id=project_id,
+            site_id=site_id,
+            form_id=form_id,
+            gender=gender,
+            submission_date_from=date_from,
+            submission_date_to=date_to,
+            allowed_project_site_pairs=allowed_pairs,
+            allowed_org_unit_ids=allowed_units,
+            collapse_scope=True,
+        )
+        reporting_breakdowns = summarize_cod_bucket_reporting_breakdowns(
+            scheme_code=scheme_code,
+            project_id=project_id,
+            site_id=site_id,
+            form_id=form_id,
+            gender=gender,
+            submission_date_from=date_from,
+            submission_date_to=date_to,
+            allowed_project_site_pairs=allowed_pairs,
+            allowed_org_unit_ids=allowed_units,
+            top_n=10,
+        )
     return jsonify(
         {
             "data": rows,
@@ -237,7 +244,7 @@ def export_csv():
     date_to = _parse_iso_date(request.args.get("date_to"))
     scheme_code = _checked_scheme_code()
 
-    csv_text = export_cod_bucket_reporting_csv(
+    chunks = iter_cod_bucket_reporting_csv(
         scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
@@ -248,4 +255,4 @@ def export_csv():
         allowed_project_site_pairs=allowed_pairs,
         allowed_org_unit_ids=allowed_units,
     )
-    return _csv_response(csv_text, filename_prefix="cod-bucket-report")
+    return _csv_response(chunks, filename_prefix="cod-bucket-report")

@@ -59,6 +59,17 @@ class UiStringServiceTests(BaseTestCase):
 
         self.assertEqual(svc._bundle("hi"), {"navCoding": "नया"})
 
+    def test_unreadable_bundle_is_reported_and_left_as_it_is(self):
+        path = Path(self.root) / "ui-strings" / "hi.json"
+        raw = b'{"navCoding": "\xa3"}'
+        path.write_bytes(raw)
+        with self.assertLogs(svc.log, "WARNING") as logs:
+            with self.assertRaisesRegex(svc.UiStringError, "hi.json"):
+                svc._bundle("hi")
+        self.assertIn(str(path), logs.output[0])
+        self.assertEqual(path.read_bytes(), raw)  # never rewritten
+        self.assertNotIn(str(path), svc._bundle_cache)  # a fixed file is read next time
+
     # -- set: refusals -----------------------------------------------------
 
     def test_set_refuses_unknown_key(self):

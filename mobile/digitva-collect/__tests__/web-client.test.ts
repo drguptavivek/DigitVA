@@ -365,7 +365,10 @@ describe("server draft store", () => {
     const pending = store.save(draft);
     await expect(store.flush()).rejects.toMatchObject({ status: 409, code: "draft_stale" });
     await expect(pending).rejects.toMatchObject({ status: 409, code: "draft_stale" });
+    // Autosave's own flush is held; only the explicit retry sends again.
     await expect(store.flush()).rejects.toMatchObject({ status: 409, code: "draft_stale" });
+    expect(patches).toHaveLength(1);
+    await expect(store.retrySave()).rejects.toMatchObject({ status: 409, code: "draft_stale" });
     expect(patches).toHaveLength(2);
     expect(patches.map((body) => body.if_updated_at)).toEqual(["revision-0", "revision-0"]);
     expect(store.getServerUpdatedAt()).toBe("revision-0");
@@ -830,12 +833,120 @@ describe("server draft store on a dead session (digitva-fvbc)", () => {
     });
   });
 
-  it("discards a kept snapshot after refusal and a later grant changed the server draft", async () => {
-    memory.set("digitva-kept-draft:d1", JSON.stringify({ data: { Id10007: "private answer" }, baseUpdatedAt: "2026-10-03T00:00:00Z" }));
-    jest.spyOn(globalThis, "fetch").mockResolvedValue(loaded());
+  const changedOnPhone = { at: "2026-10-03T00:01:00Z", via: "phone", by_you: true, name: "Asha Worker", refusal: false };
+  const loadedWith = (lastChange: Record<string, unknown> | undefined) => response({
+    status: 200,
+    body: {
+      draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+      envelope: { ...draft, data: { Id10007: "phone answer" } }, prefill: {},
+      ...(lastChange ? { last_change: lastChange } : {}),
+    },
+  });
+  const keptBefore = () => memory.set("digitva-kept-draft:d1", JSON.stringify({ data: { Id10007: "private answer" }, baseUpdatedAt: "2026-10-03T00:00:00Z" }));
+
+  for (const [label, lastChange] of [
+    ["a refusal cleared the server draft", { ...changedOnPhone, refusal: true }],
+    ["the server does not say who changed it", undefined],
+  ] as const) {
+    it(`discards a kept snapshot a newer version overtook when ${label}`, async () => {
+      keptBefore();
+      jest.spyOn(globalThis, "fetch").mockResolvedValue(loadedWith(lastChange));
+      const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+      expect((await store.load("d1"))?.data).toEqual({ Id10007: "phone answer" });
+      expect(store.overtakenAnswers()).toBeUndefined();
+      expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+    });
+  }
+
+  it("offers overtaken kept answers at load without merging them; Keep the newer version drops them", async () => {
+    keptBefore();
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(loadedWith(changedOnPhone));
     const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
-    expect((await store.load("d1"))?.data).toEqual({});
+    expect((await store.load("d1"))?.data).toEqual({ Id10007: "phone answer" });
+    expect(store.overtakenAnswers()).toEqual(changedOnPhone);
+    expect(memory.get("digitva-kept-draft:d1")).toContain("private answer");
+    store.discardOvertakenAnswers();
+    expect(store.overtakenAnswers()).toBeUndefined();
     expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+  });
+
+  it("Use my answers at load replaces the server draft with the kept answers, based on the loaded version", async () => {
+    keptBefore();
+    const patches: Array<Record<string, unknown>> = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if ((init?.method ?? "GET") === "GET") return loadedWith(changedOnPhone);
+      patches.push(JSON.parse(String(init?.body)));
+      return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]) });
+    await store.load("d1");
+    await store.useOvertakenAnswers();
+    expect(patches).toHaveLength(1);
+    expect(patches[0]).toMatchObject({ overwrite: true, if_updated_at: "2026-10-03T00:01:00Z", sections: { s1: { Id10007: "private answer" } } });
+    expect(store.overtakenAnswers()).toBeUndefined();
+    expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+  });
+
+  describe("a held draft_stale", () => {
+    const stale = (updatedAt: string) => response({ status: 409, body: {
+      error: "This interview was also edited on another device; the newer version was kept.", code: "draft_stale",
+      updated_at: updatedAt, last_change: { ...changedOnPhone, at: updatedAt },
+    } });
+
+    async function heldStore(answers: Array<(body: Record<string, unknown>) => Response>) {
+      const patches: Array<Record<string, unknown>> = [];
+      jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        if (String(input).endsWith("/d1") && (init?.method ?? "GET") === "GET") return loaded();
+        const body = JSON.parse(String(init?.body));
+        patches.push(body);
+        return (answers[patches.length - 1] ?? answers[answers.length - 1])(body);
+      });
+      const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]), onSaveHeld: jest.fn(), onError: jest.fn() });
+      await store.load("d1");
+      const first = store.save(draft);
+      await expect(store.flush()).rejects.toMatchObject({ code: "draft_stale" });
+      await expect(first).rejects.toBeInstanceOf(ClientApiError);
+      return { store, patches };
+    }
+
+    it("says who changed it and Use my answers replaces the draft based on that version", async () => {
+      const { store, patches } = await heldStore([
+        () => stale("2026-10-03T00:05:00Z"),
+        () => response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:06:00Z" } } }),
+      ]);
+      expect(store.heldStaleChange()).toEqual({ updatedAt: "2026-10-03T00:05:00Z", change: { ...changedOnPhone, at: "2026-10-03T00:05:00Z" } });
+      await store.useMyAnswers();
+      expect(patches[1]).toMatchObject({ overwrite: true, if_updated_at: "2026-10-03T00:05:00Z", sections: { s1: { Id10007: "typed" } } });
+      expect(patches[0].overwrite).toBeUndefined();
+      expect(store.isSaveHeld()).toBe(false);
+      expect(store.getServerUpdatedAt()).toBe("2026-10-03T00:06:00Z");
+      expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+    });
+
+    it("holds again with the still newer change when Use my answers is overtaken too", async () => {
+      const { store } = await heldStore([() => stale("2026-10-03T00:05:00Z"), () => stale("2026-10-03T00:07:00Z")]);
+      await expect(store.useMyAnswers()).rejects.toMatchObject({ code: "draft_stale" });
+      expect(store.heldStaleChange()?.updatedAt).toBe("2026-10-03T00:07:00Z");
+      expect(memory.get("digitva-kept-draft:d1")).toContain("typed");
+    });
+
+    it("Keep the newer version gives the page's answers up and sends nothing more", async () => {
+      const { store, patches } = await heldStore([() => stale("2026-10-03T00:05:00Z")]);
+      store.keepNewerVersion();
+      expect(store.isSaveHeld()).toBe(false);
+      expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+      await expect(store.save(draft)).resolves.toBeUndefined();
+      await store.flush();
+      expect(patches).toHaveLength(1);
+      expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+    });
+
+    it("offers no Use my answers over a refusal", async () => {
+      const { store } = await heldStore([() => response({ status: 409, body: {
+        code: "draft_stale", updated_at: "2026-10-03T00:05:00Z", last_change: { ...changedOnPhone, refusal: true },
+      } })]);
+      await expect(store.useMyAnswers()).rejects.toThrow("No stale save");
+    });
   });
 
   it("does not restore an old prefill if the server changed before the form loaded", async () => {
@@ -918,4 +1029,82 @@ describe("server draft store on a dead session (digitva-fvbc)", () => {
       expect(urls[urls.length - 1]).toBe("/api/v1/intake/drafts/d1");
     });
   }
+
+  for (const [label, refusal] of [
+    ["a 400 refusal", { status: 400, body: { error: "Invalid locale.", code: "invalid_request" } }],
+    ["a 409 draft_stale", { status: 409, body: { error: "This interview was also edited on another device.", code: "draft_stale" } }],
+    ["a 409 on a closed draft", { status: 409, body: { error: "This draft is no longer editable.", code: "conflict" } }],
+  ] as const) {
+    it(`holds autosave after ${label}, keeps the answers locally and resends only on Try saving again`, async () => {
+      let accept = false;
+      const patches: Array<Record<string, unknown>> = [];
+      jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        if (String(input).endsWith("/d1") && (init?.method ?? "GET") === "GET") return loaded();
+        patches.push(JSON.parse(String(init?.body)));
+        return accept
+          ? response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } })
+          : response(refusal);
+      });
+      const onSaveHeld = jest.fn();
+      const onError = jest.fn();
+      const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]), onSaveHeld, onError });
+      await store.load("d1");
+
+      const first = store.save(draft);
+      await expect(store.flush()).rejects.toMatchObject({ status: refusal.status, code: refusal.body.code });
+      await expect(first).rejects.toBeInstanceOf(ClientApiError);
+      expect(patches).toHaveLength(1);
+      expect(onSaveHeld).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(store.isSaveHeld()).toBe(true);
+      expect(memory.get("digitva-kept-draft:d1")).toContain("typed");
+
+      // Every later change and autosave tick is kept on this device and sends nothing.
+      const later = { ...draft, data: { ...draft.data, Id10007: "typed later" } } as typeof draft;
+      for (let tick = 0; tick < 5; tick += 1) {
+        await expect(store.save(later)).rejects.toMatchObject({ code: refusal.body.code });
+        await expect(store.flush()).rejects.toMatchObject({ code: refusal.body.code });
+      }
+      expect(patches).toHaveLength(1);
+      expect(memory.get("digitva-kept-draft:d1")).toContain("typed later");
+
+      // Refused again: one request, held again.
+      await expect(store.retrySave()).rejects.toBeInstanceOf(ClientApiError);
+      expect(patches).toHaveLength(2);
+      expect(store.isSaveHeld()).toBe(true);
+      expect(onSaveHeld).toHaveBeenCalledTimes(2);
+
+      accept = true;
+      await store.retrySave();
+      expect(patches).toHaveLength(3);
+      expect(patches[2].sections).toEqual({ s1: { Id10007: "typed later" } });
+      expect(store.isSaveHeld()).toBe(false);
+      expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+    });
+  }
+
+  it("does not hold autosave after a server error or a rate limit: the next save sends again", async () => {
+    const statuses = [503, 429];
+    const patches: number[] = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/d1") && (init?.method ?? "GET") === "GET") return loaded();
+      const status = statuses[patches.length] ?? 200;
+      patches.push(status);
+      return status === 200
+        ? response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } })
+        : response({ status, body: { code: status === 503 ? "unavailable" : "rate_limited" } });
+    });
+    const onSaveHeld = jest.fn();
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]), onSaveHeld, onError: jest.fn() });
+    await store.load("d1");
+    for (const _status of statuses) {
+      const save = store.save(draft);
+      await expect(store.flush()).rejects.toBeInstanceOf(ClientApiError);
+      await expect(save).rejects.toBeInstanceOf(ClientApiError);
+      expect(store.isSaveHeld()).toBe(false);
+    }
+    await store.flush();
+    expect(patches).toEqual([503, 429, 200]);
+    expect(onSaveHeld).not.toHaveBeenCalled();
+  });
 });

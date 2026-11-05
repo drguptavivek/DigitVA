@@ -424,6 +424,41 @@ class DeviceApiTests(BaseTestCase):
         for event in events:
             self.assertEqual(set(event.detail), {"device_id", "reason"})
 
+    def _failed_events(self, device_id):
+        return db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.event_type == "device_session_failed",
+            AuthSecurityEvent.detail["device_id"].astext == device_id,
+        )).all()
+
+    def test_a_sign_in_on_a_revoked_device_is_logged_and_audited(self):
+        device = self._enrol()
+        db.session.get(AuthDevice, uuid.UUID(device["device_id"])).revoked_at = datetime.now(UTC)
+        db.session.commit()
+        with self.assertLogs(devices.log.name, level="WARNING") as captured:
+            response = self._sign_in(device)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "device_revoked"))
+        (event,) = self._failed_events(device["device_id"])
+        self.assertEqual(event.detail, {"device_id": device["device_id"], "reason": "device_revoked"})
+        self.assertIsNone(event.user_id)  # refused before the credentials are read
+        line = "\n".join(captured.output)
+        self.assertIn(f"device sign-in refused | device={device['device_id']} | reason=device_revoked", line)
+        self.assertNotIn("device.interviewer@test.local", line)
+
+    def test_a_sign_in_over_the_device_limit_is_logged_and_audited(self):
+        device = self._enrol()
+        with mock.patch.object(devices, "MAX_ACTIVE_USER_DEVICES", 0), \
+                self.assertLogs(devices.log.name, level="WARNING") as captured:
+            response = self._sign_in(device)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "device_limit"))
+        (event,) = self._failed_events(device["device_id"])
+        self.assertEqual(event.detail, {"device_id": device["device_id"], "reason": "device_limit"})
+        self.assertEqual(event.user_id, self.interviewer.user_id)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(AuthDeviceSession).where(
+            AuthDeviceSession.device_id == uuid.UUID(device["device_id"]))), 0)
+        line = "\n".join(captured.output)
+        self.assertIn(f"device sign-in refused | device={device['device_id']} | reason=device_limit", line)
+        self.assertNotIn("device.interviewer@test.local", line)
+
     def test_sign_in_needs_an_interviewer_grant_in_some_project(self):
         device = self._enrol()
         response = self._sign_in(device, email="device.outsider@test.local")

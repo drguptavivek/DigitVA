@@ -64,6 +64,7 @@ from app.services.case_list_service import (
     OVERDUE_CODING_DAYS,
     OVERDUE_INTERVIEW_DAYS,
     combined_status_case,
+    _jit_off,
     unregistered_status_case,
     waiting,
 )
@@ -1172,7 +1173,10 @@ def area_summary(
         cached = None
     if cached is not None:
         return cached
-    result = _area_summary(user, project_id, unit_id, site_id, period)
+    # The COD cause query's recursive ICD-11 chain is over-estimated, which
+    # trips JIT: ~390 of its 400 ms on dev, with no rows to count.
+    with _jit_off():
+        result = _area_summary(user, project_id, unit_id, site_id, period)
     try:
         cache.set(cache_key, result, timeout=HOME_KPI_CACHE_TTL)
     except Exception:

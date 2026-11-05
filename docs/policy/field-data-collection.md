@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-04
 ---
 
 # Field Data Collection Policy
@@ -1056,7 +1056,8 @@ enrolled phones keep encrypted backup/restore without CSV export.
 
 Owner 2026-10-28: one account may be signed in on at most **three distinct
 active devices**. Active means at least one unrevoked device session whose
-refresh expiry has not passed, on an unrevoked device. Web sessions do not
+refresh expiry has not passed and that no later password or factor reset
+ended (its session version is current), on an unrevoked device. Web sessions do not
 consume app-device slots. Re-login on an existing phone replaces its old
 sessions without using another slot; refresh does not create a slot. The
 issuer locks the account while checking and adding a device session. A fourth

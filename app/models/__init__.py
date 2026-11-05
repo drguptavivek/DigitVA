@@ -32,6 +32,7 @@ from app.models.map_instrument_translation_suggestions import (
 from app.models.map_payload_version_pii import MapPayloadVersionPii
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.models.map_submission_cod_bucket import MapSubmissionCodBucket
 from app.models.map_user_notifications import MapUserNotification
 from app.models.mas_cod_bucket import (
     MapIcdCodBucket,
@@ -235,6 +236,7 @@ __all__ = [
     "MapIcd10LegacyReportingAlias",
     "MapProjectOdk",
     "MapUserNotification",
+    "MapSubmissionCodBucket",
     "MapProjectSiteOdk",
     "MasFormTypes",
     "MasCategoryOrder",

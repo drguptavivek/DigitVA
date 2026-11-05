@@ -3,7 +3,13 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDim
 
 import type { AccessProject, IntakeContextEntry } from "../api";
 import { t } from "../i18n";
-import { controls, radius, spacing, typography, useTheme } from "../theme";
+import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
+import { MenuChoiceRow, RemovableChip } from "../ui/controls";
+
+/** 40px controls, 44px under 768px (the touch target); as `useControlHeight` in src/ui.tsx, which tests here mock away. */
+function useControlHeight(): number {
+  return useWindowDimensions().width < 768 ? controls.minTouchTarget : controls.minHeight;
+}
 import { Button } from "../ui";
 import { isInternalPlaceholderUnit } from "../ui/placeholderUnit";
 
@@ -142,12 +148,13 @@ function sexFilterLabel(sex: AdvancedFilters["sex"]): string {
 }
 
 function useFilterStyles() {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
+  const controlHeight = useControlHeight();
   return useMemo(() => StyleSheet.create({
     filterCard: { gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     searchRow: { flexDirection: "row", gap: spacing.xs, alignItems: "center" },
     searchInput: {
-      flex: 1, minWidth: 0, minHeight: 40, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
+      flex: 1, minWidth: 0, minHeight: controlHeight, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
       paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily,
     },
     chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
@@ -164,21 +171,16 @@ function useFilterStyles() {
     chipTextOn: { color: colors.onAccent },
     groupLabel: { ...typography.caption, fontWeight: "600", color: colors.textMuted, fontFamily: controls.fontFamily },
     advancedButton: {
-      flexDirection: "row", alignItems: "center", gap: spacing.xxs, minHeight: 40, paddingHorizontal: spacing.sm,
+      flexDirection: "row", alignItems: "center", gap: spacing.xxs, minHeight: controlHeight, paddingHorizontal: spacing.sm,
       borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
     },
     advancedText: { ...typography.subhead, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
     badge: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: radius.full, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
     badgeText: { ...typography.caption, fontWeight: "700", color: colors.onAccent, fontFamily: controls.fontFamily },
-    appliedChip: {
-      flexDirection: "row", alignItems: "center", gap: spacing.xxs, paddingVertical: spacing.xxs, paddingLeft: spacing.sm, paddingRight: spacing.xs,
-      borderRadius: radius.full, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSoft,
-    },
-    appliedChipText: { ...typography.caption, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
     linkText: { ...typography.caption, fontWeight: "600", color: colors.accent, fontFamily: controls.fontFamily },
     note: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
-    backdropSheet: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
-    backdropSide: { flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.35)" },
+    backdropSheet: { flex: 1, justifyContent: "flex-end", backgroundColor: ui.scrim },
+    backdropSide: { flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: ui.scrim },
     sheet: {
       maxHeight: "85%", width: "100%", backgroundColor: colors.background, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
       borderWidth: 1, borderColor: colors.border,
@@ -194,7 +196,7 @@ function useFilterStyles() {
     pairField: { flex: 1, minWidth: 0, gap: spacing.xxs },
     fieldLabel: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
     sheetFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.xs, padding: spacing.sm, borderTopWidth: 1, borderColor: colors.border },
-  }), [colors]);
+  }), [colors, ui, controlHeight]);
 }
 
 export type ChipOption<K extends string> = { key: K; label: string };
@@ -231,6 +233,7 @@ export function ChipGroup<K extends string>({ options, value, onChange, a11yLabe
 /** Native browser date field (web only screen); the value is an ISO date or "". */
 export function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const { colors } = useTheme();
+  const controlHeight = useControlHeight();
   const s = useFilterStyles();
   return (
     <View style={s.pairField}>
@@ -241,8 +244,8 @@ export function DateField({ label, value, onChange }: { label: string; value: st
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
         style={{
-          minHeight: 40, boxSizing: "border-box", width: "100%", border: `1px solid ${colors.border}`, borderRadius: radius.md,
-          padding: "0 8px", fontSize: 16, color: colors.text, background: colors.surface, fontFamily: controls.fontFamily,
+          minHeight: controlHeight, boxSizing: "border-box", width: "100%", border: `1px solid ${colors.border}`, borderRadius: radius.md,
+          padding: `0 ${spacing.xs}px`, fontSize: fontSize.input, color: colors.text, background: colors.surface, fontFamily: controls.fontFamily,
         }}
       />
     </View>
@@ -331,10 +334,7 @@ export function AppliedChips({ chips, onClearAll }: { chips: { key: string; labe
   return (
     <View style={s.chipRow}>
       {chips.map((chip) => (
-        <Pressable key={chip.key} accessibilityRole="button" accessibilityLabel={t("removeFilter", { label: chip.label })} hitSlop={spacing.xs} onPress={chip.clear} style={s.appliedChip}>
-          <Text style={s.appliedChipText}>{chip.label}</Text>
-          <Text style={s.appliedChipText} aria-hidden>×</Text>
-        </Pressable>
+        <RemovableChip key={chip.key} label={chip.label} removeLabel={t("removeFilter", { label: chip.label })} onRemove={chip.clear} />
       ))}
       <Pressable accessibilityRole="button" accessibilityLabel={t("clearAll")} hitSlop={spacing.xs} onPress={onClearAll}>
         <Text style={s.linkText}>{t("clearAll")}</Text>
@@ -348,12 +348,13 @@ export function AppliedChips({ chips, onClearAll }: { chips: { key: string; labe
  * (iOS HIG grouped sections). Project and Area come first, then Dates, Sex,
  * Age. Edits stay local until Apply; Clear all empties the form without applying.
  */
-function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLabel, onApply, onClose }: {
+function AdvancedFiltersSheet({ open, value, place, projects, units, unitBreadcrumb, reportedLabel, onApply, onClose }: {
   open: boolean;
   value: AdvancedFilters;
   place: PlaceFilters;
   projects?: ProjectOption[];
   units: string[];
+  unitBreadcrumb?: (unit: string) => string;
   reportedLabel: string;
   onApply: (next: AdvancedFilters, place: PlaceFilters) => void;
   onClose: () => void;
@@ -361,17 +362,31 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLab
   const s = useFilterStyles();
   const [draft, setDraft] = useState(value);
   const [draftPlace, setDraftPlace] = useState(place);
+  // Area scope and the place are two controls over one value: "One unit" opens the unit list before a unit is chosen.
+  const [pickingUnit, setPickingUnit] = useState(false);
+  const [unitQuery, setUnitQuery] = useState("");
   useEffect(() => {
     if (open) {
       setDraft(value);
       setDraftPlace(place);
+      setPickingUnit(false);
+      setUnitQuery("");
     }
   }, [open, value, place.project, place.unit]);
+  const areaMode = pickingUnit || (draftPlace.unit && draftPlace.unit !== WITHIN_AREA) ? "unit" : draftPlace.unit === WITHIN_AREA ? "mine" : "all";
+  // The row ends with the unit's own name: a breadcrumb's last segment comes from a unit code, which can repeat across projects.
+  const crumb = (unit: string) => [...(unitBreadcrumb?.(unit) ?? unit).split(" › ").slice(0, -1), unit].join(" › ");
+  const needle = unitQuery.trim().toLowerCase();
+  // An applied unit missing from today's options (an old link, another project) stays listed so the sheet shows it.
+  const unitRows = (place.unit && place.unit !== WITHIN_AREA && !units.includes(place.unit) ? [...units, place.unit] : units)
+    .map((unit) => ({ unit, label: crumb(unit) }))
+    .filter((row) => !needle || row.label.toLowerCase().includes(needle))
+    .sort((a, b) => a.label.localeCompare(b.label));
   const set = (patch: Partial<AdvancedFilters>) => setDraft((previous) => ({ ...previous, ...patch }));
   return (
     <FilterPanel open={open} title={t("advancedFilters")} onClose={onClose} footer={(
       <>
-        <Button kind="secondary" label={t("clearAll")} onPress={() => { setDraft(EMPTY_ADVANCED); setDraftPlace({}); }} />
+        <Button kind="secondary" label={t("clearAll")} onPress={() => { setDraft(EMPTY_ADVANCED); setDraftPlace({}); setPickingUnit(false); setUnitQuery(""); }} />
         <Button label={t("applyFilters")} onPress={() => onApply(draft, draftPlace)} />
       </>
     )}>
@@ -392,16 +407,31 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, reportedLab
               <View style={s.section}>
                 <Text style={s.sectionTitle}>{t("filterArea")}</Text>
                 <View style={s.group}>
-                  <ChipGroup
+                  <ChipGroup<"all" | "mine" | "unit">
                     options={[
-                      { key: "", label: t("filterAll") },
-                      { key: WITHIN_AREA, label: t("filterWithinArea") },
-                      ...units.map((unit) => ({ key: unit, label: unit })),
+                      { key: "all", label: t("filterAllAreas") },
+                      { key: "mine", label: t("filterWithinArea") },
+                      { key: "unit", label: t("filterOneUnit") },
                     ]}
-                    value={draftPlace.unit ?? ""}
-                    onChange={(key) => setDraftPlace((previous) => ({ ...previous, unit: key || undefined }))}
+                    value={areaMode}
+                    onChange={(key) => {
+                      setPickingUnit(key === "unit");
+                      // Until a unit is chosen, "One unit" applies as all areas, never as the scope left behind.
+                      setDraftPlace((previous) => ({ ...previous, unit: key === "mine" ? WITHIN_AREA : key === "unit" && previous.unit !== WITHIN_AREA ? previous.unit : undefined }));
+                    }}
                     a11yLabel={(label) => t("filterAreaLabel", { label })}
                   />
+                  {areaMode === "unit" ? (
+                    <View accessibilityRole="radiogroup" accessibilityLabel={t("filterOneUnit")} style={{ gap: spacing.xxs }}>
+                      {!draftPlace.unit || draftPlace.unit === WITHIN_AREA ? <Text style={s.note}>{t("filterUnitPick")}</Text> : null}
+                      {units.length > 8 ? (
+                        <TextInput accessibilityLabel={t("filterUnitSearch")} placeholder={t("filterUnitSearch")} value={unitQuery} onChangeText={setUnitQuery} style={[s.searchInput, { flex: undefined }]} />
+                      ) : null}
+                      {unitRows.map((row) => (
+                        <MenuChoiceRow key={row.unit} label={row.label} selected={draftPlace.unit === row.unit} onPress={() => setDraftPlace((previous) => ({ ...previous, unit: row.unit }))} />
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ) : null}
@@ -510,6 +540,8 @@ export function CaseFilterBar<K extends string>(props: {
   project?: string;
   onProject?: (value: string | undefined) => void;
   units: string[];
+  /** "Parent › Unit" for the unit list; the plain name when absent. */
+  unitBreadcrumb?: (unit: string) => string;
   unit?: string;
   onUnit: (value: string | undefined) => void;
   advanced: AdvancedFilters;
@@ -564,6 +596,7 @@ export function CaseFilterBar<K extends string>(props: {
         place={{ project: props.project, unit: props.unit }}
         projects={props.projects}
         units={props.units}
+        unitBreadcrumb={props.unitBreadcrumb}
         reportedLabel={props.reportedLabel}
         onApply={(next, place) => {
           setSheetOpen(false);

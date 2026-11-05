@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { radius } from "../../theme";
+import { radius, ui, useTheme } from "../../theme";
 import type { CategoryPayload, JsonValue } from "../contracts";
 import { useWebStyles, type WebPalette } from "../webPalette";
 import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
@@ -17,6 +17,16 @@ function BodyPortal({ children }: { children: React.ReactNode }) {
   const body = typeof document === "undefined" ? undefined : document.body;
   return body?.nodeType === 1 ? createPortal(children, body) : <>{children}</>;
 }
+
+const ICON_PATHS = { prev: "M15 6l-6 6l6 6", next: "M9 6l6 6l-6 6", close: "M18 6l-12 12M6 6l12 12" } as const;
+
+/** Tabler stroke icon in the button's text colour; the button carries the accessible name. */
+function Icon({ name, size = 24 }: { name: keyof typeof ICON_PATHS; size?: number }) {
+  return <svg aria-hidden="true" focusable="false" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PATHS[name]} /></svg>;
+}
+
+// The photo viewer stays dark in both themes (photos read best on near-black), so its text uses the dark-mode tokens.
+const VIEWER_SCRIM = "rgba(8, 13, 20, 0.94)";
 
 type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];
 type GalleryAttachment = { path: string; label: string; kind: "image" | "audio" | "document" };
@@ -110,6 +120,7 @@ export function AttachmentGallery({
   renderMedia?: (attachmentPath: string) => React.ReactNode;
 }) {
   const [styles] = useWebStyles(makeStyles);
+  const { ui: theme } = useTheme();
   const collection = useMemo(() => collectPaths(items), [items]);
   const { attachments, truncated } = collection;
   const attachmentKey = attachments.map((item) => item.path).join("|");
@@ -291,7 +302,8 @@ export function AttachmentGallery({
     }
   };
 
-  return <section aria-label={label} style={styles.root}>
+  return <section aria-label={label} className="dva-gallery" style={styles.root}>
+    <style>{`.dva-gallery button:hover{filter:brightness(1.15)}.dva-gallery button:focus-visible{outline:2px solid ${theme.ring};outline-offset:2px}.dva-gallery-lightbox button:focus-visible{outline-color:${ui.dark.ring}}`}</style>
     <div style={styles.toolbar}>
       <span style={styles.badge}>{selected.label}</span>
       <span aria-live="polite" style={styles.counter}>{index + 1} / {attachments.length}</span>
@@ -305,8 +317,8 @@ export function AttachmentGallery({
             <img src={selected.path} alt={selected.label || "Attached image"} onError={() => markImageFailed(selected.path)} style={{ ...imageStyle, cursor: "zoom-in" }} />
           </button>}
         {attachments.length > 1 ? <>
-          <button type="button" onClick={() => move(-1)} aria-label="Previous attachment" style={{ ...styles.arrow, left: 8 }}>‹</button>
-          <button type="button" onClick={() => move(1)} aria-label="Next attachment" style={{ ...styles.arrow, right: 8 }}>›</button>
+          <button type="button" onClick={() => move(-1)} aria-label="Previous attachment" style={{ ...styles.arrow, left: 8 }}><Icon name="prev" /></button>
+          <button type="button" onClick={() => move(1)} aria-label="Next attachment" style={{ ...styles.arrow, right: 8 }}><Icon name="next" /></button>
         </> : null}
       </div>
       <div style={styles.controls}>
@@ -330,8 +342,8 @@ export function AttachmentGallery({
           : attachment.kind === "image" ? <span aria-hidden="true">▧</span> : attachment.kind === "audio" ? <span aria-hidden="true">♫</span> : <span aria-hidden="true">PDF</span>}
       </button>)}
     </div> : null}
-    {lightboxOpen && image ? <BodyPortal><div ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${selected.label || "Attachment"} full screen`} style={styles.lightbox}>
-      <button ref={closeRef} type="button" onClick={closeLightbox} aria-label="Close full screen" style={styles.close}>×</button>
+    {lightboxOpen && image ? <BodyPortal><div ref={dialogRef} className="dva-gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${selected.label || "Attachment"} full screen`} style={styles.lightbox}>
+      <button ref={closeRef} type="button" onClick={closeLightbox} aria-label="Close full screen" style={styles.close}><Icon name="close" /></button>
       <div
         ref={viewportRef}
         style={styles.lightboxViewport}
@@ -344,13 +356,13 @@ export function AttachmentGallery({
         <img src={selected.path} alt={selected.label || "Expanded attachment"} draggable={false} onDragStart={(event) => event.preventDefault()} style={imageStyle} />
       </div>
       <div style={styles.lightboxControls}>
-        <button type="button" onClick={() => moveLightbox(-1)} aria-label="Previous attachment" style={styles.control}>‹</button>
+        <button type="button" onClick={() => moveLightbox(-1)} aria-label="Previous attachment" style={styles.control}><Icon name="prev" size={20} /></button>
         <button type="button" onClick={() => rotate(-90)} aria-label="Rotate left" style={styles.control}>↶</button>
         <button type="button" onClick={() => setZoom((current) => Math.max(1, current - 0.25))} aria-label="Zoom out" style={styles.control}>−</button>
         <span style={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
         <button type="button" onClick={() => setZoom((current) => Math.min(6, current + 0.25))} aria-label="Zoom in" style={styles.control}>+</button>
         <button type="button" onClick={() => rotate(90)} aria-label="Rotate right" style={styles.control}>↷</button>
-        <button type="button" onClick={() => moveLightbox(1)} aria-label="Next attachment" style={styles.control}>›</button>
+        <button type="button" onClick={() => moveLightbox(1)} aria-label="Next attachment" style={styles.control}><Icon name="next" size={20} /></button>
       </div>
     </div></BodyPortal> : null}
   </section>;
@@ -362,19 +374,19 @@ const makeStyles = (w: WebPalette): Record<string, React.CSSProperties> => ({
   badge: { background: w.bar, borderRadius: radius.full, color: w.onBar, fontSize: 14, fontWeight: 700, maxWidth: "100%", overflow: "hidden", padding: "8px 14px", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   counter: { color: w.textMuted, fontSize: 14 },
   truncated: { background: w.warnBg, border: `1px solid ${w.warnBorder}`, color: w.warnText, fontSize: 14, margin: 0, padding: "8px 10px" },
-  viewer: { alignItems: "center", background: w.viewerBg, border: `1px solid ${w.border}`, borderRadius: 4, display: "flex", justifyContent: "center", minHeight: 220, overflow: "hidden", padding: 12, position: "relative" },
+  viewer: { alignItems: "center", background: w.viewerBg, border: `1px solid ${w.border}`, borderRadius: radius.md, display: "flex", justifyContent: "center", minHeight: 220, overflow: "hidden", padding: 12, position: "relative" },
   imageButton: { alignItems: "center", background: "transparent", border: 0, cursor: "zoom-in", display: "flex", justifyContent: "center", maxWidth: "100%", minHeight: 196, padding: 0 },
-  arrow: { alignItems: "center", background: w.bar, border: 0, borderRadius: radius.full, color: w.onBar, cursor: "pointer", display: "flex", fontSize: 26, height: 44, justifyContent: "center", lineHeight: 1, position: "absolute", top: "50%", transform: "translateY(-50%)", width: 44 },
+  arrow: { alignItems: "center", background: w.bar, border: 0, borderRadius: radius.full, color: w.onBar, cursor: "pointer", display: "flex", height: 44, justifyContent: "center", lineHeight: 1, position: "absolute", top: "50%", transform: "translateY(-50%)", width: 44 },
   controls: { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" },
-  control: { alignItems: "center", background: w.card, border: `1px solid ${w.border}`, borderRadius: 4, color: w.blue, cursor: "pointer", display: "inline-flex", fontSize: 14, fontWeight: 700, minHeight: 44, minWidth: 44, padding: "8px 12px" },
+  control: { alignItems: "center", background: w.card, border: `1px solid ${w.border}`, borderRadius: radius.md, color: w.blue, cursor: "pointer", display: "inline-flex", fontSize: 14, fontWeight: 700, minHeight: 44, minWidth: 44, padding: "8px 12px" },
   audio: { minWidth: 0, width: "100%" },
   thumbnails: { display: "flex", gap: 8, maxWidth: "100%", overflowX: "auto", padding: "2px 0 4px" },
-  thumbnail: { alignItems: "center", background: w.card, border: `2px solid transparent`, borderRadius: 4, color: w.blue, cursor: "pointer", display: "flex", flex: "0 0 64px", height: 52, justifyContent: "center", minHeight: 44, minWidth: 44, overflow: "hidden", padding: 2 },
+  thumbnail: { alignItems: "center", background: w.card, border: `2px solid transparent`, borderRadius: radius.md, color: w.blue, cursor: "pointer", display: "flex", flex: "0 0 64px", height: 52, justifyContent: "center", minHeight: 44, minWidth: 44, overflow: "hidden", padding: 2 },
   thumbnailActive: { borderColor: w.blue },
   thumbnailImage: { height: "100%", objectFit: "cover", width: "100%" },
-  lightbox: { alignItems: "center", background: "rgba(8, 13, 20, 0.94)", display: "flex", flexDirection: "column", inset: 0, justifyContent: "center", padding: 16, position: "fixed", zIndex: 2000 },
-  close: { alignItems: "center", background: w.closeBg, border: 0, borderRadius: radius.full, color: w.closeText, cursor: "pointer", display: "flex", fontSize: 26, height: 44, justifyContent: "center", position: "absolute", right: 16, top: 16, width: 44, zIndex: 1 },
+  lightbox: { alignItems: "center", background: VIEWER_SCRIM, display: "flex", flexDirection: "column", inset: 0, justifyContent: "center", padding: 16, position: "fixed", zIndex: 2000 },
+  close: { alignItems: "center", background: w.closeBg, border: 0, borderRadius: radius.full, color: w.closeText, cursor: "pointer", display: "flex", height: 44, justifyContent: "center", position: "absolute", right: 16, top: 16, width: 44, zIndex: 1 },
   lightboxViewport: { alignItems: "center", display: "flex", flex: 1, justifyContent: "center", maxWidth: "100%", overflow: "hidden", touchAction: "none", width: "100%" },
   lightboxControls: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", padding: 8 },
-  zoomLabel: { color: "#fff", minWidth: 52, textAlign: "center" },
+  zoomLabel: { color: ui.dark.foreground, minWidth: 52, textAlign: "center" },
 });

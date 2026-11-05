@@ -84,7 +84,7 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "center", padding: gap.md }}>
-        <Pressable accessibilityLabel="Close details" onPress={onClose} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(17,24,39,0.62)" }} />
+        <Pressable accessibilityLabel="Close details" onPress={onClose} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: t.scrim }} />
         <Card testID="icd-details-sheet" style={{ backgroundColor: t.popover }}>
           <CardTitle>{item?.title || "ICD-11 details"}</CardTitle>
           {item ? (

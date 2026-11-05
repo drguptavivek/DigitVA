@@ -785,6 +785,10 @@ class TestConfig(Config):
 
     CELERY = Config.CELERY.copy()
     CELERY["beat_dburi"] = SQLALCHEMY_DATABASE_URI
+    # Admin COD bucket edits queue a rebuild of the precomputed report rows
+    # after commit (app/services/cod_bucket_materialization.py); tests must
+    # not send those to the dev broker, so they patch the task when they care.
+    COD_BUCKET_REBUILD_ON_COMMIT = False
 
 
 class DevelopmentConfig(Config):

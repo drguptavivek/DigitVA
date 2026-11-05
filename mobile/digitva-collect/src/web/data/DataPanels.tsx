@@ -36,7 +36,7 @@ function Bars({ rows }: { rows: BarRow[] }) {
               <Text style={{ flexShrink: 1, fontSize: fontSize.body, color: ui.foreground }}>{row.label}</Text>
               <Text style={{ fontSize: fontSize.body, fontWeight: "600", color: ui.foreground }}>{row.value.toLocaleString()}</Text>
             </View>
-            <View importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={{ height: 6, borderRadius: radius.sm, backgroundColor: ui.secondary, overflow: "hidden" }}>
+            <View aria-hidden style={{ height: 6, borderRadius: radius.sm, backgroundColor: ui.secondary, overflow: "hidden" }}>
               <View style={{ width: `${top > 0 ? Math.max(row.value > 0 ? 1 : 0, Math.round((100 * row.value) / top)) : 0}%`, height: 6, backgroundColor: ui.primary }} />
             </View>
             {row.detail ? <Text style={{ fontSize: fontSize.caption, color: ui.mutedForeground }}>{row.detail}</Text> : null}

@@ -2649,6 +2649,13 @@ def refresh_submission_analytics_mv_task(self):
             run_id,
             f"Submission analytics materialized views refreshed: {run.records_updated} rows.",
         )
+        # The precomputed COD bucket rows derive from these views: bring them
+        # up to date now, so they are never staler than the views. The refresh
+        # itself succeeded: a broker error here must not mark it failed.
+        try:
+            rebuild_cod_bucket_rows_task.delay()
+        except Exception:
+            log.warning("Could not queue the COD bucket rows sweep", exc_info=True)
     except Exception as exc:
         try:
             run = db.session.get(VaSyncRun, run_id)
@@ -2660,6 +2667,39 @@ def refresh_submission_analytics_mv_task(self):
         except Exception:
             db.session.rollback()
         raise
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.rebuild_cod_bucket_rows_task",
+    bind=True,
+    soft_time_limit=120,
+    time_limit=300,
+)
+def rebuild_cod_bucket_rows_task(self):
+    """Sweep: queue one rebuild per COD bucket scheme (active ones built,
+    inactive ones cleared). One task per scheme, so the single worker can run
+    other work between them. Idempotent: each rebuild is a diff-sync."""
+    from app.services.cod_bucket_materialization import all_scheme_ids
+
+    scheme_ids = all_scheme_ids()
+    for scheme_id in scheme_ids:
+        rebuild_cod_bucket_scheme_task.delay(str(scheme_id))
+    return {"queued": len(scheme_ids)}
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.rebuild_cod_bucket_scheme_task",
+    bind=True,
+    soft_time_limit=900,
+    time_limit=1800,
+)
+def rebuild_cod_bucket_scheme_task(self, scheme_id: str):
+    """Diff-sync one scheme's map_submission_cod_bucket rows. Idempotent."""
+    from app.services.cod_bucket_materialization import rebuild_scheme
+
+    result = rebuild_scheme(uuid.UUID(scheme_id))
+    log.info("COD bucket rows rebuilt for %s: %s", scheme_id, result)
+    return result
 
 
 @shared_task(

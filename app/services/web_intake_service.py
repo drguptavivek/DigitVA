@@ -2226,7 +2226,45 @@ def scrub_refused_draft(draft: VaWebIntakeDraft) -> None:
     draft.prefill = {}
     draft.updated_at = _utcnow()
     draft.meta = {**(draft.meta or {}), "refusalBarrier": draft.updated_at.isoformat(), "refusalResumePending": True}
+    _note_last_change(draft, refusal=True)
     attachments.delete_draft_uploads(draft)
+
+
+def _note_last_change(draft: VaWebIntakeDraft, *, user_id=None, channel: str | None = None,
+                      refusal: bool = False) -> None:
+    """Record on the draft who changed it at its current ``updated_at``, on
+    which channel and whether a consent refusal cleared it (``last_change``)."""
+    draft.meta = {**(draft.meta or {}), "lastChange": {
+        "at": draft.updated_at.isoformat(),
+        **({"userId": str(user_id)} if user_id else {}),
+        **({"channel": channel} if channel else {}),
+        **({"refusal": True} if refusal else {}),
+    }}
+
+
+_CHANGE_CHANNELS = {"device": "phone", "web": "browser"}
+
+
+def last_change(draft: VaWebIntakeDraft, viewer: VaUsers) -> dict:
+    """``{at, via, by_you, name, refusal}``: the draft's last change for a
+    reply to *viewer*, who must be allowed to edit it (its owner,
+    ``get_draft``). ``via`` is ``phone`` or ``browser``, ``name`` the editor's
+    display name only (never an email or number); both null when the draft
+    did not record its current version (saved before this was kept, or a
+    metadata-only change). ``refusal``: a consent refusal cleared it."""
+    note = (draft.meta or {}).get("lastChange") or {}
+    if _device_time(note.get("at")) != draft.updated_at:
+        note = {}
+    editor_id = note.get("userId")
+    by_you = None if editor_id is None else editor_id == str(viewer.user_id)
+    editor = viewer if by_you else (db.session.get(VaUsers, uuid.UUID(editor_id)) if editor_id else None)
+    return {
+        "at": draft.updated_at.isoformat(),
+        "via": _CHANGE_CHANNELS.get(note.get("channel")),
+        "by_you": by_you,
+        "name": editor.name if editor is not None else None,
+        "refusal": bool(note.get("refusal")),
+    }
 
 
 def check_refusal_resume(draft: VaWebIntakeDraft, *, base_updated_at: object, resume_refused: bool) -> bool:
@@ -2267,7 +2305,7 @@ def release_who_refusal_hold(draft: VaWebIntakeDraft, *, answers: dict, base_upd
     return True
 
 
-def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None, refusal_override: bool | None = None, resume_refused: bool = False, new_refusal: bool | None = None) -> int:
+def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None, refusal_override: bool | None = None, resume_refused: bool = False, new_refusal: bool | None = None, channel: str = "web") -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
     A direct start's case (``draft_identity``) takes its identity from the
@@ -2276,7 +2314,8 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
     recorded when the case leaves ``draft_identity``; it defaults to the
     draft's owner, the only user who may save it. *new_refusal*:
     ``is_new_refusal`` decided by a caller that scrubs the draft or knows an
-    incoming consent first (device paths); None decides it here.
+    incoming consent first (device paths); None decides it here. *channel*
+    (``web`` or ``device``) is recorded with the saver for ``last_change``.
     """
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
@@ -2359,6 +2398,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         # Only an answer write dates the draft: a locale or position save from
         # merely opening the form must not outrank a newer phone save.
         draft.updated_at = _utcnow()
+        _note_last_change(draft, user_id=actor.user_id if actor else draft.user_id, channel=channel, refusal=refused)
     if written and draft.death_id:
         death = db.session.get(VaDeathRegister, draft.death_id)
         # Identity follows the form only for a direct start, which only its
@@ -3997,7 +4037,8 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     # the save clears the teammates, so the submit (same request) does not.
     new = refusal_override is not False and is_new_refusal(draft, data, incoming_consent, client_draft_id)
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user,
-                        refusal_override=refusal_override, resume_refused=resume_refused, new_refusal=new)
+                        refusal_override=refusal_override, resume_refused=resume_refused, new_refusal=new,
+                        channel="device")
     if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death, refusal_override=refusal_override, new_refusal=False) is None:
         return draft, "server", True
     return draft, "incoming", False
@@ -4050,6 +4091,19 @@ def _keep_history(draft: VaWebIntakeDraft, answers: dict, *, sha256: str | None,
     )
     row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=stored_answers(answers)))
     db.session.add(row)
+
+
+def prepare_browser_overwrite(draft: VaWebIntakeDraft, sections: dict) -> dict:
+    """A deliberate browser "Use my answers" (``PATCH ... overwrite``): keep
+    the version it replaces as a ``replaced`` row (the trail, and a way back)
+    and return *sections* plus every other saved section emptied, the phone's
+    included, so the browser's answers replace the draft whole."""
+    if draft.sections:
+        _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={
+            "source": "device" if draft.answers_sha256 else "web",
+            "receivedAt": _utcnow().isoformat(), "overwrittenBy": "web",
+        })
+    return {**{row.section_name: {} for row in draft.sections}, **sections}
 
 
 def _keep_losing_version(draft: VaWebIntakeDraft, answers: dict, sha256: str | None, *, meta: dict, client_draft_id: str | None = None) -> None:
@@ -4200,7 +4254,7 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         current_section=section if isinstance(section, str) and section else None, actor=user, resume_refused=resume_refused,
         # The draft has no client_draft_id until its upload: the attempt's
         # own consent decided *refused* above, so it is passed on.
-        refusal_override=refused, new_refusal=new,
+        refusal_override=refused, new_refusal=new, channel="device",
     )
     log.info("device draft synced | unique_id=%s | conflict=%s | by=%s", draft.unique_id, conflict, user.user_id)
     return _sync_reply(draft, "server" if refused else "incoming", conflict)

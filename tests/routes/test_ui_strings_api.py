@@ -187,6 +187,16 @@ class UiStringAdminRouteTests(BaseTestCase):
         html = self.client.get(PANEL).get_data(as_text=True)
         self.assertIn("npm run export:web", html)
 
+    def test_panel_with_a_non_utf8_bundle_shows_an_error_not_a_500(self):
+        # Staging 24 Oct: byte 0xa3 in a bundle raised UnicodeDecodeError.
+        path = Path(self._tempdir.name) / "ui-strings" / "hi.json"
+        path.write_bytes(b'{"navCoding": "\xa3"}')
+        self._login(self.base_admin_id)
+        with self.assertLogs("app.services.ui_string_service", "WARNING"):
+            response = self.client.get(PANEL, query_string={"locale": "hi"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("hi.json is not valid UTF-8 JSON", response.get_data(as_text=True))
+
 
 if __name__ == "__main__":
     unittest.main()

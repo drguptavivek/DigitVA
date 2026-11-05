@@ -320,6 +320,11 @@ def import_icd11_mms_from_export(
         record.is_active = False
         deactivated += 1
 
+    # The ICD-11 ancestor chains may have moved: rebuild every scheme's
+    # precomputed report rows once this commits.
+    from app.services.cod_bucket_materialization import mark_all_schemes_stale
+
+    mark_all_schemes_stale()
     db.session.commit()
     return Icd11MmsImportResult(
         inserted=inserted,

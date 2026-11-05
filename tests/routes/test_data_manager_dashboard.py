@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import sqlalchemy as sa
+from sqlalchemy import event
 from app import cache, db
 from app.models import (
     MapProjectSiteOdk,
@@ -1068,6 +1069,35 @@ class DataManagerDashboardTests(BaseTestCase):
         export = self.client.get("/api/v1/cod-buckets/export.csv")
         self.assertEqual(export.status_code, 200)
         self.assertEqual(export.mimetype, "text/csv")
+
+    def test_cod_bucket_aggregates_run_with_jit_off_and_put_it_back(self):
+        self._login(self.dm_user_id)
+        self._create_analytics_mvs("ix_test_dm_cod_bucket_jit")
+        scheme = MasCodBucketScheme(
+            scheme_code="JIT_TEST", scheme_name="JIT test", mapping_version=1, is_active=True
+        )
+        db.session.add(scheme)
+        db.session.commit()
+        scheme_code = scheme.scheme_code
+        before = db.session.scalar(sa.text("SELECT current_setting('jit')"))
+        found = []
+
+        def record(conn, cursor, statement, *args):
+            found.append(statement)
+
+        event.listen(db.engine, "before_cursor_execute", record)
+        try:
+            response = self.client.get(f"/api/v1/cod-buckets/aggregates?scheme_code={scheme_code}")
+        finally:
+            event.remove(db.engine, "before_cursor_execute", record)
+
+        self.assertEqual(response.status_code, 200)
+        off = next(i for i, s in enumerate(found) if "SET LOCAL jit = off" in s)
+        restore = next(i for i, s in enumerate(found) if "set_config('jit'" in s)
+        mapping_reads = [i for i, s in enumerate(found) if "map_icd_cod_buckets" in s]
+        self.assertTrue(mapping_reads)  # present
+        self.assertTrue(all(off < i < restore for i in mapping_reads))
+        self.assertEqual(db.session.scalar(sa.text("SELECT current_setting('jit')")), before)
 
     def test_cod_bucket_export_csv_respects_dm_scope_and_includes_scheme_levels(self):
         self._login(self.dm_user_id)

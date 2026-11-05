@@ -80,7 +80,13 @@ def _read_bundle(path: Path) -> dict:
     cached = _bundle_cache.get(str(path))
     if cached and cached[0] == mtime:
         return cached[1]
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:  # UnicodeDecodeError and JSONDecodeError both
+        # A broken export file is a deploy fault: the admin page names it
+        # instead of a 500, and the file is left as it is.
+        log.warning("ui_strings bundle unreadable | file=%s", path)
+        raise UiStringError(f"The bundled file {path.name} is not valid UTF-8 JSON.") from None
     _bundle_cache[str(path)] = (mtime, data)
     return data
 

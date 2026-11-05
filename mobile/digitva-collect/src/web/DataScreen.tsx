@@ -18,6 +18,7 @@ import {
 import { t, type StringKey } from "../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
 import { Button } from "../ui";
+import { Checkbox, RemovableChip } from "../ui/controls";
 import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { browserErrorText, WebShell } from "./common";
@@ -28,7 +29,7 @@ import { DataPanels } from "./data/DataPanels";
 import { columnLabel, DataCardList, DataTable, type RowAction } from "./data/DataTable";
 import { UpstreamChangesDialog } from "./data/UpstreamChangesDialog";
 import { caseViewPath, dataAccess, openServerPage } from "./roleHome";
-import { ChoiceRow, StatPressable, TextAction } from "./stats/controls";
+import { ChoiceRow, TextAction } from "./stats/controls";
 
 const PHONE_BREAKPOINT = 768;
 const TABS = ["overview", "causes"] as const;
@@ -317,11 +318,8 @@ export default function DataScreen() {
 
       {columnsOpen ? (
         <View accessibilityRole="toolbar" accessibilityLabel={t("dataColumns")} style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, padding: spacing.sm, borderWidth: 1, borderColor: ui.border, borderRadius: radius.lg }}>
-          {columnsFor(access.redacted).map((column) => createElement(
-            "label",
-            { key: column.key, style: { display: "flex", alignItems: "center", gap: spacing.xs, minHeight: 32, fontSize: fontSize.body, color: ui.foreground, fontFamily: controls.fontFamily } },
-            createElement("input", { type: "checkbox", checked: choices[column.key] ?? column.defaultVisible, onChange: (event: { target: { checked: boolean } }) => toggleColumn(column.key, event.target.checked) }),
-            columnLabel(column.key),
+          {columnsFor(access.redacted).map((column) => (
+            <Checkbox key={column.key} label={columnLabel(column.key)} checked={choices[column.key] ?? column.defaultVisible} onChange={(checked) => toggleColumn(column.key, checked)} />
           ))}
         </View>
       ) : null}
@@ -342,13 +340,7 @@ export default function DataScreen() {
       <FilterChips query={query} onQuery={go} />
       {coder ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.xs }}>
-          <StatPressable
-            label={t("dataCoderChipRemove", { name: coder })}
-            onPress={() => pickCoder("")}
-            style={{ minHeight: 32, justifyContent: "center", paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: ui.input, backgroundColor: ui.secondary }}
-          >
-            <Text style={{ fontSize: fontSize.caption, color: ui.foreground }}>{`${t("dataCoderChip", { name: coder })}  ✕`}</Text>
-          </StatPressable>
+          <RemovableChip label={t("dataCoderChip", { name: coder })} removeLabel={t("dataCoderChipRemove", { name: coder })} onRemove={() => pickCoder("")} />
         </View>
       ) : null}
 

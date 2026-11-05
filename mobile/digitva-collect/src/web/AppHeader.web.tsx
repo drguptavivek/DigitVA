@@ -83,8 +83,8 @@ function css(tokens: typeof ui.light) {
 .dva-tab:hover{background:color-mix(in srgb,${ON_BAR} 14%,transparent)}
 .dva-tab:hover .dva-tab-in,.dva-tab:focus-visible .dva-tab-in{opacity:1!important}
 .dva-tab:focus-visible,.dva-logo:focus-visible{outline:2px solid ${ON_BAR};outline-offset:-4px;border-radius:8px}
-.dva-bottom-tab{position:relative;display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;height:${BAR_HEIGHT}px;padding:0 2px;color:${tokens.mutedForeground};font:500 12px ${ROBOTO};text-decoration:none;background:transparent;border:0;cursor:pointer}
-.dva-bottom-label{max-width:100%;font-size:11px;line-height:13px;text-align:center;overflow-wrap:anywhere}
+.dva-bottom-tab{position:relative;display:flex;flex:1 1 44px;min-width:min-content;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;height:${BAR_HEIGHT}px;padding:0 2px;color:${tokens.mutedForeground};font:500 12px ${ROBOTO};text-decoration:none;background:transparent;border:0;cursor:pointer}
+.dva-bottom-label{max-width:100%;font-size:11px;line-height:13px;text-align:center;word-break:normal;overflow-wrap:normal;hyphens:none;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .dva-bottom-tab[aria-current=page],.dva-bottom-tab[aria-expanded=true]{color:${tokens.primary}}
 .dva-bottom-tab:focus-visible,.dva-sheet-item:focus-visible{outline:2px solid ${tokens.ring};outline-offset:-3px;border-radius:8px}
 .dva-sheet-item:hover{background:${tokens.accent}}
@@ -373,11 +373,11 @@ export function LeaveDialog() {
   return h("div", {
     // Presses outside the dialog do nothing: the choice is one of its three buttons.
     onMouseDown: (event: React.MouseEvent) => { if (event.target === event.currentTarget) event.preventDefault(); },
-    style: { position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, boxSizing: "border-box", background: "rgba(0,0,0,0.45)" },
+    style: { position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, boxSizing: "border-box", background: tokens.scrim },
   },
   h("div", {
     ref: panel, role: "alertdialog", "aria-modal": true, "aria-labelledby": "digitva-leave-title", "aria-describedby": "digitva-leave-body",
-    style: { width: "100%", maxWidth: 420, padding: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12, background: tokens.popover, color: tokens.popoverForeground, border: `1px solid ${tokens.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.28)", fontFamily: ROBOTO },
+    style: { width: "100%", maxWidth: 420, padding: 20, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12, background: tokens.popover, color: tokens.popoverForeground, border: `1px solid ${tokens.border}`, borderRadius: 8, boxShadow: tokens.shadow, fontFamily: ROBOTO },
   },
   h("h2", { id: "digitva-leave-title", style: { margin: 0, fontSize: 18, lineHeight: "24px" } }, t("leaveTitle")),
   h("p", { id: "digitva-leave-body", style: { margin: "0 0 4px", fontSize: 16, lineHeight: "22px" } }, leaveSaveFailed() ? t("leaveBodyFailed") : t("leaveBody")),
@@ -432,7 +432,7 @@ export function BottomTabs() {
     open ? h("div", { onClick: () => close(false), style: { position: "fixed", inset: 0, zIndex: 34 } }) : null,
     open ? h("div", {
       ref: menu.panel, id, role: "menu", "aria-label": t("navMore"), onKeyDown: menu.onKeyDown,
-      style: { position: "fixed", left: 8, right: 8, bottom: `calc(${BOTTOM_BAR} + 8px)`, zIndex: 36, maxHeight: "60vh", overflowY: "auto", padding: 6, boxSizing: "border-box", background: tokens.popover, color: tokens.popoverForeground, border: `1px solid ${tokens.border}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.28)" },
+      style: { position: "fixed", left: 8, right: 8, bottom: `calc(${BOTTOM_BAR} + 8px)`, zIndex: 36, maxHeight: "60vh", overflowY: "auto", padding: 6, boxSizing: "border-box", background: tokens.popover, color: tokens.popoverForeground, border: `1px solid ${tokens.border}`, borderRadius: 8, boxShadow: tokens.shadow },
     }, h(MenuEntries, {
       entries: more, go, close: () => close(false), tokens,
       extra: h(React.Fragment, null,

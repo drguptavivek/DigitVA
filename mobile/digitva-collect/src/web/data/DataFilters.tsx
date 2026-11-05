@@ -8,7 +8,8 @@ import {
 } from "../../data/query";
 import { t, type StringKey } from "../../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../../theme";
-import { SelectRow, StatPressable, TextAction } from "../stats/controls";
+import { RemovableChip } from "../../ui/controls";
+import { SelectRow, TextAction } from "../stats/controls";
 
 /** The server lists "female" and "Female" apart; the picker offers each spelling once (the first), plus the one in the URL. */
 function genderChoices(genders: string[], current: string): string[] {
@@ -54,14 +55,12 @@ export function FilterChips({ query, onQuery }: { query: DataQuery; onQuery: (ne
       {active.map(({ key, value }) => {
         const text = chipText(key, value);
         return (
-          <StatPressable
+          <RemovableChip
             key={key}
-            label={t("dataChipRemove", { filter: text })}
-            onPress={() => onQuery(withFilters(query, { [key]: key === "odk_sync" ? "in_sync" : "" }))}
-            style={{ minHeight: 32, justifyContent: "center", paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: ui.input, backgroundColor: ui.secondary }}
-          >
-            <Text style={{ fontSize: fontSize.caption, color: ui.foreground }}>{`${text}  ✕`}</Text>
-          </StatPressable>
+            label={text}
+            removeLabel={t("dataChipRemove", { filter: text })}
+            onRemove={() => onQuery(withFilters(query, { [key]: key === "odk_sync" ? "in_sync" : "" }))}
+          />
         );
       })}
       <TextAction small label={t("dataClearFilters")} onPress={() => onQuery(clearFilters(query))} />

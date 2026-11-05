@@ -39,6 +39,14 @@ let mockParams: {draftId?: string; deathId?: string; projectId?: string; siteId?
 const mockRouter = {back: jest.fn(), replace: jest.fn()};
 const mockServerFlush = jest.fn(async () => undefined);
 const mockResumeConsent = jest.fn(async () => undefined);
+const mockRetrySave = jest.fn(async () => undefined);
+let mockSaveHeld = false;
+let mockHeldStale: {updatedAt: string; change: Record<string, unknown>} | undefined;
+let mockOvertaken: Record<string, unknown> | undefined;
+const mockUseMine = jest.fn(async () => undefined);
+const mockKeepNewer = jest.fn();
+const mockUseOvertaken = jest.fn(async () => undefined);
+const mockDiscardOvertaken = jest.fn();
 const mockHasServed = jest.fn(() => false);
 const mockMarkServed = jest.fn(async () => undefined);
 let mockBeforeRemove: ((event: {preventDefault: () => void; data: {action: unknown}}) => void) | undefined;
@@ -50,7 +58,7 @@ jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchPara
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, onBeforeLock: () => () => undefined, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
 // The real `ui` tokens, so the form theme the screen derives is the app's own; `mockColorMode` flips light and dark.
 let mockColorMode: "light" | "dark" = "light";
-jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
+jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, spacing: jest.requireActual("../src/theme").spacing, typography: jest.requireActual("../src/theme").typography, controls: jest.requireActual("../src/theme").controls, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
   useUiStyles: () => ({}),
@@ -78,6 +86,14 @@ jest.mock("../src/client/serverDraftStore", () => ({
       getLocaleMetadata: () => ({}),
       getServerUpdatedAt: () => "revision-1",
       isSignedOut: () => false,
+      isSaveHeld: () => mockSaveHeld,
+      retrySave: mockRetrySave,
+      heldStaleChange: () => mockHeldStale,
+      overtakenAnswers: () => mockOvertaken,
+      useMyAnswers: mockUseMine,
+      keepNewerVersion: mockKeepNewer,
+      useOvertakenAnswers: mockUseOvertaken,
+      discardOvertakenAnswers: mockDiscardOvertaken,
       restoreLocaleMetadata: jest.fn(),
       setLocaleMetadata: jest.fn(),
     });
@@ -121,7 +137,8 @@ jest.mock("../src/consent", () => ({
   fetchProjectConsentConfig: (...args: unknown[]) => mockFetchConsentConfig(...args),
 }));
 
-import InterviewScreen, { INTERVIEW_FORM_CSS } from "../src/web/InterviewScreen";
+import InterviewScreen, { draftChangeText, INTERVIEW_FORM_CSS } from "../src/web/InterviewScreen";
+import { formatDisplayTimestamp } from "../src/ui/CaseCard";
 import { ClientApiError, getCaseDetail, getDraft, getIntakeContext, getProjectFormOptions, getInstrumentTranslations, startDraft, submitDraft } from "../src/client/api";
 import { getRevisionDetail, postRevision } from "../src/client/revisions";
 import { ServerDraftStore } from "../src/client/serverDraftStore";
@@ -506,7 +523,7 @@ it("keeps a valid revision editable and refuses the POST when consent is missing
   (postRevision as jest.Mock).mockReset();
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<InterviewScreen />); });
-  const reasonButton = tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t("revisionReasonInterviewerCorrection"))[0];
+  const reasonButton = tree.root.findAll((node) => node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === t("revisionReasonInterviewerCorrection") && typeof node.props.onPress === "function")[0];
   expect(reasonButton).toBeDefined();
   await act(async () => { reasonButton?.props.onPress(); });
   const form = tree.root.findByType(WhoVaForm);
@@ -542,7 +559,7 @@ it.each([
   store.save({ ...currentDraft, data: data as typeof currentDraft.data });
   await act(async () => { form.props.onChange(); });
   const reasonButton = tree.root.findAll((node) =>
-    String(node.type) === "mock-button" && node.props.label === t("revisionReasonInterviewerCorrection"),
+    node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === t("revisionReasonInterviewerCorrection") && typeof node.props.onPress === "function",
   )[0];
   await act(async () => { reasonButton.props.onPress(); });
   await act(async () => { await form.props.onComplete({ valid, issues: [], data }); });
@@ -942,6 +959,123 @@ describe("leave guard of an open interview", () => {
     await act(async () => { form.props.onDraftSaved({data: answers}); });
     expect(leaveSaveFailed()).toBe(false);
     await act(async () => tree.unmount());
+  });
+
+  it("pauses autosave on a refused save, keeps the store's message and offers Try saving again", async () => {
+    const {tree, form} = await openEdited();
+    const options = (ServerDraftStore as unknown as jest.Mock).mock.calls.at(-1)[0];
+    const heldPrompt = () => tree.root.findAll((node) => node.props.testID === "save-held-prompt");
+    expect(heldPrompt()).toHaveLength(0);
+    expect(form.props.autoSaveDraftIntervalMs).toBeUndefined();
+    mockSaveHeld = true;
+    await act(async () => { options.onError(new Error("refused by server")); options.onSaveHeld(new Error("refused by server")); });
+    expect(heldPrompt().length).toBeGreaterThan(0);
+    expect(tree.root.findByType(WhoVaForm).props.autoSaveDraftIntervalMs).toBe(false);
+    expect(leaveSaveFailed()).toBe(true);
+    // A later keystroke's rejected save does not replace the server's reason.
+    await act(async () => { tree.root.findByType(WhoVaForm).props.onDraftError(new Error("held")); });
+    const texts = () => tree.root.findAll((node) => String(node.type) === "Text").map((node) => node.props.children);
+    expect(texts()).toContain("refused by server");
+    expect(texts()).not.toContain("held");
+    const retry = tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t("saveHeldRetry"))[0];
+    mockSaveHeld = false;
+    await act(async () => { retry.props.onPress(); });
+    expect(mockRetrySave).toHaveBeenCalledTimes(1);
+    expect(heldPrompt()).toHaveLength(0);
+    expect(tree.root.findByType(WhoVaForm).props.autoSaveDraftIntervalMs).toBeUndefined();
+    expect(leaveSaveFailed()).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  describe("a stale save's choice", () => {
+    const change = {at: "2026-10-03T10:42:00Z", via: "phone", by_you: true, name: "Asha Worker", refusal: false};
+    const prompt = (tree: ReturnType<typeof create>) => tree.root.findAll((node) => node.props.testID === "stale-choice-prompt");
+    const texts = (tree: ReturnType<typeof create>) => tree.root.findAll((node) => String(node.type) === "Text").map((node) => node.props.children);
+    const button = (tree: ReturnType<typeof create>, key: "staleKeepNewer" | "staleUseMine") =>
+      tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t(key))[0];
+    afterEach(() => { mockSaveHeld = false; mockHeldStale = undefined; mockOvertaken = undefined; });
+
+    it("names who changed the draft while a save is held and offers both versions", async () => {
+      const {tree} = await openEdited();
+      const options = (ServerDraftStore as unknown as jest.Mock).mock.calls.at(-1)[0];
+      mockSaveHeld = true;
+      mockHeldStale = {updatedAt: change.at, change};
+      await act(async () => { options.onSaveHeld(new Error("stale")); });
+      expect(prompt(tree).length).toBeGreaterThan(0);
+      expect(tree.root.findAll((node) => node.props.testID === "save-held-prompt")).toHaveLength(0);
+      expect(texts(tree)).toContain(draftChangeText(change as never));
+      expect(draftChangeText(change as never)).toContain(t("staleByYouPhone", {time: formatDisplayTimestamp(change.at)}));
+      mockSaveHeld = false;
+      await act(async () => { button(tree, "staleUseMine").props.onPress(); });
+      expect(mockUseMine).toHaveBeenCalledTimes(1);
+      expect(prompt(tree)).toHaveLength(0);
+      await act(async () => tree.unmount());
+    });
+
+    it("Keep the newer version gives this page's answers up", async () => {
+      const {tree} = await openEdited();
+      const options = (ServerDraftStore as unknown as jest.Mock).mock.calls.at(-1)[0];
+      mockSaveHeld = true;
+      mockHeldStale = {updatedAt: change.at, change};
+      await act(async () => { options.onSaveHeld(new Error("stale")); });
+      mockSaveHeld = false;
+      const replace = jest.fn();
+      const win = window as unknown as {location?: unknown};
+      const previous = win.location;
+      win.location = {href: "https://example.test/app/interview?draftId=draft-1", replace};
+      try {
+        await act(async () => { button(tree, "staleKeepNewer").props.onPress(); });
+      } finally {
+        win.location = previous;
+      }
+      expect(mockKeepNewer).toHaveBeenCalledTimes(1);
+      expect(mockUseMine).not.toHaveBeenCalled();
+      expect(replace).toHaveBeenCalledTimes(1);  // the newer version is reloaded
+      await act(async () => tree.unmount());
+    });
+
+    it("offers only the newer version over a refusal", async () => {
+      const {tree} = await openEdited();
+      const options = (ServerDraftStore as unknown as jest.Mock).mock.calls.at(-1)[0];
+      mockSaveHeld = true;
+      mockHeldStale = {updatedAt: change.at, change: {...change, refusal: true}};
+      await act(async () => { options.onSaveHeld(new Error("stale")); });
+      expect(button(tree, "staleKeepNewer")).toBeDefined();
+      expect(button(tree, "staleUseMine")).toBeUndefined();
+      await act(async () => tree.unmount());
+    });
+
+    it("asks before opening the form when this tab's kept answers were overtaken, naming the other editor", async () => {
+      mockOvertaken = {...change, by_you: false, name: "Ravi Kumar", via: "browser"};
+      let tree!: ReturnType<typeof create>;
+      await act(async () => { tree = create(<InterviewScreen />); });
+      expect(prompt(tree).length).toBeGreaterThan(0);
+      expect(texts(tree)).toContain(t("staleByOtherBrowser", {name: "Ravi Kumar", time: formatDisplayTimestamp(change.at)}));
+      expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+      await act(async () => { button(tree, "staleKeepNewer").props.onPress(); });
+      expect(mockDiscardOvertaken).toHaveBeenCalledTimes(1);
+      expect(prompt(tree)).toHaveLength(0);
+      expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+      await act(async () => tree.unmount());
+    });
+
+    it("Use my answers at load saves the kept answers", async () => {
+      mockOvertaken = change;
+      let tree!: ReturnType<typeof create>;
+      await act(async () => { tree = create(<InterviewScreen />); });
+      const replace = jest.fn();
+      const win = window as unknown as {location?: unknown};
+      const previous = win.location;
+      win.location = {href: "https://example.test/app/interview?draftId=draft-1", replace};
+      try {
+        await act(async () => { button(tree, "staleUseMine").props.onPress(); });
+      } finally {
+        win.location = previous;
+      }
+      expect(mockUseOvertaken).toHaveBeenCalledTimes(1);
+      expect(replace).toHaveBeenCalledTimes(1);  // the form reopens on the answers just saved
+      await act(async () => tree.unmount());
+    });
   });
 });
 

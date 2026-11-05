@@ -3,6 +3,50 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-05
+
+- **Web controls draw state with vectors and theme tokens** (`digitva-mle7`):
+  ticks, crosses, chevrons and radio dots are drawn shapes from the shared
+  `src/ui/controls.tsx` (CheckMark, XMark, Checkbox, MenuChoiceRow,
+  RemovableChip), not text glyphs that render differently per font; scrims
+  and shadows use the `ui.scrim`/`ui.shadow` tokens, so dark mode follows.
+  The Area filter splits into a scope choice (all, my field areas, one unit)
+  and a unit list with breadcrumbs. Merged onto the Statistics filter panel
+  and applied-filter chips already on main.
+
+- **Staging's slow pages and failures fixed** (`digitva-20z5`;
+  `docs/policy/cod-bucket-reporting.md`,
+  `docs/current-state/cod-bucket-reporting.md`, `docs/policy/web-intake.md`,
+  `docs/policy/mobile-sign-in.md`, `docs/current-state/api-v1.md`), from the
+  4 Nov staging slow-request and error logs:
+  - Cause-group reports read a precomputed `map_submission_cod_bucket`
+    (migration `d3c8e5a1f7b4`): one row per death, active scheme and matching
+    age band, with every filter column stored and indexed, so a report is one
+    indexed aggregate at bucket level. Inactive schemes hold no rows; a rollup
+    table was rejected as unneeded. A worker diff-syncs it after each hourly
+    MV refresh and after an admin scheme, band, node, mapping or alias edit;
+    the edit itself clears the scheme's readiness stamp, so reads fall back to
+    live derivation until the rebuild lands. `flask cod-buckets rebuild`
+    fills it. CSV export streams; an unknown scheme is a 400.
+  - The aggregates and area summary run with JIT off: the planner's
+    over-estimate of the recursive ICD-11 chain made Postgres JIT-compile a
+    query that runs in milliseconds (42 s on staging).
+  - Gunicorn warms the translation bundles before forking
+    (`gunicorn_app.conf.py`, passed by `boot.sh` only, so the 192 MB public
+    DORIS container does not load it); a malformed UI-string bundle is a
+    clean error, not a 500.
+  - A stale browser draft save names who last changed the draft and offers
+    "Use my answers": an explicit overwrite that keeps the replaced version
+    as history. Merging was rejected: sections from two editors may
+    contradict each other.
+  - Device sign-in no longer counts sessions ended by a password or factor
+    reset against the three-device limit; refusals log `device_revoked` and
+    `device_limit` without PII.
+  - The public-demo purge and the synthetic demo reset delete the derived
+    cause-group rows with the demo cases.
+  Staging rollout (`digitva-3jcb`, owner's go): migrate, run
+  `flask cod-buckets rebuild`, restart the Celery worker.
+
 ## 2026-11-04
 
 - **iOS port of Collect and Collect Plus, code only** (`digitva-nujw`, branch

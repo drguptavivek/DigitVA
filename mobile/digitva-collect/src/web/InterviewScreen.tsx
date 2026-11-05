@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { isTrainingProject, TRAINING_INTERVIEW_HOME } from "../training";
-import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
+import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, startDraft, submitDraft, type DraftLastChange, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
@@ -24,9 +24,11 @@ import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type Cons
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
 import { radius, useTheme } from "../theme";
+import { MenuChoiceRow } from "../ui/controls";
 import { useWhoFormTheme } from "../whoWebTheme";
 import { applyTranslations } from "../translations";
 import { Button, errorReference, useUiStyles } from "../ui";
+import { formatDisplayTimestamp } from "../ui/CaseCard";
 import { AppHeaderBar } from "./AppHeader";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -83,12 +85,13 @@ function initialDataFromLoadedRuntime(core: WhoCoreRuntime, prefill: Prefill | u
  * shows beside it while it is pinned at the top.
  */
 export const INTERVIEW_FORM_CSS = `
+  /* The attribute selectors match the colours the WHO package hard-codes; the replacements are theme variables. */
   #digitva-who-form-theme [stroke="#004687"] {
     stroke: var(--who-2022-web-color-brand-deep) !important;
   }
   #digitva-who-form-theme [stroke="#ffffff"],
   #digitva-who-form-theme [stroke="#fff"] {
-    stroke: var(--who-2022-web-color-on-accent, #ffffff) !important;
+    stroke: var(--who-2022-web-color-on-accent) !important;
   }
   @media (max-width: 767px) {
     #digitva-who-form-theme div:has(> div > [data-testid="form-footer"]) {
@@ -187,6 +190,17 @@ const SUMMARY_ANSWER_KEYS = [
   "dob_month_year",
   "dob_year",
 ] as const;
+
+/** Who changed the draft, where and when, from a `last_change` (display name only, never an email or number). */
+export function draftChangeText(change: DraftLastChange): string {
+  const time = formatDisplayTimestamp(change.at);
+  if (change.refusal) return t("staleRefusal", { time });
+  if (change.by_you === true && change.via === "phone") return t("staleByYouPhone", { time });
+  if (change.by_you === true && change.via === "browser") return t("staleByYouBrowser", { time });
+  if (change.by_you === false && change.name && change.via === "phone") return t("staleByOtherPhone", { name: change.name, time });
+  if (change.by_you === false && change.name && change.via === "browser") return t("staleByOtherBrowser", { name: change.name, time });
+  return t("staleElsewhere", { time });
+}
 
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
 export function interviewErrorText(error: unknown, instrument?: InstrumentDefinition, language = "en"): string {
@@ -303,6 +317,10 @@ export default function InterviewScreen() {
   const [busy, setBusy] = useState(false);
   // The cookie session died mid-interview: autosave is paused until the user signs in again (digitva-fvbc).
   const [signedOut, setSignedOut] = useState(false);
+  // The server refused a save: autosave is paused until the user presses Try saving again.
+  const [saveHeld, setSaveHeld] = useState(false);
+  // This tab's kept answers were overtaken by a newer server version: the interviewer picks one before editing.
+  const [overtaken, setOvertaken] = useState<DraftLastChange>();
   const [translationFallback, setTranslationFallback] = useState(false);
   // The draft's own form could not be recovered and it now uses the current one.
   const [formAdopted, setFormAdopted] = useState(false);
@@ -603,10 +621,16 @@ export default function InterviewScreen() {
             if (!isCurrent()) return;
             saveFailedRef.current = true;
             setSignedOut(true);
+          },
+          onSaveHeld: () => {
+            if (!isCurrent()) return;
+            saveFailedRef.current = true;
+            setSaveHeld(true);
           }
         });
     if (nextStore instanceof ServerDraftStore) await nextStore.load(nextDraftId);
     if (!isCurrent()) return;
+    setOvertaken(nextStore instanceof ServerDraftStore ? nextStore.overtakenAnswers() : undefined);
     setFormOptions(options);
     setWelcomePending(shouldShowWelcome);
     setLiveAnswers({
@@ -653,6 +677,8 @@ export default function InterviewScreen() {
     dirtyRef.current = false;
     changedDataRef.current = undefined;
     saveFailedRef.current = false;
+    setSaveHeld(false);
+    setOvertaken(undefined);
     setRevisionReason(undefined);
     setNeedsNewSnapshot(false);
     setConsentGate(undefined);
@@ -987,6 +1013,8 @@ export default function InterviewScreen() {
   // or after it failed.
   useNavigationGuard(() => dirtyRef.current, saveForLeave, () => saveFailedRef.current);
 
+  const staleHeld = saveHeld && store instanceof ServerDraftStore ? store.heldStaleChange()?.change : undefined;
+  const staleChange = overtaken ?? staleHeld;
   const localeLabel = useMemo(() => locales?.find((entry) => entry.code === locale)?.label ?? locale, [locale, locales]);
   const availableLocales = locales ?? [];
   const showCaseStrip = Boolean(draft);
@@ -1105,9 +1133,65 @@ export default function InterviewScreen() {
   }, [store, updateLiveAnswers]);
   const handleDraftError = useCallback((error: unknown) => {
     saveFailedRef.current = true;
-    if (store instanceof ServerDraftStore && store.isSignedOut()) return;
+    // Signed out or held: the store's own prompt and its first error stay on screen.
+    if (store instanceof ServerDraftStore && (store.isSignedOut() || store.isSaveHeld())) return;
     setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
   }, [revision, store]);
+
+  const reloadDraft = useCallback(() => {
+    dirtyRef.current = false;
+    saveFailedRef.current = false;
+    if (typeof window !== "undefined" && draftId) window.location.replace(draftReloadUrl(window.location.href, draftId));
+  }, [draftId]);
+
+  /** The stale-save choice, while a save is held or at load: keep the server's newer version or use this tab's. */
+  const chooseStaleVersion = useCallback(async (useMine: boolean) => {
+    if (!(store instanceof ServerDraftStore)) return;
+    if (!useMine) {
+      if (overtaken) {
+        store.discardOvertakenAnswers();
+        setOvertaken(undefined);
+        return;
+      }
+      store.keepNewerVersion();
+      setSaveHeld(false);
+      reloadDraft();
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      if (overtaken) {
+        // The form opened on the server's version: reload it to show the answers just saved.
+        await store.useOvertakenAnswers();
+        reloadDraft();
+      } else {
+        setSaveHeld(false);
+        await store.useMyAnswers();
+        saveFailedRef.current = false;
+      }
+    } catch (error) {
+      // Refused again (a still newer change): onSaveHeld shows the new details.
+      if (overtaken) setMessage(interviewErrorText(error));
+    } finally {
+      setBusy(false);
+    }
+  }, [overtaken, reloadDraft, store]);
+
+  const retryHeldSave = useCallback(async () => {
+    if (!(store instanceof ServerDraftStore)) return;
+    setBusy(true);
+    setSaveHeld(false);
+    setMessage("");
+    try {
+      await store.retrySave();
+      saveFailedRef.current = false;
+    } catch {
+      // Refused again: onSaveHeld and onError show it; anything else is the store's onError.
+    } finally {
+      setBusy(false);
+    }
+  }, [store]);
 
   const resumeAfterSignIn = useCallback(async () => {
     if (!(store instanceof ServerDraftStore)) return;
@@ -1216,6 +1300,7 @@ export default function InterviewScreen() {
           {revision ? (
             <View>
               <Text style={styles.headline}>{t("revisionReason")}</Text>
+              <View accessibilityRole="radiogroup" accessibilityLabel={t("revisionReason")}>
               {([
                 ["interviewer_correction", "revisionReasonInterviewerCorrection", "revisionReasonMessageInterviewerCorrection"],
                 ["respondent_correction", "revisionReasonRespondentCorrection", "revisionReasonMessageRespondentCorrection"],
@@ -1224,10 +1309,10 @@ export default function InterviewScreen() {
                   ? [["finish_partial", "revisionReasonFinishPartial", "revisionReasonMessageFinishPartial"]]
                   : [])
               ] as Array<[RevisionReasonCode, StringKey, StringKey]>).map(([code, labelKey]) => (
-                <Button
+                <MenuChoiceRow
                   key={code}
-                  kind="secondary"
-                  label={`${t(labelKey)}${revisionReason === code ? " ✓" : ""}`}
+                  label={t(labelKey)}
+                  selected={revisionReason === code}
                   onPress={() => {
                     if (!pendingRevisionRef.current && !busy) {
                       setRevisionReason(code);
@@ -1236,6 +1321,7 @@ export default function InterviewScreen() {
                   }}
                 />
               ))}
+              </View>
               {revisionReason ? (
                 <Text style={styles.muted}>
                   {t(({
@@ -1268,6 +1354,22 @@ export default function InterviewScreen() {
                 onPress={() => { if (loadedBootstrap?.links.login && typeof window !== "undefined") window.open(loadedBootstrap.links.login, "_blank"); }}
               />
               <Button kind="secondary" loading={busy} label={t("sessionEndedResume")} onPress={() => void resumeAfterSignIn()} />
+            </View>
+          ) : null}
+          {saveHeld && !signedOut && !staleHeld ? (
+            <View testID="save-held-prompt" accessibilityRole="alert" style={{ gap: 8 }}>
+              <Text style={styles.error}>{t("saveHeldKept")}</Text>
+              <Button kind="secondary" loading={busy} label={t("saveHeldRetry")} onPress={() => void retryHeldSave()} />
+            </View>
+          ) : null}
+          {staleChange && !signedOut ? (
+            <View testID="stale-choice-prompt" accessibilityRole="alert" style={{ gap: 8 }}>
+              <Text style={styles.error}>{draftChangeText(staleChange)}</Text>
+              <Text style={styles.error}>{t(staleChange.refusal ? "staleRefusalKeep" : overtaken ? "staleChoiceKept" : "staleChoiceHeld")}</Text>
+              <Button kind="secondary" loading={busy} label={t("staleKeepNewer")} onPress={() => void chooseStaleVersion(false)} />
+              {staleChange.refusal ? null : (
+                <Button kind="secondary" loading={busy} label={t("staleUseMine")} onPress={() => void chooseStaleVersion(true)} />
+              )}
             </View>
           ) : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
@@ -1336,7 +1438,7 @@ export default function InterviewScreen() {
               </View>
             </View>
           ) : null}
-          {consentPending || changingConsent || consentRefused || whoRefused || welcomePending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
+          {consentPending || changingConsent || consentRefused || whoRefused || welcomePending || overtaken ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaFormComponent
               theme={whoTheme}
               key={`${draftId}:${locale}`}
@@ -1347,7 +1449,7 @@ export default function InterviewScreen() {
               draftId={draftId}
               draftStore={store}
               autoSaveDraftOnChange
-              autoSaveDraftIntervalMs={signedOut ? false : undefined}
+              autoSaveDraftIntervalMs={signedOut || saveHeld ? false : undefined}
               onDraftController={setController}
               onChange={handleFormChange}
               onDraftSaved={handleDraftSaved}
@@ -1438,27 +1540,12 @@ function QuestionnaireLanguageMenu({
         <View
           accessibilityRole="radiogroup"
           accessibilityLabel={t("formLanguage")}
-          style={[languageStyles.popover, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+          style={[languageStyles.popover, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, boxShadow: theme.ui.shadow } as object]}
         >
           {locales.map((entry) => {
             const selected = entry.code === locale;
             return (
-              <Pressable
-                key={entry.code}
-                accessibilityRole="radio"
-                accessibilityLabel={entry.label}
-                accessibilityState={{ checked: selected, disabled: busy }}
-                aria-checked={selected}
-                disabled={busy}
-                onPress={() => void selectLocale(entry.code)}
-                style={({ pressed }) => [
-                  languageStyles.option,
-                  { backgroundColor: selected ? theme.colors.accentSoft : "transparent", opacity: pressed ? 0.78 : 1 }
-                ]}
-              >
-                <Text style={[languageStyles.optionLabel, { color: theme.colors.text }]}>{entry.label}</Text>
-                <Text style={[languageStyles.check, { color: theme.colors.accent }]}>{selected ? "✓" : ""}</Text>
-              </Pressable>
+              <MenuChoiceRow key={entry.code} label={entry.label} selected={selected} disabled={busy} onPress={() => void selectLocale(entry.code)} />
             );
           })}
         </View>
@@ -1516,10 +1603,7 @@ const languageStyles = StyleSheet.create({
   anchor: { position: "relative", zIndex: 20 },
   trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   triggerText: { fontSize: 16, fontWeight: "700" },
-  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
-  option: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
-  optionLabel: { fontSize: 16, lineHeight: 22, flexShrink: 1 },
-  check: { width: 20, fontSize: 18, fontWeight: "700", textAlign: "center" }
+  popover: { position: "absolute", right: 0, top: "100%", marginTop: 8, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, elevation: 4 },
 });
 
 const welcomeStyles = StyleSheet.create({

@@ -4,7 +4,9 @@ import { AppState as NativeAppState, Pressable, Text, View } from "react-native"
 import { ApiError } from "../../api";
 import { ConfirmDialog } from "../../ConfirmDialog";
 import { t as tr } from "../../i18n";
+import Svg, { Path } from "react-native-svg";
 import { errorText } from "../../ui";
+import { BulletItem, XMark } from "../../ui/controls";
 import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
 import { parseDorisProcess, parseUcodParts } from "../contracts";
@@ -917,7 +919,7 @@ function DorisChecks({ doris, codedit, api, vaSid }: { doris: unknown; codedit: 
         <Body style={{ fontWeight: "600" }}>Check before you decide</Body>
         {checks.map((check, index) => (
           <View key={`check-${index}`} style={{ gap: 2 }}>
-            <Muted>• {check.text}</Muted>
+            <BulletItem muted textStyle={{ fontSize: font.body, lineHeight: 20 }}>{check.text}</BulletItem>
             {check.original ? <Muted style={{ fontSize: 12 }}>DORIS: {check.original}</Muted> : null}
           </View>
         ))}
@@ -950,7 +952,7 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
           <View style={[layout.row, { flexWrap: "nowrap" }]}>
             <Body style={{ flexShrink: 1, fontWeight: "600" }}>{`Your choice: ${value.code} — ${value.title}`}</Body>
             <InfoButton code={value.code} onPress={onDetails} />
-            <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
+            <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><XMark color={t.destructiveText} size={18} /></Button>
           </View>
           <AssociatedVaCodes api={api} code={value.code} showDefinition attribution />
         </View>
@@ -995,9 +997,18 @@ function ConditionChip({ code, title, shade, onRemove }: { code: string; title: 
     <View testID="condition-chip" style={{ flexDirection: "row", alignItems: "flex-start", gap: gap.sm, borderWidth: 1, borderColor: shade.bar, backgroundColor: shade.soft, borderRadius: uiRadius.md, paddingLeft: gap.md, paddingRight: gap.sm, paddingVertical: gap.sm }}>
       <Text style={{ flex: 1, minWidth: 0, fontSize: font.body, lineHeight: 24, color: shade.foreground }}>{`${code ? `${code} — ` : ""}${title}`}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${code || title}`} hitSlop={10} onPress={onRemove} style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Text style={{ fontSize: 20, lineHeight: 24, color: shade.foreground }}>×</Text>
+        <XMark color={shade.foreground} size={16} />
       </Pressable>
     </View>
+  );
+}
+
+/** Tabler arrow-up / arrow-down for the line-move buttons. */
+function ArrowMark({ up, color }: { up: boolean; color: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
+      <Path d={up ? "M12 5l0 14M18 11l-6 -6M6 11l6 -6" : "M12 5l0 14M18 13l-6 6M6 13l6 6"} stroke={color} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
   );
 }
 
@@ -1027,10 +1038,10 @@ function CertificateLine({ index, line, part2 = false, age, warning, searching, 
     if (value) next.Interval = value; else delete next.Interval;
     return next;
   }) });
-  const iconButton = (glyph: string, label: string, onPress: () => void, disabled: boolean, danger = false) => (
+  const iconButton = (glyph: "x" | "up" | "down", label: string, onPress: () => void, disabled: boolean, danger = false) => (
     // 36px drawn, 44px to touch (the Button's 4px hit-slop): three of them leave room for the line title.
     <Button size="icon" variant="outline" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={[{ minWidth: 36, minHeight: 36 }, danger ? { borderColor: t.destructiveText } : null]}>
-      <ButtonGlyph destructive={danger}>{glyph}</ButtonGlyph>
+      {glyph === "x" ? <XMark color={danger ? t.destructiveText : t.foreground} size={18} /> : <ArrowMark up={glyph === "up"} color={t.foreground} />}
     </Button>
   );
 
@@ -1041,11 +1052,11 @@ function CertificateLine({ index, line, part2 = false, age, warning, searching, 
           {part2 ? null : <View style={{ minWidth: 22, height: 22, borderRadius: radius.full, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, backgroundColor: shade.bar }}><Text accessibilityLabel={`Line ${lineLetter(index)}`} style={{ fontSize: 12, fontWeight: "700", color: t.background }}>{lineLetter(index)}</Text></View>}
           <CardTitle style={{ color: shade.foreground }}>{lineTitle(index, part2)}</CardTitle>
         </View>
-        {part2 ? (conditions.length ? iconButton("✕", "Remove Part II", onRemove, false, true) : null) : (
+        {part2 ? (conditions.length ? iconButton("x", "Remove Part II", onRemove, false, true) : null) : (
           <View style={layout.iconRow}>
-            {onMove ? iconButton("↑", `Move Part I line ${index + 1} up`, () => onMove(-1), index === 0) : null}
-            {onMove ? iconButton("↓", `Move Part I line ${index + 1} down`, () => onMove(1), Boolean(isLast)) : null}
-            {iconButton("✕", `Remove Part I line ${index + 1}`, onRemove, index === 0, true)}
+            {onMove ? iconButton("up", `Move Part I line ${index + 1} up`, () => onMove(-1), index === 0) : null}
+            {onMove ? iconButton("down", `Move Part I line ${index + 1} down`, () => onMove(1), Boolean(isLast)) : null}
+            {iconButton("x", `Remove Part I line ${index + 1}`, onRemove, index === 0, true)}
           </View>
         )}
       </View>

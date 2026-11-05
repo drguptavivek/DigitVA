@@ -35,6 +35,12 @@ class MasCodBucketScheme(db.Model):
     # WHO 11-to-10 into the ICD-10 rows), 'native' (the scheme's own ICD-11
     # rows) or NULL (ICD-10 only). Policy: docs/policy/icd11-cod-bucket-schemes.md.
     icd11_method: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
+    # When map_submission_cod_bucket last finished a full build for this
+    # scheme. NULL: not built, the reports derive its buckets live
+    # (docs/policy/cod-bucket-reporting.md, "Precomputed reporting rows").
+    reporting_rows_built_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )

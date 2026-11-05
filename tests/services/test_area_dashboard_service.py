@@ -567,6 +567,20 @@ class AreaSummaryTests(AreaDashboardFixture):
         with self.assertRaises(area.AreaNotFound):
             area.area_summary(self.sites_mode_site_user, self.SITES, site_id=self.SITE_TWO)
 
+    def test_summary_runs_with_jit_off_and_restores_it(self):
+        """JIT cost ~390 ms of the COD cause query on dev for no rows."""
+        seen = []
+
+        def spy(*args):
+            seen.append(db.session.scalar(sa.text("SELECT current_setting('jit')")))
+            return {}
+
+        before = db.session.scalar(sa.text("SELECT current_setting('jit')"))
+        with mock.patch.object(area, "cache", SimpleCache()), mock.patch.object(area, "_area_summary", spy):
+            area.area_summary(self.project_user, self.TREE)
+        self.assertEqual(seen, ["off"])
+        self.assertEqual(db.session.scalar(sa.text("SELECT current_setting('jit')")), before)
+
 
 class AreaSummaryCacheTests(AreaDashboardFixture):
     """The summary is cached for a minute per user and arguments."""

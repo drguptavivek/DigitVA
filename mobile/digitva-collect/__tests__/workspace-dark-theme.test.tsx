@@ -55,6 +55,7 @@ test.each(["light", "dark"] as const)("browser workspace follows the %s theme", 
   expect(panel).toContain(`"backgroundColor":"${w.yesPanel}"`);
   expect(panel).not.toContain(`"backgroundColor":"${other.yesPanel}"`);
   // The legacy static `styles` export is light; a themed screen must use the active palette surface.
-  expect(history).toContain(`"color":"${palette[mode].danger}"`);
-  expect(history).not.toContain(`"color":"${palette[mode === "dark" ? "light" : "dark"].danger}"`);
+  // The error state draws its alert icon in the danger colour.
+  expect(history).toContain(`"stroke":"${palette[mode].danger}"`);
+  expect(history).not.toContain(`"stroke":"${palette[mode === "dark" ? "light" : "dark"].danger}"`);
 });

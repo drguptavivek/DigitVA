@@ -600,10 +600,37 @@ export interface DraftEnvelope extends WhoVaDraft {
   translation_version?: number;
 }
 
+/**
+ * Who last changed a draft (`last_change` of `GET /intake/drafts/<id>` and of a 409 `draft_stale`): `via` and
+ * `by_you`/`name` are null when the server did not record that version; `name` is a display name only.
+ */
+export interface DraftLastChange {
+  at: string;
+  via: "phone" | "browser" | null;
+  by_you: boolean | null;
+  name: string | null;
+  refusal: boolean;
+}
+
+/** The optional `last_change` of a reply or refusal payload, when it has the expected shape. */
+export function readLastChange(value: unknown): DraftLastChange | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const change = value as Record<string, unknown>;
+  if (typeof change.at !== "string" || Number.isNaN(Date.parse(change.at))) return undefined;
+  return {
+    at: change.at,
+    via: change.via === "phone" || change.via === "browser" ? change.via : null,
+    by_you: typeof change.by_you === "boolean" ? change.by_you : null,
+    name: typeof change.name === "string" && change.name.trim() ? change.name.trim().slice(0, 128) : null,
+    refusal: change.refusal === true,
+  };
+}
+
 export interface DraftResponse {
   draft: DraftSummary;
   envelope: DraftEnvelope;
   prefill: Record<string, unknown>;
+  last_change?: DraftLastChange;
 }
 
 export interface RegistrationInput {

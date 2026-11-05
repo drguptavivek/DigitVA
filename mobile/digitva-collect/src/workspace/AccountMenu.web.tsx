@@ -3,6 +3,7 @@ import { useWindowDimensions } from "react-native";
 
 import type { ThemePreference } from "../preferences";
 import { useTheme } from "../theme";
+import { CHECK_PATH } from "../ui/controls";
 import { useWebPalette } from "./webPalette";
 
 export type AccountMenuProps = {
@@ -121,7 +122,7 @@ export function AccountMenu({ name, onSignOut, onProfileClick }: AccountMenuProp
     style: {
       position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 40, width: 260, maxWidth: "92vw", padding: 6, boxSizing: "border-box",
       background: tokens.popover, color: tokens.popoverForeground, border: `1px solid ${tokens.border}`, borderRadius: 8,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+      boxShadow: tokens.shadow,
     },
   },
   h("div", { style: { padding: "8px 12px", fontFamily: ROBOTO, fontSize: 14, fontWeight: 700, overflowWrap: "anywhere" } }, name),
@@ -137,7 +138,7 @@ export function AccountMenu({ name, onSignOut, onProfileClick }: AccountMenuProp
       key: option.value, type: "button", role: "menuitemradio", "aria-checked": theme.preference === option.value,
       style: { ...itemStyle, background: theme.preference === option.value ? tokens.accent : "transparent", fontWeight: theme.preference === option.value ? 700 : 400 },
       onClick: () => { void theme.setPreference(option.value); close(); },
-    }, option.label, theme.preference === option.value ? h("span", { "aria-hidden": true, style: { marginLeft: "auto" } }, "✓") : null)),
+    }, option.label, theme.preference === option.value ? h("svg", { "aria-hidden": true, width: 16, height: 16, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 3, strokeLinecap: "round", strokeLinejoin: "round", style: { marginLeft: "auto" } }, h("path", { d: CHECK_PATH })) : null)),
     h("div", { style: rule, role: "separator" }),
     h("a", { role: "menuitem", href: "/help", target: "_blank", rel: "noopener", style: itemStyle }, "Help"),
     onSignOut ? h("button", { type: "button", role: "menuitem", disabled: busy, onClick: () => void signOut(), style: { ...itemStyle, color: tokens.destructiveText } }, busy ? "Signing out…" : "Sign out") : null,

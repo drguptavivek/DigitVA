@@ -1,6 +1,6 @@
 import type { SubmissionData, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 
-import { ClientApiError, isSignedOutError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
+import { ClientApiError, isSignedOutError, readLastChange, requestClientJson, type ClientCsrf, type DraftLastChange, type DraftResponse } from "./api";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "../formDefinitionRuntime";
 import { refusalAnswers } from "../refusalBoundary";
 import {
@@ -28,6 +28,15 @@ function serialise(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
+/**
+ * A save the server refused (4xx other than a dead session, a timeout or a rate limit): sending the same
+ * answers again is refused the same way, so autosave stops instead of resending them every few seconds.
+ */
+function isRefusedSave(error: unknown): boolean {
+  return error instanceof ClientApiError && error.status >= 400 && error.status < 500 &&
+    error.status !== 408 && error.status !== 429;
+}
+
 export interface ServerDraftStoreOptions {
   endpoint: string;
   csrf: ClientCsrf;
@@ -41,6 +50,8 @@ export interface ServerDraftStoreOptions {
   onError?: (error: unknown) => void;
   /** The cookie session is dead: autosave is paused and the pending answers are kept on this device. */
   onSignedOut?: () => void;
+  /** The server refused a save: autosave is paused, the pending answers are kept on this device, `retrySave` resends. */
+  onSaveHeld?: (error: unknown) => void;
   onSaveAcknowledged?: (info: { savedSections: number; updatedAt?: string }) => void;
 }
 
@@ -61,6 +72,14 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private readonly onError?: (error: unknown) => void;
   private readonly onSignedOut?: () => void;
   private signedOut = false;
+  private readonly onSaveHeld?: (error: unknown) => void;
+  // The refusal that paused autosave, until the user asks to try again.
+  private held: unknown = undefined;
+  // "Keep the newer version": this tab's answers are given up; nothing is saved or kept from here on.
+  private abandoned = false;
+  // Answers this tab kept (a held save) that a later change on the server overtook; offered at load.
+  private staleKept: { data: Record<string, unknown>; change: DraftLastChange } | undefined;
+  private loadedEnvelope: WhoVaDraft | undefined;
   private readonly onSaveAcknowledged?: (info: { savedSections: number; updatedAt?: string }) => void;
   private locale?: string;
   private translationVersion?: number;
@@ -110,6 +129,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.translationVersion = options.translationVersion;
     this.onError = options.onError;
     this.onSignedOut = options.onSignedOut;
+    this.onSaveHeld = options.onSaveHeld;
     this.onSaveAcknowledged = options.onSaveAcknowledged;
   }
 
@@ -177,7 +197,16 @@ export class ServerDraftStore implements WhoVaDraftStore {
     // Apply those defaults underneath the saved answers so a partial draft is
     // completed without ever replacing an answer already stored on the server.
     // Answers kept on this tab after a dead session come back over the server's (digitva-fvbc).
-    const kept = readKeptDraft(id, response.draft.updated_at);
+    const stored = readKeptDraft(id);
+    const kept = stored?.baseUpdatedAt === response.draft.updated_at ? stored.data : undefined;
+    this.staleKept = undefined;
+    if (stored && !kept) {
+      // Overtaken by a newer server version: offered as a choice, never merged. A refusal (or a server that
+      // does not say who changed it) drops it, so refused answers are never restored.
+      const change = readLastChange(response.last_change);
+      if (change && !change.refusal) this.staleKept = { data: stored.data, change };
+      else forgetKeptDraft(id);
+    }
     const prefillApplies = Boolean(this.initialData) && (!this.initialDataVersion || this.initialDataVersion === response.draft.updated_at);
     const mergedData = {
       ...(prefillApplies ? (this.initialData as Record<string, unknown>) : {}),
@@ -208,6 +237,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.serverUpdatedAt = response.draft.updated_at;
     this.loaded = true;
     const pinnedEnvelope = withDefinitionPin(envelope, this.definitionPin);
+    this.loadedEnvelope = { ...pinnedEnvelope, data: savedData as SubmissionData, currentSection: serverCurrentSection };
     if (this.definitionPin && !savedPin) {
       await this.writeDraft(
         { ...pinnedEnvelope, data: savedData as SubmissionData, currentSection: serverCurrentSection },
@@ -223,6 +253,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
 
   save(draft: WhoVaDraft): Promise<void> {
     if (!this.loaded) return Promise.reject(new Error("Draft must load before it can be saved."));
+    if (this.abandoned) return Promise.resolve();
     if (this.refusalMode) draft = { ...draft, data: refusalAnswers(draft.data) as SubmissionData };
     this.latestDraft = draft;
     this.noteWorkflowMilestones(draft);
@@ -230,6 +261,10 @@ export class ServerDraftStore implements WhoVaDraftStore {
     if (this.signedOut) {
       keepDraft(draft, this.serverUpdatedAt);
       return Promise.reject(new ClientApiError(401, "unauthorized"));
+    }
+    if (this.held !== undefined) {
+      keepDraft(draft, this.serverUpdatedAt);
+      return Promise.reject(this.held);
     }
     const settled = new Promise<void>((resolve, reject) => this.waiters.push({ resolve, reject }));
     if (this.timer) clearTimeout(this.timer);
@@ -254,13 +289,22 @@ export class ServerDraftStore implements WhoVaDraftStore {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
-    if (!this.pending) return this.writing;
+    if (!this.pending || this.abandoned) return this.writing;
     if (this.signedOut) throw new ClientApiError(401, "unauthorized");
+    if (this.held !== undefined) throw this.held;
     const draft = this.pending;
     this.pending = undefined;
     const waiters = this.waiters;
     this.waiters = [];
-    const write = this.writing.catch(() => undefined).then(() => this.writeDraft(draft));
+    return this.send(draft, waiters);
+  }
+
+  private send(
+    draft: WhoVaDraft,
+    waiters: Array<{ resolve: () => void; reject: (error: unknown) => void }>,
+    options?: { overwrite?: string },
+  ): Promise<void> {
+    const write = this.writing.catch(() => undefined).then(() => this.writeDraft(draft, options));
     this.writing = write;
     write.then(
       () => waiters.forEach(({ resolve }) => resolve()),
@@ -271,6 +315,13 @@ export class ServerDraftStore implements WhoVaDraftStore {
           this.signedOut = true;
           keepDraft(this.pending, this.serverUpdatedAt);
           this.onSignedOut?.();
+        } else if (isRefusedSave(error)) {
+          // The form saves on every change and every 20 s: without this hold one refused save
+          // became a request every 20 s for as long as the tab stayed open.
+          this.held = error;
+          keepDraft(this.pending, this.serverUpdatedAt);
+          this.onError?.(error);
+          this.onSaveHeld?.(error);
         } else {
           this.onError?.(error);
         }
@@ -282,6 +333,71 @@ export class ServerDraftStore implements WhoVaDraftStore {
 
   isSignedOut(): boolean {
     return this.signedOut;
+  }
+
+  isSaveHeld(): boolean {
+    return this.held !== undefined;
+  }
+
+  /** The user's "Try saving again" after a refused save: send the held answers once more (held again if refused). */
+  async retrySave(): Promise<void> {
+    this.held = undefined;
+    await this.flush();
+  }
+
+  /** The newer server version a held `draft_stale` refusal reported (who changed it, when), else undefined. */
+  heldStaleChange(): { updatedAt: string; change: DraftLastChange } | undefined {
+    const error = this.held;
+    if (!(error instanceof ClientApiError) || error.code !== "draft_stale") return undefined;
+    const change = readLastChange(error.payload?.last_change);
+    const updatedAt = error.payload?.updated_at;
+    return change && typeof updatedAt === "string" ? { updatedAt, change } : undefined;
+  }
+
+  /**
+   * "Use my answers" on a held `draft_stale`: replace the server's draft, whole, with this page's answers, based
+   * on the version the refusal showed the user (a still newer one is refused again and held with its details).
+   */
+  async useMyAnswers(): Promise<void> {
+    const stale = this.heldStaleChange();
+    const draft = this.pending ?? this.latestDraft;
+    if (!stale || stale.change.refusal || !draft) throw new Error("No stale save to replace the draft with.");
+    this.held = undefined;
+    this.pending = undefined;
+    await this.send(draft, [], { overwrite: stale.updatedAt });
+  }
+
+  /** "Keep the newer version": give up this page's unsaved answers; the caller reloads the draft. */
+  keepNewerVersion(): void {
+    this.abandoned = true;
+    this.held = undefined;
+    this.pending = undefined;
+    this.writing = Promise.resolve();
+    this.waiters.forEach(({ resolve }) => resolve());
+    this.waiters = [];
+    const id = this.draftId ?? this.latestDraft?.id;
+    if (id) forgetKeptDraft(id);
+  }
+
+  /** Answers this tab kept before a newer server change overtook them (found at load), and who made that change. */
+  overtakenAnswers(): DraftLastChange | undefined {
+    return this.staleKept?.change;
+  }
+
+  /** "Use my answers" at load: replace the server's draft with the kept answers; the caller reloads to show them. */
+  async useOvertakenAnswers(): Promise<void> {
+    const stale = this.staleKept;
+    if (!stale || !this.draftId || !this.serverUpdatedAt) throw new Error("No kept answers to use.");
+    if (!this.loadedEnvelope) throw new Error("No kept answers to use.");
+    await this.send({ ...this.loadedEnvelope, data: stale.data as SubmissionData }, [], { overwrite: this.serverUpdatedAt });
+    this.staleKept = undefined;
+    forgetKeptDraft(this.draftId);
+  }
+
+  /** "Keep the newer version" at load: drop the kept answers. */
+  discardOvertakenAnswers(): void {
+    this.staleKept = undefined;
+    if (this.draftId) forgetKeptDraft(this.draftId);
   }
 
   /** After the user signed in again: take a fresh token, then send what was held back. Throws while still signed out. */
@@ -299,8 +415,14 @@ export class ServerDraftStore implements WhoVaDraftStore {
     });
   }
 
-  private async writeDraft(draft: WhoVaDraft, options?: { isPinOnly?: boolean }): Promise<void> {
+  /** *overwrite*: the server `updated_at` a "Use my answers" replaces; every section is sent and the rest emptied. */
+  private async writeDraft(draft: WhoVaDraft, options?: { isPinOnly?: boolean; overwrite?: string }): Promise<void> {
     const sections = splitBySection({ ...this.retained, ...(draft.data as Record<string, unknown>) }, this.sectionOf);
+    const overwrite = options?.overwrite;
+    if (overwrite) {
+      for (const name of Object.keys(this.baseline)) this.baseline[name] = "";
+      this.retainedUnwritten = true;
+    }
     const changed: SectionMap = {};
     // Empty sections must replace their saved answers too.
     for (const name of new Set([...Object.keys(sections), ...Object.keys(this.baseline)])) {
@@ -314,7 +436,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
       this.translationVersion !== this.baselineTranslationVersion ||
       !sameOptionalDefinitionPin(this.definitionPin, this.baselineDefinitionPin) ||
       serialise(this.workflowTimeline) !== serialise(this.baselineWorkflowTimeline);
-    if (Object.keys(changed).length === 0 && draft.currentSection === this.lastSection && !metadataChanged) return;
+    if (!overwrite && Object.keys(changed).length === 0 && draft.currentSection === this.lastSection && !metadataChanged) return;
     const acknowledgement = await requestClientJson<{
       saved_sections: number;
       draft: { draft_id: string; updated_at: string };
@@ -324,7 +446,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
       json: {
         sections: changed,
         ...(draft.currentSection ? { current_section: draft.currentSection } : {}),
-        if_updated_at: this.serverUpdatedAt,
+        if_updated_at: overwrite ?? this.serverUpdatedAt,
+        ...(overwrite ? { overwrite: true } : {}),
         meta: {
           schemaVersion: draft.schemaVersion,
           formVersion: draft.formVersion,
@@ -408,17 +531,19 @@ function keepDraft(draft: WhoVaDraft | undefined, baseUpdatedAt: string | undefi
   }
 }
 
-function readKeptDraft(id: string, serverUpdatedAt: string): Record<string, unknown> | undefined {
+/** This tab's kept answers for *id* and the server version they were based on; a malformed entry is dropped. */
+function readKeptDraft(id: string): { data: Record<string, unknown>; baseUpdatedAt: string } | undefined {
   try {
     const raw = keptStorage()?.getItem(KEPT_PREFIX + id);
     const value: unknown = raw ? JSON.parse(raw) : undefined;
-    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    if (!value) return undefined;
     const kept = value as { data?: unknown; baseUpdatedAt?: unknown };
-    if (kept.baseUpdatedAt !== serverUpdatedAt || !kept.data || typeof kept.data !== "object" || Array.isArray(kept.data)) {
+    if (typeof value !== "object" || Array.isArray(value) || typeof kept.baseUpdatedAt !== "string" ||
+        !kept.data || typeof kept.data !== "object" || Array.isArray(kept.data)) {
       forgetKeptDraft(id);
       return undefined;
     }
-    return kept.data as Record<string, unknown>;
+    return { data: kept.data as Record<string, unknown>, baseUpdatedAt: kept.baseUpdatedAt };
   } catch {
     return undefined;
   }

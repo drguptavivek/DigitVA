@@ -1,3 +1,5 @@
+import time
+
 import click
 
 from app import db
@@ -28,6 +30,7 @@ from app.services.cod_bucket_mapping_service import (
     list_cod_bucket_schemes,
     snapshot_cod_bucket_scheme,
 )
+from app.services.cod_bucket_materialization import all_scheme_ids, rebuild_scheme
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 
 
@@ -164,19 +167,19 @@ def list_schemes():
 @click.option("--site-id")
 @click.option("--form-id")
 def aggregate(scheme_code, project_id, site_id, form_id):
+    """Bucket-level counts within the given scope; narrow it with the
+    project, site and form options rather than listing every scope."""
     rows = aggregate_coded_submissions_by_bucket(
         scheme_code=scheme_code,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
+        collapse_scope=True,
     )
     for row in rows:
         click.echo(
             "\t".join(
                 [
-                    row.get("project_id") or "",
-                    row.get("site_id") or "",
-                    row.get("form_id") or "",
                     row.get("age_scope") or "",
                     row.get("bucket_category") or "",
                     row.get("bucket_subcategory") or "",
@@ -184,6 +187,30 @@ def aggregate(scheme_code, project_id, site_id, form_id):
                     str(row.get("coded_count") or 0),
                 ]
             )
+        )
+
+
+@cod_buckets_group.command("rebuild")
+@click.option("--scheme-code", help="One scheme; default every scheme.")
+def rebuild(scheme_code):
+    """Diff-sync map_submission_cod_bucket (active schemes built, inactive
+    cleared). Prints counts only."""
+    if scheme_code:
+        scheme = get_cod_bucket_scheme(scheme_code)
+        if scheme is None:
+            raise click.ClickException(f"Unknown COD bucket scheme: {scheme_code}")
+        scheme_ids = [scheme.scheme_id]
+    else:
+        scheme_ids = all_scheme_ids()
+    for scheme_id in scheme_ids:
+        started = time.monotonic()
+        result = rebuild_scheme(scheme_id)
+        if "scheme_code" not in result:
+            continue
+        click.echo(
+            f"{result['scheme_code']}\trows={result['rows']}\tinserted={result['inserted']}\t"
+            f"updated={result['updated']}\tdeleted={result['deleted']}\t"
+            f"seconds={time.monotonic() - started:.2f}"
         )
 
 

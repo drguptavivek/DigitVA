@@ -8,8 +8,9 @@ import {
   type ProjectConsentConfig,
 } from "../consent";
 import { t } from "../i18n";
-import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
+import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { CheckboxBox } from "../ui/controls";
 
 const LANGUAGE_LABELS: Record<string, string> = {
   en: "English",
@@ -53,31 +54,7 @@ function ConsentCheckboxRow({
         opacity: pressed ? 0.88 : 1,
       })}
     >
-      <View
-        style={{
-          width: 20,
-          height: 20,
-          marginTop: 2,
-          borderRadius: radius.sm,
-          borderWidth: 1,
-          borderColor: checked ? colors.accent : colors.borderStrong,
-          backgroundColor: checked ? colors.accent : colors.surface,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: fontSize.caption,
-            lineHeight: 14,
-            fontWeight: "700",
-            color: checked ? colors.onAccent : "transparent",
-            fontFamily: controls.fontFamily,
-          }}
-        >
-          ✓
-        </Text>
-      </View>
+      <View style={{ marginTop: 2 }}><CheckboxBox checked={checked} /></View>
       <Text
         style={{
           flex: 1,

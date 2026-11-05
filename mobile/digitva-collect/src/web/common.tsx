@@ -1,5 +1,6 @@
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
+import Svg, { Path } from "react-native-svg";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewProps } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -7,6 +8,7 @@ import { ClientApiError } from "../client/api";
 import { t, UI_LOCALES } from "../i18n";
 import { radius, useTheme } from "../theme";
 import { Button, errorReference, Screen, useUiStyles } from "../ui";
+import { MenuChoiceRow, XMark } from "../ui/controls";
 import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
 import { loginRecoveryUrl } from "./loginRecovery";
 import { guardedNavigate } from "./navigationGuard";
@@ -92,26 +94,12 @@ export function UiLanguageSwitcher() {
         <View
           accessibilityRole="radiogroup"
           accessibilityLabel={t("appLanguage")}
-          style={[languageStyles.popover, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+          style={[languageStyles.popover, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, boxShadow: theme.ui.shadow } as object]}
         >
           {options.map((option) => {
             const selected = option.code === uiLocale;
             return (
-              <Pressable
-                key={option.code}
-                accessibilityRole="radio"
-                accessibilityLabel={option.label}
-                accessibilityState={{ checked: selected }}
-                aria-checked={selected}
-                onPress={() => void selectLocale(option.code)}
-                style={({ pressed }) => [
-                  languageStyles.option,
-                  { backgroundColor: selected ? theme.colors.accentSoft : "transparent", opacity: pressed ? 0.78 : 1 }
-                ]}
-              >
-                <Text style={[languageStyles.optionLabel, { color: theme.colors.text }]}>{option.label}</Text>
-                <Text style={[languageStyles.check, { color: theme.colors.accent }]}>{selected ? "✓" : ""}</Text>
-              </Pressable>
+              <MenuChoiceRow key={option.code} label={option.label} selected={selected} onPress={() => void selectLocale(option.code)} />
             );
           })}
         </View>
@@ -149,11 +137,44 @@ type NavigationItem = {
   newTab?: boolean;
 };
 
-/** Sidebar glyphs per navEntries key; decorative, every link carries its label. */
-const NAV_ICONS: Record<string, string> = {
-  "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/statistics": "▦", "/training": "🎓",
-  "/organization": "⚲", "/users": "☺", "/settings": "⚙", website: "↗", "/data": "▤", "/mentoring": "🏛", "/admin/": "◆",
+const circle = (cx: number, cy: number, r: number) => `M${cx} ${cy}m-${r} 0a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 -${r * 2} 0`;
+
+/** Tabler outline paths (24px grid) per icon name. */
+const ICON_PATHS: Record<string, string[]> = {
+  home: ["M5 12l-2 0l9 -9l9 9l-2 0", "M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7", "M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"],
+  fileText: ["M14 3v4a1 1 0 0 0 1 1h4", "M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z", "M9 9l1 0", "M9 13l6 0", "M9 17l6 0"],
+  clipboardList: ["M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2", "M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z", "M9 12l.01 0", "M13 12l2 0", "M9 16l.01 0", "M13 16l2 0"],
+  pencil: ["M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4", "M13.5 6.5l4 4"],
+  checks: ["M7 12l5 5l10 -10", "M2 12l5 5m5 -5l5 -5"],
+  chartBar: ["M3 12m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z", "M9 8m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z", "M15 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z", "M4 20l14 0"],
+  school: ["M22 9l-10 -4l-10 4l10 4l10 -4v6", "M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"],
+  sitemap: ["M3 15m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z", "M15 15m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z", "M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z", "M6 15v-1a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1", "M12 9l0 3"],
+  users: [circle(9, 7, 4), "M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2", "M16 3.13a4 4 0 0 1 0 7.75", "M21 21v-2a4 4 0 0 0 -3 -3.85"],
+  settings: ["M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z", circle(12, 12, 3)],
+  externalLink: ["M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6", "M11 13l9 -9", "M15 4h5v5"],
+  database: ["M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "M4 6v6a8 3 0 0 0 16 0v-6", "M4 12v6a8 3 0 0 0 16 0v-6"],
+  bank: ["M3 21l18 0", "M3 10l18 0", "M5 6l7 -3l7 3", "M4 10l0 11", "M20 10l0 11", "M8 14l0 3", "M12 14l0 3", "M16 14l0 3"],
+  shield: ["M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"],
+  logout: ["M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2", "M9 12h12l-3 -3", "M18 15l3 -3"],
+  dots: [circle(5, 12, 1), circle(12, 12, 1), circle(19, 12, 1)],
+  dot: [circle(12, 12, 2)],
 };
+
+/** Sidebar icon name per navEntries key; decorative, every link carries its label. */
+const NAV_ICONS: Record<string, string> = {
+  "/": "home", "/death-registration": "fileText", "/collection": "clipboardList", "/coding": "pencil", "/reviewing": "checks", "/statistics": "chartBar", "/training": "school",
+  "/organization": "sitemap", "/users": "users", "/settings": "settings", website: "externalLink", "/data": "database", "/mentoring": "bank", "/admin/": "shield",
+};
+
+function NavIcon({ name, color }: { name: string; color: string }) {
+  return (
+    <View style={navigationStyles.icon} aria-hidden>
+      <Svg width={20} height={20} viewBox="0 0 24 24">
+        {(ICON_PATHS[name] ?? ICON_PATHS.dot).map((d) => <Path key={d} d={d} stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />)}
+      </Svg>
+    </View>
+  );
+}
 
 function NavigationLink({
   item,
@@ -186,7 +207,7 @@ function NavigationLink({
         }
       ]}
     >
-      <Text style={[navigationStyles.icon, { color: active ? theme.colors.accent : theme.colors.text }]}>{item.icon}</Text>
+      <NavIcon name={item.icon} color={active ? theme.colors.accent : theme.colors.text} />
       {!compact ? <Text style={[navigationStyles.linkText, { color: theme.colors.text }]}>{item.label}</Text> : null}
     </Pressable>
   );
@@ -263,7 +284,7 @@ function NavigationMenu() {
   const toItem = (entry: NavEntry): NavigationItem => ({
     key: entry.key,
     label: t(entry.labelKey),
-    icon: NAV_ICONS[entry.key] ?? "•",
+    icon: NAV_ICONS[entry.key] ?? "dot",
     action: entry.route
       ? () => router.push(entry.params ? { pathname: entry.route as never, params: entry.params } : (entry.route as never))
       : entry.serverPath
@@ -290,8 +311,8 @@ function NavigationMenu() {
     });
   }
 
-  const signOutItem: NavigationItem = { key: "signOut", label: t("signOut"), icon: "↪", action: () => void signOut() };
-  const moreItem: NavigationItem = { key: "more", label: t("navMore"), icon: "⋯", action: () => setMoreOpen((open) => !open) };
+  const signOutItem: NavigationItem = { key: "signOut", label: t("signOut"), icon: "logout", action: () => void signOut() };
+  const moreItem: NavigationItem = { key: "more", label: t("navMore"), icon: "dots", action: () => setMoreOpen((open) => !open) };
   const link = (item: NavigationItem, compact: boolean) => (
     <NavigationLink key={item.key} item={item} compact={compact} active={item.key === current} onPress={() => navigate(item)} />
   );
@@ -363,12 +384,12 @@ function NavigationMenu() {
       )}
       {!wide && drawerOpen ? (
         <View style={navigationStyles.drawerLayer} accessibilityViewIsModal>
-          <Pressable accessibilityRole="button" accessibilityLabel={t("closeMenu")} onPress={() => setDrawerOpen(false)} style={navigationStyles.scrim} />
+          <Pressable accessibilityRole="button" accessibilityLabel={t("closeMenu")} onPress={() => setDrawerOpen(false)} style={[navigationStyles.scrim, { backgroundColor: theme.ui.scrim }]} />
           <View nativeID="digitva-navigation-drawer" {...drawerDialogProps} style={[navigationStyles.drawer, { backgroundColor: theme.colors.surface, borderRightColor: theme.colors.border }]}>
             <View style={navigationStyles.drawerHeader}>
               <Text style={[navigationStyles.drawerTitle, { color: theme.colors.text }]}>{t("menuLabel")}</Text>
               <Pressable nativeID="digitva-navigation-close" accessibilityRole="button" accessibilityLabel={t("closeMenu")} onPress={() => setDrawerOpen(false)} style={[navigationStyles.closeButton, { borderColor: theme.colors.border }]}>
-                <Text style={[navigationStyles.closeIcon, { color: theme.colors.text }]}>×</Text>
+                <XMark color={theme.colors.text} size={20} />
               </Pressable>
             </View>
             <ScrollView keyboardDismissMode="on-drag" style={navigationStyles.scroll} contentContainerStyle={navigationStyles.drawerContent}>{menuBody}</ScrollView>
@@ -427,27 +448,23 @@ const navigationStyles = StyleSheet.create({
   linkList: { gap: 8 },
   link: { minHeight: 48, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   compactLink: { width: 48, paddingHorizontal: 0, justifyContent: "center" },
-  icon: { width: 22, textAlign: "center", fontSize: 18, fontWeight: "700" },
+  icon: { width: 22, alignItems: "center", justifyContent: "center" },
   linkText: { fontSize: 16, fontWeight: "600", flexShrink: 1 },
   subList: { paddingLeft: 8, marginLeft: 12, borderLeftWidth: 1 },
   menuButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   menuIcon: { fontSize: 20, lineHeight: 26 },
   drawerLayer: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 10, flexDirection: "row" },
-  scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
+  scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   drawer: { width: 280, maxWidth: "85%", height: "100%", padding: 16, borderRightWidth: 1, gap: 8, zIndex: 11 },
   drawerContent: { gap: 8 },
   drawerHeader: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   drawerTitle: { fontSize: 18, fontWeight: "700", flexShrink: 1 },
-  closeButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
-  closeIcon: { fontSize: 26, lineHeight: 32 }
+  closeButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" }
 });
 
 const languageStyles = StyleSheet.create({
   anchor: { position: "relative", zIndex: 20 },
   trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   triggerText: { fontSize: 16, fontWeight: "700" },
-  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
-  option: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
-  optionLabel: { fontSize: 16, lineHeight: 22, flexShrink: 1 },
-  check: { width: 20, fontSize: 18, fontWeight: "700", textAlign: "center" }
+  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, elevation: 4 },
 });

@@ -440,6 +440,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
                   allStatus="all"
                   onStatus={setInterviewStatus}
                   units={unitOptions}
+                  unitBreadcrumb={(name) => orgLookup.byName.get(name)?.breadcrumb ?? name}
                   unit={unitFilter}
                   onUnit={setUnitFilter}
                   advanced={advanced}

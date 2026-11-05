@@ -17,9 +17,11 @@ const ICONS = {
 
 export function StateIcon({ name, color, size = 24 }: { name: keyof typeof ICONS; color: string; size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {ICONS[name].map((d) => <Path key={d} d={d} />)}
-    </Svg>
+    <View aria-hidden>
+      <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        {ICONS[name].map((d) => <Path key={d} d={d} />)}
+      </Svg>
+    </View>
   );
 }
 
@@ -43,7 +45,7 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
   return (
     <View testID="state-loading" accessible accessibilityLabel={t("loading")} accessibilityState={{ busy: true }} style={{ gap: spacing.xs }}>
       {Array.from({ length: count }, (_, index) => (
-        <View key={index} importantForAccessibility="no-hide-descendants" style={{ gap: spacing.xs, padding: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: ui.border, backgroundColor: ui.card }}>
+        <View key={index} aria-hidden style={{ gap: spacing.xs, padding: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: ui.border, backgroundColor: ui.card }}>
           {bar("55%", 18)}
           {bar("35%")}
           {bar("80%")}

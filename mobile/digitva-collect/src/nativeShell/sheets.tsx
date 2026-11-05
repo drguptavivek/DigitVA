@@ -13,6 +13,7 @@ import { useToast } from "../toast";
 import { APP_VERSION } from "../appVersion";
 import { canTryDorisDemo } from "../dorisDemoAccess";
 import { Button } from "../ui";
+import { BulletItem } from "../ui/controls";
 import { RoleChip, RoleChips } from "../ui/RoleChip";
 import { BottomSheet, SheetRow } from "./BottomSheet";
 import { faqEntries, type FaqTarget } from "./faq";
@@ -139,7 +140,7 @@ export function HelpSheet() {
       <Text style={{ ...typography.body, color: ui.popoverForeground, marginBottom: spacing.sm }}>{help.what}</Text>
       <Text style={{ ...typography.caption, color: ui.mutedForeground, fontWeight: "600" }}>{t("helpWhatToDo")}</Text>
       {[...help.state, ...help.todo].map((line) => (
-        <Text key={line} style={{ ...typography.body, color: ui.popoverForeground, marginTop: spacing.xxs }}>{`• ${line}`}</Text>
+        <View key={line} style={{ marginTop: spacing.xxs }}><BulletItem textStyle={{ color: ui.popoverForeground }}>{line}</BulletItem></View>
       ))}
       {shell.server ? (
         <View style={{ marginTop: spacing.md }}>

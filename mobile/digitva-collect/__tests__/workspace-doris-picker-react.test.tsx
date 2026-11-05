@@ -526,7 +526,7 @@ describe("extension codes and categories are never staged", () => {
     // Only NC72.7 keeps its + Build.
     expect(h.tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Postcoordination available")).toHaveLength(1);
     expect(has(h, "Choose a more specific code under NC72")).toBe(true);
-    expect(text(h)).toContain("Choose specific ▸");
+    expect(text(h)).toContain("Choose specific");
     // The extension marker is there, and it is not a button.
     expect(isButton(h, "Extension code XK8G: add it to a stem")).toEqual([undefined]);
     expect(has(h, "Extension code XK8G: add it to a stem")).toBe(false);
@@ -727,7 +727,10 @@ describe("details", () => {
     expect(out).toContain("CA40 — Pneumonia");
     expect(out.indexOf("☰ Coding note: Code also the cause.")).toBeGreaterThan(-1);
     expect(out.indexOf("Coding note")).toBeLessThan(out.indexOf("Definition"));
-    for (const part of ["A lung infection.", "Fully specified name", "Pneumonia, unspecified", "Includes", "• Chest infection", "Exclusions", "• Bronchiolitis (CA07)", "• Aspiration", "More WHO details exist than are shown here."]) expect(out).toContain(part);
+    for (const part of ["A lung infection.", "Fully specified name", "Pneumonia, unspecified", "Includes", "Exclusions", "More WHO details exist than are shown here."]) expect(out).toContain(part);
+    expect(out).not.toContain("•");
+    const items = h.tree.root.findAll((n) => n.props.role === "listitem" && typeof n.type === "string").map((n) => flat(n.children as never));
+    expect(items).toEqual(["Chest infection", "Bronchiolitis (CA07)", "Aspiration"]);
     expect(out).not.toContain("No additional WHO details");
     await press(h, "Close CA40 — Pneumonia");
     expect(text(h)).not.toContain("A lung infection.");
@@ -1176,13 +1179,13 @@ describe("build layout", () => {
     expect(has(h, "Has causing condition 5A11 Title 5A11")).toBe(true);
     expect(has(h, "Has manifestation MC85 Title MC85")).toBe(false);
     expect(host(h, "Has manifestation, optional").props.accessibilityState).toMatchObject({ expanded: false });
-    expect(text(h)).toContain("Has manifestation (optional)▸");
+    expect(text(h)).toContain("Has manifestation (optional)");
     await openAxis(h, "Has manifestation");
     expect(host(h, "Has manifestation, optional").props.accessibilityState).toMatchObject({ expanded: true });
     await press(h, "Has manifestation MC85 Title MC85");
     await openAxis(h, "Has manifestation");
     expect(has(h, "Has manifestation MC85 Title MC85")).toBe(false);
-    expect(text(h)).toContain("Has manifestation (optional) · 1 chosen▸");
+    expect(text(h)).toContain("Has manifestation (optional) · 1 chosen");
     expect(has(h, "Has manifestation, optional, 1 chosen")).toBe(true);
     expect(previewCode(h)).toBe("BD54/MC85");
   });
@@ -1216,15 +1219,17 @@ describe("build layout", () => {
     expect(has(h, "Has manifestation MC85 Title MC85")).toBe(true);
   });
 
-  it("draws each option as a 40-point row with a check circle that fills when chosen", async () => {
+  it("draws each option as a 44-point row with a check circle that fills when chosen", async () => {
     const h = mount({ env: env() });
     await search(h, "heart");
     const row = host(h, "Has causing condition 5A11 Title 5A11");
-    expect(flatStyle(row).minHeight).toBe(40);
-    expect(row.props.hitSlop).toMatchObject({ top: 2, bottom: 2 });
+    expect(flatStyle(row).minHeight).toBe(44);
+    expect(row.props.hitSlop).toBeUndefined();
+    expect(row.props.accessibilityState).toMatchObject({ selected: false });
     expect(flat(row.children)).toBe("5A11 — Title 5A11");
     await press(h, "Has causing condition 5A11 Title 5A11");
-    expect(flat(host(h, "Has causing condition 5A11 Title 5A11").children)).toBe("✓5A11 — Title 5A11");
+    expect(host(h, "Has causing condition 5A11 Title 5A11").props.accessibilityState).toMatchObject({ selected: true });
+    expect(flat(host(h, "Has causing condition 5A11 Title 5A11").children)).toBe("5A11 — Title 5A11");
     expect(flatStyle(host(h, "Has causing condition 5A11 Title 5A11")).backgroundColor).toBe(ui.light.accent);
   });
 

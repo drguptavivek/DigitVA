@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-11-04
 ---
 
 # COD Bucket Reporting Policy
@@ -367,6 +367,40 @@ If the group, sub-group, or leaf bucket for an ICD code changes:
 - do not rewrite historical submission COD rows
 
 This preserves auditability and keeps coding and reporting concerns separate.
+
+## Precomputed reporting rows
+
+The bucket and age-band reports read each death's bucket from a precomputed
+table, `map_submission_cod_bucket`, instead of re-deriving it per request.
+
+1. The table holds one row per submission x active scheme x matching active
+   age band of that scheme. Bands may have gaps and overlaps, so a death has
+   0, 1 or more rows per scheme. A death with a final COD whose bucket is
+   unmatched is kept, with no node.
+2. Rows are built by the same SQL the live path runs (one shared
+   resolved-rows layer). Reports over the table must equal the live
+   derivation exactly; the read-time filters (scope, project, site, form,
+   gender, dates, unit subtree, active project-site pair) are applied the same
+   way to both.
+3. Only active schemes are built. Deactivating a scheme deletes its rows and
+   clears its readiness stamp; activating one queues a build. Inactive nodes
+   and mappings follow the live predicates (an inactive mapping leaves the
+   death unmatched; the row is kept).
+4. A scheme whose `reporting_rows_built_at` is NULL is reported live, as
+   before. Once stamped, every count for that scheme comes from the table
+   only: one count never mixes the two derivations.
+5. Freshness: the source materialized views refresh hourly, and a sweep
+   rebuilds every active scheme right after each refresh, so the reports are
+   never staler than the views they were derived from before. An admin edit
+   to a scheme, age band, node, mapping or legacy alias, and an ICD-11
+   catalogue import, queue a rebuild of the affected schemes on commit; until
+   it runs (seconds) the old rows are served. Final-COD, site, duplicate,
+   date-of-death and unit changes reach the table at the next sweep.
+6. The table holds identifiers, codes, dates, age and recorded sex only: no
+   names, no free text, no other PII.
+7. Final-COD rule: the rows use `va_submission_cod_detail_mv`'s final COD,
+   the same as the live reports. It is not the COD snapshot view's
+   precedence; the two are left as they are and may differ in principle.
 
 ## Deletion policy
 

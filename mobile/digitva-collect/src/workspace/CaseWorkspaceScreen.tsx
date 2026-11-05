@@ -4,6 +4,8 @@ import { AppState as NativeAppState, Platform, Pressable, Text, View } from "rea
 
 import { ApiError } from "../api";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
+import { useTheme } from "../theme";
+import { Chevron } from "../web/Chevron";
 import { CategoryPanel } from "./CategoryPanel";
 import { SmartVaReference } from "./SmartVaReference";
 import { PrivateNotePanel } from "./PrivateNotePanel";
@@ -645,6 +647,7 @@ function AllocatedCodReference({ workspace }: { workspace: WorkspacePayload }) {
  */
 function CoderCodReference({ workspace }: { workspace: WorkspacePayload }) {
   const styles = useUiStyles();
+  const { ui } = useTheme();
   const [open, setOpen] = useState(false);
   const { final, coder_initial: initial, not_codeable: notCodeable } = workspace.assessments;
   const summary = final?.conclusive_cod || final?.immediate_cod || (notCodeable ? "Not codeable" : "") || "Not recorded";
@@ -659,7 +662,10 @@ function CoderCodReference({ workspace }: { workspace: WorkspacePayload }) {
         style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 }}
       >
         <Text style={[styles.headline, { flex: 1, minWidth: 0 }]} numberOfLines={open ? undefined : 2}>Coder's cause of death: {summary}</Text>
-        <Text style={styles.muted}>{open ? "Hide ▲" : "Details ▼"}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={styles.muted}>{open ? "Hide" : "Details"}</Text>
+          <Chevron expanded={open} direction={open ? "up" : "down"} size={16} color={ui.mutedForeground} />
+        </View>
       </Pressable>
       {open ? <ArtifactList artifacts={[
         ["Coder final", final],

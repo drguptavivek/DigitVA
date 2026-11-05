@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-05
 
+- **Deployed to staging as `f01f3e68f`** (web `expo-web-v2026.11.05.1`;
+  old-APK audit since `3ab5c2d69` found no blocker): the staging-bug batch
+  and the 5 Nov reporting work, migration `d3c8e5a1f7b4` at head,
+  `flask cod-buckets rebuild` run (four schemes, ~7,880 rows each), worker
+  restarted. Rollback: `sudo -Hu ubuntu env SKIP_BACKUP=1 bash
+  scripts/deploy-server.sh 3ab5c2d69bfa166d95d2d5923e43babab71823e1`.
+
 - **Staging bugs from the owner's interview and DORIS trials:**
   - Re-consent after a refusal brings the prefilled answers back
     (`digitva-lgzl`; `docs/policy/respondent-consent-notice-draft.md`,

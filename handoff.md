@@ -21,28 +21,20 @@ has neither, and its coding is one direct step with SmartVA visible.
 
 ## Ranked next steps
 
-1. Staging runs `3ab5c2d69` (deployed 4 Nov; web `expo-web-v2026.11.04.1`;
-   old-APK audit since `589c9b384` found nothing). Rollback:
-   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 589c9b3848c6d45fb4b8febbba558c5026eb3630`.
-   New `minerva_icd_cache_redis` (128 MB) holds the ICD-11 caches; staging
-   has ~0.8 GB free RAM and no swap. `/download/android` and
-   `/download/android/plus` serve 0.3.19 from the hand-kept
-   `private/android-hosted`, which the deploy never touches: after each
-   deploy with new APKs the owner copies them there from
-   `minerva_app:/opt/digitva/android` (`docker cp` over `scripts/ssm.sh`).
-   Dev `/app/` serves `mobile/digitva-collect/dist` (last built 24 Oct):
-   rebuild it locally to see the new screens on dev.
-2. Deploy the 5 Nov work (`digitva-20z5`) on the owner's go
-   (`digitva-3jcb`): `scripts/deploy-staging.sh` runs migration
-   `d3c8e5a1f7b4`; then `flask cod-buckets rebuild` once and restart
-   `minerva_celery_worker`. Until the rebuild, reports derive live (correct,
-   slower). Audit old APKs first: stale-save 409s gained optional fields only.
-   The same deploy carries the screen-check fixes (`digitva-kgjk`), which
-   move the composed form version to `2026081401-132dfd439e` (Id10004 hint),
-   and the staging-bug batch: re-consent prefill (`digitva-lgzl`), DORIS
-   cluster titles and repeated parts (`digitva-iae8`), Deaths project
-   selector (`digitva-i92f`), named other-interviewer banner (`digitva-vg51`).
-   After the deploy, re-check a refuse-then-consent interview on staging.
+1. Staging runs `f01f3e68f` (deployed 5 Nov; web `expo-web-v2026.11.05.1`;
+   old-APK audit since `3ab5c2d69` found nothing; cod-bucket rows rebuilt).
+   Rollback:
+   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 3ab5c2d69bfa166d95d2d5923e43babab71823e1`.
+   `minerva_icd_cache_redis` (128 MB) holds the ICD-11 caches; staging
+   has ~0.8 GB free RAM and no swap; the database is a separate deployment.
+   `/download/android` and `/download/android/plus` serve 0.3.19 from the
+   hand-kept `private/android-hosted`, which the deploy never touches.
+   Dev `/app/` serves `mobile/digitva-collect/dist`: rebuild it locally to
+   see new screens on dev.
+2. On staging, check by hand: refuse then re-consent a direct interview
+   (HIV/malaria presets come back, `digitva-lgzl`); a DORIS cluster such as
+   BD1Z with a causing condition shows the whole title on the certificate
+   line (`digitva-iae8`); the other-interviewer banner names them.
 3. Verify on the USB Samsung (RZCW81QZT2Z): install
    `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (release-signed,
    updates 0.3.17 in place) for the 0.3.18 checks and the offline workspace;

@@ -80,6 +80,20 @@ async function chooseInSheet(tree: ReturnType<typeof create>, label: string): Pr
   await act(async () => tree.root.findAll((node) => node.props["data-label"] === "applyFilters")[0].props.onClick());
 }
 
+/** One unit: the scope toggle opens the unit list (rows labelled "Parent › Unit"), then the unit's row. */
+async function chooseUnitInSheet(tree: ReturnType<typeof create>, unit: string): Promise<void> {
+  const open = tree.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];
+  await act(async () => open.props.onPress());
+  // Units are not chips beside the scope: the list appears only under "One unit".
+  expect(tree.root.findAll((node) => node.props.accessibilityLabel === `filterAreaLabel:${unit}`)).toHaveLength(0);
+  await act(async () => tree.root.findByProps({ accessibilityLabel: "filterAreaLabel:filterOneUnit" }).props.onPress());
+  const row = tree.root.findAll((node) => node.props.accessibilityRole === "radio" && typeof node.props.onPress === "function"
+    && String(node.props.accessibilityLabel).split(" › ").pop() === unit)[0];
+  expect(row).toBeDefined();
+  await act(async () => row.props.onPress());
+  await act(async () => tree.root.findAll((node) => node.props["data-label"] === "applyFilters")[0].props.onClick());
+}
+
 async function settle(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -489,7 +503,7 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain("Meena Sharma");
 
     // Filter by area (in the sheet): Ward South, then a removable applied chip
-    await chooseInSheet(tree!, "filterAreaLabel:Ward South");
+    await chooseUnitInSheet(tree!, "Ward South");
     expect(tree!.root.findAll((node) => node.props.accessibilityLabel === "removeFilter:filterArea: Ward South")).not.toHaveLength(0);
     rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("Ramesh Kumar");
@@ -612,16 +626,26 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).not.toContain("Mohan Lal");
 
     // Filtering by All shows both
-    await chooseInSheet(tree!, "filterAreaLabel:filterAll");
+    await chooseInSheet(tree!, "filterAreaLabel:filterAllAreas");
     rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("Kamla Bai");
     expect(rendered).toContain("Mohan Lal");
 
     // Filtering by parent unit PHC-AAM 1 matches its descendant SC-AAM 1
-    await chooseInSheet(tree!, "filterAreaLabel:PHC-AAM 1");
+    await chooseUnitInSheet(tree!, "PHC-AAM 1");
     rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("Kamla Bai");
     expect(rendered).not.toContain("Mohan Lal");
+
+    // Reopened on a unit, the sheet shows the unit list; Clear all returns the area to "All areas" and hides the list.
+    const reopen = tree!.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];
+    await act(async () => reopen.props.onPress());
+    const radios = () => tree!.root.findAll((node) => node.props.accessibilityRole === "radio" && typeof node.props.onPress === "function");
+    expect(radios().length).toBeGreaterThan(0);
+    await act(async () => tree!.root.findByProps({ accessibilityLabel: "filterAreaLabel:filterOneUnit" }).props.onPress());
+    const clearButtons = tree!.root.findAll((node) => node.props.label === "clearAll" && typeof node.props.onPress === "function");
+    await act(async () => clearButtons[clearButtons.length - 1].props.onPress());
+    expect(radios()).toHaveLength(0);
 
     await act(async () => tree!.unmount());
   });

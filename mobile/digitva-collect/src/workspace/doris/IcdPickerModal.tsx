@@ -3,6 +3,7 @@ import { Modal, View } from "react-native";
 
 import type { JsonRequester, WorkspaceApi } from "../api";
 import { isPlusVariant } from "../../appVariant";
+import { useTheme } from "../../theme";
 import type { WorkspaceIdentity } from "../contracts";
 import { IcdPickerFrame, type PickerFrameProps } from "./IcdPickerFrame";
 import { IcdPicker } from "./picker/IcdPicker";
@@ -30,6 +31,7 @@ export interface IcdPickerModalProps {
 export function IcdPickerModal(props: IcdPickerModalProps) {
   const latest = useRef(props);
   latest.current = props;
+  const scrim = useTheme().ui.scrim;
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const currentBridge = useRef<ReturnType<typeof createPickerBridge> | null>(null);
@@ -54,7 +56,7 @@ export function IcdPickerModal(props: IcdPickerModalProps) {
 
   return (
     <Modal visible transparent animationType="slide" supportedOrientations={["portrait", "landscape"]} onRequestClose={close}>
-      <View style={{ flex: 1, backgroundColor: "rgba(17,24,39,0.62)" }}>
+      <View style={{ flex: 1, backgroundColor: scrim }}>
         {isPlusVariant()
           // A rebuilt bridge never answers what the old one owed, so the React picker is told to start over.
           ? <IcdPicker init={props.init} revision={props.revision} generation={props.requestGeneration ?? 0} onClose={close} onMessage={onMessage} />

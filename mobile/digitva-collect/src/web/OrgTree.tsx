@@ -55,7 +55,7 @@ const layout = StyleSheet.create({
   countText: { fontSize: 12 },
   // "fixed" is web-only: the flyout covers the viewport, not the card it is rendered inside.
   layer: { position: "fixed" as unknown as "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 50, flexDirection: "row", justifyContent: "flex-end" },
-  scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
+  scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   flyout: { width: "88%", maxWidth: 360, height: "100%", padding: spacing.md, borderLeftWidth: 1, gap: spacing.sm, zIndex: 11 },
   flyoutHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   close: { minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.sm },
@@ -118,7 +118,7 @@ function PeopleFlyout({ target, opened, onClose }: { target: FlyoutTarget; opene
 
   return (
     <View style={layout.layer} accessibilityViewIsModal>
-      <Pressable accessibilityRole="button" accessibilityLabel={t("orgClose")} onPress={onClose} style={layout.scrim} />
+      <Pressable accessibilityRole="button" accessibilityLabel={t("orgClose")} onPress={onClose} style={[layout.scrim, { backgroundColor: ui.scrim }]} />
       <View {...dialogProps} accessibilityLabel={target.title} style={[layout.flyout, { backgroundColor: ui.card, borderLeftColor: ui.border }]}>
         <View style={layout.flyoutHeader}>
           <Text style={[styles.text, layout.unitName, layout.wrap]}>{target.title}</Text>

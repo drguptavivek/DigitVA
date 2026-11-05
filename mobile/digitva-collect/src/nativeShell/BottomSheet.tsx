@@ -16,7 +16,7 @@ export function BottomSheet({ visible, title, onClose, children, full = false }:
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
-        <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15,27,45,0.55)" }} />
+        <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: ui.scrim }} />
         <View style={{ ...(full ? { height: "92%" } : { maxHeight: "85%" }), backgroundColor: ui.popover, borderTopLeftRadius: radius.lg * 2, borderTopRightRadius: radius.lg * 2, paddingTop: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: insets.bottom + spacing.md }}>
           <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: ui.border, alignSelf: "center", marginBottom: spacing.xs }} />
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs }}>

@@ -9,6 +9,7 @@ import {
 } from "../../data/causes";
 import { t, type StringKey } from "../../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../../theme";
+import { Chevron } from "../Chevron";
 import type { JsonRequester } from "../../workspace/api";
 import { browserErrorText } from "../common";
 import { ChoiceRow, SelectRow, StatPressable, TextAction } from "../stats/controls";
@@ -125,7 +126,10 @@ function ScopeTable({ section, open, toggle }: { section: ScopeSection; open: Se
         { scope: "row", style: { ...cell, ...LEFT, whiteSpace: "normal", fontWeight: node.level === 0 ? 600 : 400, paddingLeft: spacing.xs + node.level * spacing.md } },
         node.children.length ? (
           <StatPressable label={t(expanded ? "causesCollapse" : "causesExpand", { label: node.label })} selected={expanded} onPress={() => toggle(key)} style={{ minHeight: 32, justifyContent: "center" }}>
-            <Text style={{ fontSize: fontSize.body, fontWeight: node.level === 0 ? "600" : "400", color: ui.primary }}>{`${expanded ? "▾" : "▸"} ${node.label}`}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
+              <Chevron expanded={expanded} size={16} color={ui.primary} />
+              <Text style={{ fontSize: fontSize.body, fontWeight: node.level === 0 ? "600" : "400", color: ui.primary, flexShrink: 1 }}>{node.label}</Text>
+            </View>
           </StatPressable>
         ) : node.label,
       ),

@@ -52,6 +52,10 @@ export type UiTokens = {
   /** chart-1..5: Part I lines A-E; `chartPart2` is the slate Part II family. */
   chart: readonly ChartToken[];
   chartPart2: ChartToken;
+  /** Modal backdrop behind dialogs and sheets. */
+  scrim: string;
+  /** Box shadow of popovers, menus and dialogs (web CSS `boxShadow`); native uses `elevation`. */
+  shadow: string;
 };
 
 const zincLight = {
@@ -101,7 +105,9 @@ export const ui: Record<ColorMode, UiTokens> = {
       { bar: "#4338CA", tint: "#E0E7FF", soft: "#C7D2FE", foreground: "#1B1670" },
       { bar: "#7E22CE", tint: "#F3E8FF", soft: "#E9D5FF", foreground: "#3B0764" }
     ],
-    chartPart2: { bar: "#475569", tint: "#F1F5F9", soft: "#E2E8F0", foreground: "#1E293B" }
+    chartPart2: { bar: "#475569", tint: "#F1F5F9", soft: "#E2E8F0", foreground: "#1E293B" },
+    scrim: "rgba(15, 23, 42, 0.45)",
+    shadow: "0 8px 24px rgba(15, 23, 42, 0.18)"
   },
   dark: {
     ...zincDark,
@@ -124,7 +130,9 @@ export const ui: Record<ColorMode, UiTokens> = {
       { bar: "#A5B4FC", tint: "#22264F", soft: "#3B418D", foreground: "#EEF0FF" },
       { bar: "#D8B4FE", tint: "#2E1A47", soft: "#5B2A8C", foreground: "#F7ECFF" }
     ],
-    chartPart2: { bar: "#94A3B8", tint: "#1E2733", soft: "#334155", foreground: "#F1F5F9" }
+    chartPart2: { bar: "#94A3B8", tint: "#1E2733", soft: "#334155", foreground: "#F1F5F9" },
+    scrim: "rgba(0, 0, 0, 0.6)",
+    shadow: "0 8px 24px rgba(0, 0, 0, 0.5)"
   }
 };
 

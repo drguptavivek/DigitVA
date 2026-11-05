@@ -46,20 +46,20 @@ export function directInterviewTargets(context: IntakeBootstrap["context"]): Dir
 }
 
 function usePickerStyles() {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   return useMemo(() => StyleSheet.create({
     panel: { gap: spacing.sm },
     fieldLabel: { ...typography.subhead, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
     field: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.sm },
     fieldText: { flex: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     placeholder: { color: colors.textMuted },
-    backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+    backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: ui.scrim },
     sheet: { maxHeight: "80%", backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.sm, gap: spacing.xs, width: "100%", maxWidth: controls.contentMaxWidth, alignSelf: "center" },
     option: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 48, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md },
     optionOn: { backgroundColor: colors.accentSoft },
     optionText: { flex: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  }), [colors]);
+  }), [colors, ui]);
 }
 
 /** Icon-only refresh control, drawn like the review queue's refresh button. */

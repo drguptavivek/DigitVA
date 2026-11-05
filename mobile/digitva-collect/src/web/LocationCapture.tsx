@@ -69,11 +69,13 @@ export function MapsPinButton({ latitude, longitude }: { latitude?: number | nul
       ]}
       {...link}
     >
-      <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {PIN_PATHS.map((d) => (
-          <Path key={d} d={d} stroke={theme.ui.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        ))}
-      </Svg>
+      <View aria-hidden>
+        <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+          {PIN_PATHS.map((d) => (
+            <Path key={d} d={d} stroke={theme.ui.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          ))}
+        </Svg>
+      </View>
     </Pressable>
   );
 }

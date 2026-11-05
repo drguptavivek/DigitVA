@@ -27,7 +27,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   const cancelRef = useRef<{ focus?: () => void } | null>(null);
   const confirmRef = useRef<{ focus?: () => void } | null>(null);
   const cancelCb = useRef(onCancel);
@@ -55,7 +55,7 @@ export function ConfirmDialog({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={s.backdrop}>
+      <View style={[s.backdrop, { backgroundColor: ui.scrim }]}>
         <View
           accessibilityViewIsModal
           // "alertdialog" exists only on the web: Android throws on an unknown accessibilityRole and the app closes.
@@ -80,7 +80,7 @@ export function ConfirmDialog({
 }
 
 const s = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(0,0,0,0.5)" },
+  backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md},
   dialog: { width: "100%", maxWidth: 420, borderWidth: 1, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
   title: { ...typography.headline, fontFamily: controls.fontFamily },
   message: { ...typography.subhead, fontFamily: controls.fontFamily },

@@ -8,6 +8,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { t } from "./i18n";
 import { radius, spacing, typography, useTheme } from "./theme";
+import Svg, { Path } from "react-native-svg";
+import { CheckMark } from "./ui/controls";
+import { Chevron } from "./web/Chevron";
 
 export type SaveState = "saved" | "saving" | "unsaved";
 
@@ -31,7 +34,7 @@ export function Sheet({ visible, title, items, onClose }: { visible: boolean; ti
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-      <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
+      <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ flex: 1, backgroundColor: ui.scrim, justifyContent: "flex-end" }}>
         <View testID="sheet-panel" style={{ maxHeight: "85%", backgroundColor: ui.popover, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: insets.bottom + spacing.lg }}>
           {title ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, padding: spacing.md }}>{title}</Text> : null}
           <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" bounces={false}>
@@ -48,10 +51,10 @@ export function Sheet({ visible, title, items, onClose }: { visible: boolean; ti
               }}
               style={{ minHeight: 48, paddingHorizontal: spacing.md, justifyContent: "center", opacity: item.disabled ? 0.5 : 1 }}
             >
-              <Text style={{ ...typography.body, color: ui.popoverForeground, fontWeight: item.selected ? "700" : "400" }}>
-                {item.selected ? "✓ " : ""}
-                {item.label}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+                {item.selected ? <CheckMark color={ui.primary} size={18} /> : null}
+                <Text style={{ ...typography.body, color: ui.popoverForeground, fontWeight: item.selected ? "700" : "400", flexShrink: 1 }}>{item.label}</Text>
+              </View>
             </Pressable>
           ))}
           </ScrollView>
@@ -94,7 +97,7 @@ export function FormTopBar({
   return (
     <View style={{ height: label ? BAR_HEIGHT_WITH_LABEL : BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xs, gap: spacing.xs, borderBottomWidth: 1, borderColor: ui.border, backgroundColor: ui.background }}>
       <Pressable accessibilityRole="button" accessibilityLabel={t("back")} disabled={disabled} onPress={onBack} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 22, color: ui.foreground }}>‹</Text>
+        <Chevron expanded={false} direction="left" />
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>
         {label ? <Text numberOfLines={1} style={{ ...typography.caption, color: ui.mutedForeground }}>{label}</Text> : null}
@@ -132,7 +135,9 @@ export function FormTopBar({
         {problemCount > 0 || consentChip ? null : <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{state}</Text>}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={t("moreActions")} disabled={disabled} onPress={() => setOpen(true)} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 22, color: ui.foreground }}>⋮</Text>
+        <Svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
+          {[5, 12, 19].map((cy) => <Path key={cy} d={`M12 ${cy}m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0`} stroke={ui.foreground} strokeWidth={2.5} fill="none" strokeLinecap="round" />)}
+        </Svg>
       </Pressable>
       <Sheet visible={open} items={menuItems} onClose={() => setOpen(false)} />
     </View>

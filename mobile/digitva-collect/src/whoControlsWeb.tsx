@@ -9,6 +9,7 @@ import { Pressable, Text, TextInput, View } from "react-native";
 
 import { useUiStyles } from "./ui";
 import { useTheme } from "./theme";
+import { CheckMark } from "./ui/controls";
 
 type LocalizedLabel = { en?: string; [locale: string]: string | undefined };
 
@@ -73,7 +74,7 @@ function ChoiceIndicator({ multiple, selected }: { multiple: boolean; selected: 
         justifyContent: "center"
       }}
     >
-      {selected ? <Text style={{ color: theme.ui.primaryForeground, fontSize: 14, lineHeight: 16 }}>{multiple ? "✓" : "•"}</Text> : null}
+      {selected ? (multiple ? <CheckMark color={theme.ui.primaryForeground} size={14} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.ui.primaryForeground }} />) : null}
     </View>
   );
 }

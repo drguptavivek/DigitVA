@@ -6,7 +6,7 @@ import type { AccessProject, HomeBlocks, HomeSummary } from "../api";
 import { useAppState } from "../AppState";
 import { loadBrowserSession } from "../client/session";
 import { t } from "../i18n";
-import { controls, spacing, typography } from "../theme";
+import { controls, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { createWorkspaceApi, type JsonRequester, type WorkspaceApi } from "../workspace/api";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
@@ -174,6 +174,7 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   const trainingHome = mode === "reviewing" ? TRAINING_ROUTES.review : TRAINING_ROUTES.coding;
   const { bootstrap, loginUrl, reload } = useAppState();
   const styles = useUiStyles();
+  const { ui } = useTheme();
   const [sessionCheck, setSessionCheck] = useState<SessionCheck>();
   const [sessionError, setSessionError] = useState("");
   const [viewVaSid, setViewVaSid] = useState("");
@@ -444,7 +445,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
       >
         <Text style={[styles.text, { flex: 1 }]} numberOfLines={1}>{block.title}</Text>
         <Text style={styles.headline}>{lead.value}</Text>
-        <Text style={styles.muted} numberOfLines={1}>{lead.label} ›</Text>
+        <Text style={styles.muted} numberOfLines={1}>{lead.label}</Text>
+        <Chevron expanded={false} size={18} color={ui.mutedForeground} />
       </Pressable>
     );
   }
@@ -495,8 +497,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
               style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: controls.minTouchTarget }}
             >
               <Text style={styles.text}>{t("homeBlockProgress")}</Text>
-              <Text style={[styles.muted, { flexShrink: 1 }]} numberOfLines={1}>{projectSubline(projects, BLOCK_GRANT_ROLES.progress)}</Text>
-              <Chevron expanded={progressOpen} />
+              <Text style={[styles.muted, { flex: 1 }]} numberOfLines={1}>{projectSubline(projects, BLOCK_GRANT_ROLES.progress)}</Text>
+              <Chevron expanded={progressOpen} size={18} color={ui.mutedForeground} />
             </FoldButton>
             {progressOpen ? (
               <>

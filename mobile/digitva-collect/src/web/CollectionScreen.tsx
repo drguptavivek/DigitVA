@@ -432,6 +432,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
                   project={projectFilter}
                   onProject={setProjectFilter}
                   units={unitOptions}
+                  unitBreadcrumb={(name) => orgLookup.byName.get(name)?.breadcrumb ?? name}
                   unit={unitFilter}
                   onUnit={setUnitFilter}
                   advanced={advanced}

@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 
 import { Button, useUiStyles } from "../ui";
+import { SkeletonCards, StateView } from "../ui/StateView";
 
 import type { WorkflowEvents } from "./contracts";
 
@@ -26,10 +27,9 @@ export function WorkflowHistory({
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Workflow history</Text>
-      {loading && !events ? <Text style={styles.muted}>Loading workflow history…</Text> : null}
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      {error ? <Button label="Retry workflow history" onPress={onRetry} disabled={loading} /> : null}
-      {events?.events.length === 0 ? <Text style={styles.muted}>No workflow events.</Text> : null}
+      {loading && !events ? <SkeletonCards count={2} /> : null}
+      {error ? <StateView kind="error" title={error} actionLabel="Retry workflow history" onAction={loading ? undefined : onRetry} /> : null}
+      {events?.events.length === 0 ? <StateView title="No workflow events." /> : null}
       {events?.events.map((event) => (
         <View key={event.event_id}>
           <Text style={styles.text}>{event.previous_state ?? "Start"} → {event.current_state}</Text>

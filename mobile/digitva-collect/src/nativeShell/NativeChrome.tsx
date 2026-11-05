@@ -14,6 +14,7 @@ import DemoBadge from "../DemoBadge";
 import { canTryDorisDemo } from "../dorisDemoAccess";
 import { t, UI_LOCALES } from "../i18n";
 import { controlText, radius, spacing, typography, ui, useTheme } from "../theme";
+import { MenuChoiceRow } from "../ui/controls";
 import { activeNativeTab, isPreLoginRoute, nativeTabs, type NativeTab } from "./navAdapter";
 import { useShell, type SyncStatus } from "./shellContext";
 
@@ -91,17 +92,7 @@ export function LanguageButton({ color }: { color: string }) {
             {UI_LOCALES.map((locale) => {
               const selected = locale.code === current.code;
               return (
-                <Pressable
-                  key={locale.code}
-                  accessibilityRole="menuitem"
-                  accessibilityLabel={locale.label}
-                  accessibilityState={{ selected }}
-                  onPress={() => choose(locale.code)}
-                  style={{ minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, gap: spacing.sm }}
-                >
-                  <Text style={{ width: 20, color: tokens.primary, fontWeight: "700" }}>{selected ? "✓" : ""}</Text>
-                  <Text style={{ ...typography.body, color: tokens.popoverForeground, fontWeight: selected ? "700" : "400" }}>{locale.label}</Text>
-                </Pressable>
+                <MenuChoiceRow key={locale.code} role="menuitem" label={locale.label} selected={selected} onPress={() => choose(locale.code)} />
               );
             })}
           </View>
@@ -129,7 +120,7 @@ function HeaderBar() {
   return (
     <View style={{ backgroundColor: BAR, paddingTop: insets.top }}>
       <View style={{ height: HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.sm, paddingRight: spacing.xxs }}>
-        <Image source={require("../../assets/icon.png")} accessibilityLabel={t("appName")} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#FFFFFF" }} />
+        <Image source={require("../../assets/icon.png")} accessibilityLabel={t("appName")} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: ON_BAR }} />
         <Text accessibilityRole="header" numberOfLines={1} style={{ ...typography.headline, color: ON_BAR, flex: 1 }}>DigitVA</Text>
         <DemoBadge server={device?.server} />
         {account && chip && !preLogin ? (
@@ -137,9 +128,10 @@ function HeaderBar() {
             accessibilityRole="button"
             accessibilityLabel={chip.label}
             onPress={() => shell.openSheet("sync")}
-            style={{ height: 32, paddingHorizontal: spacing.sm, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.18)", flexDirection: "row", alignItems: "center", gap: spacing.xxs }}
+            hitSlop={{ top: 6, bottom: 6 }}
+            style={{ height: 32, paddingHorizontal: spacing.sm, borderRadius: 16, borderWidth: 1, borderColor: ON_BAR, flexDirection: "row", alignItems: "center", gap: spacing.xxs }}
           >
-            {chip.busy ? <ActivityIndicator size="small" color={ON_BAR} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#FCD34D" }} />}
+            {chip.busy ? <ActivityIndicator size="small" color={ON_BAR} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: ui.light.warning }} />}
             {chip.busy ? null : <Text style={{ ...typography.caption, color: ON_BAR }}>{chip.label}</Text>}
           </Pressable>
         ) : null}
@@ -151,7 +143,7 @@ function HeaderBar() {
         <LanguageButton color={ON_BAR} />
         {account && !preLogin ? (
           <Pressable accessibilityRole="button" accessibilityLabel={t("accountMenu")} onPress={() => shell.openSheet("account")} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
-            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: ON_BAR, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ ...typography.caption, fontWeight: "700", color: BAR }}>{initials(account.name)}</Text>
             </View>
           </Pressable>
@@ -201,7 +193,7 @@ function TabBar() {
             <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.92} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, ...controlText, lineHeight: 18, alignSelf: "stretch", paddingHorizontal: 2, fontWeight: "500", color }}>{t(tab.labelKey)}</Text>
             {badge ? (
               <View style={{ position: "absolute", top: 4, left: "55%", minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: tokens.destructiveText, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFFFFF" }}>{badge > 99 ? "99+" : badge}</Text>
+                <Text style={{ fontSize: typography.caption.fontSize, fontWeight: "700", color: tokens.background }}>{badge > 99 ? "99+" : badge}</Text>
               </View>
             ) : null}
           </Pressable>

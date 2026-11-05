@@ -57,8 +57,12 @@ test("closed by default, opens with menu semantics and items by role", () => {
   expect(button().getAttribute("aria-expanded")).toBe("true");
   expect(host.querySelector("[role='menu']")).not.toBeNull();
   expect(items().map((i) => `${i.getAttribute("role")}:${i.textContent}`)).toEqual([
-    "menuitem:Profile", "menuitem:Open web version", "menuitemradio:Light", "menuitemradio:Dark", "menuitemradio:System✓", "menuitem:Help", "menuitem:Sign out",
+    "menuitem:Profile", "menuitem:Open web version", "menuitemradio:Light", "menuitemradio:Dark", "menuitemradio:System", "menuitem:Help", "menuitem:Sign out",
   ]);
+  const radios = host.querySelectorAll("[role='menuitemradio']");
+  expect([...radios].map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "false", "true"]);
+  expect(radios[2].querySelector("svg path")).not.toBeNull();
+  expect(radios[0].querySelector("svg")).toBeNull();
   expect(host.querySelector<HTMLAnchorElement>("a[role='menuitem']")!.getAttribute("href")).toBe("/profile/");
   expect(host.textContent).toContain("Test Admin");
   expect(document.activeElement).toBe(items()[0]);

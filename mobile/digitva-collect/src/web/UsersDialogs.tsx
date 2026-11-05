@@ -22,9 +22,9 @@ import { formatWhen } from "../ui/interviewRows";
 const QR_VALID_SECONDS = 6 * 3600;
 
 function useDialogStyles() {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   return useMemo(() => StyleSheet.create({
-    backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.sm, backgroundColor: "rgba(0,0,0,0.5)" },
+    backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.sm, backgroundColor: ui.scrim },
     dialog: { width: "100%", maxWidth: 560, maxHeight: "92%", borderRadius: radius.lg, backgroundColor: colors.surface },
     body: { gap: spacing.sm, padding: spacing.md },
     section: { gap: spacing.xxs, paddingTop: spacing.xs, borderTopWidth: 1, borderColor: colors.border },
@@ -33,7 +33,7 @@ function useDialogStyles() {
     code: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily, textAlign: "center" },
     warn: { ...typography.subhead, fontWeight: "600", color: colors.danger, fontFamily: controls.fontFamily },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  }), [colors]);
+  }), [colors, ui]);
 }
 
 /** A centred dialog: backdrop press, Escape and the Close button all call onClose. */

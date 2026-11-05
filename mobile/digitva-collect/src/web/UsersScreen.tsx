@@ -67,7 +67,7 @@ export function grantTagLabel(grant: UserGrant): string {
 }
 
 function useStyles() {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   return useMemo(() => StyleSheet.create({
     input: {
       minHeight: controls.minHeight, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
@@ -84,11 +84,11 @@ function useStyles() {
     counts: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
     count: { minWidth: 120, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     countValue: { ...typography.headline, color: colors.text, fontFamily: controls.fontFamily },
-    backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(0,0,0,0.5)" },
+    backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: ui.scrim },
     dialog: { width: "100%", maxWidth: 420, gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface },
     qr: { width: 240, height: 240, alignSelf: "center" },
     code: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily, textAlign: "center" },
-  }), [colors]);
+  }), [colors, ui]);
 }
 
 function ActivityPanel({ request, user }: { request: JsonRequester; user: DirectoryUser }) {

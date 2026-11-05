@@ -7,6 +7,7 @@ import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 import { ApiError } from "../api";
 import { t } from "../i18n";
 import { controls } from "../theme";
+import { BulletItem, RemovableChip } from "../ui/controls";
 import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { IcdSearchItem, VaDefinition, VaDefinitionListItem, WorkspaceAssessment, WorkspacePayload } from "./contracts";
@@ -230,7 +231,7 @@ function Notice({ title, items }: { title?: string; items: string[] }) {
   return (
     <View style={[styles.secondary, box]}>
       {title ? <Text style={styles.fieldLabel}>{title}</Text> : null}
-      {items.map((item) => <Text key={item} style={styles.text}>{items.length > 1 ? `• ${item}` : item}</Text>)}
+      {items.map((item) => (items.length > 1 ? <BulletItem key={item} textStyle={styles.text}>{item}</BulletItem> : <Text key={item} style={styles.text}>{item}</Text>))}
     </View>
   );
 }
@@ -561,9 +562,7 @@ function ConditionPicker({ label, hint, options, selected, onChange }: { label: 
       {selected.length ? (
         <View style={styles.row}>
           {selected.map((option) => (
-            <Pressable key={option} accessibilityRole="button" accessibilityLabel={`Remove ${option}`} testID={`other-condition-remove-${option}`} onPress={() => onChange(selected.filter((item) => item !== option))} style={[styles.secondary, touchRow]}>
-              <Text style={styles.text}>{`${option} ×`}</Text>
-            </Pressable>
+            <RemovableChip key={option} label={option} removeLabel={`Remove ${option}`} testID={`other-condition-remove-${option}`} onRemove={() => onChange(selected.filter((item) => item !== option))} />
           ))}
         </View>
       ) : null}

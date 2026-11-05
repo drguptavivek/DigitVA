@@ -10,6 +10,7 @@ import { t } from "../i18n";
 import { clock } from "../nativeShell/shellContext";
 import { controlText, controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { Chevron } from "../web/Chevron";
 import { CaseCard } from "../ui/CaseCard";
 import { ChoiceSheet, type ChoiceList } from "../ui/ChoiceSheet";
 import {
@@ -30,7 +31,12 @@ export function ProjectLine({ project, name, onPress }: { project?: string; name
   const { ui } = useTheme();
   const text = [project, name].filter(Boolean).join(" · ");
   if (!text) return null;
-  const label = <Text style={{ ...typography.subhead, color: ui.mutedForeground, flexShrink: 1 }}>{text}{onPress ? "  ▾" : ""}</Text>;
+  const label = (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
+      <Text style={{ ...typography.subhead, color: ui.mutedForeground, flexShrink: 1 }}>{text}</Text>
+      {onPress ? <Chevron expanded size={18} color={ui.mutedForeground} /> : null}
+    </View>
+  );
   if (!onPress) return label;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`${text}. ${t("changeProject")}`} onPress={onPress} style={{ minHeight: controls.minTouchTarget, justifyContent: "center" }}>

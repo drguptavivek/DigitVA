@@ -1,7 +1,9 @@
 import { useRef, type ReactNode } from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 
-import { Alert, Button, Card, Muted, SectionTitle, gap } from "../ui";
+import { buttonTone } from "../../../theme";
+import { Chevron } from "../../../web/Chevron";
+import { Alert, Button, Card, Muted, SectionTitle, font, gap, useUi } from "../ui";
 import type { Loaded } from "./transport";
 
 /** A picker card: heading, a close button, then its content. */
@@ -30,6 +32,8 @@ export function LoadView<T>({ state, loading, children }: { state: Loaded<T>; lo
  * leaves the list where it is. `onBack` adds "Back to results", which returns to the row that opened the card.
  */
 export function Reveal({ scrollTo, onBack, children }: { scrollTo: ((y: number) => void) | null; onBack: (() => void) | null; children: ReactNode }) {
+  const { t } = useUi();
+  const tone = buttonTone(t, "ghost");
   const done = useRef(false);
   return (
     <View
@@ -40,7 +44,10 @@ export function Reveal({ scrollTo, onBack, children }: { scrollTo: ((y: number) 
       }}
       style={{ gap: gap.xs, marginTop: gap.xs }}
     >
-      {onBack ? <Button label="← Back to results" variant="ghost" size="sm" accessibilityLabel="Back to results" onPress={onBack} style={{ alignSelf: "flex-start" }} /> : null}
+      {onBack ? <Button label="Back to results" variant="ghost" size="sm" onPress={onBack} style={{ alignSelf: "flex-start" }}>
+        <Chevron expanded={false} direction="left" size={18} color={tone.fg} />
+        <Text style={{ flexShrink: 1, fontSize: font.body, lineHeight: 20, fontWeight: "500", color: tone.fg }}>Back to results</Text>
+      </Button> : null}
       {children}
     </View>
   );

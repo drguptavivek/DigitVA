@@ -4,13 +4,19 @@ import Svg, { Path } from "react-native-svg";
 
 import { useTheme } from "../theme";
 
-/** Tabler "chevron-down" at 22px in the text colour: points down when open, right when closed. */
-export function Chevron({ expanded }: { expanded: boolean }) {
+/** Tabler chevron-down/right/left/up: one path per direction, so no transform (DORIS cards forbid one, digitva-4x2y). */
+const PATHS = { down: "M6 9l6 6l6 -6", right: "M9 6l6 6l-6 6", left: "M15 6l-6 6l6 6", up: "M6 15l6 -6l6 6" } as const;
+
+/**
+ * Tabler "chevron-down", 22px in the text colour by default: points down when open, right when closed.
+ * `direction` overrides that for back arrows and the like; `size` and `color` fit it into tighter spots.
+ */
+export function Chevron({ expanded, direction, size = 22, color }: { expanded: boolean; direction?: keyof typeof PATHS; size?: number; color?: string }) {
   const { ui } = useTheme();
   return (
-    <View style={{ transform: [{ rotate: expanded ? "0deg" : "-90deg" }] }} aria-hidden>
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path d="M6 9l6 6l6 -6" stroke={ui.foreground} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <View aria-hidden>
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path d={PATHS[direction ?? (expanded ? "down" : "right")]} stroke={color ?? ui.foreground} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     </View>
   );

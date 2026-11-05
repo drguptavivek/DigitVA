@@ -26,6 +26,7 @@ import { RegistrationFieldControl } from "./registrationControls";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
+import { otherDraftWarning } from "../ui/CaseCard";
 import {
   TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_ROUTES,
 } from "../training";
@@ -72,16 +73,6 @@ function formatDate(value: string | null | undefined): string {
   if (!value) return "";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
-}
-
-function otherDraftNotice(startedAt: string | null | undefined): string {
-  if (typeof startedAt === "string") {
-    const date = new Date(startedAt);
-    if (!Number.isNaN(date.getTime())) {
-      return t("otherDraftActiveAt", { date: date.toLocaleString() });
-    }
-  }
-  return t("otherDraftActive");
 }
 
 function sexLabel(value: string | null | undefined): string {
@@ -400,8 +391,8 @@ export default function NewCaseDetailScreen() {
               <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
             ) : null}
             {row.other_draft_active === true ? (
-              <Text style={styles.error} accessibilityRole="alert">
-                {otherDraftNotice(row.other_draft_started_at)}
+              <Text style={styles.muted}>
+                {otherDraftWarning(row.other_draft_started_at, row.other_draft_started_by)}
               </Text>
             ) : null}
             {row.other_complete_interview === true ? (

@@ -554,7 +554,7 @@
     }
     if (row.other_draft_active) {
       // Only that a teammate has a draft and when it started, never who.
-      status.appendChild(el('span', 'badge me-1 mb-1 text-bg-warning', 'Another interviewer started this on ' + formatWhen(row.other_draft_started_at)));
+      status.appendChild(el('span', 'badge me-1 mb-1 text-bg-warning', (row.other_draft_started_by || 'Another interviewer') + ' started this on ' + formatWhen(row.other_draft_started_at)));
     }
     if (row.next_visit_at) status.appendChild(el('div', 'fw-semibold', 'Next visit ' + formatWhen(row.next_visit_at)));
     status.appendChild(el('div', 'text-muted', 'Updated ' + formatWhen(row.updated_at)

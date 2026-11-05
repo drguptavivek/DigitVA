@@ -174,7 +174,7 @@ describe("onCodeInfo", () => {
 
   it("joins the part URIs of an expression and gives it no badges", async () => {
     const reply = await createOfflineDorisEditor(fakeEngine(knownWho).engine, memoryStore()).onCodeInfo("1B12.2&XA0G74");
-    expect(reply.item).toEqual({ code: "1B12.2&XA0G74", title: "Title 2", uri: `${MMS}/2 & ${MMS}/3`, release: "2026-01", postcoordination: false, leaf: true, extension: false });
+    expect(reply.item).toEqual({ code: "1B12.2&XA0G74", title: "Title 2 + Title 3", uri: `${MMS}/2 & ${MMS}/3`, release: "2026-01", postcoordination: false, leaf: true, extension: false });
   });
 
   it("refuses an empty or over-long code (422 INVALID_INPUT), an unknown one (422 CODE_NOT_FOUND) and personal data", async () => {

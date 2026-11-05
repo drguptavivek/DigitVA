@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { formatDisplayTimestamp } from "../src/ui/CaseCard";
 import { act, create } from "react-test-renderer";
 import { AppState, Text } from "react-native";
 import * as Crypto from "expo-crypto";
@@ -226,6 +227,7 @@ jest.mock("../src/drafts", () => ({
   stripDraftCovered: jest.fn(async () => undefined),
   clearRefusedDraft: jest.fn(async () => undefined),
   clearRefusedDraftInTransaction: jest.fn(async () => undefined),
+  restoreResumedPrefill: jest.fn(async () => undefined),
   isNeverSentDraft: jest.fn(async () => false),
   deleteUnsentDraft: jest.fn(async () => true),
 }));
@@ -1123,7 +1125,7 @@ describe("native project-aware routes", () => {
     await settle();
     const rendered = dump(tree!);
     expect(rendered).toContain(
-      `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
+      `otherDraftActiveAt ${formatDisplayTimestamp(startedAt)}`,
     );
     expect(rendered).toContain("otherDraftSyncNotice");
     expect(rendered).toContain("readyForCode");
@@ -2078,6 +2080,37 @@ describe("respondent consent in the interview form", () => {
     await settle();
     expect(mockFormProps.initialData).not.toHaveProperty("Id10007");
     await act(async () => tree.unmount());
+  });
+
+  it("rebuilds the prefill from the unit presets after refusal and a later grant", async () => {
+    const prefill = { answers: { Id10007: "Private", Id10002: "high" }, lockedQuestionNames: ["Id10002"] };
+    const saved = mockReference;
+    const reference = pack();
+    (reference.projects[0].project.prefill_policy as Record<string, unknown>).direct = { answers: { Id10002: "veryl" }, lockedQuestionNames: ["Id10002"] };
+    mockReference = reference;
+    (jest.requireMock("../src/cases").resolveDraftHost as jest.Mock).mockResolvedValue({ projectId: "P1", siteId: "S1", binding: { projectId: "P1", prefill }, prefill });
+    (jest.requireMock("../src/prefill").initialDataFromPrefill as jest.Mock).mockImplementation((value: typeof prefill | undefined) => value?.answers ?? {});
+    setup(consentConfig(), [{ key: `consent:draft:${FORM_ID}`, value: stored("granted") }]);
+    try {
+      const tree = await open();
+      await act(async () => { tree.root.findAll((n) => n.props.testID === "consent-chip" && typeof n.type !== "string")[0].props.onPress(); });
+      await settle();
+      await act(async () => { (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c2", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "refused" }); });
+      await settle();
+      await act(async () => { tree.root.findByProps({ "data-label": "Change consent" }).props.onClick(); });
+      await settle();
+      await act(async () => { (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c3", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "granted" }); });
+      await settle();
+      const rebuilt = expect.objectContaining({ answers: { Id10002: "veryl" }, lockedQuestionNames: ["Id10002"] });
+      expect(jest.requireMock("../src/drafts").restoreResumedPrefill).toHaveBeenCalledWith(
+        expect.anything(), FORM_ID, rebuilt, expect.objectContaining({ Id10002: "veryl" }));
+      expect(mockFormProps.initialData).toMatchObject({ Id10002: "veryl" });
+      expect(mockFormProps.initialData).not.toHaveProperty("Id10007");
+      expect(mockFormProps.lockedQuestionNames).toContain("Id10002");
+      await act(async () => tree.unmount());
+    } finally {
+      mockReference = saved;
+    }
   });
 
   it("reuses a decision already on file (its registration's) and asks nothing", async () => {

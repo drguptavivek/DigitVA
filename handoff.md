@@ -38,7 +38,11 @@ has neither, and its coding is one direct step with SmartVA visible.
    `minerva_celery_worker`. Until the rebuild, reports derive live (correct,
    slower). Audit old APKs first: stale-save 409s gained optional fields only.
    The same deploy carries the screen-check fixes (`digitva-kgjk`), which
-   move the composed form version to `2026081401-405dcd46c5` (Id10004 hint).
+   move the composed form version to `2026081401-132dfd439e` (Id10004 hint),
+   and the staging-bug batch: re-consent prefill (`digitva-lgzl`), DORIS
+   cluster titles and repeated parts (`digitva-iae8`), Deaths project
+   selector (`digitva-i92f`), named other-interviewer banner (`digitva-vg51`).
+   After the deploy, re-check a refuse-then-consent interview on staging.
 3. Verify on the USB Samsung (RZCW81QZT2Z): install
    `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (release-signed,
    updates 0.3.17 in place) for the 0.3.18 checks and the offline workspace;

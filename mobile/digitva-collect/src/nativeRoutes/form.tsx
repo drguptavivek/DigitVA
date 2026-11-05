@@ -57,6 +57,7 @@ import {
   getMeta,
   isNeverSentDraft,
   markCompleted,
+  restoreResumedPrefill,
   setMeta,
   stripDraftCovered,
   type Db,
@@ -250,6 +251,39 @@ function definitionErrorMessage(error: unknown): string | undefined {
     return "This interview's original form is unavailable. Your answers remain on this device.";
   }
   return undefined;
+}
+
+/**
+ * The prefill a new draft on `loaded`'s host starts from, rebuilt from the offline profile, the downloaded case, the
+ * offline registration or the project's unit presets as they are now. A refused draft resumed after a grant gets this,
+ * never its pre-refusal prefill (docs/policy/respondent-consent-notice-draft.md, "Later agreement and shared cases").
+ */
+async function rebuiltPrefill(loaded: Loaded): Promise<Prefill | undefined> {
+  if (loaded.standalone) {
+    const profile = await getOfflineProfile().catch(() => null);
+    return standaloneProfileMissing(profile).length ? undefined : standalonePrefill(profile!);
+  }
+  const { deathId, clientDeathId } = loaded.binding;
+  const found = deathId ? await getCase(loaded.db, deathId) : undefined;
+  if (found?.prefill) return found.prefill;
+  const registration = clientDeathId ? await getRegistration(loaded.db, clientDeathId) : undefined;
+  if (registration) {
+    const user = (await getCachedReferenceData(loaded.db))?.bootstrap.user;
+    return mergeProjectPrefill(loaded.project, registration.org_unit_id,
+      prefillFromRegistration(registration.fields, user ? { id: user.user_id, name: user.name } : undefined));
+  }
+  return mergeProjectPrefill(loaded.project, loaded.orgUnitId, undefined);
+}
+
+/**
+ * Store a `rebuiltPrefill` on the resumed draft, its answers under the draft's own as a new form gets them (the
+ * interviewer's recall added, answers a consent does not cover left out).
+ */
+async function storeResumedPrefill(db: Db, loaded: Loaded, draftId: string, prefill: Prefill | undefined,
+                                   covered: readonly string[] = []): Promise<void> {
+  if (!prefill) return;
+  const initial = withInterviewerRecall(initialDataFromPrefill(prefill), loaded.recall, loaded.accountName) ?? {};
+  await restoreResumedPrefill(db, draftId, prefill, withoutCovered(initial, covered) as Record<string, unknown>);
 }
 
 function mergeProjectPrefill(
@@ -1066,6 +1100,9 @@ export default function Form() {
         await saveDraftConsent(loaded!.db, draftId!, record);
         if (envelope.decision === "granted" && (serverRefused || (changing && consentView.kind === "ready" && consentView.decision === "refused"))) {
           await setMeta(loaded!.db, `consent:resume-who:${draftId}`, true);
+          const prefill = await rebuiltPrefill(loaded!);
+          await storeResumedPrefill(loaded!.db, loaded!, draftId!, prefill);
+          setLoaded((current) => current ? { ...current, prefill, binding: { ...current.binding, prefill } } : current);
         }
         if (envelope.decision === "refused") {
           setLoaded((current) => current ? { ...current, prefill: undefined, binding: { ...current.binding, prefill: undefined } } : current);
@@ -1139,6 +1176,7 @@ export default function Form() {
       try {
         await controller.current?.saveDraft();
         await clearRefusedDraft(loaded.db, draftId);
+        const prefill = await rebuiltPrefill(loaded);
         await runInTransaction(loaded.db, async (tx) => {
           const row = await tx.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
           if (row) {
@@ -1147,9 +1185,10 @@ export default function Form() {
             const result = await tx.runAsync("UPDATE drafts SET envelope = ?, completed = 0, completion = NULL, upload_issue = NULL, draft_sync_dirty = 1 WHERE id = ? AND envelope = ?", [JSON.stringify(draft), draftId, row.envelope]);
             if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) !== 1) throw new Error("draft_conflict");
             await setMeta(tx, `consent:resume-who:${draftId}`, true);
+            await storeResumedPrefill(tx, loaded, draftId, prefill, covered);
           }
         });
-        setLoaded((current) => current ? { ...current, prefill: undefined, binding: { ...current.binding, prefill: undefined } } : current);
+        setLoaded((current) => current ? { ...current, prefill, binding: { ...current.binding, prefill } } : current);
         setWhoRefused(false);
         setConfirmWhoGrant(false);
       } catch (error) { setMessage(errorText(error)); }

@@ -273,3 +273,20 @@ describe("Delete draft on the Interviews list", () => {
     expect(onDeleteDraft).toHaveBeenCalledWith(expect.objectContaining({ key: "draft-d1" }));
   });
 });
+
+describe("Another interviewer's open draft", () => {
+  const startedAt = "2026-10-04T10:30:00Z";
+  const lines = (extra: object) =>
+    buildInterviewItems(sources({ cases: [caseRow("C1", "Ramesh Kumar", { other_draft_active: true, other_draft_started_at: startedAt, ...extra })] }))[0].lines.map((l) => l.text);
+
+  it("names the interviewer from a cached case when the server sent the name", () => {
+    expect(lines({ other_draft_started_by: "Asha Verma" })).toContain(`Asha Verma started this interview on ${formatDisplayTimestamp(startedAt)}.`);
+  });
+
+  it("falls back to the unnamed text without the name, and the undated one without a usable time", () => {
+    const unnamed = lines({ other_draft_started_by: null });
+    expect(unnamed).toContain(`Another interviewer started this interview on ${formatDisplayTimestamp(startedAt)}.`);
+    expect(unnamed.join(" ")).not.toContain("null");
+    expect(lines({ other_draft_started_at: "invalid", other_draft_started_by: "Asha Verma" })).toContain("Another interviewer has started this interview.");
+  });
+});

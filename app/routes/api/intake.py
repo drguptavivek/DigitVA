@@ -406,14 +406,14 @@ def _reporter_view(death) -> bool:
 
 
 def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_submission=False,
-               other_complete_interview=False, ready_for_coding=False) -> dict:
+               other_complete_interview=False, ready_for_coding=False, other_draft_started_by=None) -> dict:
     """The case with its full contact details (``serialize_case_detail``), this
     API's links, and the ``prefill`` an interview started offline needs, only
     when the caller may start or resume the interview (``case_prefill``);
     otherwise the key is absent."""
     body = intake_svc.serialize_case_detail(
         current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission,
-        other_complete_interview, ready_for_coding,
+        other_complete_interview, ready_for_coding, other_draft_started_by,
     )
     # Registration numbers: values for a viewer who may see them, else a badge.
     body["identifiers"] = identifiers_svc.identifier_payloads(current_user, [death])[death.death_id]
@@ -423,7 +423,7 @@ def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_su
         # and corrects; the interview, contact attempts and visit are not
         # theirs, so no prefill, no link to a route that answers 403, and
         # nothing about other interviewers' drafts (digitva-t6q).
-        for key in ("other_draft_active", "other_draft_started_at"):
+        for key in ("other_draft_active", "other_draft_started_at", "other_draft_started_by"):
             body.pop(key, None)
         body["links"] = {"update": url_for(".update_death", death_id=death.death_id)}
         return body

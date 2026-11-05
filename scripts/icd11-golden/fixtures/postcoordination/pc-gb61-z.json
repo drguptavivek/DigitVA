@@ -9,7 +9,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z%2F5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/412389819/unspecified"
+      "GET icd/release/11/2026-01/mms/412389819/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z",
+      "GET icd/release/11/2026-01/mms/412389819/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "codeinfo",
      "reply": {
@@ -20,7 +24,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Chronic kidney disease, stage unspecified",
+        "title": "Chronic kidney disease, stage unspecified + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -53,7 +57,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Chronic kidney disease, stage unspecified",
+        "title": "Chronic kidney disease, stage unspecified + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -317,7 +321,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z%2FBA00.Z",
       "GET icd/release/11/2026-01/mms/codeinfo/GB61.Z",
       "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z",
-      "GET icd/release/11/2026-01/mms/412389819/unspecified"
+      "GET icd/release/11/2026-01/mms/412389819/unspecified",
+      "GET icd/release/11/2026-01/mms/codeinfo/BA00.Z",
+      "GET icd/release/11/2026-01/mms/761947693/unspecified"
      ],
      "name": "codeinfo",
      "reply": {
@@ -328,7 +334,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Chronic kidney disease, stage unspecified",
+        "title": "Chronic kidney disease, stage unspecified + Essential hypertension, unspecified",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"
        },
        "schema_version": 1
@@ -361,7 +367,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Chronic kidney disease, stage unspecified",
+        "title": "Chronic kidney disease, stage unspecified + Essential hypertension, unspecified",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified / http://id.who.int/icd/release/11/2026-01/mms/761947693/unspecified"
        },
        "schema_version": 1

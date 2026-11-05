@@ -180,6 +180,7 @@ class DeathReporterTests(BaseTestCase):
         # Nothing about other interviewers' drafts; the state stays.
         self.assertNotIn("other_draft_active", case)
         self.assertNotIn("other_draft_started_at", case)
+        self.assertNotIn("other_draft_started_by", case)
         self.assertEqual(case["state"], "registered")
         # Update is the only link; no prefill (the interview's input) and no interview, attempts or visit.
         self.assertEqual(case["links"], {"update": f"{API}/deaths/{case['death_id']}"})
@@ -327,6 +328,7 @@ class DeathReporterTests(BaseTestCase):
         self.assertFalse(row["can_interview"])
         self.assertNotIn("other_draft_active", row)
         self.assertNotIn("other_draft_started_at", row)
+        self.assertNotIn("other_draft_started_by", row)
         self.assertEqual(response.get_json()["counts"], {"registered": 1})
         # Project narrowing takes the reporter's projects; another is refused.
         self.assertEqual(self._cases(self.reporter, f"?project_id={PROJECT}").status_code, 200)
@@ -350,9 +352,11 @@ class DeathReporterTests(BaseTestCase):
         self.assertIn(in_reach, rows)
         self.assertTrue(rows[in_reach]["can_interview"])
         self.assertIn("other_draft_active", rows[in_reach])
+        self.assertIn("other_draft_started_by", rows[in_reach])
         self.assertIn(reported, rows)
         self.assertFalse(rows[reported]["can_interview"])
         self.assertNotIn("other_draft_active", rows[reported])
+        self.assertNotIn("other_draft_started_by", rows[reported])
         self.assertNotIn(sibling, rows)
         # An interviewer's list is unchanged: every case in reach, interview allowed.
         rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
@@ -638,11 +642,13 @@ class DeathReporterTests(BaseTestCase):
         self.assertEqual(as_reporter["links"], {"update": f"{API}/deaths/{as_reporter['death_id']}"})
         self.assertNotIn("prefill", as_reporter)
         self.assertNotIn("other_draft_active", as_reporter)
+        self.assertNotIn("other_draft_started_by", as_reporter)
         # Where the interviewer grant reaches the case, the full interview body.
         as_interviewer = self._register(self.both, self.scb)
         self.assertIn("prefill", as_interviewer)
         self.assertIn("start_interview", as_interviewer["links"])
         self.assertIn("other_draft_active", as_interviewer)
+        self.assertIn("other_draft_started_by", as_interviewer)
         # The correction reply follows the same rule.
         fixed = self._patch(self.both, as_reporter["death_id"], {"remarks": "r"}).get_json()["case"]
         self.assertEqual(list(fixed["links"]), ["update"])

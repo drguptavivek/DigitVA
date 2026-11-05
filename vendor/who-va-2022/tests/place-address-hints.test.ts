@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { PLACE_ADDRESS_HINTS, SEASON_OF_DEATH_TEXT, createWhoVa2022Instrument } from "../src/instrument.js";
+import generated from "../src/generated/who-va-2022.instrument.json";
+import { PLACE_ADDRESS_HINTS, createWhoVa2022Instrument } from "../src/instrument.js";
 
 // Owner decision 2026-10-24 (digitva-xrqv): free-text place questions say an
 // address / place name is wanted. Wording, constraints and relevance are WHO's.
@@ -33,17 +34,20 @@ describe("place/address hints", () => {
   });
 });
 
-// Owner decision 2026-11-05: the interviewer answers Id10004; WHO's "central
-// office" hint and guidance are replaced, en and hi.
+// Owner decision 2026-11-05: the interviewer answers Id10004; WHO's red
+// "central office" hint is removed, everything else stays WHO's.
 describe("Id10004 season of death", () => {
-  it("replaces WHO's central-office hint and guidance and leaves the rest alone", () => {
+  it("has no hint and keeps WHO's label, guidance and choices", () => {
     const q = find(withHints, "Id10004");
+    const who = generated.questions.find((g) => g.name === "Id10004")!;
     expect(q).toBeDefined();
-    expect(q.hint).toEqual(SEASON_OF_DEATH_TEXT.hint);
-    expect(q.guidance).toEqual(SEASON_OF_DEATH_TEXT.guidance);
-    expect(JSON.stringify([q.hint, q.guidance])).not.toMatch(/central|केंद्रीय|<span/);
+    expect(who.hint.en).toMatch(/central/i);
+    expect(q.hint).toEqual({});
+    expect(JSON.stringify(q.hint)).not.toMatch(/central|केंद्रीय/);
+    expect(q.guidance).toEqual(who.guidance);
+    expect(q.label).toEqual(who.label);
     expect(q.label.en).toBe("(Id10004) [During which season did (s)he die?]");
-    expect(q.choices?.map((c) => c.value)).toEqual(["wet", "dry", "DK"]);
+    expect(q.choices).toEqual(who.choices);
     expect(q.required).toBe(true);
   });
 });

@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-29
+last_updated: 2026-11-05
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -177,7 +177,9 @@ refusal is recorded on a case that other interviewers also have open, their
 open interviews are cleared at that moment to the same refusal-only answers
 (files and earlier saved versions included) and paused until each interviewer
 explicitly resumes after a fresh grant; nothing they collected before the
-refusal returns. The hold that stops those other interviews from writing lasts
+refusal returns. After consent is re-given, the draft's prefill (area presets, interviewer details, registration answers, locked questions) is rebuilt from the current case and unit, as for a new draft; nothing from before the refusal is restored. The server rebuilds it on the first
+resume (`check_refusal_resume`); the phone rebuilds it on the grant from its
+offline profile, downloaded case, offline registration or unit presets. The hold that stops those other interviews from writing lasts
 only while the refusing interview is unsent: a fresh grant on it, or
 submitting it, ends the hold.
 

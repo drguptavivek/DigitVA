@@ -127,31 +127,30 @@ describe("DeathsList filter bar", () => {
     expect(labels(right)).toEqual(["filterWhoseLabel:filterMine", "filterWhoseLabel:filterAll", "filterPeriodLabel:filterLast30Days", "filterPeriodLabel:filterAll"]);
     expect(tree.root.findAll((n) => /^filter(Project|Area)Label/.test(String(n.props.accessibilityLabel)))).toHaveLength(0);
 
-    // Project and Area are the first sections of the sheet.
-    await press(tree, "advancedFilters");
+    // Project is the page's top-right control now, not a sheet section.
     const sections = tree.root.findAll((n) => typeof n.type === "string" && ["filterProject", "filterArea", "filterDates", "filterSex"].includes(n.props.children)).map((n) => n.props.children);
-    expect(sections[0]).toBe("filterProject");
-    expect(sections.indexOf("filterProject")).toBeLessThan(sections.indexOf("filterDates"));
+    expect(sections).not.toContain("filterProject");
     await act(async () => tree.unmount());
   });
 
-  it("applies a project from the sheet on the server, counts it in the badge and removes it as a chip", async () => {
+  it("shows Project and refresh top-right, outside the Advanced filters sheet, and changing it reloads the list", async () => {
     mockBootstrap = makeBootstrap(["interviewer"], { intake: true }, [projectAccess("P1", "Project One"), projectAccess("P2", "Project Two")]);
     const tree = await render(<DeathsListPanel />);
-    mockGetCases.mockClear();
+    expect(pressable(tree, "filterProject: filterAllProjects")).toBeDefined();
+    expect(pressable(tree, "refresh")).toBeDefined();
     await press(tree, "advancedFilters");
-    await press(tree, "filterProjectLabel:Project Two");
-    expect(mockGetCases).not.toHaveBeenCalled(); // nothing applies before Apply
-    await act(async () => tree.root.findAll((n) => n.props["data-label"] === "applyFilters")[0].props.onClick());
+    expect(tree.root.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProjectLabel"))).toHaveLength(0);
+    mockGetCases.mockClear();
+    await press(tree, "filterProject: filterAllProjects");
+    await press(tree, "Project Two");
     await settle();
     expect(mockGetCases).toHaveBeenCalledWith("/api/v1/intake/cases", mockBootstrap.csrf, null, "P2", false);
-    expect(pressable(tree, "advancedFiltersActive")).toBeDefined();
-    await press(tree, "removeFilter:filterProject: Project Two");
+    mockGetCases.mockClear();
+    await press(tree, "refresh");
     await settle();
-    expect(mockGetCases).toHaveBeenLastCalledWith("/api/v1/intake/cases", mockBootstrap.csrf, null, undefined, false);
-    expect(pressable(tree, "advancedFilters")).toBeDefined();
-    await act(async () => tree.unmount());
+    expect(mockGetCases).toHaveBeenCalledTimes(1);
   });
+
 
   it("asks the server for the training scope only inside the Training screens", async () => {
     mockBootstrap = { ...makeBootstrap(["interviewer"], { intake: true }), scope: "training" } as typeof mockBootstrap;

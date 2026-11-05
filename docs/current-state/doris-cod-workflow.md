@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # DORIS COD Workflow
@@ -299,6 +299,27 @@ related), each with its own scroll; the footer spans the full width and there
 is no scroll-jump or "Back to results". `app.json` orientation is `default`
 (tablets rotate; the phone portrait lock is pending, see the design in
 `.tasks/2026-10-29-android-offline-doris-parity.md`).
+
+**Cluster titles (2026-11-05).** For a code with `&` or `/`, the codeinfo and
+selection-check item's `title` is the whole expression's title from
+`icd11_titles.cluster_title` (every part's title joined with ` + `, stem first),
+so the certificate line shows the causing condition too. It falls back to the
+stem title when a part has no title and is trimmed to 500 characters (the
+certificate `Text` limit). Plain codes are unchanged; the response shape is the
+same. Parts use the per-token title cache and the Redis-cached WHO reads, so N
+parts cost at most N cached lookups. The offline engine (`codeinfoItem` in
+`dorisTerminology.ts`) and `app/public_doris/routes.py` do the same.
+
+**Repeated parts (2026-11-05).** An axis search ("search in axis", WHO
+`subtreesFilter`) can return an entry whose own code is already a cluster that
+includes the stem (`BA01/BD1Z` on stem `BD1Z`). The builders (`complete()` in
+`digitva_icd11_picker.js`, `buildExpression` in `picker/expression.ts`) split
+every chosen item on `&` and `/`, skip any part already in the expression (the
+stem or an earlier choice, with its matching URI part) and never emit a repeat,
+so the example builds `BD1Z/BA01`. The selection check (`repeated_part`, clinical
+and public routes) refuses a submitted code that repeats a part with
+`INVALID_SELECTION` instead of WHO's URI-mismatch answer. Response shape is
+unchanged.
 
 **Final codes only (2026-10-30, digitva-9cll.12).** Terms items carry
 `extension` (WHO `chapter` is `X`, else the code starts with X) and, when WHO

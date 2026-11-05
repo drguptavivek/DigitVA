@@ -95,10 +95,22 @@ export function buildExpression(stem: PickerItem, axes: DorisAxis[], selected: S
   const ordered = [...chosen.filter((part) => isExtension(part.code)), ...chosen.filter((part) => !isExtension(part.code))];
   let code = stem.code;
   let uri = stem.uri;
+  const seen = new Set([stem.code]);
   for (const item of ordered) {
-    const separator = isExtension(item.code) ? "&" : "/";
-    code += separator + item.code;
-    uri += ` ${separator} ${item.uri}`;
+    // An option can itself be a cluster that includes the stem (BA01/BD1Z on BD1Z): split it and never repeat a part.
+    const codes = item.code.split(/[&/]/);
+    const uris = item.uri ? item.uri.split(/\s+[/&]\s+/) : [];
+    const paired = uris.length === codes.length;
+    let first = true;
+    codes.forEach((part, index) => {
+      if (!part || seen.has(part)) return;
+      seen.add(part);
+      const separator = isExtension(part) ? "&" : "/";
+      code += separator + part;
+      if (paired) uri += ` ${separator} ${uris[index]}`;
+      else if (first && item.uri) uri += ` ${separator} ${item.uri}`;
+      first = false;
+    });
   }
   return {
     code,

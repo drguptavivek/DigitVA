@@ -630,20 +630,24 @@ async function storeServerWinner(
   prefill: Record<string, unknown>,
 ): Promise<boolean> {
   const localDraft = parseLocalEnvelope(local);
+  // The server's prefill, when it has one, wins over the stored one: a refusal resumed elsewhere rebuilt it there
+  // (area presets, interviewer, locked names), and the form takes its locks from the stored column.
+  const serverPrefill = Object.keys(fetched.prefill).length ? fetched.prefill : undefined;
   const merged = normalizedEnvelope(
     fetched.envelope,
     fetched.draft,
     local.id,
     defaults,
-    prefill,
+    serverPrefill ?? prefill,
     localDraft.startedAt,
     localDraft.createdAt,
     await refusedCovered(db, local)
   );
   const result = await db.runAsync(`UPDATE drafts SET envelope = ?, updated_at = ?,
-      server_draft_id = ?, base_updated_at = ?, draft_sync_dirty = 0
+      server_draft_id = ?, base_updated_at = ?, draft_sync_dirty = 0, prefill = COALESCE(?, prefill)
     WHERE id = ? AND envelope = ? AND updated_at = ? AND completed = 0 AND draft_sync_blocked = 0`,
   [JSON.stringify(merged), fetched.draft.updated_at, fetched.draft.draft_id, fetched.draft.updated_at,
+    serverPrefill ? JSON.stringify(serverPrefill) : null,
     local.id, local.envelope, local.updated_at]);
   return resultChanges(result);
 }

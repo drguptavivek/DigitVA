@@ -291,8 +291,10 @@ class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
         self.assertIn("values.push(option)", self.script)
 
     def test_expression_and_hierarchy_contracts_are_explicit(self):
-        self.assertIn("/^X/i.test(item.code) ? '&' : '/'", self.script)
-        self.assertIn("uri += ' ' + separator + ' ' + item.uri", self.script)
+        self.assertIn("/^X/i.test(part) ? '&' : '/'", self.script)
+        self.assertIn("uri += ' ' + separator + ' ' + uris[index]", self.script)
+        # A part already in the expression is never appended again (BD1Z/BA01/BD1Z).
+        self.assertIn("if (!part || seen.indexOf(part) !== -1) return;", self.script)
         self.assertNotIn("Matching terms", self.script)
         self.assertIn("related_maternal", self.script)
         self.assertIn("related_perinatal", self.script)

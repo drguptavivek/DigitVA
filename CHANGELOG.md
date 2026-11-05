@@ -5,6 +5,30 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-05
 
+- **Staging bugs from the owner's interview and DORIS trials:**
+  - Re-consent after a refusal brings the prefilled answers back
+    (`digitva-lgzl`; `docs/policy/respondent-consent-notice-draft.md`,
+    `docs/policy/offline-api-contract.md`). The first resume rebuilds the
+    prefill from current sources only (unit presets such as Id10002/Id10003,
+    interviewer, deceased block, registration answers), on the server and on
+    the phone, online and offline; nothing typed before the refusal returns.
+    Response shapes are unchanged for old APKs.
+  - DORIS clusters (`digitva-iae8`; `docs/current-state/doris-cod-workflow.md`):
+    the selection title of a "&" or "/" cluster joins every part's title with
+    " + " (it showed only the stem, hiding the causing condition), and an
+    expression that repeats a part (`BD1Z/BA01/BD1Z`) is refused with
+    "… appears more than once …"; both pickers stop appending a part that is
+    already there. The ICD-11 postcoordination golden set (24 fixtures) was
+    re-recorded for the joined titles with the owner's approval; the record
+    command now turns the ICD cache Redis off.
+  - The Deaths page has the Project selector and refresh at the top right,
+    as VA Interview does, wrapping under the actions on a phone
+    (`digitva-i92f`).
+  - The "another interviewer started this interview" banner names that
+    interviewer (`digitva-vg51`, owner: an operational need inside the
+    organisation; `docs/policy/web-intake.md`). Additive
+    `other_draft_started_by`; reporter-only viewers still see neither.
+
 - **Screen-check fixes on the web app** (`digitva-kgjk`;
   `docs/policy/digitva-who-form-overrides.md`), from a check of every input
   screen at 375, 768 and 1366 px:
@@ -24,9 +48,10 @@ What landed, newest first. Details live in the commits and the linked docs;
   - The interviewer-name prefill always passes WHO's letters-only rule.
   - The interview's Sections button and the web menu draw their icons; the
     ICD-11 coding-note ☰ stays (it is text).
-  - Id10004 (season of death) stays asked; WHO's "completed by the central
-    office" hint and guidance are replaced in English and Hindi (composed
-    version `2026081401-405dcd46c5`). French: `digitva-t620`.
+  - Id10004 (season of death) stays asked; WHO's red "completed by the
+    central office" hint is removed in every language (interviewers know the
+    season best); WHO's label and guidance stay (composed version
+    `2026081401-132dfd439e`).
   - Hindi: "सहेजें" becomes "सेव" app-wide; the stale-save choice reads
     "कौन से जवाब रखने हैं?" and "मेरे जवाबों को इस्तेमाल करें".
 

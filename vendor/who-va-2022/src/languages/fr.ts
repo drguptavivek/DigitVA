@@ -102,7 +102,6 @@ export default {
       },
       Id10004: {
         label: "(Id10004) [Pendant quelle saison est-il mort ?]",
-        hint: "Doit être complété par le bureau central.",
         guidance:
           "L'équipe de projet doit fournir une liste de mois classés comme humides ou secs. Sélectionnez humide ou sec selon la liste fournie. La manière dont les informations sont complétées varie selon les sites, mais idéalement, elles sont remplies par le bureau central ; les enquêteurs étant en mesure de modifier les informations si elles sont vérifiées différemment en consultation avec le bureau central.",
         choices: {

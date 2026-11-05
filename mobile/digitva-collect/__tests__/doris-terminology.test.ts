@@ -184,6 +184,25 @@ describe("codeinfoItem", () => {
     expect(slash).not.toHaveProperty("postcoordination_availability");
   });
 
+  it("titles a cluster with every part, joined by ' + ', and trims it to 500 characters", async () => {
+    const entity = ok({ title: "Acute myocardial infarction" });
+    const titles: Record<string, string> = { "1B12.2": "Acute myocardial infarction", XA0G74: "Hypertensive heart failure" };
+    const codeinfo: Record<string, Json | null> = { ...record, "1B12.2/XA0G74": { code: "1B12.2/XA0G74", stemId: stemUri } };
+    const withTitles = (t: (token: string) => Promise<string>) => who({ codeinfo: async (code) => codeinfo[code] ?? null, entity: async () => entity, title: t });
+    const joined = withTitles(async (token) => titles[token] ?? "");
+    for (const code of ["1B12.2&XA0G74", "1B12.2/XA0G74"]) {
+      expect((await codeinfoItem(joined, code))?.title).toBe("Acute myocardial infarction + Hypertensive heart failure");
+    }
+    // A part without a title, or an unavailable lookup, leaves the stem title.
+    expect((await codeinfoItem(withTitles(async (token) => (token === "XA0G74" ? "" : "T")), "1B12.2&XA0G74"))?.title).toBe("Acute myocardial infarction");
+    expect((await codeinfoItem(withTitles(async () => { throw new WhoUnavailableError("title_failed"); }), "1B12.2&XA0G74"))?.title).toBe("Acute myocardial infarction");
+    const long = (await codeinfoItem(withTitles(async () => "x".repeat(400)), "1B12.2&XA0G74"))?.title ?? "";
+    expect(Array.from(long)).toHaveLength(500);
+    expect(long.endsWith("…")).toBe(true);
+    // A plain code is untouched.
+    expect((await codeinfoItem(withTitles(async () => "other"), "BA41.Z"))?.title).toBe("Acute myocardial infarction");
+  });
+
   it("is null when WHO does not know the code, a part, a stem URI, a stem entity or any title", async () => {
     const entity = ok({ title: "T" });
     await expect(codeinfoItem(client(entity), "UNKNOWN")).resolves.toBeNull();

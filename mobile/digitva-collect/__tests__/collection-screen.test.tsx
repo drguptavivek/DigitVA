@@ -67,9 +67,10 @@ jest.mock("../src/ui", () => ({
   stateLabel: (state: string) => state,
   useUiStyles: () => ({ error: {}, muted: {}, headline: {}, card: {}, text: {} })
 }));
-jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: ReactNode }) => <>{children}</>, browserErrorText: () => "error" }));
+jest.mock("../src/web/common", () => ({ WebShell: ({ children, title }: { children: ReactNode; title: string }) => <><span data-shell-title={title} />{children}</>, browserErrorText: () => "error" }));
 
 import CollectionScreen, { CollectionPanel } from "../src/web/CollectionScreen";
+import { formatDisplayTimestamp } from "../src/ui/CaseCard";
 import { EMPTY_ADVANCED, matchesAdvanced } from "../src/web/caseFilters";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
 import { getSubmittedRevisions } from "../src/client/revisionList";
@@ -274,11 +275,22 @@ describe("CollectionScreen refresh", () => {
     await act(async () => { tree = create(<CollectionScreen />); });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain(`otherDraftActiveAt:${new Date(startedAt).toLocaleString()}`);
+    expect(rendered).toContain(`otherDraftActiveAt:${formatDisplayTimestamp(startedAt)}`);
     expect(rendered).toContain('"otherDraftActive"');
     expect(rendered).toContain("supersededInterviewNotice");
     expect(rendered.match(/otherCompleteInterviewNotice/g)).toHaveLength(1);
     expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
+    // Information, not an error: no alert role on the notice.
+    expect(rendered).not.toContain('"accessibilityRole":"alert"},"children":["otherDraftActiveAt');
+    await act(async () => tree!.unmount());
+  });
+
+  it("titles the page like its nav entry, VA Interview", async () => {
+    mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CollectionScreen />); });
+    await settle();
+    expect(tree!.root.findByProps({ "data-shell-title": "navVaInterview" })).toBeDefined();
     await act(async () => tree!.unmount());
   });
 

@@ -152,9 +152,11 @@ const withoutProof = (body: unknown) => {
   return rest;
 };
 
-/** The recorded calls the port made must all be among the ones the server made for this operation (it may make fewer: it caches). */
-function expectCallsRecorded(made: string[], operation: Operation) {
-  const allowed = new Set(operation.calls.map((key) => key.split(" #")[0]));
+/** The recorded calls the port made must all be among the ones the server made for this operation (it may make fewer: it
+ * caches), or for an *earlier* operation of the same item: the server's title cache lives for the whole item (record.py
+ * MemoryCache), so a cluster title it read once is not read again. */
+function expectCallsRecorded(made: string[], operation: Operation, earlier: string[] = []) {
+  const allowed = new Set([...earlier, ...operation.calls].map((key) => key.split(" #")[0]));
   expect(made.filter((key) => !allowed.has(key))).toEqual([]);
 }
 
@@ -188,6 +190,7 @@ describe("postcoordination golden set: codeinfo and selection-check", () => {
 
   it.each(files("postcoordination"))("%s", async (file) => {
     const fixture = load("postcoordination", file);
+    const earlier: string[] = [];
     for (const operation of operationsOf(fixture)) {
       if (operation.name in GUIDANCE_ROUTE) continue;
       const { engine, calls, unrecorded } = replayEngine(fixture);
@@ -199,7 +202,8 @@ describe("postcoordination golden set: codeinfo and selection-check", () => {
         operation: operation.name, request: operation.request, ...operation.reply,
       });
       expect(unrecorded).toEqual([]);
-      expectCallsRecorded(calls, operation);
+      expectCallsRecorded(calls, operation, earlier);
+      earlier.push(...operation.calls);
     }
   });
 });
@@ -211,6 +215,7 @@ describe("postcoordination golden set: guidance routes", () => {
 
   it.each(files("postcoordination"))("%s", async (file) => {
     const fixture = load("postcoordination", file);
+    const earlier: string[] = [];
     for (const operation of operationsOf(fixture)) {
       const endpoint = GUIDANCE_ROUTE[operation.name];
       if (!endpoint) continue;

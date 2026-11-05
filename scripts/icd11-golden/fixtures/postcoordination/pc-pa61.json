@@ -10,7 +10,13 @@
       "GET icd/release/11/2026-01/mms/codeinfo/PA61",
       "GET icd/release/11/2026-01/mms/codeinfo/XE545",
       "GET icd/release/11/2026-01/mms/codeinfo/XE266",
-      "GET icd/release/11/2026-01/mms/1729453916"
+      "GET icd/release/11/2026-01/mms/1729453916",
+      "GET icd/release/11/2026-01/mms/codeinfo/PA61",
+      "GET icd/release/11/2026-01/mms/1729453916",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE545",
+      "GET icd/release/11/2026-01/mms/2071638841",
+      "GET icd/release/11/2026-01/mms/codeinfo/XE266",
+      "GET icd/release/11/2026-01/mms/1670965842"
      ],
      "name": "codeinfo",
      "reply": {
@@ -21,7 +27,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Unintentional fall from a height of 1 metre or more",
+        "title": "Unintentional fall from a height of 1 metre or more + Paid work + Home",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/2071638841 & http://id.who.int/icd/release/11/2026-01/mms/1670965842"
        },
        "schema_version": 1
@@ -54,7 +60,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Unintentional fall from a height of 1 metre or more",
+        "title": "Unintentional fall from a height of 1 metre or more + Paid work + Home",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1729453916 & http://id.who.int/icd/release/11/2026-01/mms/2071638841 & http://id.who.int/icd/release/11/2026-01/mms/1670965842"
        },
        "schema_version": 1

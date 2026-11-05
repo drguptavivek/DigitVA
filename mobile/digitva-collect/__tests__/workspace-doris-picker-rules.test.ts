@@ -80,6 +80,17 @@ describe("required axes and the expression", () => {
     expect(built.causingUnknown).toBeUndefined();
   });
 
+  it("never repeats a part: a cluster option that includes the stem adds only its new parts", () => {
+    const axes = [axis("a", "AllowAlways")];
+    const dup = { ...option("BA01/BD54"), uri: "u/BA01 / u/BD54" };
+    const built = buildExpression(stem, axes, { a: [dup] }, null, false);
+    expect(built.code).toBe("BD54/BA01");
+    expect(built.uri).toBe("u/BD54 / u/BA01");
+    const two = { ...option("BA01/MC85/BD54"), uri: "u/BA01 / u/MC85 / u/BD54" };
+    expect(buildExpression(stem, axes, { a: [two] }, null, false).code).toBe("BD54/BA01/MC85");
+    expect(buildExpression(stem, axes, { a: [two, option("MC85")] }, null, false).uri).toBe("u/BD54 / u/BA01 / u/MC85");
+  });
+
   it("is the bare stem with nothing chosen, and flags an unknown causing condition", () => {
     expect(buildExpression(stem, [optional], {}, null, false)).toEqual({ code: "BD54", uri: "u/BD54", title: "Stem" });
     expect(buildExpression({ ...stem, title: "" }, [causing], {}, null, true)).toMatchObject({ code: "BD54", title: "", causingUnknown: true });

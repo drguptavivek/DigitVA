@@ -437,7 +437,8 @@ class IntakeApiTests(BaseTestCase):
         self.assertIn("prefill", detail)  # open case, no draft: any interviewer in scope may start it
 
         # Another interviewer's draft does not withhold it: both are prefilled, and the
-        # other gets the warning (a flag and a time, never who).
+        # other gets the warning: a flag, a time and the interviewer's name (owner,
+        # 2026-11-05), never their id.
         self._login(self.interviewer_id)
         draft = self._start_draft(death_id=death_id)
         mine = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
@@ -451,6 +452,8 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(held["prefill"]["answers"]["Id10061"], "Hari Das")
         self.assertIs(held["other_draft_active"], True)
         self.assertIsNotNone(held["other_draft_started_at"])
+        self.assertTrue(self.interviewer.name)
+        self.assertEqual(held["other_draft_started_by"], self.interviewer.name)
         self.assertIsNone(held["my_draft_id"])
         self.assertNotIn(self.interviewer_id, json.dumps(held))
         self._login(self.interviewer_id)

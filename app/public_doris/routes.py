@@ -20,6 +20,7 @@ from app.services.icd11_postcoordination import (
     guidance_request,
     search_context_from_entity,
     search_terms,
+    repeated_part,
     selection_refusal,
     valid_subtree_uris,
 )
@@ -34,6 +35,7 @@ from app.services.icd11_postcoordination import (
     postcoordination_options as get_postcoordination_options,
 )
 from app.services.icd11_postcoordination import related_terms as get_related_terms
+from app.services.icd11_titles import cluster_title
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
     WhoIcdApiUnavailable,
@@ -100,7 +102,7 @@ def _codeinfo_item(code: str) -> dict | None:
         return None
     item = {
         "code": code,
-        "title": title,
+        "title": cluster_title(code, title),
         "uri": uri,
         "release": DEFAULT_ICD11_RELEASE,
         "postcoordination": False,
@@ -221,6 +223,13 @@ def selection_check():
         or len(uri.strip()) > 2048
     ):
         return _error("INVALID_INPUT", "The selected ICD-11 code is invalid.", 422)
+    repeated = repeated_part(code.strip())
+    if repeated:
+        return _error(
+            "INVALID_SELECTION",
+            f"{repeated} appears more than once in the expression. Remove the repeated part.",
+            422,
+        )
     try:
         item = _codeinfo_item(code.strip())
         if item is None or item["uri"] != uri.strip():

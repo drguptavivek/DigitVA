@@ -1654,15 +1654,19 @@ def _locked_answers(prefill: dict) -> dict:
     return out
 
 
+def _current_prefill(draft: VaWebIntakeDraft) -> dict:
+    """*draft*'s prefill as a new draft would get it now: ``_prefill_from_death``
+    from its case as it stands, its owner and its unit."""
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    return _prefill_from_death(death, db.session.get(VaUsers, draft.user_id), draft.org_unit_id)
+
+
 def _draft_locked_answers(draft: VaWebIntakeDraft) -> dict:
     """``_locked_answers`` for *draft*, always recomputed from the case and
     the draft's owner, never from the stored prefill: a draft saved before a
     lock existed (no ``lockedQuestionNames``, ``{}``, or an older list) gets
     today's locks, and a corrected registration wins. Never written back."""
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    return _locked_answers(
-        _prefill_from_death(death, db.session.get(VaUsers, draft.user_id), draft.org_unit_id)
-    )
+    return _locked_answers(_current_prefill(draft))
 
 
 def _enforce_locked(answers: dict, locked: dict, previous: dict | None = None) -> dict:
@@ -2268,7 +2272,13 @@ def last_change(draft: VaWebIntakeDraft, viewer: VaUsers) -> dict:
 
 
 def check_refusal_resume(draft: VaWebIntakeDraft, *, base_updated_at: object, resume_refused: bool) -> bool:
-    """Require a current, explicit first resume and reject pre-refusal saves."""
+    """Require a current, explicit first resume and reject pre-refusal saves.
+
+    The first resume rebuilds the prefill the refusal cleared
+    (``scrub_refused_draft``) from the case, owner and unit as they are now
+    (``_current_prefill``), as for a new draft: area presets, interviewer,
+    registration answers and locked names come back; nothing from before the
+    refusal is restored. Its saved losing versions stay scrubbed."""
     meta = draft.meta or {}
     barrier = _device_time(meta.get("refusalBarrier"))
     if barrier is None:
@@ -2280,6 +2290,7 @@ def check_refusal_resume(draft: VaWebIntakeDraft, *, base_updated_at: object, re
         if not resume_refused or base != draft.updated_at:
             raise refusal_stale(draft, "Confirm the new consent decision on the current draft.")
         draft.meta = {**meta, "refusalResumePending": False}
+        draft.prefill = _current_prefill(draft)
         return True
     return False
 
@@ -4518,14 +4529,17 @@ def _mine_condition(user: VaUsers):
 
 def _worklist_select(user: VaUsers):
     """``SELECT (case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission, other_complete_interview, ready_for_coding)``: a worklist row, with the
+    my_submission, other_complete_interview, ready_for_coding,
+    other_draft_started_by)``: a worklist row, with the
     caller's own resumable web draft (at most one,
     ``uq_va_web_intake_drafts_user_death_open``, so the join never repeats a
     case), when the earliest other interviewer's open draft started (None
     without one), whether the caller's draft is the case's submission,
-    whether a second complete interview exists (``_has_candidate``) and
-    whether the case's submission is ``ready_for_coding`` (None without one).
-    One query for all of them. The caller adds the scope."""
+    whether a second complete interview exists (``_has_candidate``),
+    whether the case's submission is ``ready_for_coding`` (None without one)
+    and the name of the interviewer whose open draft is that earliest one
+    (owner, 2026-11-05). One query for all of them. The caller adds the
+    scope."""
     my_draft = aliased(VaWebIntakeDraft)
     other = aliased(VaWebIntakeDraft)
     won = aliased(VaWebIntakeDraft)
@@ -4536,6 +4550,20 @@ def _worklist_select(user: VaUsers):
             # A closed case has no live other interview to warn about.
             VaDeathRegister.status.not_in(tuple(_SUPERSEDED_CASE_STATES)),
         )
+        .scalar_subquery()
+    )
+    # Same drafts as other_started; the earliest one's interviewer. Correlated
+    # per row like other_started, probing the case's drafts by death_id.
+    other_started_by = (
+        sa.select(VaUsers.name)
+        .select_from(other)
+        .join(VaUsers, VaUsers.user_id == other.user_id)
+        .where(
+            other.death_id == VaDeathRegister.death_id, other.status == "draft", other.user_id != user.user_id,
+            VaDeathRegister.status.not_in(tuple(_SUPERSEDED_CASE_STATES)),
+        )
+        .order_by(other.created_at, other.draft_id)
+        .limit(1)
         .scalar_subquery()
     )
     return (
@@ -4549,6 +4577,7 @@ def _worklist_select(user: VaUsers):
                 VaSubmissionWorkflow.workflow_state == WORKFLOW_READY_FOR_CODING,
                 VaDeathRegister.status != DUPLICATE_CASE_STATUS,
             ).label("ready_for_coding"),
+            other_started_by.label("other_draft_started_by"),
         )
         .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
         .outerjoin(
@@ -4583,7 +4612,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission, other_complete_interview, ready_for_coding), ...], "counts":
+    my_submission, other_complete_interview, ready_for_coding,
+    other_draft_started_by), ...], "counts":
     {state: n}, "next_cursor": str | None, "possible_duplicates": {death_id:
     [{"death_id", "unique_id"}, ...]}}``; the last is the page's possible
     duplicates (up to three a case) from one query. ``counts`` cover the scope and
@@ -4759,6 +4789,7 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
         if not serialized["can_interview"]:
             serialized.pop("other_draft_active")
             serialized.pop("other_draft_started_at")
+            serialized.pop("other_draft_started_by")
         rows.append(serialized)
     return {"cases": rows, "counts": result["counts"], "next_cursor": result["next_cursor"]}
 
@@ -5117,15 +5148,18 @@ def _code_now(user: VaUsers, death: VaDeathRegister, my_submission: bool, ready_
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                            my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
                            my_submission: bool = False, other_complete_interview: bool = False,
-                           ready_for_coding: bool | None = False, register: dict | None = None) -> dict:
+                           ready_for_coding: bool | None = False, other_draft_started_by: str | None = None,
+                           register: dict | None = None) -> dict:
     """One worklist row (browser and device lists). *register*: the row's
     opened ``deceased_name`` when the caller opened the page (one unwrap a
     row); phone presence comes from the ``has_*`` flags, nothing else opens. No informant name or
     address, and no phone digits (only ``has_informant_phone`` booleans): the
     list shows who died, not how to reach the family. ``va_sid`` only for the interviewer whose draft
     became the submission (*my_submission*): the interview form is its
-    interviewer's own. ``other_draft_active`` / ``other_draft_started_at``
-    warn that another interviewer holds an open draft, never who;
+    interviewer's own. ``other_draft_active`` / ``other_draft_started_at`` /
+    ``other_draft_started_by`` warn that another interviewer holds an open
+    draft, when the earliest one started and that interviewer's name (owner,
+    2026-11-05: names are an operational need inside the organisation);
     ``other_complete_interview`` that a second complete interview of the case
     exists (a supervisor may choose it), never whose. ``code_now``: the caller's
     own submission is ``ready_for_coding`` in a self-coding project where they
@@ -5157,6 +5191,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "my_draft_id": str(my_draft_id) if my_draft_id else None,
         "other_draft_active": other_draft_started_at is not None,
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
+        "other_draft_started_by": other_draft_started_by if other_draft_started_at else None,
         "va_sid": death.va_sid if my_submission else None,
         "other_complete_interview": bool(other_complete_interview),
         "code_now": _code_now(user, death, my_submission, ready_for_coding),
@@ -5173,7 +5208,8 @@ _CASE_DETAIL_HIDDEN = ("abha_number", "abha_address", "father_name", "mother_nam
 def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                           my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
                           my_submission: bool = False, other_complete_interview: bool = False,
-                          ready_for_coding: bool | None = False, register: dict | None = None) -> dict:
+                          ready_for_coding: bool | None = False, other_draft_started_by: str | None = None,
+                          register: dict | None = None) -> dict:
     """One case for the case page and the device detail: the worklist row's
     case fields plus the full contact details (informant name, both phones,
     household address, remarks). Never ABHA, parents' names, other users' ids
@@ -5182,7 +5218,8 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     the interview (docs/policy/web-intake.md, "Single-case detail"). The
     submission id (``va_sid``) only to the interviewer whose draft became the
     submission (*my_submission*); ``other_draft_active``,
-    ``other_draft_started_at`` and ``other_complete_interview`` as in
+    ``other_draft_started_at``, ``other_draft_started_by`` and
+    ``other_complete_interview`` as in
     ``serialize_worklist_row``, as is ``code_now``. The household address's
     GPS fix only where ``shows_gps`` allows it; otherwise its keys are
     absent. *register*: the row's opened attributes, if the caller has them;
@@ -5232,6 +5269,7 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
         "my_draft_id": str(my_draft_id) if my_draft_id else None,
         "other_draft_active": other_draft_started_at is not None,
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
+        "other_draft_started_by": other_draft_started_by if other_draft_started_at else None,
         "va_sid": death.va_sid if my_submission else None,
         "other_complete_interview": bool(other_complete_interview),
         "code_now": _code_now(user, death, my_submission, ready_for_coding),
@@ -5250,7 +5288,7 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview,
                                  register=register)
     for key in ("my_draft_id", "has_informant_phone", "has_informant_phone_2",
-                "other_draft_active", "other_draft_started_at", "code_now"):
+                "other_draft_active", "other_draft_started_at", "other_draft_started_by", "code_now"):
         row.pop(key)
     # Supervisors oversee every interview in scope, so they keep every va_sid
     # (the submitter-only rule is the interviewer lists').

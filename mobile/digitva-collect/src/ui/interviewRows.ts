@@ -7,6 +7,7 @@ import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
 import type { Db, DraftRow } from "../drafts";
 import { t, uiLocale, type StringKey } from "../i18n";
+import { otherDraftWarning } from "./CaseCard";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
 import type { RevisionRow, SubmittedRevisionSummary } from "../revisions";
@@ -85,7 +86,7 @@ const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "cl
 interface FlatCase {
   death_id: string; project_id: string; unique_id: string; state: string; unit_name: string | null;
   name?: string | null; sex?: string | null; age?: number | null; died?: string | null; village?: string | null;
-  updated_at: string; other_draft_active?: boolean; other_draft_started_at?: string | null;
+  updated_at: string; other_draft_active?: boolean; other_draft_started_at?: string | null; other_draft_started_by?: string | null;
   other_complete_interview?: boolean; code_now?: boolean; my_draft_id: string | null;
 }
 
@@ -95,15 +96,9 @@ const flatLocal = (row: CaseDetail): FlatCase => ({
 });
 const flatOnline = (row: CaseRow): FlatCase => ({ ...row, name: row.deceased_name, sex: row.deceased_sex, age: row.age_years, died: row.date_of_death });
 
-/** The server time when usable, otherwise the generic "another draft is active" warning. */
-function otherDraftWarning(value: string | null | undefined): string {
-  const date = value ? new Date(value) : undefined;
-  return date && !Number.isNaN(date.getTime()) ? t("otherDraftActiveAt", { date: date.toLocaleString() }) : t("otherDraftActive");
-}
-
 function caseLines(row: FlatCase): InterviewItem["lines"] {
   return [
-    ...(row.other_draft_active === true ? [{ text: otherDraftWarning(row.other_draft_started_at) }, { text: t("otherDraftSyncNotice") }] : []),
+    ...(row.other_draft_active === true ? [{ text: otherDraftWarning(row.other_draft_started_at, row.other_draft_started_by) }, { text: t("otherDraftSyncNotice") }] : []),
     ...(row.other_complete_interview === true ? [{ text: t("otherCompleteInterviewNotice") }] : []),
     ...(row.code_now === true ? [{ text: t("readyForCodeOnWeb") }] : []),
   ];

@@ -32,9 +32,12 @@ host, then run inside the app container (reads WHO only; no database writes):
 ```bash
 DIGEST=$(docker image inspect --format '{{index .RepoDigests 0}}' \
   "$(docker inspect --format '{{.Config.Image}}' digitva-icd_api_service-1)" | sed 's/.*@//')
-docker compose exec -T minerva_app_service uv run --no-sync python \
+docker compose exec -T -e ICD11_API_CACHE_REDIS_URL= minerva_app_service uv run --no-sync python \
   scripts/icd11-golden/record.py --who-image-digest "$DIGEST"
 ```
+
+`ICD11_API_CACHE_REDIS_URL=` (empty) turns the ICD cache Redis off: with it on,
+cached WHO replies are never called and the fixtures lose their calls.
 
 `--only id,id` re-records some items (manifest untouched); `--set doris|postcoordination|search`
 limits a set; `--check` writes nothing and exits 1 if any fixture would change.

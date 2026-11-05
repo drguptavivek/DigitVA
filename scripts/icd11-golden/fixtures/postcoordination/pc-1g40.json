@@ -9,7 +9,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1G40%2FCA40.0Z",
       "GET icd/release/11/2026-01/mms/codeinfo/1G40",
       "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z",
-      "GET icd/release/11/2026-01/mms/622600769"
+      "GET icd/release/11/2026-01/mms/622600769",
+      "GET icd/release/11/2026-01/mms/codeinfo/1G40",
+      "GET icd/release/11/2026-01/mms/622600769",
+      "GET icd/release/11/2026-01/mms/codeinfo/CA40.0Z",
+      "GET icd/release/11/2026-01/mms/1323682030/unspecified"
      ],
      "name": "codeinfo",
      "reply": {
@@ -20,7 +24,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Sepsis without septic shock",
+        "title": "Sepsis without septic shock + Bacterial pneumonia, unspecified",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"
        },
        "schema_version": 1
@@ -53,7 +57,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Sepsis without septic shock",
+        "title": "Sepsis without septic shock + Bacterial pneumonia, unspecified",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769 / http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"
        },
        "schema_version": 1
@@ -293,7 +297,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1G40%2F1A40.Z",
       "GET icd/release/11/2026-01/mms/codeinfo/1G40",
       "GET icd/release/11/2026-01/mms/codeinfo/1A40.Z",
-      "GET icd/release/11/2026-01/mms/622600769"
+      "GET icd/release/11/2026-01/mms/622600769",
+      "GET icd/release/11/2026-01/mms/codeinfo/1A40.Z",
+      "GET icd/release/11/2026-01/mms/1688127370/unspecified"
      ],
      "name": "codeinfo",
      "reply": {
@@ -304,7 +310,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Sepsis without septic shock",
+        "title": "Sepsis without septic shock + Infectious gastroenteritis or colitis without specification of infectious agent",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769 / http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified"
        },
        "schema_version": 1
@@ -337,7 +343,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Sepsis without septic shock",
+        "title": "Sepsis without septic shock + Infectious gastroenteritis or colitis without specification of infectious agent",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/622600769 / http://id.who.int/icd/release/11/2026-01/mms/1688127370/unspecified"
        },
        "schema_version": 1

@@ -33,6 +33,8 @@ _CACHE_PREFIX = "icd11_title:"
 # codeinfo carries no title of its own; the stem entity behind its stemId does.
 _WHO_PREFIX = "http://id.who.int/"
 _MAX_CODE_LENGTH = 256
+# doris_certificate.MAX_TEXT_LENGTH: a longer certificate Text is refused.
+_MAX_TITLE_LENGTH = 500
 _DOWN_FLAG = "_icd11_title_api_down"
 # Shared across requests and workers: after an outage, page renders skip the
 # API for this long instead of each paying a timeout.
@@ -118,6 +120,19 @@ def icd11_title(expression: str | None) -> str | None:
     if not titles or any(title is None for title in titles):
         return None
     return " + ".join(titles)
+
+
+def cluster_title(code: str, stem_title: str) -> str:
+    """Selection title of a code: the whole expression's title for a "&" or "/" cluster.
+
+    A cluster's own codeinfo title is only its stem's, which would hide the
+    causing condition on the certificate line. Falls back to `stem_title` when
+    a part has no title; trimmed to the certificate's 500-character Text limit.
+    """
+    if "&" not in code and "/" not in code:
+        return stem_title
+    title = icd11_title(code) or stem_title
+    return title if len(title) <= _MAX_TITLE_LENGTH else title[: _MAX_TITLE_LENGTH - 1].rstrip() + "…"
 
 
 def icd11_label(expression: str | None) -> str:

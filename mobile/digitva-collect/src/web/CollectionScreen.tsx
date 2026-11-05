@@ -12,14 +12,13 @@ import { t } from "../i18n";
 import { controls, spacing, typography, useTheme } from "../theme";
 import { TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_REPORTING_ROUTE } from "../training";
 import { Button, useUiStyles } from "../ui";
-import { ProjectSelect } from "../ui/ProjectSelect";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, type AdvancedFilters } from "./caseFilters";
 import {
-  CaseCard, deathListContext, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases,
+  CaseCard, CaseToolbar, deathListContext, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases,
 } from "./DeathsList";
-import { DirectInterviewPanel, directInterviewTargets, RefreshIconButton } from "./DirectInterviewPanel";
+import { DirectInterviewPanel, directInterviewTargets } from "./DirectInterviewPanel";
 
 type InterviewStatusFilter = "all" | "in_progress" | "submitted";
 type CollectionTab = "interviews" | "deaths";
@@ -34,10 +33,6 @@ type InterviewRow = (DraftSummary & { kind: "draft" }) | (SubmittedRevisionSumma
 function useCollectionStyles() {
   const { colors } = useTheme();
   return useMemo(() => StyleSheet.create({
-    toolbarCard: { gap: spacing.sm },
-    toolbarActions: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
-    toolbarRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
-    topRight: { flexShrink: 1, flexDirection: "row", alignItems: "center", gap: spacing.xs },
     tabBar: { flexDirection: "row", borderBottomWidth: 1, borderColor: colors.border },
     tab: {
       flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xs,
@@ -375,35 +370,35 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>
       ) : (
         <>
-          <View style={[styles.card, c.toolbarCard]}>
-            <View style={c.toolbarRow}>
-              <View style={c.toolbarActions}>
-                {intake?.context.some((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both") ? (
-                  <Button label={reportDeathLabel} onPress={() => router.push(reportDeathPath as never)} />
-                ) : null}
-                {directTargets.length > 0 ? (
-                  <Button kind="secondary" label={t("directVaInterview")} expanded={directOpen} onPress={() => setDirectOpen((open) => !open)} />
-                ) : null}
-              </View>
-              <View style={c.topRight}>
-                <ProjectSelect projects={projectChoices} value={projectFilter ? [projectFilter] : []} onChange={(next) => selectProject(next[0])} />
-                <RefreshIconButton disabled={busy} onPress={() => {
-                  void refresh().then((result) => {
-                    if (result.success) {
-                      acknowledgeAuthoritativeRefresh?.(result.revision);
-                      acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
-                    }
-                  });
-                }} />
-              </View>
-            </View>
+          <CaseToolbar
+            actions={<>
+              {intake?.context.some((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both") ? (
+                <Button label={reportDeathLabel} onPress={() => router.push(reportDeathPath as never)} />
+              ) : null}
+              {directTargets.length > 0 ? (
+                <Button kind="secondary" label={t("directVaInterview")} expanded={directOpen} onPress={() => setDirectOpen((open) => !open)} />
+              ) : null}
+            </>}
+            projects={projectChoices}
+            project={projectFilter}
+            onProject={selectProject}
+            refreshing={busy}
+            onRefresh={() => {
+              void refresh().then((result) => {
+                if (result.success) {
+                  acknowledgeAuthoritativeRefresh?.(result.revision);
+                  acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
+                }
+              });
+            }}
+          >
             {directOpen && directTargets.length > 0 ? (
               <DirectInterviewPanel
                 targets={directTargets}
                 onStart={(target) => router.push({ pathname: interviewFormPath as never, params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
               />
             ) : null}
-          </View>
+          </CaseToolbar>
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           <View style={c.tabBar} accessibilityRole="tablist">
             {([
@@ -505,7 +500,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
 
 export default function CollectionScreen() {
   return (
-    <WebShell title={t("reportedDeaths")}>
+    <WebShell title={t("navVaInterview")}>
       <ContextualHelpBanner screen="collection" />
       <CollectionPanel />
     </WebShell>

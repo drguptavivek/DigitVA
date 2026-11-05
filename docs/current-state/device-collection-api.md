@@ -3,13 +3,13 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-05
 ---
 
 # Device Collection API (Path B server side)
 
 The 2026-10-28 refusal boundary supersedes older covered-fields-only
-descriptions below. See [the consent policy](../policy/respondent-consent-notice-draft.md#refusal-boundary-owner-2026-10-28). Browser saves and phone sync keep only validated refusal fields; attachment uploads under refusal return `consent_refused`. A deliberate resumption after either refusal uses `resume_refused: true` with a current browser `if_updated_at` or phone `base_updated_at`; later writes must carry a version at or after the refusal barrier. Earlier removed answers are not restored. A shared case keeps earlier lawful identity; other interviewers’ open drafts on it are cleared to refusal-only answers (files and saved versions included) when the refusal is recorded, and a hold blocks their further writes. A fresh grant on the holding draft, or submitting it, ends the hold (`digitva-hs7e.15.2`); the submitted case is `refused` and the team may restart it after fresh consent. Each other open draft still requires its own explicit current-version resume. An already-open parallel attempt can record a refusal even after another lawful submission has won the case; the prior submission and its case identity remain unchanged.
+descriptions below. See [the consent policy](../policy/respondent-consent-notice-draft.md#refusal-boundary-owner-2026-10-28). Browser saves and phone sync keep only validated refusal fields; attachment uploads under refusal return `consent_refused`. A deliberate resumption after either refusal uses `resume_refused: true` with a current browser `if_updated_at` or phone `base_updated_at`; later writes must carry a version at or after the refusal barrier. Earlier removed answers are not restored; the first resume rebuilds the draft's prefill (area presets, interviewer, registration answers, `lockedQuestionNames`) from the current case and unit, as for a new draft, so `GET /drafts/<id>` returns it again (same shape). A shared case keeps earlier lawful identity; other interviewers’ open drafts on it are cleared to refusal-only answers (files and saved versions included) when the refusal is recorded, and a hold blocks their further writes. A fresh grant on the holding draft, or submitting it, ends the hold (`digitva-hs7e.15.2`); the submitted case is `refused` and the team may restart it after fresh consent. Each other open draft still requires its own explicit current-version resume. An already-open parallel attempt can record a refusal even after another lawful submission has won the case; the prior submission and its case identity remain unchanged.
 
 Native passkey sign-in is deferred. Enrolled devices currently open a session
 with the account password. The local encrypted store still requires the user's
@@ -326,7 +326,8 @@ behaviour.
   `date_of_death`, `pending_flag`, `next_visit_at`, `last_contact_at`,
   `has_informant_phone`, `has_informant_phone_2` (booleans), `registered_by_me`,
   `started_by_me`, `my_draft_id`, `other_draft_active`,
-  `other_draft_started_at`, `va_sid`, `other_complete_interview`, `code_now`,
+  `other_draft_started_at`, `other_draft_started_by`, `va_sid`,
+  `other_complete_interview`, `code_now`,
   `created_at`, `updated_at`; `updated_at` is the death row's change stamp, bumped on every edit
   to it)
   plus `possible_duplicates` (`[{death_id, unique_id}]`, up to three, from
@@ -343,9 +344,14 @@ behaviour.
   every case.
 - **`other_draft_active`** (bool) and **`other_draft_started_at`** (ISO time
   or null): another interviewer holds an open draft on the case, and the
-  earliest `created_at` among those drafts. Never the other user's name or id;
-  only as fresh as that draft's last sync. Computed in the same query as the
-  row (`_worklist_select`), from `ix_va_web_intake_drafts_death` and
+  earliest `created_at` among those drafts. **`other_draft_started_by`**
+  (string or null, owner 2026-11-05, `digitva-vg51`): the display name
+  (`va_users.name`) of the interviewer whose open draft is that earliest one;
+  null with no other draft. Never the other user's id; only as fresh as that
+  draft's last sync. Absent, with the other two, for a reporter-only viewer
+  (`can_interview: false`). Additive: older apps ignore it. Computed in the
+  same query as the row (`_worklist_select`, a second correlated scalar
+  subquery), from `ix_va_web_intake_drafts_death` and
   `uq_va_web_intake_drafts_user_death_open`. Not in supervision rows.
 - **`code_now`** (bool, in a list row and in the detail): the caller's own
   submission is `ready_for_coding` in a self-coding project where they code
@@ -368,7 +374,7 @@ behaviour.
   `household_address {address, house_street, village_ward, landmark}`,
   `informant {name, phone, phone_2}` in full, `remarks`, `next_visit_at`,
   `last_contact_at`, `registered_by_me`, `started_by_me`, `my_draft_id`,
-  `other_draft_active`, `other_draft_started_at`, `va_sid`,
+  `other_draft_active`, `other_draft_started_at`, `other_draft_started_by`, `va_sid`,
   `other_complete_interview`, `code_now`, `created_at`, `updated_at`. No ABHA, parents' names, other
   users' ids, client ids or duplicate ids. `no-store`. With `prefill`
   (`case_prefill`, the object the web form page receives for the case, so an

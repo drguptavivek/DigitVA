@@ -74,6 +74,8 @@ export interface CaseRow {
   my_draft_id: string | null;
   other_draft_active?: boolean;
   other_draft_started_at?: string | null;
+  /** Name of the interviewer whose open draft started earliest (owner, 2026-11-05); absent from older servers. */
+  other_draft_started_by?: string | null;
   other_complete_interview?: boolean;
   code_now?: boolean;
   va_sid: string | null;

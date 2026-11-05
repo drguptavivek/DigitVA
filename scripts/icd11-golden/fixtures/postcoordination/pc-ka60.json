@@ -9,7 +9,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/KA60%26XN74M",
       "GET icd/release/11/2026-01/mms/codeinfo/KA60",
       "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
-      "GET icd/release/11/2026-01/mms/381388700"
+      "GET icd/release/11/2026-01/mms/381388700",
+      "GET icd/release/11/2026-01/mms/codeinfo/KA60",
+      "GET icd/release/11/2026-01/mms/381388700",
+      "GET icd/release/11/2026-01/mms/codeinfo/XN74M",
+      "GET icd/release/11/2026-01/mms/83217129"
      ],
      "name": "codeinfo",
      "reply": {
@@ -20,7 +24,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Sepsis of fetus or newborn",
+        "title": "Sepsis of fetus or newborn + Bacteria",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/83217129"
        },
        "schema_version": 1
@@ -51,7 +55,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Sepsis of fetus or newborn",
+        "title": "Sepsis of fetus or newborn + Bacteria",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/381388700 & http://id.who.int/icd/release/11/2026-01/mms/83217129"
        },
        "schema_version": 1

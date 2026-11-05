@@ -70,6 +70,26 @@ class TestPublicDorisApi:
             )
         assert allowed.status_code == 200
 
+    def test_codeinfo_item_titles_a_cluster_with_every_part(self):
+        from app.public_doris.routes import _codeinfo_item
+
+        entity = _upstream(b'{"code": "1B12.2"}')
+        for code, expected in (
+            ("1B12.2&XA0G74", "Stem + Cause"),
+            ("1B12.2/XA0G74", "Stem + Cause"),
+            ("1B12.2", "Stem title"),
+        ):
+            with (
+                patch(
+                    "app.public_doris.routes.get_icd11_codeinfo",
+                    return_value={"code": code, "stemId": "http://id.who.int/icd/x", "title": "Stem title"},
+                ),
+                patch("app.public_doris.routes.expected_expression_uri", return_value="http://id.who.int/u"),
+                patch("app.public_doris.routes.proxy_who_icd_request", return_value=entity),
+                patch("app.services.icd11_titles.icd11_title", return_value="Stem + Cause"),
+            ):
+                assert _codeinfo_item(code)["title"] == expected
+
     def test_codeinfo_and_selection_check_return_normalized_items(self):
         token = self._csrf()
         item = {

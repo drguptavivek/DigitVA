@@ -305,7 +305,7 @@ class CaseWorklistTests(BaseTestCase):
     def _row(self, user, case):
         return intake_svc.serialize_worklist_row(user, *intake_svc.get_case_detail(user, case.death_id))
 
-    def test_two_interviewers_each_hold_a_draft_and_see_the_warning_only(self):
+    def test_two_interviewers_each_hold_a_draft_and_see_who_started_the_other(self):
         case = self._register()
         mine = self._start(self.alice, case)
         theirs = self._start(self.bob, case)
@@ -316,8 +316,10 @@ class CaseWorklistTests(BaseTestCase):
             self.assertEqual(row["my_draft_id"], str(my_draft.draft_id))
             self.assertIs(row["other_draft_active"], True)
             self.assertIsNotNone(row["other_draft_started_at"])
+            # The other interviewer's name (owner, 2026-11-05), never their id.
+            self.assertTrue(other.name)
+            self.assertEqual(row["other_draft_started_by"], other.name)
             self.assertNotIn(str(other.user_id), json.dumps(row))
-            self.assertNotIn(other.name, json.dumps(row))
             # Both are prefilled: the other's draft does not withhold it.
             detail = intake_svc.get_case_detail(me, case.death_id)
             self.assertIsNotNone(intake_svc.case_prefill(me, detail[0], None))
@@ -325,11 +327,14 @@ class CaseWorklistTests(BaseTestCase):
         # The same signal through the list query, and the lone draft's own case.
         listed = {r["death_id"]: r for r in intake_svc.worklist_page(self.alice, {})["cases"]}
         self.assertIs(listed[str(case.death_id)]["other_draft_active"], True)
+        self.assertEqual(listed[str(case.death_id)]["other_draft_started_by"], self.bob.name)
         alone = self._register()
         self._start(self.alice, alone)
         self.assertIs(self._row(self.alice, alone)["other_draft_active"], False)
         self.assertIsNone(self._row(self.alice, alone)["other_draft_started_at"])
+        self.assertIsNone(self._row(self.alice, alone)["other_draft_started_by"])
         self.assertIs(self._row(self.bob, alone)["other_draft_active"], True)
+        self.assertEqual(self._row(self.bob, alone)["other_draft_started_by"], self.alice.name)
 
     def test_the_same_interviewer_starting_twice_gets_the_same_draft(self):
         case = self._register()

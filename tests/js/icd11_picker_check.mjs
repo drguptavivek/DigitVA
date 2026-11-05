@@ -89,6 +89,24 @@ console.log('icd11_picker ok');
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(known.chosen[0].code, 'FB80.B');
   assert.equal(known.chosen[0].causing_condition_unknown, true);
+  // An axis option that is itself a cluster including the stem never repeats the stem.
+  {
+    const chosen = [];
+    const posted = [];
+    const root = document.createElement('div');
+    root.innerHTML = '<input><div data-doris-search-status></div><div data-doris-search-results></div><div data-doris-details-panel hidden></div><div data-doris-guided-panel></div>';
+    document.body.appendChild(root);
+    const axes = [{id: 'hasCausingCondition', label: 'Causing condition', required: true, instruction: 'code also', options: [{code: 'BA01/BD1Z', title: 'Hypertensive heart disease with heart failure', uri: 'u/BA01 / u/BD1Z'}]}];
+    const pk = createIcd11Picker({mount: document.body, transport: {post: (path, body) => { posted.push(body); return Promise.resolve(path === 'postcoordination' ? {stem: {code: 'BD1Z', title: 'Stem', uri: 'u/BD1Z'}, axes} : {item: {code: 'BD1Z/BA01', uri: 'u'}}); }}, onSelect(choice) { chosen.push(choice); }});
+    pk.openPostcoordination(root, {code: 'BD1Z', title: 'Stem', uri: 'u/BD1Z'}, null, true);
+    await new Promise((r) => setTimeout(r, 0));
+    [...root.querySelectorAll('button')].find((b) => b.textContent.includes('BA01/BD1Z')).click();
+    root.querySelector('[data-doris-use-expression]').click();
+    await new Promise((r) => setTimeout(r, 0));
+    const sent = posted.filter((b) => b && b.code).pop();
+    assert.equal(sent.code, 'BD1Z/BA01');
+    assert.equal(sent.uri, 'u/BD1Z / u/BA01');
+  }
   const other = await run('hasSeverity');
   assert.equal(other.root.querySelector('[data-doris-causing-unknown]'), null);
   assert.equal(other.root.querySelector('[data-doris-use-expression]').disabled, true);

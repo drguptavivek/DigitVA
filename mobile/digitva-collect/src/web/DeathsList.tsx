@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { intakeContextFromAccess } from "../api";
 import { getCases, type CaseRow, type ClientBootstrap } from "../client/api";
@@ -11,6 +11,7 @@ import { createWorkspaceApi } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { t, type StringKey } from "../i18n";
 import { Button, stateLabel, useUiStyles } from "../ui";
+import { spacing } from "../theme";
 import { browserErrorText } from "./common";
 import {
   appliedAdvancedChips, CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, withinLastDays,
@@ -18,8 +19,10 @@ import {
   type ProjectOption,
 } from "./caseFilters";
 import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
+import { RefreshIconButton } from "./DirectInterviewPanel";
+import { ProjectSelect, type ProjectChoice } from "../ui/ProjectSelect";
 import { rememberCasePreviews } from "./newCasePreview";
-import { CaseCard, formatDisplayTimestamp, sexLabel, useCaseCardStyles, type CaseBadge } from "../ui/CaseCard";
+import { CaseCard, formatDisplayTimestamp, otherDraftWarning, sexLabel, useCaseCardStyles, type CaseBadge } from "../ui/CaseCard";
 import {
   TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE,
   TRAINING_REPORTING_ROUTE,
@@ -387,8 +390,8 @@ export function DeathsList({ list, headerAction, showProject = true }: { list: D
           >
             <IdentifierFacts identifiers={row.identifiers} variant="card" />
             {row.other_draft_active === true ? (
-              <View style={[c.noticeBanner, c.noticeBannerDanger]}>
-                <Text style={c.noticeText} accessibilityRole="alert">{otherDraftNotice(row.other_draft_started_at)}</Text>
+              <View style={[c.noticeBanner, c.noticeBannerWarning]}>
+                <Text style={c.noticeWarningText}>{otherDraftWarning(row.other_draft_started_at, row.other_draft_started_by)}</Text>
               </View>
             ) : null}
             {row.other_complete_interview === true ? (
@@ -405,19 +408,60 @@ export function DeathsList({ list, headerAction, showProject = true }: { list: D
   );
 }
 
+const toolbarStyles = StyleSheet.create({
+  // flexGrow, not flex: 1 / minWidth 0, so the actions keep their width and the top-right pair wraps under them.
+  actions: { flexGrow: 1, flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
+  row: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: spacing.xs },
+  topRight: { marginLeft: "auto", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: spacing.xs },
+});
+
+/**
+ * The top card of the case screens: *actions* on the left, the shared Project control and the refresh icon
+ * top-right (wrapping under the actions on a phone); *children* sit below the row (Collection's direct-interview form).
+ */
+export function CaseToolbar({ actions, projects, project, onProject, refreshing, onRefresh, children }: {
+  actions?: ReactNode;
+  projects: ProjectChoice[];
+  project?: string;
+  onProject: (next: string | undefined) => void;
+  refreshing: boolean;
+  onRefresh: () => void;
+  children?: ReactNode;
+}) {
+  const styles = useUiStyles();
+  return (
+    <View style={[styles.card, { gap: spacing.sm }]}>
+      <View style={toolbarStyles.row}>
+        <View style={toolbarStyles.actions}>{actions}</View>
+        <View style={toolbarStyles.topRight}>
+          <ProjectSelect projects={projects} value={project ? [project] : []} onChange={(next) => onProject(next[0])} />
+          <RefreshIconButton disabled={refreshing} onPress={onRefresh} />
+        </View>
+      </View>
+      {children}
+    </View>
+  );
+}
+
 /** The list loading its own pages, for a screen that has no other data to refresh with it. */
 export function DeathsListPanel({ headerAction }: { headerAction?: ReactNode }) {
   const { bootstrap } = useAppState();
   const list = useDeathCases(bootstrap);
   const { refresh } = list;
   useEffect(() => { void refresh(); }, [refresh]);
-  return <DeathsList list={list} headerAction={headerAction} />;
+  const projects = useMemo(() => projectOptionsOf(deathListContext(bootstrap)).map((option) => ({ id: option.value, name: option.label })), [bootstrap]);
+  return (
+    <>
+      <CaseToolbar
+        actions={headerAction}
+        projects={projects}
+        project={list.project}
+        onProject={(next) => void list.changeProject(next)}
+        refreshing={list.busy}
+        onRefresh={() => void refresh()}
+      />
+      <DeathsList list={list} showProject={false} />
+    </>
+  );
 }
 
-function otherDraftNotice(startedAt: string | null | undefined): string {
-  if (typeof startedAt === "string") {
-    const date = new Date(startedAt);
-    if (!Number.isNaN(date.getTime())) return t("otherDraftActiveAt", { date: date.toLocaleString() });
-  }
-  return t("otherDraftActive");
-}

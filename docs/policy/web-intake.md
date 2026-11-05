@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-05
 ---
 
 # Web Intake Policy
@@ -783,8 +783,17 @@ Owner, 2026-10-04 (`digitva-xz83`).
 - **Case state stays shared.** One interviewer's contact attempt (for example
   refused) or pause moves the case for everyone. A later submit restarts it.
 - Case list rows and the case detail warn that another interviewer has an
-  active draft: a boolean and when it started. The other user's name or id is
-  never shown. The warning is only as fresh as the phone's last sync, so
+  active draft: a boolean, when it started and the name of that interviewer
+  (`other_draft_started_by`, the user's display name, the same one the
+  possible-duplicate hint shows as the previous interviewer's name; owner,
+  2026-11-05: interviewer names are an operational need inside the
+  organisation, so the banner reads "{name} started this interview on
+  {date}."). With several other open drafts it is the earliest one's. The
+  other user's id is never shown. A reporter-only viewer (`can_interview:
+  false`) gets none of the three fields, as before (`digitva-t6q`); the
+  supervisor list keeps its own `started_by_name` and drops them too. The
+  field is additive: an older app ignores it and keeps the unnamed text. The
+  warning is only as fresh as the phone's last sync, so
   offline, two full interviews of one household can happen. That is the
   accepted cost of this decision.
 - The first complete submission wins and moves the case to `submitted` (see
@@ -817,7 +826,8 @@ winning submit; a browser submit on an already closed case stores the draft
 as `superseded` (final answers kept in the `final` section, no submission, no
 routing, case untouched) and answers 200 `superseded: true`; `va_sid` goes to
 the interviewer whose draft became the submission; list rows and case detail
-carry `other_draft_active` and `other_draft_started_at`; discarding a draft
+carry `other_draft_active`, `other_draft_started_at` and (owner 2026-11-05,
+`digitva-vg51`) `other_draft_started_by`; discarding a draft
 returns an `in_progress` case to `registered` only when no other open draft
 remains.
 

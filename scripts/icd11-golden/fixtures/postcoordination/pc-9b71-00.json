@@ -11,7 +11,15 @@
       "GET icd/release/11/2026-01/mms/codeinfo/XS25",
       "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/417759842"
+      "GET icd/release/11/2026-01/mms/417759842",
+      "GET icd/release/11/2026-01/mms/codeinfo/9B71.00",
+      "GET icd/release/11/2026-01/mms/417759842",
+      "GET icd/release/11/2026-01/mms/codeinfo/XS25",
+      "GET icd/release/11/2026-01/mms/1201187093",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+      "GET icd/release/11/2026-01/mms/627678743",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "codeinfo",
      "reply": {
@@ -22,7 +30,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Nonproliferative diabetic retinopathy",
+        "title": "Nonproliferative diabetic retinopathy + Severe + Bilateral + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842 & http://id.who.int/icd/release/11/2026-01/mms/1201187093 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -59,7 +67,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Nonproliferative diabetic retinopathy",
+        "title": "Nonproliferative diabetic retinopathy + Severe + Bilateral + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842 & http://id.who.int/icd/release/11/2026-01/mms/1201187093 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1

@@ -52,23 +52,6 @@ export const PLACE_ADDRESS_HINTS: Record<string, { en: string; hi: string }> = {
   }
 };
 
-/**
- * Owner decision 2026-11-05: the interviewer answers the season question
- * (Id10004). WHO's hint and guidance say the central office fills it, so both
- * are replaced (en and hi, plain text). The Hindi pack in src/languages/hi.ts
- * carries the same text, because a pack entry overrides the instrument's hi.
- */
-export const SEASON_OF_DEATH_TEXT = {
-  hint: {
-    en: "Choose by the month of death, using the project's list of wet and dry months.",
-    hi: "मृत्यु के महीने के अनुसार चुनें; परियोजना की गीले और सूखे महीनों की सूची देखें।"
-  },
-  guidance: {
-    en: "The interviewer answers this question. Select Wet or Dry for the month in which the death happened, using the list of wet and dry months the project provides. If the month of death is not known, select Doesn't know.",
-    hi: "इस प्रश्न का उत्तर साक्षात्कारकर्ता देता है। जिस महीने मृत्यु हुई, उसके लिए परियोजना की गीले और सूखे महीनों की सूची के अनुसार गीला या सूखा चुनें। मृत्यु का महीना पता न हो तो 'नहीं जानता' चुनें।"
-  }
-};
-
 function withPlaceAddressHint(question: InstrumentQuestion): InstrumentQuestion {
   const added = PLACE_ADDRESS_HINTS[question.name]!;
   const en = question.hint.en ? `${added.en} ${question.hint.en}` : added.en;
@@ -269,8 +252,10 @@ export function createWhoVa2022Instrument(
     if (question.name === "Id10071") return withRegistrationDateChecks(question);
     if (question.name === "Id10024" || question.name === "Id10023_b") return withDeathBirthChecks(question);
     if (question.name in PLACE_ADDRESS_HINTS) return withPlaceAddressHint(question);
-    if (question.name === "Id10004")
-      return { ...question, hint: SEASON_OF_DEATH_TEXT.hint, guidance: SEASON_OF_DEATH_TEXT.guidance };
+    // Owner decision 2026-11-05: the interviewer answers the season question
+    // (Id10004), so WHO's red "completed by the central office" hint is
+    // removed (en and hi). WHO's label and guidance stay verbatim.
+    if (question.name === "Id10004") return { ...question, hint: {} };
     return question;
   });
 

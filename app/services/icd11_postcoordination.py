@@ -549,6 +549,20 @@ def selection_refusal(item: dict) -> str | None:
     return None
 
 
+def repeated_part(code: str) -> str | None:
+    """The first code that appears twice in an expression, or None.
+
+    An axis option that is itself a cluster (BA01/BD1Z on stem BD1Z) once
+    repeated the stem; WHO then answers with a URI mismatch, which hid the cause.
+    """
+    seen = set()
+    for part in re.split(r"[&/]", code):
+        if part in seen:
+            return part
+        seen.add(part)
+    return None
+
+
 def valid_subtree_uris(value: object) -> bool:
     """Format-check the optional WHO subtree scope for a terms search.
 

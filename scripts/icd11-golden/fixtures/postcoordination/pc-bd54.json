@@ -9,7 +9,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54%2F5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/BD54",
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/5A11",
+      "GET icd/release/11/2026-01/mms/119724091"
      ],
      "name": "codeinfo",
      "reply": {
@@ -20,7 +24,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -53,7 +57,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -315,7 +319,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
+      "GET icd/release/11/2026-01/mms/627678743"
      ],
      "name": "codeinfo",
      "reply": {
@@ -326,7 +332,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Bilateral + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -361,7 +367,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Bilateral + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 & http://id.who.int/icd/release/11/2026-01/mms/627678743 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -624,7 +630,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/XK9J",
       "GET icd/release/11/2026-01/mms/codeinfo/XA47V8",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA47V8",
+      "GET icd/release/11/2026-01/mms/1896004518"
      ],
      "name": "codeinfo",
      "reply": {
@@ -635,7 +643,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Bilateral + Foot + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 & http://id.who.int/icd/release/11/2026-01/mms/627678743 & http://id.who.int/icd/release/11/2026-01/mms/1896004518 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -672,7 +680,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Bilateral + Foot + Type 2 diabetes mellitus",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 & http://id.who.int/icd/release/11/2026-01/mms/627678743 & http://id.who.int/icd/release/11/2026-01/mms/1896004518 / http://id.who.int/icd/release/11/2026-01/mms/119724091"
        },
        "schema_version": 1
@@ -934,7 +942,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/BD54",
       "GET icd/release/11/2026-01/mms/codeinfo/5A11",
       "GET icd/release/11/2026-01/mms/codeinfo/MC85",
-      "GET icd/release/11/2026-01/mms/74527684"
+      "GET icd/release/11/2026-01/mms/74527684",
+      "GET icd/release/11/2026-01/mms/codeinfo/MC85",
+      "GET icd/release/11/2026-01/mms/188156827"
      ],
      "name": "codeinfo",
      "reply": {
@@ -945,7 +955,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Type 2 diabetes mellitus + Gangrene",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/119724091 / http://id.who.int/icd/release/11/2026-01/mms/188156827"
        },
        "schema_version": 1
@@ -982,7 +992,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Type 2 diabetes mellitus + Gangrene",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/119724091 / http://id.who.int/icd/release/11/2026-01/mms/188156827"
        },
        "schema_version": 1
@@ -1552,7 +1562,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Bilateral",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 & http://id.who.int/icd/release/11/2026-01/mms/627678743"
        },
        "schema_version": 1
@@ -1583,7 +1593,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Bilateral",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 & http://id.who.int/icd/release/11/2026-01/mms/627678743"
        },
        "schema_version": 1
@@ -1855,7 +1865,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Gangrene",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827"
        },
        "schema_version": 1
@@ -1888,7 +1898,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Diabetic foot ulcer",
+        "title": "Diabetic foot ulcer + Gangrene",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/74527684 / http://id.who.int/icd/release/11/2026-01/mms/188156827"
        },
        "schema_version": 1

@@ -366,6 +366,22 @@ class TestDorisProcessProof(BaseTestCase):
                 {"code": "INVALID_SELECTION", "message": message},
             )
 
+    def test_selection_check_refuses_a_repeated_part_before_asking_who(self):
+        for code in ("BD1Z/BA01/BD1Z", "BD1Z&XK9J&XK9J"):
+            with self.app.test_request_context(
+                json={"schema_version": 1, "code": code, "uri": _URI}
+            ):
+                with patch(
+                    "app.routes.api.doris_clinical._require_terminology_context",
+                    return_value=(SimpleNamespace(), None),
+                ), patch("app.routes.api.doris_clinical._codeinfo_item") as lookup:
+                    response, status = clinical_selection_check.__wrapped__("SID-1")
+            self.assertEqual(status, 422)
+            error = response.get_json()["error"]
+            self.assertEqual(error["code"], "INVALID_SELECTION")
+            self.assertIn("more than once", error["message"])
+            lookup.assert_not_called()
+
     def test_codeinfo_item_reads_leaf_from_the_stem_entity(self):
         stem_uri = "http://id.who.int/icd/release/11/2026-01/mms/1810119958"
         for code, entity, leaf in (
@@ -380,6 +396,32 @@ class TestDorisProcessProof(BaseTestCase):
                 "app.routes.api.doris_clinical.expected_expression_uri", return_value=_URI
             ), patch(
                 "app.routes.api.doris_clinical.proxy_who_icd_request", return_value=upstream
-            ):
+            ), patch("app.services.icd11_titles.icd11_title", return_value=None):
                 item = _codeinfo_item(code)
             self.assertEqual((item["leaf"], item["extension"]), (leaf, False))
+
+    def test_codeinfo_item_titles_a_cluster_with_every_part(self):
+        stem_uri = "http://id.who.int/icd/release/11/2026-01/mms/1"
+        joined = "Acute myocardial infarction + Hypertensive heart failure"
+        cases = (
+            ("1B12.2&XA0G74", joined, joined),
+            ("1B12.2/XA0G74", joined, joined),
+            ("1B12.2&XA0G74", None, "Stem title"),  # an untitled part: the stem's title
+            ("1B12.2&XA0G74", "x" * 600, "x" * 499 + "\u2026"),  # trimmed to Text's 500
+            ("BA41.Z", joined, "Stem title"),  # a plain code is untouched
+        )
+        for code, expression_title, expected in cases:
+            upstream = _upstream(json.dumps({"code": "1B12.2"}).encode())
+            with patch(
+                "app.routes.api.doris_clinical.get_icd11_codeinfo",
+                return_value={"code": code, "stemId": stem_uri, "title": "Stem title"},
+            ), patch(
+                "app.routes.api.doris_clinical.expected_expression_uri", return_value=_URI
+            ), patch(
+                "app.routes.api.doris_clinical.proxy_who_icd_request", return_value=upstream
+            ), patch(
+                "app.services.icd11_titles.icd11_title", return_value=expression_title
+            ) as titled:
+                item = _codeinfo_item(code)
+            self.assertEqual(item["title"], expected)
+            self.assertEqual(titled.call_count, 0 if code == "BA41.Z" else 1)

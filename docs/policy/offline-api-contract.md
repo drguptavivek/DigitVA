@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-30
+last_updated: 2026-11-05
 ---
 
 # Offline API Contract v1
@@ -470,7 +470,7 @@ identifiers, exact demographics, clinical answers, narratives, visit notes,
 attachments or coding. New registration and prefill must not collect these
 items under refusal. Previously lawfully finalised submissions are unchanged;
 withdrawal is a separate process. Explicit later grants can resume the same
-unsent draft, with removed answers still empty.
+unsent draft, with removed answers still empty. After consent is re-given, the draft's prefill (area presets, interviewer details, registration answers, locked questions) is rebuilt from the current case and unit, as for a new draft; nothing from before the refusal is restored.
 
 The intended server contract returns 422 `consent_refused` for a refusal
 submission containing forbidden answers or offline coding and for attachment

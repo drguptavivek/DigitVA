@@ -9,7 +9,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y%26XA6HA2",
       "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
       "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
-      "GET icd/release/11/2026-01/mms/672106711/other"
+      "GET icd/release/11/2026-01/mms/672106711/other",
+      "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
+      "GET icd/release/11/2026-01/mms/672106711/other",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
+      "GET icd/release/11/2026-01/mms/1979147242"
      ],
      "name": "codeinfo",
      "reply": {
@@ -20,7 +24,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Other specified meningiomas",
+        "title": "Other specified meningiomas + Cerebral meninges",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242"
        },
        "schema_version": 1
@@ -51,7 +55,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Other specified meningiomas",
+        "title": "Other specified meningiomas + Cerebral meninges",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242"
        },
        "schema_version": 1
@@ -250,7 +254,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/2A01.0Y",
       "GET icd/release/11/2026-01/mms/codeinfo/XA6HA2",
       "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
-      "GET icd/release/11/2026-01/mms/672106711/other"
+      "GET icd/release/11/2026-01/mms/672106711/other",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG30.10",
+      "GET icd/release/11/2026-01/mms/322466810"
      ],
      "name": "codeinfo",
      "reply": {
@@ -261,7 +267,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Other specified meningiomas",
+        "title": "Other specified meningiomas + Cerebral meninges + Chronic cancer pain",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242 / http://id.who.int/icd/release/11/2026-01/mms/322466810"
        },
        "schema_version": 1
@@ -296,7 +302,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Other specified meningiomas",
+        "title": "Other specified meningiomas + Cerebral meninges + Chronic cancer pain",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/672106711/other & http://id.who.int/icd/release/11/2026-01/mms/1979147242 / http://id.who.int/icd/release/11/2026-01/mms/322466810"
        },
        "schema_version": 1

@@ -543,13 +543,27 @@ export function createIcd11Picker(options) {
       var code = state.stem.code;
       var uri = state.stem.uri;
       var titles = [state.stem.title];
+      var seen = [state.stem.code];
       function append(item) {
         // WHO uses slash for a causal/associated stem and ampersand for an
         // X extension. Preserve axis order while keeping both forms as one
-        // complete expression.
-        var separator = /^X/i.test(item.code) ? '&' : '/';
-        if (item.code) code += separator + item.code;
-        if (item.uri) uri += ' ' + separator + ' ' + item.uri;
+        // complete expression. An option can itself be a cluster that
+        // includes the stem (BA01/BD1Z on BD1Z): split it and skip any part
+        // already in the expression, never repeat one.
+        if (!item.code) return;
+        var codes = item.code.split(/[&/]/);
+        var uris = item.uri ? item.uri.split(/\s+[\/&]\s+/) : [];
+        var pairUris = uris.length === codes.length;
+        var first = true;
+        codes.forEach(function (part, index) {
+          if (!part || seen.indexOf(part) !== -1) return;
+          seen.push(part);
+          var separator = /^X/i.test(part) ? '&' : '/';
+          code += separator + part;
+          if (pairUris) uri += ' ' + separator + ' ' + uris[index];
+          else if (first && item.uri) uri += ' ' + separator + ' ' + item.uri;
+          first = false;
+        });
         if (item.title) titles.push(item.title);
       }
       // WHO codeinfo canonicalises "stem & extensions / stem & extensions":

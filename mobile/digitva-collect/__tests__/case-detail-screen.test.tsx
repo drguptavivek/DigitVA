@@ -99,6 +99,7 @@ jest.mock("../src/web/registrationControls", () => ({
 }));
 
 import CaseDetailScreen from "../src/web/newCaseDetailScreen";
+import { formatDisplayTimestamp } from "../src/ui/CaseCard";
 
 const row = {
   prefill: {},
@@ -191,15 +192,25 @@ describe("web reported death details", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("shows the active other-draft start time without naming the interviewer", async () => {
+  it("shows the active other-draft start time, unnamed when the server sent no name", async () => {
     const startedAt = "2026-10-04T10:30:00Z";
     mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_draft_active: true, other_draft_started_at: startedAt } });
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<CaseDetailScreen />); });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain(`otherDraftActiveAt${new Date(startedAt).toLocaleString()}`);
-    expect(rendered).not.toContain("interviewer name");
+    expect(rendered).toContain(`otherDraftActiveAt${formatDisplayTimestamp(startedAt)}`);
+    expect(rendered).not.toContain("otherDraftActiveByAt");
+    await act(async () => tree!.unmount());
+  });
+
+  it("names the other interviewer when the server sent the name (owner, 2026-11-05)", async () => {
+    const startedAt = "2026-10-04T10:30:00Z";
+    mockGetCaseDetail.mockResolvedValue({ case: { ...row, other_draft_active: true, other_draft_started_at: startedAt, other_draft_started_by: "Asha Verma" } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).toContain(`otherDraftActiveByAtAsha Verma${formatDisplayTimestamp(startedAt)}`);
     await act(async () => tree!.unmount());
   });
 

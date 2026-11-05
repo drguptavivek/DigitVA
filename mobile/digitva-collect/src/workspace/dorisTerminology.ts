@@ -12,6 +12,8 @@ import { WHO_RELEASE, WHO_URI_PREFIX, WhoUnavailableError, type WhoEngineApi } f
 import { isRecord, or, plain, plainText, truthy, type JsonRecord } from "./whoText";
 
 const MAX_SUBTREE_URIS = 40;
+// dorisCertificate MAX_TEXT_LENGTH: a longer certificate Text is refused.
+const MAX_TITLE_LENGTH = 500;
 // The engine is always asked for the server's maximum (20): the caller's smaller limit then cuts the same list the
 // server cuts, and `truncated` agrees (more entities than items).
 const ENGINE_LIMIT = 20;
@@ -99,9 +101,28 @@ export async function codeinfoItem(who: WhoEngineApi, code: string): Promise<Dor
   if (read.kind !== "ok") return null;
   if (!title) title = plainText(or(read.entity.title, read.entity.label));
   if (!title) return null;
+  const cluster = code.includes("&") || code.includes("/");
   // The first stem only: selectionRefusal checks any further "/" stems.
-  const item: DorisCodeInfoItem = { code, title, uri, release: WHO_RELEASE, postcoordination: false, leaf: !truthy(read.entity.child), extension: code.startsWith("X") };
-  return code.includes("&") || code.includes("/") ? item : { ...item, ...searchContextFromEntity(read.entity) };
+  const item: DorisCodeInfoItem = { code, title: cluster ? await clusterTitle(who, code, title) : title, uri, release: WHO_RELEASE, postcoordination: false, leaf: !truthy(read.entity.child), extension: code.startsWith("X") };
+  return cluster ? item : { ...item, ...searchContextFromEntity(read.entity) };
+}
+
+/**
+ * `icd11_titles.cluster_title`: a cluster's title is every part's title joined with " + " (codeinfo's own title is
+ * only the stem's, which hid the causing condition on the certificate line). Falls back to the stem title when a
+ * part has none or WHO cannot say; trimmed to the certificate's 500-character Text limit.
+ */
+async function clusterTitle(who: WhoEngineApi, code: string, stemTitle: string): Promise<string> {
+  let joined = "";
+  try {
+    const titles: string[] = [];
+    for (const token of code.split(/\s*[&/]\s*/).filter(Boolean)) titles.push(await who.title(token));
+    joined = titles.length && titles.every(Boolean) ? titles.join(" + ") : "";
+  } catch (error) {
+    if (!(error instanceof WhoUnavailableError)) throw error;
+  }
+  const chars = Array.from(joined || stemTitle);
+  return chars.length <= MAX_TITLE_LENGTH ? chars.join("") : `${chars.slice(0, MAX_TITLE_LENGTH - 1).join("").trimEnd()}…`;
 }
 
 /**

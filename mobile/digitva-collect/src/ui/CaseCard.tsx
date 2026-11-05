@@ -28,6 +28,18 @@ export function formatDisplayTimestamp(value: string | null | undefined): string
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
 }
 
+/**
+ * The "another interviewer started this" warning: names the interviewer when
+ * the server sent `other_draft_started_by` (owner, 2026-11-05; older servers
+ * and cached cases omit it), and falls back to the unnamed text, or the
+ * undated one when the start time is missing or unparseable.
+ */
+export function otherDraftWarning(startedAt: string | null | undefined, startedBy?: string | null): string {
+  if (!startedAt || Number.isNaN(new Date(startedAt).getTime())) return t("otherDraftActive");
+  const date = formatDisplayTimestamp(startedAt);
+  return startedBy ? t("otherDraftActiveByAt", { name: startedBy, date }) : t("otherDraftActiveAt", { date });
+}
+
 /** The case ID's face; the theme has no monospace token. */
 const MONOSPACE = Platform.select({ web: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", ios: "Menlo", default: "monospace" });
 
@@ -56,6 +68,8 @@ export function useCaseCardStyles() {
     badgeWarningText: { color: ui.warningForeground },
     noticeBanner: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     noticeBannerDanger: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
+    noticeBannerWarning: { borderColor: ui.warningBorder, backgroundColor: ui.warning },
+    noticeWarningText: { ...typography.subhead, color: ui.warningForeground, fontFamily: controls.fontFamily },
     noticeBannerAccent: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
     noticeText: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     cardActions: { flexDirection: "row", flexWrap: "wrap", flexGrow: 1, flexShrink: 1, gap: spacing.xs, alignItems: "center" },

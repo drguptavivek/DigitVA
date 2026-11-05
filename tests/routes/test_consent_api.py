@@ -31,6 +31,7 @@ from app.models import (
     VaUserAccessGrants,
 )
 from app.services import consent_service, web_intake_service
+from app.services import organization_service as org
 from app.services import device_auth_service as devices
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
@@ -993,6 +994,110 @@ class ConsentApiTests(BaseTestCase):
         stale = self._refusal(self._upload(death_id, old, client_draft_id=attempt), 409, "refusal_stale")
         self.assertEqual(stale["draft_id"], draft_id)
         self.assertNotIn("Id10007", self._saved_answers(draft_id))
+
+    # ── resuming after a refusal rebuilds the prefill (as for a new draft) ──
+
+    def _preset_unit(self, project_id):
+        """A unit of *project_id* with HIV and malaria area presets."""
+        org.seed_default_organization(project_id)
+        levels = {lv.level_code: lv for lv in org.list_levels(project_id)}
+        unit = org.create_unit(project_id, org_level_id=levels["district"].org_level_id,
+                               unit_code=f"P{uuid.uuid4().hex[:6].upper()}", unit_name="Preset District")
+        org.set_unit_va_presets(project_id, unit.org_unit_id, hiv_mortality="high", malaria_mortality="low")
+        db.session.commit()
+        return str(unit.org_unit_id)
+
+    def _preset_draft(self, project_id):
+        site_id = self.SITE_REQ if project_id == self.REQUIRED else self.SITE_PLAIN
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": project_id, "site_id": site_id, "org_unit_id": self._preset_unit(project_id)})
+        self.assertEqual(started.status_code, 201, started.get_json())
+        return started.get_json()["draft"]["draft_id"]
+
+    def _prefill(self, draft_id):
+        return self.client.get(f"{INTAKE}/drafts/{draft_id}").get_json()["prefill"]
+
+    def _resume(self, draft_id, sections):
+        version = self.client.get(f"{INTAKE}/drafts/{draft_id}").get_json()["draft"]["updated_at"]
+        response = self.client.patch(f"{INTAKE}/drafts/{draft_id}", headers=self._csrf_headers(), json={
+            "sections": sections, "resume_refused": True, "if_updated_at": version})
+        self.assertEqual(response.status_code, 200, response.get_json())
+
+    def assert_presets_back(self, prefill):
+        self.assertEqual((prefill["answers"]["Id10002"], prefill["answers"]["Id10003"]), ("high", "low"))
+        self.assertTrue({"Id10002", "Id10003", "Id10010c"} <= set(prefill["lockedQuestionNames"]))
+        self.assertEqual(prefill["interviewer"]["id"], self.interviewer_id)
+
+    def test_resume_after_a_who_refusal_rebuilds_the_prefill(self):
+        draft_id = self._preset_draft(self.PLAIN)
+        self.assert_presets_back(self._prefill(draft_id))
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "yes", "Id10017": "Bina"}).status_code, 200)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        self.assertEqual(self._prefill(draft_id), {})
+        self._resume(draft_id, {"main": {"Id10013": "yes"}})
+        self.assert_presets_back(self._prefill(draft_id))
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "yes"})
+
+    def test_resume_after_a_respondent_notice_refusal_rebuilds_the_prefill(self):
+        draft_id = self._preset_draft(self.REQUIRED)
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "yes", "Id10007": "Ram"}).status_code, 200)
+        self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
+        self.assertEqual(self._prefill(draft_id), {})
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        self._resume(draft_id, {})  # serverDraftStore.resumeAfterConsentGrant
+        self.assert_presets_back(self._prefill(draft_id))
+        self.assertNotIn("Id10007", self._saved_answers(draft_id))
+
+    def test_resume_on_a_registered_death_brings_back_the_registration_not_the_typed_answers(self):
+        unit_id = self._preset_unit(self.REQUIRED)
+        death_id = self._register(informant_name="Ram", org_unit_id=unit_id,
+                                  consent=self._consent()).get_json()["case"]["death_id"]
+        draft_id = self._case_draft(self.REQUIRED, death_id)
+        self.assertEqual(self._prefill(draft_id)["answers"]["Id10007"], "Ram")
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "yes", "Id10007": "Typed", "Id10061": "Hari"}).status_code, 200)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        self.assertEqual(self._prefill(draft_id), {})
+        self._resume(draft_id, {"main": {"Id10013": "yes"}})
+        prefill = self._prefill(draft_id)
+        self.assert_presets_back(prefill)
+        self.assertEqual(prefill["answers"]["Id10007"], "Ram")
+        self.assertEqual(prefill["deceased"]["givenNames"], "Bina")
+        self.assertNotIn("Id10061", prefill["answers"])
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "yes"})
+
+    def _refused_phone_draft(self, attempt):
+        """A registered death in a preset unit, synced by the phone with a typed answer, then refused."""
+        death_id = self._register(self.PLAIN, org_unit_id=self._preset_unit(self.PLAIN)).get_json()["case"]["death_id"]
+        first = self._sync_draft(death_id, {"Id10013": "yes", "Id10017": "Typed"}, project_id=self.PLAIN,
+                                 client_draft_id=attempt)
+        self.assertEqual(first.status_code, 200, first.get_json())
+        draft_id = first.get_json()["draft"]["draft_id"]
+        self.assert_presets_back(self._prefill(draft_id))
+        refused = self._sync_draft(death_id, {"Id10013": "no"}, project_id=self.PLAIN, client_draft_id=attempt)
+        self.assertEqual(refused.status_code, 200, refused.get_json())
+        self.assertEqual(self._prefill(draft_id), {})
+        return death_id, draft_id, refused.get_json()["draft"]["updated_at"]
+
+    def test_phone_draft_sync_resume_rebuilds_the_prefill(self):
+        attempt = uuid.uuid4()
+        death_id, draft_id, version = self._refused_phone_draft(attempt)
+        resumed = self._sync_draft(death_id, {"Id10013": "yes"}, project_id=self.PLAIN, client_draft_id=attempt,
+                                   resume_refused=True, base_updated_at=version)
+        self.assertEqual(resumed.status_code, 200, resumed.get_json())
+        self.assert_presets_back(self._prefill(draft_id))
+        self.assertNotIn("Id10017", self._saved_answers(draft_id))
+
+    def test_phone_upload_resume_rebuilds_the_prefill(self):
+        attempt = uuid.uuid4()
+        death_id, draft_id, version = self._refused_phone_draft(attempt)
+        response = self._upload(death_id, {"Id10013": "yes"}, project_id=self.PLAIN, client_draft_id=attempt,
+                                resume_refused=True, base_updated_at=version)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        self.assert_presets_back(draft.prefill)
+        self.assertNotIn("Id10017", draft.prefill.get("answers", {}))
 
     def test_browser_sections_share_one_consent_lookup(self):
         draft_id = self._direct_draft()

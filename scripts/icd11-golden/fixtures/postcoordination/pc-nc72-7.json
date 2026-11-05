@@ -10,7 +10,13 @@
       "GET icd/release/11/2026-01/mms/codeinfo/NC72.7",
       "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
       "GET icd/release/11/2026-01/mms/codeinfo/XJ44E",
-      "GET icd/release/11/2026-01/mms/1683085852"
+      "GET icd/release/11/2026-01/mms/1683085852",
+      "GET icd/release/11/2026-01/mms/codeinfo/NC72.7",
+      "GET icd/release/11/2026-01/mms/1683085852",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/271422288",
+      "GET icd/release/11/2026-01/mms/codeinfo/XJ44E",
+      "GET icd/release/11/2026-01/mms/1387112294"
      ],
      "name": "codeinfo",
      "reply": {
@@ -21,7 +27,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Multiple fractures of femur",
+        "title": "Multiple fractures of femur + Left + Closed fracture",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852 & http://id.who.int/icd/release/11/2026-01/mms/271422288 & http://id.who.int/icd/release/11/2026-01/mms/1387112294"
        },
        "schema_version": 1
@@ -54,7 +60,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Multiple fractures of femur",
+        "title": "Multiple fractures of femur + Left + Closed fracture",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852 & http://id.who.int/icd/release/11/2026-01/mms/271422288 & http://id.who.int/icd/release/11/2026-01/mms/1387112294"
        },
        "schema_version": 1
@@ -293,7 +299,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/NC72.7",
       "GET icd/release/11/2026-01/mms/codeinfo/XJ7YM",
       "GET icd/release/11/2026-01/mms/codeinfo/XK9K",
-      "GET icd/release/11/2026-01/mms/1683085852"
+      "GET icd/release/11/2026-01/mms/1683085852",
+      "GET icd/release/11/2026-01/mms/codeinfo/XJ7YM",
+      "GET icd/release/11/2026-01/mms/1882092801",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK9K",
+      "GET icd/release/11/2026-01/mms/876572005"
      ],
      "name": "codeinfo",
      "reply": {
@@ -304,7 +314,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Multiple fractures of femur",
+        "title": "Multiple fractures of femur + Open fracture + Right",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852 & http://id.who.int/icd/release/11/2026-01/mms/1882092801 & http://id.who.int/icd/release/11/2026-01/mms/876572005"
        },
        "schema_version": 1
@@ -337,7 +347,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Multiple fractures of femur",
+        "title": "Multiple fractures of femur + Open fracture + Right",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852 & http://id.who.int/icd/release/11/2026-01/mms/1882092801 & http://id.who.int/icd/release/11/2026-01/mms/876572005"
        },
        "schema_version": 1
@@ -586,7 +596,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Multiple fractures of femur",
+        "title": "Multiple fractures of femur + Left",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
        },
        "schema_version": 1
@@ -617,7 +627,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Multiple fractures of femur",
+        "title": "Multiple fractures of femur + Left",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/1683085852 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
        },
        "schema_version": 1

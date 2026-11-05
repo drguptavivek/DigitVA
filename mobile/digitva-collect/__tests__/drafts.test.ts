@@ -10,11 +10,13 @@ import { recordDraftTimeline } from "../src/draftSync";
 import { draftAttachments, saveAttachment } from "../src/attachmentStore";
 
 import {
+  clearRefusedDraft,
   completedDrafts,
   countDrafts,
   createDraftStore,
   deleteDraftSnapshot,
   draftIds,
+  getDraftPrefill,
   getDraftRow,
   getMeta,
   listDrafts,
@@ -22,6 +24,7 @@ import {
   markCompleted,
   migrate,
   purgeProjectData,
+  restoreResumedPrefill,
   countUnsentWork,
   countUnsentWorkByKind,
   projectIds,
@@ -80,6 +83,23 @@ describe("draft store", () => {
     expect(await getMeta(db, "offlineNote:other")).toBeTruthy();
     await store.save(draft("refused", "2026-09-30T02:00:00Z", { Id10013: "yes", Id10007: "stale" }));
     expect((await store.load!("refused"))!.data).toEqual({ Id10013: "yes" });
+  });
+
+  it("gives a refused draft resumed after a grant its rebuilt prefill, never the typed answers", async () => {
+    const original = { answers: { Id10002: "high", Id10003: "low" }, lockedQuestionNames: ["Id10002", "Id10003"] };
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1", binding: { projectId: "PROJECT1", prefill: original } });
+    await store.save(draft("resumed", "2026-09-30T01:00:00Z", { Id10013: "yes", Id10002: "high", Id10003: "low", Id10017: "Typed" }));
+    expect(await getDraftPrefill(db, "resumed")).toEqual(original);
+    await clearRefusedDraft(db, "resumed");
+    expect(await getDraftPrefill(db, "resumed")).toBeUndefined();
+    const rebuilt = { answers: { Id10002: "high", Id10003: "veryl" }, lockedQuestionNames: ["Id10002", "Id10003"] };
+    await restoreResumedPrefill(db, "resumed", rebuilt, { Id10002: "high", Id10003: "veryl", Id10013: "unset" });
+    expect(await getDraftPrefill(db, "resumed")).toEqual(rebuilt);
+    // The draft's own answers win over the prefill's; the typed answer is not restored.
+    expect((await store.load!("resumed"))!.data).toEqual({ Id10002: "high", Id10003: "veryl", Id10013: "yes" });
+    expect((await getDraftRow(db, "resumed"))!.draft_sync_dirty).toBe(1);
+    await restoreResumedPrefill(db, "missing", rebuilt, {});
+    expect(await getDraftRow(db, "missing")).toBeNull();
   });
 
   // A milestone write lands between the save's read of the row and its update (digitva-7amd.3).

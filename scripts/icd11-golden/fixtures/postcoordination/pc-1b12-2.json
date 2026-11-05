@@ -9,7 +9,11 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%26XA0G74",
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
       "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
-      "GET icd/release/11/2026-01/mms/883140666"
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
+      "GET icd/release/11/2026-01/mms/1902897114"
      ],
      "name": "codeinfo",
      "reply": {
@@ -20,7 +24,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Tuberculosis of ear",
+        "title": "Tuberculosis of ear + Middle Ear",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114"
        },
        "schema_version": 1
@@ -51,7 +55,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Tuberculosis of ear",
+        "title": "Tuberculosis of ear + Middle Ear",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114"
        },
        "schema_version": 1
@@ -365,7 +369,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
       "GET icd/release/11/2026-01/mms/codeinfo/XA0G74",
       "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
-      "GET icd/release/11/2026-01/mms/883140666"
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/codeinfo/XK8G",
+      "GET icd/release/11/2026-01/mms/271422288"
      ],
      "name": "codeinfo",
      "reply": {
@@ -376,7 +382,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Tuberculosis of ear",
+        "title": "Tuberculosis of ear + Middle Ear + Left",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
        },
        "schema_version": 1
@@ -409,7 +415,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Tuberculosis of ear",
+        "title": "Tuberculosis of ear + Middle Ear + Left",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 & http://id.who.int/icd/release/11/2026-01/mms/1902897114 & http://id.who.int/icd/release/11/2026-01/mms/271422288"
        },
        "schema_version": 1
@@ -722,7 +728,9 @@
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2%2FMG52.0",
       "GET icd/release/11/2026-01/mms/codeinfo/1B12.2",
       "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
-      "GET icd/release/11/2026-01/mms/883140666"
+      "GET icd/release/11/2026-01/mms/883140666",
+      "GET icd/release/11/2026-01/mms/codeinfo/MG52.0",
+      "GET icd/release/11/2026-01/mms/672063490"
      ],
      "name": "codeinfo",
      "reply": {
@@ -733,7 +741,7 @@
         "leaf": true,
         "postcoordination": false,
         "release": "2026-01",
-        "title": "Tuberculosis of ear",
+        "title": "Tuberculosis of ear + Antibiotic resistant Mycobacterium",
         "uri": "http://id.who.int/icd/release/11/2026-01/mms/883140666 / http://id.who.int/icd/release/11/2026-01/mms/672063490"
        },
        "schema_version": 1

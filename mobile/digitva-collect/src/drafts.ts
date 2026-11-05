@@ -629,6 +629,20 @@ export async function clearRefusedDraftInTransaction(tx: Db, id: string): Promis
 }
 
 /**
+ * A refused draft resumed after a grant: store `prefill`, which the caller rebuilt as for a new draft (never the
+ * pre-refusal one, which clearRefusedDraft removed), and put its answers (`initial`) under the draft's own, since the
+ * form's restore replaces answers wholesale. Nothing for a draft with no row; a concurrent write is a conflict.
+ */
+export async function restoreResumedPrefill(db: Db, id: string, prefill: unknown, initial: Record<string, unknown>): Promise<void> {
+  const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [id]);
+  if (!row) return;
+  const draft = JSON.parse(row.envelope) as { data?: Record<string, unknown> };
+  draft.data = { ...initial, ...(draft.data ?? {}) };
+  const result = await db.runAsync("UPDATE drafts SET envelope = ?, prefill = ?, draft_sync_dirty = 1 WHERE id = ? AND envelope = ?", [JSON.stringify(draft), JSON.stringify(prefill), id, row.envelope]);
+  if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) !== 1) throw new Error("draft_conflict");
+}
+
+/**
  * Remove covered answers from the stored draft and its stored prefill (a refusal was just recorded), so no
  * copy on the phone, and nothing synced from it, holds them. Marks the draft for the next sync.
  */

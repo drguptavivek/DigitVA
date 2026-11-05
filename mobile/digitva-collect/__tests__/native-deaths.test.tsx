@@ -155,6 +155,7 @@ jest.mock("../src/i18n", () => ({
 }));
 
 import Case from "../src/nativeRoutes/case";
+import { formatDisplayTimestamp } from "../src/ui/CaseCard";
 import { Linking } from "react-native";
 
 const settle = async () =>
@@ -202,7 +203,7 @@ describe("native case detail workflow", () => {
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain(
-      `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
+      `otherDraftActiveAt ${formatDisplayTimestamp(startedAt)}`,
     );
     expect(rendered).toContain("otherDraftSyncNotice");
     const start = tree!.root.findByProps({ "data-label": "startInterview" });

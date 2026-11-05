@@ -461,6 +461,26 @@ describe("native draft sync", () => {
     expect(JSON.parse(current!.envelope)).toMatchObject({ id: LOCAL_ID, data: { Id10007: "browser" } });
   });
 
+  it("takes the server's rebuilt prefill with a newer server save, and keeps the stored one when the server has none", async () => {
+    const item = await saveLocal();
+    await db.runAsync("UPDATE drafts SET server_draft_id = ?, base_updated_at = ?, draft_sync_dirty = 0, prefill = NULL WHERE id = ?", [SERVER_ID, OLD_TIME, LOCAL_ID]);
+    const rebuilt = { answers: { Id10002: "high" }, lockedQuestionNames: ["Id10002", "Id10010c"] };
+    request.mockResolvedValueOnce({ status: 200, body: { draft: summary(NEW_TIME), envelope: serverEnvelope({ Id10013: "yes" }), prefill: rebuilt } });
+    await expect(syncDraftSnapshot("user-1", db,
+      { ...item, server_draft_id: SERVER_ID, base_updated_at: OLD_TIME, draft_sync_dirty: 0 }
+    )).resolves.toMatchObject({ applied: true, conflict: true });
+    const row = await db.getFirstAsync<{ envelope: string; prefill: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [LOCAL_ID]);
+    expect(JSON.parse(row!.prefill!)).toEqual(rebuilt);
+    expect(JSON.parse(row!.envelope).data).toEqual({ Id10002: "high", Id10013: "yes" });
+
+    const later = "2026-10-01T12:00:00+00:00";
+    const current = await getDraftRow(db, LOCAL_ID);
+    request.mockResolvedValueOnce({ status: 200, body: { draft: summary(later), envelope: serverEnvelope({ Id10013: "yes" }), prefill: {} } });
+    await expect(syncDraftSnapshot("user-1", db, { ...item, envelope: row!.envelope, updated_at: current!.updated_at,
+      server_draft_id: SERVER_ID, base_updated_at: NEW_TIME, draft_sync_dirty: 0 })).resolves.toMatchObject({ applied: true });
+    expect(JSON.parse((await db.getFirstAsync<{ prefill: string }>("SELECT prefill FROM drafts WHERE id = ?", [LOCAL_ID]))!.prefill)).toEqual(rebuilt);
+  });
+
   describe("under a recorded refusal", () => {
     const refusal = {
       envelope: { client_id: "c1", decision: "refused", client_draft_id: LOCAL_ID } as never,

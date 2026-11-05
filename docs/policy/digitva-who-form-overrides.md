@@ -66,14 +66,9 @@ Hints are part of the composed definition, so the version moved from `2026081401
 
 ### Season of death: the interviewer answers it (owner decision 2026-11-05)
 
-`Id10004` stays asked to the interviewer. WHO's hint (red, "Should be completed by the central office.") and guidance (blue, "ideally filled by the central office") are wrong for DigitVA, so an always-on core override in `vendor/who-va-2022/src/instrument.ts` (`SEASON_OF_DEATH_TEXT`) replaces both, en and hi, with plain text (no colour spans). The Hindi pack entry in `vendor/who-va-2022/src/languages/hi.ts` carries the same text, because a pack entry overrides the instrument's `hi`. Label, choices (Wet / Dry / Doesn't know), relevance, constraints and requiredness are untouched. The French pack (`fr.ts`) still has WHO's wording; it is not changed.
+`Id10004` stays asked to the interviewer: interviewers are best placed to say whether the death happened in the wet or dry season. WHO's red hint ("Should be completed by the central office.") is removed in every language: an always-on core override in `vendor/who-va-2022/src/instrument.ts` sets `hint: {}`, and the Hindi and French pack entries (`vendor/who-va-2022/src/languages/hi.ts`, `fr.ts`) have no `hint` key. WHO's label, guidance, choices (Wet / Dry / Doesn't know), relevance, constraints and requiredness are kept verbatim in every language.
 
-| Field | English | Hindi |
-|---|---|---|
-| hint | Choose by the month of death, using the project's list of wet and dry months. | मृत्यु के महीने के अनुसार चुनें; परियोजना की गीले और सूखे महीनों की सूची देखें। |
-| guidance | The interviewer answers this question. Select Wet or Dry for the month in which the death happened, using the list of wet and dry months the project provides. If the month of death is not known, select Doesn't know. | इस प्रश्न का उत्तर साक्षात्कारकर्ता देता है। जिस महीने मृत्यु हुई, उसके लिए परियोजना की गीले और सूखे महीनों की सूची के अनुसार गीला या सूखा चुनें। मृत्यु का महीना पता न हो तो 'नहीं जानता' चुनें। |
-
-The composed definition version moved from `2026081401-65fa41ff53` to `2026081401-405dcd46c5`; drafts pinned to the older version keep the old text.
+The composed definition version moved from `2026081401-65fa41ff53` to `2026081401-132dfd439e`; drafts pinned to the older version keep the old text.
 
 ### Defaults and prefill for new interviews (owner decision 2026-10-23)
 

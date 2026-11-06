@@ -22,6 +22,7 @@ import { checkForUpdateDaily } from "../updateCheck";
 import { errorText } from "../ui";
 import type { WorkSummary } from "../unsentWork";
 import { isPreLoginRoute, showNativeBackTitle, showNativeHeader, showNativeTabs } from "./navAdapter";
+import { resolveModeBanner } from "./ModeBanner";
 import { AccountSheet, HelpSheet, SyncSheet } from "./sheets";
 import { ShellContext, type Shell, type ShellSheet, type SyncStatus } from "./shellContext";
 
@@ -42,7 +43,7 @@ export function useKeyboardOpen(): boolean {
 export function ShellProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname().replace(/\/$/, "") || "/";
   const params = useGlobalSearchParams<{ userId?: string | string[] }>();
-  const { accounts, lockVersion, offline, dataChanged, syncAccount, reload, device, ready } = useAppState();
+  const { accounts, lockVersion, offline, dataChanged, syncAccount, reload, device, ready, slot, standaloneAvailable = false } = useAppState();
   const toast = useToast();
   const keyboardOpen = useKeyboardOpen();
   const [sheet, setSheet] = useState<ShellSheet>(null);
@@ -156,6 +157,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const screenTitle = Array.from(titles.values()).at(-1);
 
   const header = showNativeHeader(pathname) || isPreLoginRoute(pathname);
+  // Without the phone header the mode bar is topmost and owns the status-bar inset (ModeBanner pads it).
+  const modeBar = !header && resolveModeBanner({ pathname, userId, accounts, slot, standaloneAvailable, enrolled: Boolean(device) }) !== undefined;
   // NativeHeader draws nothing until the app state is ready, so the title stays on the page until then.
   const titleInBar = Boolean(ready) && showNativeBackTitle(pathname, account);
   const tabs = showNativeTabs({ pathname, userId, unlocked, keyboardOpen });
@@ -172,10 +175,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     refreshNow,
     header,
     tabs,
+    modeBar,
     titleInBar,
     screenTitle,
     publishTitle,
-  }), [sheet, userId, server, sync, sendNow, recount, refreshNow, header, tabs, titleInBar, screenTitle, publishTitle]);
+  }), [sheet, userId, server, sync, sendNow, recount, refreshNow, header, tabs, modeBar, titleInBar, screenTitle, publishTitle]);
   return (
     <ShellContext.Provider value={value}>
       {children}

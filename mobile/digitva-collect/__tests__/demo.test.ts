@@ -24,9 +24,7 @@ jest.mock("../src/interviewerDb", () => ({
 import { ApiError } from "../src/api";
 import { loadAccounts, loadDevice } from "../src/auth";
 import {
-  DEMO_PAGES,
   demoErrorText,
-  demoPageUrl,
   enrolAndSignInDemo,
   signUpDemoAccount,
   type DemoProgress,
@@ -69,10 +67,6 @@ describe("the demo origin rule", () => {
     expect(isDemoServer("http://10.0.2.2:8051", true, "http://10.0.2.2:8051")).toBe(true);
   });
 
-  it("builds the browser links on the enrolled server", () => {
-    expect(demoPageUrl(DEMO_PAGES.dashboard, DEMO_SERVER)).toBe(`${DEMO_SERVER}/public-demo/dashboard`);
-    expect(demoPageUrl(DEMO_PAGES.reports, DEMO_SERVER)).toBe(`${DEMO_SERVER}/public-demo/cases`);
-  });
 });
 
 describe("validateSignUp mirrors the server's rules", () => {

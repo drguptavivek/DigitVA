@@ -19,9 +19,10 @@ let mockAccounts: Array<{ user_id: string; name: string; server?: string; standa
 jest.mock("expo-router", () => ({ usePathname: () => mockPathname, useGlobalSearchParams: () => mockParams, useRouter: () => ({}) }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({ ready: true, accounts: mockAccounts, lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice }),
+  useAppState: () => ({ ready: true, accounts: mockAccounts, lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice, slot: mockSlot }),
 }));
 let mockDevice: { server: string } | undefined;
+let mockSlot: "active" | "demo" | undefined;
 let mockPlay = false;
 jest.mock("../src/appVariant", () => ({ isPlayDistribution: () => mockPlay }));
 const mockDailyCheck = jest.fn(async (_server?: string) => ({ status: "available", version: "9.9.9", url: "https://example.org/digitva.apk" }));
@@ -65,6 +66,7 @@ beforeEach(() => {
   mockLastFull = null;
   mockOffline = false;
   mockDevice = undefined;
+  mockSlot = undefined;
   mockPlay = false;
   mockAccounts = [{ user_id: "u1", name: "Asha", server: "https://digitvav3.causeofdeathindia.com" }];
 });
@@ -134,6 +136,24 @@ it("shows no tabs on a form and no header either", async () => {
   await mount();
   expect(shell.header).toBe(false);
   expect(shell.tabs).toBe(false);
+});
+
+it("owns the status-bar inset in the mode bar only when it is shown without the phone header", async () => {
+  mockPathname = "/form";
+  mockSlot = "demo";
+  await mount();
+  expect(shell.modeBar).toBe(true); // demo form: ModeBanner is topmost, Screen must not pad the top again
+  await act(async () => tree.unmount());
+  mockPathname = "/worklist";
+  await mount();
+  expect(shell.header).toBe(true);
+  expect(shell.modeBar).toBe(false); // the header owns the inset under a mode bar
+  await act(async () => tree.unmount());
+  mockPathname = "/form";
+  mockSlot = "active";
+  await mount();
+  expect(shell.modeBar).toBe(false); // Enrolled mode form: no bar, Screen keeps the inset
+  mockSlot = undefined;
 });
 
 it("Send now syncs, records the result line, updates the time and tells mounted lists to reload", async () => {

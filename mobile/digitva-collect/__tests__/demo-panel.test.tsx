@@ -1,4 +1,4 @@
-/** The Public demo badge and its browser links; the enrol screen's entry. */
+/** The enrol screen's Try the demo entry. */
 import React from "react";
 import { act, create } from "react-test-renderer";
 
@@ -35,8 +35,6 @@ jest.mock("../src/ui", () => {
 });
 
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => false }));
-import DemoPanel from "../src/DemoPanel";
-import { DEMO_SERVER } from "../src/enrolment";
 import Enrol from "../src/nativeRoutes/enrol";
 
 const labels = (tree: ReturnType<typeof create>) => tree.root.findAllByType("button" as never).map((n) => n.props.label);
@@ -48,23 +46,6 @@ async function render(element: React.ReactElement) {
   });
   return tree!;
 }
-
-it("shows nothing on a phone enrolled anywhere but the demo server", async () => {
-  expect((await render(<DemoPanel server="https://digitva.causeofdeathindia.com" />)).toJSON()).toBeNull();
-  expect((await render(<DemoPanel server={undefined} />)).toJSON()).toBeNull();
-});
-
-it("shows the badge and opens the dashboard and My reports in the system browser", async () => {
-  const tree = await render(<DemoPanel server={DEMO_SERVER} />);
-  expect(tree.root.findAllByType("text" as never).map((n) => n.props.children)).toContain("demoBadge");
-  const open = (label: string) => tree.root.findAll((n) => n.props.label === label)[0].props.onPress();
-  await act(async () => open("demoLinkDashboard"));
-  await act(async () => open("demoLinkReports"));
-  expect(mockOpenUrl.mock.calls.map(([url]) => url)).toEqual([
-    `${DEMO_SERVER}/public-demo/dashboard`,
-    `${DEMO_SERVER}/public-demo/cases`,
-  ]);
-});
 
 it("the enrol screen offers Try the demo in a release build too", async () => {
   expect((globalThis as { __DEV__?: boolean }).__DEV__).toBeDefined();

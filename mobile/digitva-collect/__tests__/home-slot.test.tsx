@@ -28,7 +28,6 @@ const mockOpenDb = jest.fn(async (_userId: string) => ({}));
 let mockInterviews = 0;
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => mockUnlocked, openInterviewerDb: (userId: string) => mockOpenDb(userId) }));
 jest.mock("../src/standalone/adopt", () => ({ standaloneCounts: async () => ({ interviews: mockInterviews, codings: 0, staleDraftIds: [], held: 0 }) }));
-jest.mock("../src/DemoPanel", () => ({ __esModule: true, default: () => null }));
 jest.mock("../src/browserScreens", () => ({ WorkspaceScreen: () => null }));
 // Home reads one radius token; the real theme pulls in native preferences.
 jest.mock("../src/theme", () => ({ radius: { lg: 8 }, spacing: { xs: 8 } }));

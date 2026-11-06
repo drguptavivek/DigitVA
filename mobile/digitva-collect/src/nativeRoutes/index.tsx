@@ -12,7 +12,6 @@ import { t } from "../i18n";
 import { homeRoute } from "../standalone/home";
 import { standaloneCounts } from "../standalone/adopt";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
-import DemoPanel from "../DemoPanel";
 import { displayProjectName } from "../projectName";
 import { spacing } from "../theme";
 import { Button, Card, ListRow, Screen, Separator, TextLink, useUiStyles } from "../ui";
@@ -88,7 +87,6 @@ export default function Home() {
     // The emblem and name sit in the top bar (design sheet 01), so the profiles start above the fold.
     <Screen title={t("accountsTitle")}>
       {projectLine ? <Text style={styles.muted}>{projectLine}</Text> : null}
-      {device ? <DemoPanel server={device.server} /> : null}
       {accounts.length === 0 ? <Text style={styles.text}>{t("accountsEmpty")}</Text> : (
         <Card grouped>
           {accounts.map((account, index) => (

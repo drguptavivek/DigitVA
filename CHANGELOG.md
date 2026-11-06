@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **iOS top gap, WHO input centring, demo links removed** (`digitva-jupw`, `digitva-gs8l`):
+  with a mode bar and no header, the screen below also padded the status bar,
+  leaving an empty band on iOS forms and consent; only the mode bar owns it
+  now. Single-line WHO inputs drop vertical padding on iOS so text centres.
+  The profile list no longer shows the public demo dashboard and reports
+  links; the header DEMO badge stays.
 - **Dashboard days on the project clock, gate form fixes, manuscript version
   dates** (`397d3a7af`; `digitva-apee`, follow-up `digitva-at68`):
   dashboards, KPIs, reports, AI questions and the coded-COD export take an

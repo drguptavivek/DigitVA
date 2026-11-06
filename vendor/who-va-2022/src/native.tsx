@@ -12,6 +12,7 @@ import {
   ScrollView as RnScrollView,
   Text as RnText,
   TextInput as RnTextInput,
+  Platform,
   useColorScheme,
   View as RnView
 } from "react-native";
@@ -34,7 +35,19 @@ function themedPrimitive(Component: React.ElementType, displayName: string): Rea
 
 const View = themedPrimitive(RnView, "WhoVaNativeView");
 const Text = themedPrimitive(RnText, "WhoVaNativeText");
-const TextInput = themedPrimitive(RnTextInput, "WhoVaNativeTextInput");
+const ThemedTextInput = themedPrimitive(RnTextInput, "WhoVaNativeTextInput");
+/**
+ * iOS centres a single-line field's text vertically inside `minHeight` by itself; the shared field style's
+ * `paddingVertical` shifts it off-centre, so single-line fields drop it there (multiline keeps its padding).
+ */
+const TextInput = React.forwardRef<unknown, Record<string, unknown>>(({ style, ...props }, ref) => (
+  <ThemedTextInput
+    {...props}
+    ref={ref}
+    style={Platform.OS === "ios" && !props.multiline ? [style, { paddingVertical: 0 }] : style}
+  />
+));
+TextInput.displayName = "WhoVaNativeTextInput";
 const Pressable = themedPrimitive(RnPressable, "WhoVaNativePressable");
 const ScrollView = themedPrimitive(RnScrollView, "WhoVaNativeScrollView");
 

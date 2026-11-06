@@ -46,9 +46,9 @@ export function Screen({
 }) {
   const theme = useTheme();
   const screenStyles = useUiStyles();
-  // The phone header and tabs pad the status and navigation bars themselves; Screen must not pad them again.
+  // The phone header (or, without it, the mode bar) and tabs pad the status and navigation bars themselves; Screen must not pad them again.
   const shell = useShell();
-  const edges = (["top", "bottom", "left", "right"] as const).filter((edge) => !(edge === "top" && shell.header) && !(edge === "bottom" && shell.tabs));
+  const edges = (["top", "bottom", "left", "right"] as const).filter((edge) => !(edge === "top" && (shell.header || shell.modeBar)) && !(edge === "bottom" && shell.tabs));
   // The phone bar shows the title of a pushed screen next to its back arrow (src/nativeShell/shell.tsx).
   const titleKey = useRef({}).current;
   const { publishTitle } = shell;
@@ -62,7 +62,7 @@ export function Screen({
   }, [titleOnPage]);
   if (variant === "immersive") {
     return (
-      <SafeAreaView style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
+      <SafeAreaView edges={edges} style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
         <View style={screenStyles.fill}>{children}</View>
         {footer ? <View style={screenStyles.footer}>{footer}</View> : null}
       </SafeAreaView>

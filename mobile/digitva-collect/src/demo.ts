@@ -103,7 +103,3 @@ export async function enrolAndSignInDemo(
   return signIn(name, password, "demo");
 }
 
-/** The demo pages that open in the system browser (the dashboard is public; reports need a web sign-in). */
-export const DEMO_PAGES = { dashboard: "/public-demo/dashboard", reports: "/public-demo/cases" } as const;
-export const demoPageUrl = (path: (typeof DEMO_PAGES)[keyof typeof DEMO_PAGES], server = demoServer()) =>
-  `${server}${path}`;

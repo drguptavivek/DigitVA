@@ -34,6 +34,8 @@ export interface Shell {
   /** Whether the header and the tabs are on screen, so Screen leaves their insets to them. */
   header: boolean;
   tabs: boolean;
+  /** The mode bar (Demo/Standalone) is the topmost chrome and clears the status bar itself, so Screen must not pad it again. */
+  modeBar?: boolean;
   /** The bar shows the back arrow and the screen title (navAdapter `showNativeBackTitle`); Screen then hides its own. */
   titleInBar: boolean;
   /** Title of the screen on top, published by Screen. */
@@ -56,6 +58,7 @@ const IDLE: Shell = {
   refreshNow: async () => undefined,
   header: false,
   tabs: false,
+  modeBar: false,
   titleInBar: false,
   screenTitle: undefined,
   publishTitle: () => undefined,

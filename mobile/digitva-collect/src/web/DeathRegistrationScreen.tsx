@@ -12,7 +12,7 @@ import { localToday, registrationAgeInfoIssue, registrationNeedsAgeConfirmation,
 import { t, uiLocale, type StringKey } from "../i18n";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
-import { Button, useUiStyles } from "../ui";
+import { Button, FieldLabel, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel } from "./DeathsList";
@@ -624,7 +624,8 @@ export default function DeathRegistrationScreen() {
     />
   ) : (
     <View key={field.key}>
-      <Text style={styles.fieldLabel}>{t(field.label)}</Text>
+      {/* Required fields carry the grey "Required" word, never an asterisk. */}
+      <FieldLabel label={t(field.label)} required={field.key === "deceased_name" || field.key === "date_of_death"} />
       <RegistrationFieldControl
         field={field.key}
         label={t(field.label)}
@@ -976,7 +977,7 @@ export default function DeathRegistrationScreen() {
           {renderField(FIELD_DEFINITIONS[0])}
           {renderField(FIELD_DEFINITIONS[1])}
           <View onBlur={birthBlur}>
-          <Text style={styles.fieldLabel}>{t("fieldDateOfBirth")}</Text>
+          <FieldLabel label={t("fieldDateOfBirth")} required={birthMode !== "unknown"} />
           <Text style={styles.muted}>{t("dobPrecision")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
             {(
@@ -1018,7 +1019,7 @@ export default function DeathRegistrationScreen() {
             />
           ) : null}
           <View>
-            <Text style={styles.fieldLabel}>{t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldEstimatedAge")}</Text>
+            <FieldLabel label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldEstimatedAge")} required={birthMode === "unknown"} />
             {birthMode === "unknown" ? (
               <RegistrationFieldControl
                 field="age_years"
@@ -1035,7 +1036,7 @@ export default function DeathRegistrationScreen() {
             ) : null}
           </View>
           </View>
-          <Text style={styles.fieldLabel}>{t("fieldSex")}</Text>
+          <FieldLabel label={t("fieldSex")} required />
           <View style={styles.row} accessibilityRole="radiogroup">
             {(["male", "female", "undetermined", "unknown"] as const).map((value) => (
               <Button

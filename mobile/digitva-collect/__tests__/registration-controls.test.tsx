@@ -144,11 +144,12 @@ describe("death registration field controls", () => {
     expect(input.props.value).toBe("Ward 4");
     expect(tree.root.findByProps({ children: "errAddress" })).toBeDefined();
     const height = () => StyleSheet.flatten(tree.root.findByType(TextInput).props.style).height;
-    expect(height()).toBe(66);
+    // Two lines of 24 plus 8px padding and the 2px focus edge, top and bottom.
+    expect(height()).toBe(68);
     act(() => input.props.onContentSizeChange({ nativeEvent: { contentSize: { width: 100, height: 72 } } }));
-    expect(height()).toBe(66 + 24);
+    expect(height()).toBe(68 + 24);
     act(() => input.props.onContentSizeChange({ nativeEvent: { contentSize: { width: 100, height: 600 } } }));
-    expect(height()).toBe(162);
+    expect(height()).toBe(164);
     act(() => input.props.onChangeText("Ward 5"));
     expect(onChange).toHaveBeenLastCalledWith("Ward 5");
     expect(onIssue).toHaveBeenLastCalledWith();

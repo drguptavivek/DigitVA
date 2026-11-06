@@ -21,7 +21,8 @@
  * who-files.json with their size and sha256. The app verifies the staged copies against it and restores them when
  * missing (EngineData.kt), so the manifest is written from the staged copies, never from the spike's files by hand.
  *
- * CLI: `node stage-engine.js` stages; `--list <spike>` prints engineFiles(); `--spike` prints the spike folder found.
+ * CLI: `node stage-engine.js` stages; `--ios` stages for iOS (stageEngineIos); `--list <spike>` prints engineFiles();
+ * `--spike` prints the spike folder found.
  */
 const { execFileSync } = require("node:child_process");
 const crypto = require("node:crypto");
@@ -39,6 +40,10 @@ const DATA_FILES = [
 const DORIS_DIR = "DORIS_v2.1_1.2.0";
 // DORIS's zip is fetched by the engine, and its log.txt is written by the engine: neither is shipped.
 const DORIS_SKIP = new Set(["DORIS_v2.1_1.2.0.zip", "log.txt"]);
+const IOS_FRAMEWORK = path.join("bridge-aot", "pub-ios", "DigitvaIcd11Engine.xcframework");
+const MISSING_IOS_ENGINE =
+  "Collect Plus for iOS needs DigitvaIcd11Engine.xcframework from engine-src/build-ios.sh: put it in " +
+  "private/icd11-offline-spike/bridge-aot/pub-ios/ or set DIGITVA_ICD11_IOS_XCFRAMEWORK to it.";
 const MISSING_ENGINE =
   "Collect Plus (APP_VARIANT=plus) needs the offline ICD-11 engine: set DIGITVA_ICD11_ENGINE_ARCHIVE to the " +
   "icd11-engine-<version>.tar.gz of the release the CI workflow pins (preferred), or provide the folder " +
@@ -116,28 +121,56 @@ function sha256(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+/**
+ * Copies the engine's data files (every engineFiles() entry but the library) from [source] into [assets] at their
+ * engine-relative paths (bundle/..., data/...) plus [suffix], and writes who-files.json there. Returns the WHO entries.
+ */
+function stageData(source, assets, suffix) {
+  const who = [];
+  for (const file of engineFiles(source)) {
+    if (file === ENGINE_LIB) continue;
+    const from = path.join(source, file);
+    const rel = file.startsWith(`bundle_min${path.sep}`) ? path.join("bundle", path.relative("bundle_min", file)) : file;
+    copyIfChanged(from, path.join(assets, `${rel}${suffix}`));
+    if (isWhoFile(rel)) who.push({ path: rel, size: fs.statSync(from).size, sha256: sha256(from) });
+  }
+  fs.writeFileSync(path.join(assets, "who-files.json"), `${JSON.stringify(who, null, 2)}\n`);
+  return who;
+}
+
 function stageEngine({ moduleDir = MODULE_DIR, env = process.env } = {}) {
   return withEngineSource(env, moduleDir, (source) => {
     const main = path.join(moduleDir, "android", "src", "main");
     const assets = path.join(main, "assets", "digitva-icd11");
-    const who = [];
-    for (const file of engineFiles(source)) {
-      const from = path.join(source, file);
-      if (file === ENGINE_LIB) {
-        copyIfChanged(from, path.join(main, "jniLibs", "arm64-v8a", "libdigitva_icd11.so"));
-        continue;
-      }
-      // Engine-relative path (bundle/..., data/...); the staged asset is that path with a ".bin" suffix.
-      const rel = file.startsWith(`bundle_min${path.sep}`) ? path.join("bundle", path.relative("bundle_min", file)) : file;
-      copyIfChanged(from, path.join(assets, `${rel}.bin`));
-      if (isWhoFile(rel)) who.push({ path: rel, size: fs.statSync(from).size, sha256: sha256(from) });
-    }
-    fs.writeFileSync(path.join(assets, "who-files.json"), `${JSON.stringify(who, null, 2)}\n`);
+    copyIfChanged(path.join(source, ENGINE_LIB), path.join(main, "jniLibs", "arm64-v8a", "libdigitva_icd11.so"));
+    const who = stageData(source, assets, ".bin");
     return { source, assets, who };
   });
 }
 
-module.exports = { stageEngine, findSpike, engineFiles };
+/**
+ * The iOS twin of stageEngine, for `expo prebuild --platform ios` of Collect Plus. The engine is the xcframework
+ * engine-src/build-ios.sh makes: $DIGITVA_ICD11_IOS_XCFRAMEWORK, else bridge-aot/pub-ios/ of the source folder (the
+ * release archive carries no iOS library yet, so an archive build needs the variable). It goes to
+ * ios/Engine/DigitvaIcd11Engine.xcframework; the same data files as Android go to ios/Engine/digitva-icd11/ under their
+ * own names (".bin" is for AAPT only), with the same who-files.json. engineFiles() and the archive stay Android's.
+ */
+function stageEngineIos({ moduleDir = MODULE_DIR, env = process.env } = {}) {
+  return withEngineSource(env, moduleDir, (source) => {
+    const framework = env.DIGITVA_ICD11_IOS_XCFRAMEWORK || path.join(source, IOS_FRAMEWORK);
+    if (!fs.existsSync(path.join(framework, "Info.plist"))) throw new Error(MISSING_IOS_ENGINE);
+    const engine = path.join(moduleDir, "ios", "Engine");
+    const staged = path.join(engine, path.basename(IOS_FRAMEWORK));
+    fs.rmSync(staged, { recursive: true, force: true });
+    fs.mkdirSync(engine, { recursive: true });
+    fs.cpSync(framework, staged, { recursive: true });
+    const assets = path.join(engine, "digitva-icd11");
+    const who = stageData(source, assets, "");
+    return { source, framework, assets, who };
+  });
+}
+
+module.exports = { stageEngine, stageEngineIos, findSpike, engineFiles };
 
 if (require.main === module) {
   const [flag, arg] = process.argv.slice(2);
@@ -149,6 +182,9 @@ if (require.main === module) {
       const spike = findSpike();
       if (!spike) throw new Error(MISSING_ENGINE);
       console.log(spike);
+    } else if (flag === "--ios") {
+      const { source } = stageEngineIos();
+      console.log(`Collect Plus: iOS engine staged from ${source}`);
     } else {
       const { source } = stageEngine();
       console.log(`Collect Plus: engine staged from ${source}`);

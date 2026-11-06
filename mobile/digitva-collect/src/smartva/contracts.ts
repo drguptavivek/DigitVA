@@ -39,6 +39,8 @@ export interface SmartVaEngineResult {
 
 /** The displayed summary is compatible with the existing workspace SmartVA card. */
 export interface SmartVaReference {
+  /** True when the engine returned no prediction for the case; every other field is then empty. */
+  no_result?: true;
   age: string | null;
   gender: string | null;
   key_symptoms: Array<string | null>;

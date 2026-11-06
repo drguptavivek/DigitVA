@@ -27,7 +27,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { WhoVaUiMessages } from "../i18n.js";
 import { domElement } from "./dom-element.js";
 import { defaultFormTheme as T } from "./theme.js";
-import { withWebTheme } from "./web-theme.js";
+import { withPetrol, withWebTheme } from "./web-theme.js";
 
 export type SectionNavStatus = "empty" | "started" | "complete" | "issues";
 
@@ -88,7 +88,9 @@ const INDENT = 16;
 export function focusableWithin(node: unknown): HTMLElement[] {
   const panel = domElement(node, "querySelectorAll");
   if (!panel) return [];
-  return Array.from(panel.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])'));
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])')
+  );
 }
 
 /** Scroll `box` just enough to show `item`, touching nothing outside the box (web only). */
@@ -99,7 +101,8 @@ export function keepInView(box: unknown, item: unknown): void {
   const top = target.offsetTop - scroller.offsetTop;
   const bottom = top + target.offsetHeight;
   if (top < scroller.scrollTop) scroller.scrollTo({ top: top - 8 });
-  else if (bottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTo({ top: bottom - scroller.clientHeight + 8 });
+  else if (bottom > scroller.scrollTop + scroller.clientHeight)
+    scroller.scrollTo({ top: bottom - scroller.clientHeight + 8 });
 }
 
 function sectionTitle(item: SectionNavItem): string {
@@ -176,10 +179,13 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
   function VerticalStepper({
     items,
     onSelect,
+    roomy = false,
     scrollBox
   }: {
     items: readonly SectionNavItem[];
     onSelect: (name: string) => void;
+    /** 48dp rows (the drawer). */
+    roomy?: boolean;
     /** The rail's own scroll box, kept scrolled to the current item without moving the page. */
     scrollBox?: React.MutableRefObject<unknown> | undefined;
   }) {
@@ -212,6 +218,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
               onPress={() => onSelect(item.name)}
               style={[
                 navStyles.step,
+                roomy && navStyles.stepRoomy,
                 navStyles.stepEntry,
                 { marginLeft: Math.min(item.depth, MAX_INDENT) * INDENT },
                 justAdded.has(item.name) && navStyles.stepEntering
@@ -278,6 +285,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
    * when the sections outnumber the touch targets that fit.
    */
   function SectionHeaderBar({
+    compact = false,
     current,
     items,
     messages,
@@ -288,6 +296,8 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     toggleRef,
     total
   }: {
+    /** The phone bar: the caption stays at the left on one line; the drawer carries the "more sections" note. */
+    compact?: boolean;
     current: number;
     items: readonly SectionNavItem[];
     messages: WhoVaUiMessages;
@@ -312,7 +322,8 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     const title = active ? sectionTitle(active) : "";
     // Where the current circle sits, so its name can start beneath it.
     const pitch = items.length > 1 ? (width - STEP_TOUCH_TARGET) / (items.length - 1) : 0;
-    const labelOffset = collapsed ? 0 : Math.max(0, Math.min(Math.round(activeIndex * pitch), width - 220));
+    const labelOffset =
+      collapsed || compact ? 0 : Math.max(0, Math.min(Math.round(activeIndex * pitch), width - 220));
 
     return (
       <View style={navStyles.header}>
@@ -379,7 +390,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
             <Text numberOfLines={1} style={navStyles.headerText}>
               {position}
             </Text>
-            {moreToCome && messages.moreSectionsNote ? (
+            {moreToCome && messages.moreSectionsNote && !compact ? (
               <Text style={navStyles.moreNoteInline}>{messages.moreSectionsNote}</Text>
             ) : null}
           </View>
@@ -500,9 +511,14 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
               </Text>
             </Pressable>
           </View>
-          <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={navStyles.panelList}>
+          <ScrollView
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            style={navStyles.panelList}
+          >
             <VerticalStepper
               items={items}
+              roomy
               onSelect={(name) => {
                 onSelect(name);
                 onClose();
@@ -598,6 +614,8 @@ export const navStyles = {
     { color: "muted" }
   ),
   step: { columnGap: 12, flexDirection: "row" as const, minHeight: 40 },
+  // Petrol: the drawer's rows are full touch targets (the rail beside a wide form keeps the tighter 40).
+  stepRoomy: withPetrol({}, { minHeight: 48 }),
   stepEntry: withWebTheme({ opacity: 1 }, { opacity: "entryTransition" }),
   stepEntering: { opacity: 0 },
   stepRail: { alignItems: "center" as const, width: 22 },
@@ -666,7 +684,12 @@ export const navStyles = {
     { color: T.textMuted, flexShrink: 0, fontSize: 13, fontWeight: "600" as const, lineHeight: 20 },
     { color: "muted" }
   ),
-  headerHintRow: { alignItems: "center" as const, columnGap: 6, flexDirection: "row" as const, flexShrink: 0 },
+  headerHintRow: {
+    alignItems: "center" as const,
+    columnGap: 6,
+    flexDirection: "row" as const,
+    flexShrink: 0
+  },
   // The menu mark, drawn as three bars so its size and colour do not depend on a font's glyph.
   menuBars: { gap: 3, width: 14 },
   menuBar: withWebTheme(
@@ -704,9 +727,10 @@ export const navStyles = {
     justifyContent: "space-between" as const,
     marginBottom: 8
   },
-  panelTitle: withWebTheme(
-    { color: T.text, fontSize: 16, fontWeight: "700" as const, lineHeight: 24 },
-    { color: "brandDeep" }
+  panelTitle: withPetrol(
+    withWebTheme({ color: T.text, fontSize: 16, fontWeight: "700" as const, lineHeight: 24 }, { color: "brandDeep" }),
+    // Petrol: the sheet title of the app, 20/600 ink.
+    withWebTheme({ color: T.text, fontSize: 20, fontWeight: "600" as const, lineHeight: 28 }, { color: "ink" })
   ),
   panelList: { flex: 1 },
   closeButton: {
@@ -716,5 +740,8 @@ export const navStyles = {
     justifyContent: "center" as const,
     width: 44
   },
-  closeGlyph: withWebTheme({ color: T.text, fontSize: 18, lineHeight: 22 }, { color: "brandDeep" })
+  closeGlyph: withPetrol(
+    withWebTheme({ color: T.text, fontSize: 18, lineHeight: 22 }, { color: "brandDeep" }),
+    withWebTheme({ color: T.text }, { color: "ink" })
+  )
 };

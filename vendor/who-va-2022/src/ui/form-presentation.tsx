@@ -157,6 +157,20 @@ export const formStyles = {
     },
     { backgroundColor: "surface", borderColor: "border", borderRadius: "cardRadius" }
   ),
+  // The phone bar (`compactFooter`): the card stands on the canvas by tone and a faint shadow, never a border.
+  // Android draws `elevation` in `shadowColor` (API 28+), so a host that sets no `shadow` gets none.
+  sectionCardPhone: withWebTheme(
+    {
+      borderWidth: 0,
+      elevation: 1,
+      shadowColor: "transparent",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.06,
+      shadowRadius: 6
+    },
+    {},
+    { shadowColor: "shadow" }
+  ),
   question: withWebTheme(
     {
       borderBottomWidth: 1,
@@ -252,7 +266,10 @@ export const formStyles = {
   ),
   // The question a problems-list "Go" just opened.
   questionHighlight: withWebTheme({ backgroundColor: T.primarySoft }, { backgroundColor: "brandSoft" }),
-  assistHint: withWebTheme({ color: T.accent, fontSize: 13, lineHeight: 18, marginTop: 4 }, { color: "guidance" }),
+  assistHint: withWebTheme(
+    { color: T.accent, fontSize: 13, lineHeight: 18, marginTop: 4 },
+    { color: "guidance" }
+  ),
   assistBox: withWebTheme(
     {
       backgroundColor: T.primarySoft,

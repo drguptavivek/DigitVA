@@ -3,7 +3,7 @@ import { Linking, Text, View } from "react-native";
 
 import { t } from "../i18n";
 import { DIGITVA_MIT_NOTICE, formatThirdPartyNotices, SMARTVA_MIT_NOTICE, WHO_VA_NOTICE, type ThirdPartyNoticeBundle } from "../openSourceLicenses";
-import { Button, Screen, useUiStyles } from "../ui";
+import { Button, Notice, Screen, useUiStyles } from "../ui";
 
 export const WHO_ICD11_SOFTWARE_TERMS_URL = "https://icd.who.int/en/docs/icd11-license.pdf";
 export const WHO_ICD11_CONTENT_LICENSE_URL = "https://creativecommons.org/licenses/by-nd/3.0/igo/";
@@ -61,7 +61,7 @@ export default function OpenSourceLicenses() {
         onPress={toggleThirdPartyNotices}
       />
       {showThirdParty ? <Text selectable style={styles.text}>{thirdPartyText}</Text> : null}
-      {linkError ? <Text accessibilityRole="alert" style={styles.error}>{linkError}</Text> : null}
+      {linkError ? <Notice tone="error">{linkError}</Notice> : null}
     </Screen>
   );
 }

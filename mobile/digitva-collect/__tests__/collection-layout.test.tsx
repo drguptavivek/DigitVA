@@ -48,7 +48,7 @@ jest.mock("../src/NativeTermsGate", () => ({
   __esModule: true,
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock("../src/theme", () => ({ useTheme: () => ({ mode: "light" }) }));
+jest.mock("../src/theme", () => ({ useTheme: () => ({ mode: "light", colors: { background: "#e8edf0" } }) }));
 jest.mock("../src/auth", () => ({
   refreshAccessSummary: jest.fn(async () => undefined),
   signOut: jest.fn(async () => undefined),

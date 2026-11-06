@@ -4,7 +4,7 @@ import { act, create } from "react-test-renderer";
 const mockChooseLocale = jest.fn().mockResolvedValue(undefined);
 jest.mock("expo-router", () => ({ usePathname: () => "/collection", useRouter: () => ({}) }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ uiLocale: "en", chooseUiLocale: mockChooseLocale }) }));
-jest.mock("../src/theme", () => ({ ...jest.requireActual("../src/theme"), useTheme: () => ({ colors: {}, ui: {} }) }));
+jest.mock("../src/theme", () => ({ ...jest.requireActual("../src/theme"), useTheme: () => ({ colors: {}, ui: {}, typography: jest.requireActual("../src/theme").typography }) }));
 jest.mock("../src/ui", () => ({ Button: () => null, Screen: () => null, useUiStyles: () => ({}) }));
 
 import { UiLanguageSwitcher } from "../src/web/common";

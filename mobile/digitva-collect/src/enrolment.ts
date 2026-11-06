@@ -25,7 +25,24 @@ export const DEMO_SERVER = `https://digitvademo.${ENROLMENT_DOMAIN}`;
  * reverse. Empty in release (`__DEV__` is false there), so the strings never
  * enter a release bundle and scripts/verify-android-release.sh can reject them.
  */
-const DEBUG_SERVERS = __DEV__ ? ["http://10.0.2.2:8051", "http://localhost:8051"] : [];
+const DEBUG_SERVERS = __DEV__ ? ["http://10.0.2.2:8051", "http://localhost:8051", ...devLanServer()] : [];
+
+/**
+ * A real phone has no adb reverse on iOS, and its localhost is the phone: a debug build may name the Mac's dev server
+ * on the LAN in EXPO_PUBLIC_DEV_LAN_SERVER (e.g. http://192.168.1.128:8051), one exact origin. Read only under
+ * `__DEV__`, so a release bundle never accepts it.
+ */
+function devLanServer(): string[] {
+  const raw = process.env.EXPO_PUBLIC_DEV_LAN_SERVER;
+  if (!raw) return [];
+  try {
+    const url = new URL(raw.trim());
+    const bare = url.hostname && !url.username && !url.password && (url.pathname === "" || url.pathname === "/") && !url.search && !url.hash;
+    return bare && (url.protocol === "http:" || url.protocol === "https:") ? [url.origin.toLowerCase()] : [];
+  } catch {
+    return [];
+  }
+}
 /** One DNS label: ASCII letters, digits and inner hyphens. Punycoded (xn--) labels stay ASCII. */
 const LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
@@ -114,6 +131,9 @@ export class EnrolmentError extends Error {
   }
 }
 
+/** iOS smart punctuation turns typed or pasted `"` and `'` into curly quotes; JSON needs the ASCII ones. */
+const asciiQuotes = (raw: string) => raw.replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"').replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'");
+
 /**
  * Parse and validate a scanned or pasted QR payload.
  *
@@ -123,7 +143,7 @@ export class EnrolmentError extends Error {
 export function parseEnrolmentQr(raw: string, isDev: boolean): EnrolmentPayload {
   let value: unknown;
   try {
-    value = JSON.parse(raw);
+    value = JSON.parse(asciiQuotes(raw));
   } catch {
     throw new EnrolmentError("errBadQr");
   }
@@ -156,7 +176,7 @@ export type ScannedQr =
 export function parseScannedQr(raw: string, isDev: boolean): ScannedQr {
   let value: unknown;
   try {
-    value = JSON.parse(raw);
+    value = JSON.parse(asciiQuotes(raw));
   } catch {
     throw new EnrolmentError("errBadQr");
   }

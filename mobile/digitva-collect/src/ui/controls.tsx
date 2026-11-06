@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Pressable, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
-import { controls, radius, spacing, typography, useTheme } from "../theme";
+import { controls, radius, spacing, useTheme } from "../theme";
 
 /** Tabler "check" and "x"; also drawn as raw `<svg>` by the DOM-built account menu. */
 export const CHECK_PATH = "M5 12l5 5l10 -10";
@@ -53,7 +53,7 @@ export function Checkbox({ checked, onChange, label, hideLabel = false, disabled
   testID?: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -71,26 +71,38 @@ export function Checkbox({ checked, onChange, label, hideLabel = false, disabled
   );
 }
 
-/** One single-choice row of a popover menu (language, theme): label left, tick right, brand-soft fill when chosen. */
-export function MenuChoiceRow({ label, selected, onPress, disabled = false, role = "radio" }: {
+/**
+ * One single-choice row of a popover menu (language, theme): label left, tick right, brand-soft fill when chosen.
+ * `detail`: a secondary line under the label in the screen's language ("Machine-translated").
+ */
+export function MenuChoiceRow({ label, language, detail, selected, onPress, disabled = false, role = "radio" }: {
   label: string;
+  /** BCP 47 tag of a label in another language than the screen's (the "हिन्दी" choice), so it is pronounced right. */
+  language?: string;
+  detail?: string;
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
   role?: "radio" | "menuitem";
 }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   return (
     <Pressable
       accessibilityRole={role}
       accessibilityLabel={label}
+      accessibilityLanguage={language}
+      // The detail is in the screen's language, so it is the hint, not part of the label read in `language`.
+      accessibilityHint={detail}
       accessibilityState={role === "radio" ? { checked: selected, disabled } : { selected, disabled }}
       aria-checked={role === "radio" ? selected : undefined}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({ minHeight: 48, borderRadius: radius.md, paddingHorizontal: spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md, backgroundColor: selected ? ui.accent : "transparent", opacity: pressed ? 0.78 : 1 })}
     >
-      <Text style={{ ...typography.body, color: selected ? ui.accentForeground : ui.popoverForeground, fontWeight: selected ? "700" : "400", flexShrink: 1 }}>{label}</Text>
+      <View style={{ flexShrink: 1 }}>
+        <Text style={{ ...typography.body, color: selected ? ui.accentForeground : ui.popoverForeground, fontWeight: selected ? "700" : "400" }}>{label}</Text>
+        {detail ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{detail}</Text> : null}
+      </View>
       <View style={{ width: 20, alignItems: "center" }}>{selected ? <CheckMark color={ui.primary} size={18} /> : null}</View>
     </Pressable>
   );
@@ -101,7 +113,7 @@ export function MenuChoiceRow({ label, selected, onPress, disabled = false, role
  * and reached at 44px through hit-slop, with a vector ✕ after the text.
  */
 export function RemovableChip({ label, removeLabel, onRemove, testID }: { label: string; removeLabel: string; onRemove: () => void; testID?: string }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -119,7 +131,7 @@ export function RemovableChip({ label, removeLabel, onRemove, testID }: { label:
 
 /** One bullet-list item: a 6px dot beside text that wraps under itself (a typed "• " would wrap under the dot). */
 export function BulletItem({ children, textStyle, muted = false }: { children: ReactNode; textStyle?: StyleProp<TextStyle>; muted?: boolean }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.xs }}>
       <View aria-hidden style={{ width: 6, height: 6, borderRadius: 3, marginTop: 8, backgroundColor: ui.mutedForeground, flexShrink: 0 }} />

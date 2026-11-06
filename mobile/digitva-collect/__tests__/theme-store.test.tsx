@@ -10,6 +10,12 @@ jest.mock("../src/preferences", () => ({
   peekUiTheme: () => "dark",
   getUiTheme: jest.fn(async () => "dark"),
   setUiTheme: jest.fn(async () => undefined),
+  peekUiTextSize: () => "medium",
+  getUiTextSize: jest.fn(async () => "medium"),
+  setUiTextSize: jest.fn(async () => undefined),
+  peekUiHighContrast: () => "system",
+  getUiHighContrast: jest.fn(async () => "system"),
+  setUiHighContrast: jest.fn(async () => undefined),
   subscribeUiPreferences: () => () => undefined
 }));
 

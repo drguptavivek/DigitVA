@@ -159,6 +159,7 @@ jest.mock("../src/i18n", () => ({
   t: (key: string) => key,
   questionnaireDefault: (_available: unknown, fallback?: string) => fallback ?? "en",
   UI_LOCALES: [{ code: "en", label: "English" }],
+  isLocaleCode: (value: unknown) => typeof value === "string" && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(value),
 }));
 jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
 jest.mock("../src/translations", () => ({ applyTranslations: (instrument: unknown) => instrument }));
@@ -543,7 +544,8 @@ describe("native submitted-interview revisions", () => {
     it("renders the immersive screen with one top bar and a single-line reason select", async () => {
       const tree = await openForm();
       expect(tree.root.findByType("main").props["data-variant"]).toBe("immersive");
-      expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header")).toHaveLength(1);
+      // The sheets' own titles (rendered here while closed) are not a second bar.
+      expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header" && n.props.testID !== "sheet-title")).toHaveLength(1);
       expect(tree.root.findAll((n) => n.props.accessibilityLabel === "revisionReason" && typeof n.props.onPress === "function").length).toBeGreaterThan(0);
       // The reasons are not inline buttons any more.
       expect(tree.root.findAllByProps({ "data-label": "revisionReasonInterviewerCorrection" })).toHaveLength(0);
@@ -630,7 +632,8 @@ describe("native submitted-interview revisions", () => {
       expect(showProblems).toHaveBeenCalledTimes(1);
       await press(tree, "moreActions");
       await act(async () => {
-        tree.root.findAll((n) => n.props.accessibilityRole === "menuitem" && n.props.accessibilityLabel === "formPreviewAnswers")[0].props.onPress();
+        // A menu action is a SheetRow (role button).
+        tree.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "formPreviewAnswers" && typeof n.props.onPress === "function")[0].props.onPress();
       });
       expect(openPreview).toHaveBeenCalledTimes(1);
     });
@@ -640,7 +643,7 @@ describe("native submitted-interview revisions", () => {
       const choose = async (label: string) => {
         await press(tree, "moreActions");
         await act(async () => {
-          tree.root.findAll((n) => n.props.accessibilityRole === "menuitem" && n.props.accessibilityLabel === label)[0].props.onPress();
+          tree.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress();
         });
       };
       await choose("saveNow");

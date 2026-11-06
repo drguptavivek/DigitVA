@@ -5,6 +5,32 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **Collect Petrol redesign, accessibility and server UI languages**
+  (`digitva-3qah`, `digitva-khxv`, `digitva-s028`, `digitva-dt1e`,
+  `digitva-22i1`, `digitva-esw2`): every Collect screen reachable on the
+  emulator was reviewed over nine rounds and frozen; the reference set (light,
+  dark, high contrast, Large text) and the owner's exceptions are in
+  `docs/design/collect-petrol-theme/README.md`, the shared rules in
+  `docs/current-state/expo-client.md`. Settings gained text size (Small,
+  Medium, Large, times the phone's font scale, capped at 2.0), high contrast
+  (AAA) and screen-reader support, and a 30 s warning before auto-lock
+  (`docs/policy/expo-client.md`). UI languages are now added in admin and
+  served as packs (`GET /api/v1/ui-strings`, public because the sign-in screen
+  is translated; `mas_ui_locale`, migration `921a78710fbf`); phones cache them,
+  drop a language only on a well-formed list without it, and a draft in a
+  project language without a UI pack no longer fails to resume
+  (`docs/policy/ui-strings.md`). The WHO form's Petrol look applies only when
+  the host passes a theme, so the Flask web form keeps its look apart from
+  readable read-only answers, muted WHO hints and the required mark kept with
+  its word. The shared coding screens change on the phone only. The iOS Keychain wipe
+  on reinstall was removed. Also carries the in-progress iOS, SmartVA and
+  standalone app work interleaved in the same files (owner's call; tested
+  together). App: 285 suites, 4,928 tests; web export builds; vendor 1,007
+  tests; UI-language backend tests pass. The full backend run's remaining
+  failures are other uncommitted work (home KPIs, public help, AI search).
+  Not verified: TalkBack/VoiceOver on a device (`digitva-eizq`), Hindi review
+  (`digitva-jt1w`), the coding tools offline (engine `load_failed` on the
+  emulator), Play screenshots (`digitva-fthd`).
 - **Security audit run-5 fixes** (`digitva-ssg7`, 11 beads): an external
   audit's 10 unvalidated findings were re-traced; 9 held, 1 more was found in
   review. PII is now decided per project (`docs/policy/access-control-model.md`

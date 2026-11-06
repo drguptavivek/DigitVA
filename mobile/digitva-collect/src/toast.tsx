@@ -1,14 +1,15 @@
 /**
- * App-wide transient notices. `useToast().show` never shifts the page: toasts float above the bottom inset,
- * the wrapper ignores touches, and only the toast itself takes a tap. At most two are stacked (the oldest is
+ * App-wide transient notices. `useToast().show` never shifts the page: toasts float above the bottom inset
+ * (or above the phone's tab bar, which reserves its height with `useToastClearance`), the wrapper ignores
+ * touches, and only the toast itself takes a tap. No outline: the kind is a tint fill (error, info, success). At most two are stacked (the oldest is
  * dropped), and a repeat of the same text only restarts the timer of the one already shown.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { AccessibilityInfo, Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { recordToastError } from "./errorLog";
-import { radius, spacing, typography, useTheme } from "./theme";
+import { radius, spacing, useTheme } from "./theme";
 
 export const TOAST_MS = 4_000;
 export const TOAST_ERROR_MS = 6_000;
@@ -34,6 +35,20 @@ interface ToastApi {
 
 const NOOP: ToastApi = { show: () => undefined };
 const Context = createContext<ToastApi>(NOOP);
+/** Sets the height of the bar at the bottom of the screen (0 = none), so toasts sit above it. */
+const ClearanceContext = createContext<(height: number) => void>(() => undefined);
+
+/**
+ * The bottom bar (the phone's tab bar) calls this with its full height, safe area included, while it is on
+ * screen; toasts then float above it instead of over it. Safe without a provider.
+ */
+export function useToastClearance(height: number): void {
+  const setClearance = useContext(ClearanceContext);
+  useEffect(() => {
+    setClearance(height);
+    return () => setClearance(0);
+  }, [height, setClearance]);
+}
 
 /** Safe without a provider (tests, web): show() does nothing. */
 export function useToast(): ToastApi {
@@ -49,11 +64,14 @@ function splitRef(toast: ToastInput): ToastInput {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
+  const [clearance, setClearance] = useState(0);
   const nextId = useRef(1);
   const show = useCallback((input: ToastInput) => {
     const toast = splitRef(input);
     if (!toast.text) return;
     if (toast.kind === "error" && toast.detail === undefined) recordToastError(toast.text);
+    // A toast follows an action: VoiceOver says it without moving focus (TalkBack reads the polite live region).
+    if (Platform.OS === "ios" && typeof AccessibilityInfo.announceForAccessibility === "function") AccessibilityInfo.announceForAccessibility(toast.text);
     setItems((current) => {
       const same = current.find((item) => item.text === toast.text);
       if (same) return current.map((item) => (item === same ? { ...item, ...toast, nonce: item.nonce + 1 } : item));
@@ -64,18 +82,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const api = useMemo(() => ({ show }), [show]);
   return (
     <Context.Provider value={api}>
-      {children}
-      {items.length ? <ToastStack items={items} onHide={hide} /> : null}
+      <ClearanceContext.Provider value={setClearance}>{children}</ClearanceContext.Provider>
+      {items.length ? <ToastStack items={items} clearance={clearance} onHide={hide} /> : null}
     </Context.Provider>
   );
 }
 
-function ToastStack({ items, onHide }: { items: ToastItem[]; onHide: (id: number) => void }) {
+function ToastStack({ items, clearance, onHide }: { items: ToastItem[]; clearance: number; onHide: (id: number) => void }) {
   const insets = useSafeAreaInsets();
+  // The tab bar's height already holds the bottom inset; without a bar the inset alone.
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: "absolute", left: 0, right: 0, bottom: insets.bottom + spacing.md, paddingHorizontal: spacing.md, alignItems: "center", gap: spacing.xs }}
+      style={{ position: "absolute", left: 0, right: 0, bottom: (clearance || insets.bottom) + spacing.md, paddingHorizontal: spacing.md, alignItems: "center", gap: spacing.xs }}
     >
       {items.map((item) => <ToastView key={item.id} item={item} onHide={() => onHide(item.id)} />)}
     </View>
@@ -83,7 +102,7 @@ function ToastStack({ items, onHide }: { items: ToastItem[]; onHide: (id: number
 }
 
 function ToastView({ item, onHide }: { item: ToastItem; onHide: () => void }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const hideRef = useRef(onHide);
   hideRef.current = onHide;
@@ -94,16 +113,18 @@ function ToastView({ item, onHide }: { item: ToastItem; onHide: () => void }) {
     return () => clearTimeout(timer);
   }, [expanded, item.kind, item.nonce, item.action]);
 
-  const tone = item.kind === "error" ? ui.destructiveText : item.kind === "success" ? ui.success : ui.border;
+  // Tint fill, never an outline: error = error tint and text, info = primary tint, success = success text on the card.
+  const fill = item.kind === "error" ? ui.destructiveSoft : item.kind === "info" ? ui.accent : ui.popover;
+  const ink = item.kind === "error" ? ui.destructiveText : item.kind === "info" ? ui.accentForeground : ui.success;
   return (
     <Pressable
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
       focusable={false}
       onPress={() => item.detail && setExpanded((open) => !open)}
-      style={{ maxWidth: 480, width: "100%", backgroundColor: ui.popover, borderColor: tone, borderWidth: 1, borderRadius: radius.lg, padding: spacing.sm }}
+      style={{ maxWidth: 480, width: "100%", backgroundColor: fill, borderRadius: radius.lg, padding: spacing.sm, elevation: 3, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } }}
     >
-      <Text selectable={expanded} numberOfLines={expanded ? undefined : 2} style={{ ...typography.subhead, color: ui.popoverForeground }}>
+      <Text selectable={expanded} numberOfLines={expanded ? undefined : 2} style={{ ...typography.subhead, color: ink }}>
         {expanded && item.detail ? item.detail : item.text}
       </Text>
       {item.action ? (

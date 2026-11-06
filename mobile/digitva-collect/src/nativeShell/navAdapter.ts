@@ -62,6 +62,37 @@ export function activeNativeTab(pathname: string, params: { view?: string | stri
   return undefined;
 }
 
+/**
+ * How a tab tap moves the root Stack without remounting a screen that is already in it (a remount draws the
+ * screen blank and reloads its data, which flashed on every tab tap):
+ * - `dismissTo`: Home and Interviews always (they share the account's home route), and any tab whose route is
+ *   already in the stack. The stack pops back to that screen and replaces its params, keeping it mounted; a
+ *   route that is not in the stack replaces the current screen, as tab taps always did.
+ * - `push`: a tab first opened from a tab root (Register from Home), so Back and Home return to the screen below.
+ * - `replace`: a tab first opened from a pushed screen (a case), so it does not stack on top of the case.
+ * `stackRoutes` are the root Stack's route names, bottom first (`"worklist"`, `"register"`, ...).
+ */
+export function tabMove(tab: NativeTab, homeRoute: string, stackRoutes: string[], atTabRoot: boolean): "dismissTo" | "push" | "replace" {
+  if (tab.route === homeRoute || stackRoutes.includes(tab.route!.replace(/^\//, ""))) return "dismissTo";
+  return atTabRoot ? "push" : "replace";
+}
+
+/**
+ * Whether the screen is a tab root (the accounts list or a bottom-tab destination), where the header shows the
+ * emblem; any other screen shows a back arrow. `/register` is a root only for accounts that have its tab.
+ */
+export function isNativeTabRoot(pathname: string, account: AccessInput | undefined): boolean {
+  return pathname === "/" || nativeTabs(account).some((tab) => tab.route === pathname);
+}
+
+/**
+ * A pushed screen with the header showing: the bar draws a back arrow and the screen's title, and Screen drops its
+ * on-page title. Tab roots, pre-login and immersive screens keep the emblem or have no header.
+ */
+export function showNativeBackTitle(pathname: string, account: AccessInput | undefined): boolean {
+  return showNativeHeader(pathname) && !isNativeTabRoot(pathname, account);
+}
+
 export interface ChromeInput {
   pathname: string;
   userId: string | undefined;
@@ -70,7 +101,7 @@ export interface ChromeInput {
   keyboardOpen: boolean;
 }
 
-/** The sign-in, enrol, unlock and PIN screens: a minimal header (emblem, title, app language) and no tabs. */
+/** The sign-in, enrol, unlock and PIN screens: a minimal header (emblem, title, app language), no back arrow and no tabs. */
 export function isPreLoginRoute(pathname: string): boolean {
   return NATIVE_HEADERLESS_ROUTES.includes(pathname);
 }

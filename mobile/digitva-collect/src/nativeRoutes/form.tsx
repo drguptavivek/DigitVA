@@ -15,6 +15,7 @@
 import { deleteCoveredAttachments } from "../attachmentStore";
 import {
   createWhoVa2022Instrument,
+  WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   WHO_VA_FORM_VERSION,
   type InstrumentDefinition,
   type SubmissionData,
@@ -26,6 +27,7 @@ import {
   type WhoVaSession,
 } from "@drguptavivek/who-2022-va/native";
 import { randomUUID } from "expo-crypto";
+import { formUiTranslations, useFormPackRevision } from "../uiPacks";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
@@ -64,7 +66,7 @@ import {
 } from "../drafts";
 import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
 import { canStartDeathInterview } from "../deathWorkflow";
-import { questionnaireDefault, questionnaireLocales, t, UI_LOCALES } from "../i18n";
+import { isLocaleCode, questionnaireDefault, questionnaireLocales, t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { createNativeDefinitionCache } from "../formDefinitionCache";
 import {
@@ -216,7 +218,7 @@ function withEnvelopeLocale(config: DraftConfig, value: unknown): DraftConfig {
   const envelope = value as Record<string, unknown>;
   const next = { ...config };
   if (Object.prototype.hasOwnProperty.call(envelope, "locale")) {
-    if (typeof envelope.locale !== "string" || !UI_LOCALES.some(({ code }) => code === envelope.locale)) {
+    if (!isLocaleCode(envelope.locale)) {
       throw new Error("invalid_draft_locale");
     }
     next.locale = envelope.locale;
@@ -232,6 +234,20 @@ function withEnvelopeLocale(config: DraftConfig, value: unknown): DraftConfig {
     next.translationVersion = envelope.translation_version;
   }
   return next;
+}
+
+/**
+ * The intake note as the welcome dialog's body: a leading "Before you begin:" (the dialog title already says it, in
+ * the app language or the server's English default) is dropped and the rest starts with a capital. A note that does
+ * not open with it, or holds nothing else, is shown as it is.
+ */
+function welcomeMessage(note: string, title: string): string {
+  for (const lead of [title, "Before you begin"]) {
+    if (note.slice(0, lead.length).toLocaleLowerCase() !== lead.toLocaleLowerCase()) continue;
+    const rest = /^\s*:\s*(.+)$/s.exec(note.slice(lead.length))?.[1];
+    if (rest) return rest.charAt(0).toLocaleUpperCase() + rest.slice(1);
+  }
+  return note;
 }
 
 function definitionErrorMessage(error: unknown): string | undefined {
@@ -355,6 +371,9 @@ export default function Form() {
   const draftId = UUID.test(params.draftId ?? "") ? params.draftId : undefined;
   const [loaded, setLoaded] = useState<Loaded | undefined>();
   const [locale, setLocale] = useState("en");
+  // Server form-label packs (digitva-s028): the revision re-renders when a pack arrives.
+  useFormPackRevision();
+  const uiTranslations = formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS);
   const [instrument, setInstrument] = useState<
     InstrumentDefinition | undefined
   >();
@@ -1205,12 +1224,13 @@ export default function Form() {
   if (showWelcome) {
     return (
       <Screen title={t("beforeYouBegin")} variant="immersive">
-        <View testID="native-interview-welcome-card" style={[styles.card, { margin: 16, gap: 12 }]}>
-          <Text style={styles.headline}>{t("beforeYouBegin")}</Text>
-          <Text style={styles.text}>{intakeNote}</Text>
-          <Button label={t("startQuestionnaire")} onPress={() => setWelcomeDismissed(true)} />
-          <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
-        </View>
+        <ConfirmDialog
+          title={t("beforeYouBegin")}
+          message={welcomeMessage(intakeNote, t("beforeYouBegin"))}
+          confirmLabel={t("startQuestionnaire")}
+          onConfirm={() => setWelcomeDismissed(true)}
+          onCancel={() => router.back()}
+        />
       </Screen>
     );
   }
@@ -1444,6 +1464,7 @@ export default function Form() {
           key={`${locale}:${covered.length}`}
           instrument={instrument}
           locale={locale}
+          uiTranslations={uiTranslations}
           showEnglish={locale !== "en"}
           draftId={draftId}
           draftStore={draftStore}

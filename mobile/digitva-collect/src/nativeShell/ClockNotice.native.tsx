@@ -6,12 +6,12 @@
  */
 import * as IntentLauncher from "expo-intent-launcher";
 import { useState } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, StyleSheet, Text, View } from "react-native";
 
 import { t } from "../i18n";
 import { type PhoneClock, recheckPhoneClock, usePhoneClock } from "../phoneClock";
 import { spacing, useTheme } from "../theme";
-import { Button, Screen } from "../ui";
+import { Button, Notice, Screen } from "../ui";
 import { useShell } from "./shellContext";
 
 /** "2 days 3 h", "3 h 5 min" or "12 min" for a non-negative number of seconds. */
@@ -28,7 +28,12 @@ export function clockMessage(clock: PhoneClock): string {
   return t(clock.offsetSeconds > 0 ? "clockWrongAhead" : "clockWrongBehind", { amount });
 }
 
-async function openDateSettings(): Promise<void> {
+/** Android opens Date & time settings; iOS has no public link to it, so it opens the app's Settings page. */
+export async function openDateSettings(): Promise<void> {
+  if (Platform.OS === "ios") {
+    await Linking.openSettings().catch(() => undefined);
+    return;
+  }
   try {
     await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.DATE_SETTINGS);
   } catch {
@@ -36,7 +41,7 @@ async function openDateSettings(): Promise<void> {
   }
 }
 
-function ClockActions({ onDark }: { onDark?: boolean }) {
+function ClockActions() {
   const { server } = useShell();
   const [checking, setChecking] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -46,12 +51,11 @@ function ClockActions({ onDark }: { onDark?: boolean }) {
     setFailed(!(await recheckPhoneClock(server)));
     setChecking(false);
   };
-  const theme = useTheme();
   return (
     <View style={{ gap: spacing.xs }}>
       <Button label={t("clockOpenSettings")} onPress={() => void openDateSettings()} />
       <Button kind="secondary" label={t("clockRecheck")} loading={checking} disabled={checking || !server} onPress={() => void recheck()} />
-      {failed ? <Text style={{ color: onDark ? theme.colors.onAccent : theme.colors.text }}>{t("clockRecheckFailed")}</Text> : null}
+      {failed ? <Notice tone="error">{t("clockRecheckFailed")}</Notice> : null}
     </View>
   );
 }
@@ -64,7 +68,7 @@ export function ClockWarning() {
   return (
     <View accessibilityRole="alert" style={{ backgroundColor: theme.colors.warning, padding: spacing.sm, gap: spacing.xs }}>
       <Text style={{ color: theme.colors.onAccent }}>{clockMessage(clock)}</Text>
-      <ClockActions onDark />
+      <ClockActions />
     </View>
   );
 }
@@ -78,7 +82,7 @@ export function ClockBlock() {
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.background }]}>
       <Screen title={t("clockBlockTitle")}>
-        <Text style={{ color: theme.colors.text }}>{clockMessage(clock)}</Text>
+        <Notice tone="warning">{clockMessage(clock)}</Notice>
         <Text style={{ color: theme.colors.text }}>{t("clockBlockBody")}</Text>
         <ClockActions />
       </Screen>

@@ -58,7 +58,7 @@ jest.mock("expo-sqlite", () => ({
 
 import { classifyAuthError, loadAccounts, signOut, unlockInterviewer } from "../src/auth";
 import { ApiError } from "../src/api";
-import { BACKGROUND_LOCK_MS, createAutoLock, IDLE_LOCK_MS } from "../src/autoLock";
+import { BACKGROUND_LOCK_MS, createAutoLock, IDLE_LOCK_MS, LOCK_WARNING_MS } from "../src/autoLock";
 import {
   anyUnlocked,
   createInterviewerDb,
@@ -321,6 +321,35 @@ describe("auto-lock", () => {
     expect(onLock).not.toHaveBeenCalled();
     jest.advanceTimersByTime(1000);
     expect(onLock).toHaveBeenCalledTimes(1);
+    lock.stop();
+  });
+
+  it("warns 30 seconds before the idle lock; activity clears the warning and restarts both timers (WCAG 2.2.1)", () => {
+    const onLock = jest.fn();
+    const onWarn = jest.fn();
+    const lock = createAutoLock(onLock, Date.now, onWarn);
+    jest.advanceTimersByTime(IDLE_LOCK_MS - LOCK_WARNING_MS - 1);
+    expect(onWarn).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(onWarn).toHaveBeenLastCalledWith(true);
+    lock.activity(); // Stay unlocked, or any touch
+    expect(onWarn).toHaveBeenLastCalledWith(false);
+    jest.advanceTimersByTime(IDLE_LOCK_MS - 1);
+    expect(onLock).not.toHaveBeenCalled();
+    expect(onWarn).toHaveBeenLastCalledWith(true);
+    jest.advanceTimersByTime(1);
+    expect(onLock).toHaveBeenCalledTimes(1);
+    expect(onWarn).toHaveBeenLastCalledWith(false); // the warning goes with the lock
+    expect(onWarn).toHaveBeenCalledTimes(4);
+    lock.stop();
+  });
+
+  it("does not report an unchanged warning: activity without a warning showing calls nothing", () => {
+    const onWarn = jest.fn();
+    const lock = createAutoLock(jest.fn(), Date.now, onWarn);
+    lock.activity();
+    lock.activity();
+    expect(onWarn).not.toHaveBeenCalled();
     lock.stop();
   });
 

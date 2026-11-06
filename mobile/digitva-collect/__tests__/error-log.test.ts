@@ -3,7 +3,7 @@
  * only home, and the export text. Storage runs on a real SQLite engine (node:sqlite), as drafts.test.ts does.
  */
 import { DatabaseSync } from "node:sqlite";
-import { Share } from "react-native";
+import { Platform, Share } from "react-native";
 
 import { ApiError } from "../src/api";
 import en from "../src/strings/en.json";
@@ -153,6 +153,41 @@ describe("export", () => {
     expect(text).toContain("App: DigitVA v");
     expect(text.indexOf("e2")).toBeLessThan(text.indexOf("e1"));
     expect(shown).toBe(2);
+  });
+
+  describe("device line by platform", () => {
+    const original = { OS: Platform.OS, constants: Platform.constants, isPad: (Platform as { isPad?: boolean }).isPad };
+    const setPlatform = (os: string, constants: object, isPad = false) => {
+      Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+      Object.defineProperty(Platform, "constants", { value: constants, configurable: true });
+      Object.defineProperty(Platform, "isPad", { value: isPad, configurable: true });
+    };
+    afterEach(() => setPlatform(original.OS, original.constants, original.isPad === true));
+
+    it("names Android with the brand, model and release on Android", () => {
+      setPlatform("android", { Brand: "Acme", Model: "X1", Release: "14" });
+      const { text } = buildErrorExport([entry(1)], new Date("2026-10-23T10:00:00Z"));
+      expect(text).toContain("Device: Acme X1, Android 14");
+      expect(text).toContain("| Acme X, Android 14");
+    });
+
+    it("names the iPhone and the iOS version on iOS, keeping the stored field names", () => {
+      setPlatform("ios", { systemName: "iOS", osVersion: "18.1" });
+      errorText(new ApiError(502, "bad_gateway", undefined, undefined, undefined, "/api/v1/cases/:id", "GET"));
+      const [only] = pendingErrors();
+      expect(only).toMatchObject({ device: "iPhone", android: "18.1" });
+      expect(Object.keys(only).sort()).toEqual(["android", "appVersion", "at", "device", "route", "what"]);
+      const { text } = buildErrorExport([entry(1)], new Date("2026-10-23T10:00:00Z"));
+      expect(text).toContain("Device: iPhone, iOS 18.1");
+      expect(text).toContain("| Acme X, iOS 14");
+      expect(text).not.toContain("Android");
+    });
+
+    it("names an iPad and its system name", () => {
+      setPlatform("ios", { systemName: "iPadOS", osVersion: "18.1" }, true);
+      const { text } = buildErrorExport([], new Date("2026-10-23T10:00:00Z"));
+      expect(text).toContain("Device: iPad, iPadOS 18.1");
+    });
   });
 
   it("cuts the oldest entries to fit and says so", () => {

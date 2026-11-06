@@ -130,3 +130,76 @@ describe("PIN inputs stay out of the autofill service (digitva-jish)", () => {
     }
   });
 });
+
+/** Set PIN's two rows: each row keeps its own digits, and Confirm takes focus only once the PIN row is full. */
+describe("PIN and Confirm rows", () => {
+  function TwoRows() {
+    const [pin, setPin] = useState("");
+    const [confirm, setConfirm] = useState("");
+    const [focusConfirm, setFocusConfirm] = useState(0);
+    return (
+      <>
+        <PinBoxes value={pin} onChange={setPin} label="PIN" onFilled={() => setFocusConfirm((n) => n + 1)} />
+        <PinBoxes value={confirm} onChange={setConfirm} label="Confirm" autoFocus={false} focusSignal={focusConfirm} />
+      </>
+    );
+  }
+  const rowBoxes = (tree: ReactTestRenderer, label: string) =>
+    boxes(tree).filter((box) => String(box.props.accessibilityLabel).startsWith(`${label} `));
+  const digits = (tree: ReactTestRenderer, label: string) => rowBoxes(tree, label).map((box) => box.props.value).join("");
+
+  async function mount() {
+    const focused: string[] = [];
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = create(<TwoRows />);
+    });
+    // Each box's ref is the TextInput instance: record which box is asked to take focus.
+    for (const node of tree.root.findAll((n) => typeof n.type !== "string" && String(n.props.testID ?? "").startsWith("pin-box-") && n.instance)) {
+      node.instance.focus = () => focused.push(String(node.props.accessibilityLabel));
+    }
+    return { tree, focused };
+  }
+
+  it("keeps digits typed faster than a re-render in their own boxes", async () => {
+    const { tree } = await mount();
+    // Both keystrokes land before React re-renders, so the second box still sees the old (empty) value prop.
+    act(() => {
+      rowBoxes(tree, "PIN")[0].props.onChangeText("1");
+      rowBoxes(tree, "PIN")[1].props.onChangeText("2");
+    });
+    expect(digits(tree, "PIN")).toBe("12");
+    expect(digits(tree, "Confirm")).toBe("");
+  });
+
+  it("moves focus to Confirm only when the PIN row is full", async () => {
+    const { tree, focused } = await mount();
+    for (const [index, digit] of ["1", "2", "3", "4", "5"].entries()) act(() => rowBoxes(tree, "PIN")[index].props.onChangeText(digit));
+    expect(focused.some((label) => label.startsWith("Confirm"))).toBe(false);
+    await act(async () => rowBoxes(tree, "PIN")[5].props.onChangeText("6"));
+    expect(digits(tree, "PIN")).toBe("123456");
+    expect(focused.at(-1)).toBe("Confirm 1 / 6");
+    act(() => rowBoxes(tree, "Confirm")[0].props.onChangeText("9"));
+    expect(digits(tree, "Confirm")).toBe("9");
+    expect(digits(tree, "PIN")).toBe("123456");
+  });
+
+  it("does not jump to Confirm again when a digit of the full PIN row is replaced", async () => {
+    const { tree, focused } = await mount();
+    await act(async () => rowBoxes(tree, "PIN")[0].props.onChangeText("123456"));
+    const jumps = () => focused.filter((label) => label.startsWith("Confirm")).length;
+    expect(jumps()).toBe(1);
+    await act(async () => rowBoxes(tree, "PIN")[2].props.onChangeText("38"));
+    expect(digits(tree, "PIN")).toBe("128456");
+    expect(jumps()).toBe(1);
+  });
+
+  it("puts the show/hide eye in the same row as the boxes", async () => {
+    const { tree } = await mount();
+    const toggle = tree.root.findAll((node) => node.props.accessibilityLabel === "pinShow" && typeof node.props.onPress === "function")[0];
+    expect(toggle).toBeDefined();
+    const row = toggle.parent!;
+    expect(row.findAll((node) => String(node.props.testID ?? "").startsWith("pin-box-") && typeof node.type === "string")).toHaveLength(6);
+    expect(row.props.style).toMatchObject({ flexDirection: "row" });
+  });
+});

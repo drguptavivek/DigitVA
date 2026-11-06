@@ -5,9 +5,9 @@
 import { useMemo, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 
-import { t, type StringKey } from "../i18n";
+import { t, uiLanguageTag, type StringKey } from "../i18n";
 import { MapsPinButton } from "../web/LocationCapture";
-import { controlText, controls, radius, spacing, typography, useTheme } from "../theme";
+import { controlText, controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 
 export function sexLabel(value: string | null | undefined): string {
@@ -21,8 +21,16 @@ export function sexLabel(value: string | null | undefined): string {
 export function formatDisplayTimestamp(value: string | null | undefined): string {
   if (!value) return "";
   const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
   const parsed = new Date(trimmed);
+  // The phone writes "6 Nov 2026, 4:50 am" like formatWhen (interviewRows imports this file, so no import back); the web keeps ISO.
+  if (Platform.OS !== "web" && !Number.isNaN(parsed.getTime())) {
+    const day = { day: "numeric", month: "short", year: "numeric" } as const;
+    return dateOnly
+      ? parsed.toLocaleDateString(uiLanguageTag(), { ...day, timeZone: "UTC" })
+      : parsed.toLocaleString(uiLanguageTag(), { ...day, hour: "numeric", minute: "2-digit" });
+  }
+  if (dateOnly) return trimmed;
   if (Number.isNaN(parsed.getTime())) return trimmed;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
@@ -49,21 +57,23 @@ const MONOSPACE = Platform.select({ web: "ui-monospace, SFMono-Regular, Menlo, C
  * are plain text, not chips. No fixed heights, so 200% zoom and text spacing wrap instead of clipping.
  */
 export function useCaseCardStyles() {
-  const { colors, ui } = useTheme();
+  const { colors, ui, typography, textScale } = useTheme();
+  // Phone badges are filled, never ringed (round-6 I1); the browser keeps its 1px ring.
+  const RING = Platform.OS === "web" ? 1 : 0;
   return useMemo(() => StyleSheet.create({
     line: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: spacing.md, rowGap: spacing.xxs },
     titleGroup: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: spacing.sm, rowGap: spacing.xxs, flexShrink: 1, minWidth: 0 },
     cardTitle: { ...typography.headline, color: colors.text, fontFamily: controls.fontFamily },
     factList: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md, rowGap: spacing.xxs },
-    factLine: { flexGrow: 1, justifyContent: "space-between" },
+    factLine: { flexGrow: 1, justifyContent: "flex-start" },
     fact: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     caseId: { ...typography.subhead, color: colors.text, fontFamily: MONOSPACE },
     caseIdMuted: { ...typography.caption, color: colors.textMuted, fontFamily: MONOSPACE },
     badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
-    badge: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, alignItems: "center", justifyContent: "center", borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    badge: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, alignItems: "center", justifyContent: "center", borderRadius: radius.full, borderWidth: RING, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     badgeAccent: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
     badgeWarning: { borderColor: ui.warningBorder, backgroundColor: ui.warning },
-    badgeText: { ...typography.subhead, ...controlText, lineHeight: 22, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
+    badgeText: { ...typography.subhead, ...controlText, lineHeight: 22 * textScale, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
     badgeAccentText: { color: ui.accentForeground },
     badgeWarningText: { color: ui.warningForeground },
     noticeBanner: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
@@ -75,7 +85,7 @@ export function useCaseCardStyles() {
     cardActions: { flexDirection: "row", flexWrap: "wrap", flexGrow: 1, flexShrink: 1, gap: spacing.xs, alignItems: "center" },
     actionButton: { minHeight: controls.minTouchTarget },
     listHeader: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
-  }), [colors, ui]);
+  }), [colors, ui, typography, textScale]);
 }
 
 /** One fact of a card: its visible text and, for a bare value, the name a screen reader hears instead. */

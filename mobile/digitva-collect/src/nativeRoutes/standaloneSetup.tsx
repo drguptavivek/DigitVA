@@ -6,15 +6,16 @@
  */
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Platform, Text } from "react-native";
+import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
 import { isPlusVariant } from "../appVariant";
+import { offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
 import { OfflineProfileForm, standaloneProfileMissingText } from "../offlineProfileForm";
 import { getOfflineProfile, standaloneProfileMissing, type OfflineProfile } from "../offlineProfile";
 import { setUpStandaloneAccount } from "../standalone/account";
-import { errorText, Screen, useUiStyles } from "../ui";
+import { errorText, Notice, Screen, useUiStyles } from "../ui";
 
 export default function StandaloneSetup() {
   const styles = useUiStyles();
@@ -34,7 +35,7 @@ export default function StandaloneSetup() {
     return () => { live = false; };
   }, []);
 
-  if (Platform.OS !== "android" || !isPlusVariant()) return <Redirect href="/" />;
+  if (!offlineEnginePlatform() || !isPlusVariant()) return <Redirect href="/" />;
 
   async function create(profile: OfflineProfile) {
     setBusy(true);
@@ -61,7 +62,7 @@ export default function StandaloneSetup() {
   return (
     <Screen title={t("standaloneSetupTitle")}>
       <Text style={styles.text}>{t("standaloneSetupHint")}</Text>
-      <Text style={styles.muted}>{t("standaloneWarning")}</Text>
+      <Notice tone="info">{t("standaloneWarning")}</Notice>
       <OfflineProfileForm
         initialProfile={initialProfile}
         submitLabel={t("standaloneCreate")}

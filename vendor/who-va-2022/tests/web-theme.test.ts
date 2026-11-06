@@ -56,4 +56,16 @@ describe("explicit web theme bindings", () => {
     });
     expect(applyNativeTheme(style, undefined)).toBe(style);
   });
+
+  it("scales native font sizes and line heights by the theme's fontScale, annotated or not", () => {
+    const plain = { fontSize: 16, lineHeight: 24, padding: 8 };
+    expect(applyNativeTheme(plain, { ...defaultFormTheme, fontScale: 1.2 })).toEqual({ fontSize: 19, lineHeight: 29, padding: 8 });
+    expect(applyNativeTheme([plain, { fontSize: 14 }], { ...defaultFormTheme, fontScale: 0.9 })).toEqual([
+      { fontSize: 14.5, lineHeight: 21.5, padding: 8 },
+      { fontSize: 12.5 }
+    ]);
+    // Unset or 1 leaves an unannotated style as the same object.
+    expect(applyNativeTheme(plain, defaultFormTheme)).toBe(plain);
+    expect(applyNativeTheme(plain, { ...defaultFormTheme, fontScale: 1 })).toBe(plain);
+  });
 });

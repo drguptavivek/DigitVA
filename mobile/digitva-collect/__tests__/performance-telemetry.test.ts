@@ -66,6 +66,17 @@ test("keeps bounded daily counters and produces a sealed immutable payload", asy
   expect(JSON.stringify(batch.payload)).not.toMatch(/clinical|submission|user_id|route|model|location/i);
 });
 
+test("sends the same payload from iOS with platform ios and does nothing on web", async () => {
+  Platform.OS = "ios";
+  recordLaunch();
+  await __sealTelemetryDayForTest(new Date().toISOString().slice(0, 10));
+  expect(__telemetryStateForTest().batches[0].payload.platform).toBe("ios");
+  Platform.OS = "web";
+  const send = jest.fn();
+  await flushPerformanceTelemetry("user", send);
+  expect(send).not.toHaveBeenCalled();
+});
+
 test("opt-out purges pending batches and prevents an upload", async () => {
   recordLaunch();
   await __sealTelemetryDayForTest(new Date().toISOString().slice(0, 10));

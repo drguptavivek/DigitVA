@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 
+import { controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
-import { Badge } from "./doris/ui";
+import { humanizeKey } from "./humanizeKey";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
@@ -12,12 +13,18 @@ const LOCAL_ATTACHMENT = /^digitva-local-attachment:[A-Za-z0-9_]+$/;
 /** "Symptoms on VA Interview" as chips, the same summary the web shows (CategoryPanel.web.tsx SummaryBlock). */
 function SymptomSummary({ items }: { items: JsonValue[] }) {
   const styles = useUiStyles();
+  const { ui, typography } = useTheme();
   if (!items.length) return null;
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Symptoms on VA Interview</Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {items.map((item, index) => <Badge key={`summary-${index}`} variant="outline">{typeof item === "string" ? item : String(item)}</Badge>)}
+        {/* Facts, not choices: a muted fill and ink text, no ring (round-6 C2). */}
+        {items.map((item, index) => (
+          <View key={`summary-${index}`} style={{ paddingVertical: spacing.xxs, paddingHorizontal: spacing.sm, borderRadius: radius.full, backgroundColor: ui.muted }}>
+            <Text style={{ ...typography.subhead, color: ui.foreground, fontFamily: controls.fontFamily }}>{typeof item === "string" ? item : String(item)}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -39,11 +46,12 @@ export function CategoryPanel({
   const styles = useUiStyles();
   return (
     <View accessibilityLabel={category.label}>
-      <Text style={styles.headline}>{category.label}</Text>
+      {/* The symptoms card carries its own title; a second heading above it says the same (round-6 C6). */}
+      {category.summary_items.length ? null : <Text style={styles.headline}>{category.label}</Text>}
       <SymptomSummary items={category.summary_items} />
       {category.subcategories.map((subcategory) => (
         <View key={subcategory.code} style={styles.card}>
-          <Text style={styles.headline}>{subcategory.label}</Text>
+          <Text style={styles.headline}>{humanizeKey(subcategory.label)}</Text>
           {subcategory.items.map((item, index) => (
             <View key={`${item.label}-${index}`}>
               <Text style={styles.muted}>{item.label}</Text>

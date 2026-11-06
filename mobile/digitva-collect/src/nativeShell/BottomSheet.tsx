@@ -4,23 +4,24 @@ import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { t } from "../i18n";
-import { radius, spacing, typography, useTheme } from "../theme";
+import { radius, spacing, useTheme } from "../theme";
 
 /**
  * `full` makes the sheet 92% high with a Close button (the searchable pickers); its children then own the scrolling
- * (a FlatList), so they are not wrapped in a ScrollView.
+ * (a FlatList), so they are not wrapped in a ScrollView. `cards`: the body holds white cards (the Account menu), so
+ * the sheet takes the canvas tone they stand on. The title is the 20pt semibold sheet title on every sheet.
  */
-export function BottomSheet({ visible, title, onClose, children, full = false }: { visible: boolean; title: string; onClose(): void; children: ReactNode; full?: boolean }) {
-  const { ui } = useTheme();
+export function BottomSheet({ visible, title, onClose, children, full = false, cards = false }: { visible: boolean; title: string; onClose(): void; children: ReactNode; full?: boolean; cards?: boolean }) {
+  const { ui, typography } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
-        <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: ui.scrim }} />
-        <View style={{ ...(full ? { height: "92%" } : { maxHeight: "85%" }), backgroundColor: ui.popover, borderTopLeftRadius: radius.lg * 2, borderTopRightRadius: radius.lg * 2, paddingTop: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: insets.bottom + spacing.md }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("cancel")} onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: ui.scrim }} />
+        <View style={{ ...(full ? { height: "92%" } : { maxHeight: "85%" }), backgroundColor: cards ? ui.page : ui.popover, borderTopLeftRadius: radius.lg * 2, borderTopRightRadius: radius.lg * 2, paddingTop: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: insets.bottom + spacing.lg }}>
           <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: ui.border, alignSelf: "center", marginBottom: spacing.xs }} />
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs }}>
-            <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, flex: 1 }}>{title}</Text>
+            <Text testID="sheet-title" accessibilityRole="header" style={{ ...typography.heading, color: ui.popoverForeground, flex: 1 }}>{title}</Text>
             {full ? (
               <Pressable accessibilityRole="button" accessibilityLabel={t("pickerClose")} onPress={onClose} style={{ minHeight: 48, minWidth: 48, alignItems: "center", justifyContent: "center" }}>
                 <Text style={{ ...typography.body, color: ui.primary }}>{t("pickerClose")}</Text>
@@ -34,9 +35,9 @@ export function BottomSheet({ visible, title, onClose, children, full = false }:
   );
 }
 
-/** One tappable row of a sheet (52dp). */
+/** One tappable row of a sheet: 48dp for one line, growing with 12dp padding for two (round-6 K1). */
 export function SheetRow({ label, detail, onPress, tone = "normal", disabled, busy }: { label: string; detail?: string; onPress(): void; tone?: "normal" | "danger"; disabled?: boolean; busy?: boolean }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -44,7 +45,7 @@ export function SheetRow({ label, detail, onPress, tone = "normal", disabled, bu
       accessibilityState={{ disabled: Boolean(disabled || busy), busy: Boolean(busy) }}
       disabled={disabled || busy}
       onPress={onPress}
-      style={{ minHeight: 52, justifyContent: "center", opacity: disabled ? 0.5 : 1 }}
+      style={{ minHeight: 48, paddingVertical: 12, justifyContent: "center", opacity: disabled ? 0.5 : 1 }}
     >
       <Text style={{ ...typography.body, color: tone === "danger" ? ui.destructiveText : ui.popoverForeground }}>{label}</Text>
       {detail ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{detail}</Text> : null}

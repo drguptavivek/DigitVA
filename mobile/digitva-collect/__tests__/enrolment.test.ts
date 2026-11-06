@@ -54,6 +54,27 @@ describe("acceptedServerOrigin", () => {
     expect(acceptedServerOrigin("http://localhost:8052", true)).toBeNull();
     expect(acceptedServerOrigin("https://localhost:8051", true)).toBeNull();
   });
+
+  it("accepts the one LAN dev server a debug build names, never in release", () => {
+    const saved = process.env.EXPO_PUBLIC_DEV_LAN_SERVER;
+    process.env.EXPO_PUBLIC_DEV_LAN_SERVER = "http://192.168.1.128:8051/";
+    try {
+      jest.isolateModules(() => {
+        const { acceptedServerOrigin: accept } = require("../src/enrolment");
+        expect(accept("http://192.168.1.128:8051", true)).toBe("http://192.168.1.128:8051");
+        expect(accept("http://192.168.1.128:8051", false)).toBeNull();
+        expect(accept("http://192.168.1.129:8051", true)).toBeNull();
+      });
+      process.env.EXPO_PUBLIC_DEV_LAN_SERVER = "http://192.168.1.128:8051/api";
+      jest.isolateModules(() => {
+        const { acceptedServerOrigin: accept } = require("../src/enrolment");
+        expect(accept("http://192.168.1.128:8051", true)).toBeNull();
+      });
+    } finally {
+      if (saved === undefined) delete process.env.EXPO_PUBLIC_DEV_LAN_SERVER;
+      else process.env.EXPO_PUBLIC_DEV_LAN_SERVER = saved;
+    }
+  });
 });
 
 describe("parseEnrolmentQr", () => {
@@ -130,6 +151,15 @@ describe("parseScannedQr", () => {
 
   it("reads an enrolment QR as before, tagged enroll", () => {
     expect(parseScannedQr(qr(SERVER), false)).toEqual({ kind: "enroll", server: SERVER, code: "AbCdEf123456_-x", project: "UNSW01" });
+  });
+
+  it("reads a code whose quotes iOS smart punctuation curled", () => {
+    const curly = (raw: string, open: string, close: string) => raw.replace(/"([^"]*)"/g, `${open}$1${close}`);
+    expect(curly(qr(SERVER), "“", "”")).toContain("“v”");
+    expect(parseScannedQr(curly(qr(SERVER), "“", "”"), false)).toEqual(parseScannedQr(qr(SERVER), false));
+    expect(parseScannedQr(curly(signIn(), "„", "″"), false)).toEqual({ kind: "sign_in", server: SERVER, token: TOKEN });
+    expect(parseEnrolmentQr(curly(qr(SERVER), "‟", "”"), false).code).toBe("AbCdEf123456_-x");
+    expect(() => parseEnrolmentQr("{‘v’:1}", false)).toThrow("errBadQr");
   });
 
   it("reads a sign-in QR", () => {

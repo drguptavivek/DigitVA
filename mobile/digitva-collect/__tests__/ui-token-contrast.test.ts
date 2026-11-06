@@ -1,8 +1,8 @@
 /** Every text/background pair the unified tokens put on screen keeps >= 4.5:1 (UI edges and the focus ring >= 3:1), light and dark. */
-import { palette, roleTones, ui, type ColorMode } from "../src/theme";
+import { palette, roleTones, ui, uiHighContrast, type ColorMode } from "../src/theme";
 import { webPalette } from "../src/workspace/webPalette";
 import { whoWebThemeVars } from "../src/whoWebTheme";
-import { getTheme } from "../src/theme";
+import { disabledButtonTone, getTheme } from "../src/theme";
 
 const channel = (hex: string, at: number) => {
   const value = parseInt(hex.slice(at, at + 2), 16) / 255;
@@ -34,6 +34,14 @@ describe.each(modes)("%s token pairs", (mode) => {
     ["primary button label", t.primaryForeground, t.primary],
     ["secondary button label", t.secondaryForeground, t.secondary],
     ["destructive button label", t.destructiveForeground, t.destructive],
+    ["petrol: tint-filled secondary button label", t.primary, t.primaryTint],
+    ["petrol: amber badge ink text", t.onAttention, t.attention],
+    ["petrol: text on the attention row", t.foreground, t.attentionTint],
+    ["petrol: text on the selected tint", t.foreground, t.primaryTint],
+    ["petrol: error message on the error tint", t.destructiveText, t.destructiveSoft],
+    ["petrol: text on the error tint", t.foreground, t.destructiveSoft],
+    ["petrol: text on the success tint", t.foreground, t.successTint],
+    ["petrol: disabled button label", t.mutedForeground, t.muted],
     ["brand text on card", t.primary, t.card],
     ["brand text on page", t.primary, t.page],
     ["brand text on selected row", t.primary, t.accent],
@@ -92,6 +100,8 @@ describe.each(modes)("%s token pairs", (mode) => {
   const edges: ReadonlyArray<[string, string, string]> = [
     ["control edge on input fill", t.input, t.background],
     ["control edge on card", t.input, t.card],
+    ["petrol: success icon on the success tint (notice text is ink)", t.success, t.successTint],
+    ["petrol: error icon on the error tint", t.destructiveText, t.destructiveSoft],
     ["focus ring on page", t.ring, t.page],
     ["focus ring on card", t.ring, t.card],
     ["selected row edge on selected fill", t.primary, t.accent],
@@ -111,5 +121,74 @@ describe.each(modes)("%s token pairs", (mode) => {
   });
   it("role chip tones have distinct fills", () => {
     expect(new Set(tones.map(([, tone]) => tone.bg)).size).toBe(tones.length);
+  });
+});
+
+/**
+ * High contrast (Settings > Display), light and dark: every text and primary pair at 7:1 (WCAG AAA 1.4.6), field
+ * edges, separators, the focus ring and meaning-carrying icons at 3:1, and a stronger canvas/card step than the
+ * normal palette, with no card borders added.
+ */
+describe.each(modes)("%s high-contrast token pairs", (mode) => {
+  const t = uiHighContrast[mode];
+  const text: ReadonlyArray<[string, string, string]> = [
+    ["text on page", t.foreground, t.page],
+    ["text on card", t.foreground, t.card],
+    ["text on input fill", t.foreground, t.background],
+    ["text on muted", t.foreground, t.muted],
+    ["text on selected tint", t.foreground, t.primaryTint],
+    ["text on attention row", t.foreground, t.attentionTint],
+    ["text on error tint", t.foreground, t.destructiveSoft],
+    ["text on success tint", t.foreground, t.successTint],
+    ["secondary text on page", t.mutedForeground, t.page],
+    ["secondary text on card", t.mutedForeground, t.card],
+    ["secondary text on muted", t.mutedForeground, t.muted],
+    ["secondary text on selected tint", t.mutedForeground, t.primaryTint],
+    ["primary button label", t.primaryForeground, t.primary],
+    ["primary (links, text buttons) on card", t.primary, t.card],
+    ["primary on page", t.primary, t.page],
+    ["tint-filled secondary button label", t.primary, t.primaryTint],
+    ["amber badge ink text", t.onAttention, t.attention],
+    ["destructive button label", t.destructiveForeground, t.destructive],
+    ["error text on card", t.destructiveText, t.card],
+    ["error text on page", t.destructiveText, t.page],
+    ["error text on error tint", t.destructiveText, t.destructiveSoft],
+    ["success text on card", t.success, t.card],
+    ["guidance text on card", t.warningText, t.card],
+    ["disabled button label", t.mutedForeground, t.muted]
+  ];
+  it.each(text)("%s keeps 7:1", (_name, fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(7);
+  });
+
+  const edges: ReadonlyArray<[string, string, string]> = [
+    ["field edge (hairline) on input fill", t.border, t.background],
+    ["field edge (hairline) on page", t.border, t.page],
+    ["separator on card", t.separator, t.card],
+    ["control edge on card", t.input, t.card],
+    ["focus ring on card", t.ring, t.card],
+    ["focus ring on page", t.ring, t.page],
+    ["success icon on success tint", t.success, t.successTint],
+    ["error icon on error tint", t.destructiveText, t.destructiveSoft],
+    ["selected edge on selected fill", t.primary, t.primaryTint]
+  ];
+  it.each(edges)("%s keeps 3:1", (_name, fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("steps the canvas further from the card than the normal palette", () => {
+    expect(contrast(t.page, t.card)).toBeGreaterThan(contrast(ui[mode].page, ui[mode].card));
+  });
+});
+
+
+describe.each([
+  ["light", ui.light], ["dark", ui.dark], ["high-contrast light", uiHighContrast.light], ["high-contrast dark", uiHighContrast.dark],
+] as const)("%s disabled button", (_name, t) => {
+  it("keeps its label at 4.5:1 on the tint fill, and fainter than an enabled tint button", () => {
+    const tone = disabledButtonTone(t);
+    expect(tone.bg).toBe(t.primaryTint);
+    expect(contrast(tone.fg, tone.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tone.fg, tone.bg)).toBeLessThanOrEqual(contrast(t.primary, t.primaryTint));
   });
 });

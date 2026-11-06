@@ -18,9 +18,14 @@ jest.mock("expo-local-authentication", () => ({
   SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
   getEnrolledLevelAsync: jest.fn(async () => mockLevel),
   authenticateAsync: (options: unknown) => mockAuthenticate(options),
+  AuthenticationType: { FINGERPRINT: 1, FACIAL_RECOGNITION: 2, IRIS: 3 },
+  supportedAuthenticationTypesAsync: jest.fn(async () => mockAuthTypes),
 }));
+let mockAuthTypes = [1];
 
+import { Platform } from "react-native";
 import {
+  biometricKind,
   enableScreenLock,
   forgetStoreKeys,
   noteUnlockOffer,
@@ -104,4 +109,22 @@ it("records the PIN length, rejects out-of-range values as unknown, and the wipe
   await forgetStoreKeys("u1");
   expect(await storedPinLength("u1")).toBeNull();
   expect(mockSecure.size).toBe(0);
+});
+
+describe("biometricKind", () => {
+  afterEach(() => {
+    (Platform as { OS: string }).OS = "ios";
+    mockAuthTypes = [1];
+  });
+
+  it("names Face ID or Touch ID on iOS and keeps fingerprint elsewhere", async () => {
+    (Platform as { OS: string }).OS = "ios";
+    mockAuthTypes = [2];
+    expect(await biometricKind()).toBe("face");
+    mockAuthTypes = [1];
+    expect(await biometricKind()).toBe("touch");
+    (Platform as { OS: string }).OS = "android";
+    mockAuthTypes = [2];
+    expect(await biometricKind()).toBe("fingerprint");
+  });
 });

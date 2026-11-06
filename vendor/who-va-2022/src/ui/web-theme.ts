@@ -78,12 +78,14 @@ const webThemeValues: Record<
   stickyPosition: "sticky"
 };
 
-type FormThemeBindings = Record<string, keyof FormTheme>;
+/** The colour entries of a `FormTheme` (not its `fontScale`). */
+type FormThemeColour = Exclude<keyof FormTheme, "fontScale">;
+type FormThemeBindings = Record<string, FormThemeColour>;
 const formThemeBindings = new WeakMap<object, FormThemeBindings>();
 
 /** The `FormTheme` colour a colour token stands for when the host passes a theme. */
-const tokenThemeKey: Partial<Record<WebThemeToken, keyof FormTheme>> = {
-  canvas: "surfaceAlt",
+const tokenThemeKey: Partial<Record<WebThemeToken, FormThemeColour>> = {
+  canvas: "canvas",
   surface: "surface",
   ink: "text",
   inkSubtle: "text",
@@ -116,30 +118,77 @@ export function withWebTheme<T extends ThemeableStyle>(
   return style;
 }
 
+const petrolStyles = new WeakMap<object, object>();
+
+/**
+ * The Petrol look (DigitVA Collect): `petrol` is merged over `style` whenever the host passes a `FormTheme`; without
+ * one (the Flask web component, any default consumer) `style` renders alone. `petrol` is itself annotated with
+ * `withWebTheme` when it carries theme colours. Returns `style`.
+ */
+export function withPetrol<T extends object>(style: T, petrol: object): T {
+  petrolStyles.set(style, petrol);
+  return style;
+}
+
+/** A theme colour; the optional `canvas` falls back to `surfaceAlt`, any other unset one is left to the style. */
+function themeColour(theme: FormTheme, key: FormThemeColour): string | undefined {
+  return key === "canvas" ? (theme.canvas ?? theme.surfaceAlt) : theme[key];
+}
+
 /** The colour properties of an annotated style, resolved against a host theme. */
 function themeColours(style: object, theme: FormTheme): Record<string, string> {
   const colours: Record<string, string> = {};
   for (const [property, token] of Object.entries(webThemeBindings.get(style) ?? {})) {
     const key = tokenThemeKey[token];
-    if (key) colours[property] = theme[key];
+    const colour = key && themeColour(theme, key);
+    if (colour) colours[property] = colour;
   }
-  for (const [property, key] of Object.entries(formThemeBindings.get(style) ?? {}))
-    colours[property] = theme[key];
+  for (const [property, key] of Object.entries(formThemeBindings.get(style) ?? {})) {
+    const colour = themeColour(theme, key);
+    if (colour) colours[property] = colour;
+  }
   return colours;
 }
 
-/** Native styles: the annotated colours become the host theme's; without a theme the style is untouched. */
+/** `fontSize` and `lineHeight` of a style times `scale`, to the half point; other styles are returned as they are. */
+function scaledText(style: object, scale: number): Record<string, number> {
+  const sizes: Record<string, number> = {};
+  for (const property of ["fontSize", "lineHeight"] as const) {
+    const value = (style as Record<string, unknown>)[property];
+    if (typeof value === "number") sizes[property] = Math.round(value * scale * 2) / 2;
+  }
+  return sizes;
+}
+
+/**
+ * Native styles: the annotated colours become the host theme's, text sizes take its `fontScale` and a `withPetrol`
+ * override is merged on top; without a theme the style is untouched.
+ */
 export function applyNativeTheme(style: unknown, theme: FormTheme | undefined): unknown {
   if (!theme) return style;
   if (Array.isArray(style)) return style.map((entry) => applyNativeTheme(entry, theme));
   if (style == null || typeof style !== "object") return style;
-  const colours = themeColours(style, theme);
-  return Object.keys(colours).length ? { ...style, ...colours } : style;
+  const themed = nativeThemed(style, theme);
+  const petrol = petrolStyles.get(style);
+  return petrol ? { ...(themed as object), ...nativeThemed(petrol, theme) } : themed;
 }
 
+function nativeThemed(style: object, theme: FormTheme): object {
+  const scale = theme.fontScale ?? 1;
+  const themed = { ...themeColours(style, theme), ...(scale === 1 ? {} : scaledText(style, scale)) };
+  return Object.keys(themed).length ? { ...style, ...themed } : style;
+}
+
+/** Web styles: tokens become CSS variables, or the host theme's colours plus any `withPetrol` override. */
 export function applyWebTheme(style: unknown, theme?: FormTheme): unknown {
   if (Array.isArray(style)) return style.map((entry) => applyWebTheme(entry, theme));
   if (style == null || typeof style !== "object") return style;
+  const themed = webThemed(style, theme);
+  const petrol = theme && petrolStyles.get(style);
+  return petrol ? { ...themed, ...webThemed(petrol, theme) } : themed;
+}
+
+function webThemed(style: object, theme: FormTheme | undefined): object {
   const bindings = webThemeBindings.get(style);
   if (!bindings) return style;
 

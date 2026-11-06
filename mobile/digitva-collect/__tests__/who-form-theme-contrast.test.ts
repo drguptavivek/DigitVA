@@ -17,6 +17,9 @@ describe.each(["light", "dark"] as ColorMode[])("%s form theme", (mode) => {
   const text: ReadonlyArray<[string, string, string]> = [
     ["text on card", f.text, f.surface],
     ["text on page", f.text, f.surfaceAlt],
+    ["text on canvas", f.text, f.canvas!],
+    ["muted text on canvas", f.textMuted, f.canvas!],
+    ["heading on canvas", f.primary, f.canvas!],
     ["text on selected row", f.text, f.primarySoft],
     ["muted text on card", f.textMuted, f.surface],
     ["muted text on page", f.textMuted, f.surfaceAlt],
@@ -35,6 +38,14 @@ describe.each(["light", "dark"] as ColorMode[])("%s form theme", (mode) => {
   ];
   it.each(text)("%s is at least 4.5:1", (_name, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("lays the form on the app canvas, with the card shadow only in light mode", () => {
+    const theme = getTheme(mode);
+    expect(whoFormTheme(theme).canvas).toBe(theme.ui.page);
+    expect(whoFormTheme(theme).shadow).toBe(mode === "dark" ? "transparent" : theme.ui.foreground);
+    // The step buttons' tint is the primary tint in both modes, not the amber attention colour.
+    expect(f.primarySoft).toBe(theme.ui.primaryTint);
   });
 
   it("keeps control edges and selected-row edges at 3:1 on the card", () => {

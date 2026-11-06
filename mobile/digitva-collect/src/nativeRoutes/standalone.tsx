@@ -24,7 +24,7 @@ import { sweepExportLeftovers } from "../standalone/shareFile";
 import { STANDALONE_AGE_WARNING_DAYS } from "../standalone/config";
 import { STANDALONE_SITE_ID, standaloneProjectId } from "../standalone/project";
 import { lastBackupAt, listStandaloneRecords, type StandaloneRecord } from "../standalone/records";
-import { Button, errorText, Screen, useUiStyles } from "../ui";
+import { Button, errorText, Notice, Screen, useUiStyles } from "../ui";
 import { sexLabel } from "../ui/CaseCard";
 
 type RecordTab = "progress" | "pending" | "coded";
@@ -93,7 +93,7 @@ export default function StandaloneHome() {
 
   if (!account?.standalone) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
-  if (!records || !db) return error ? <Text style={styles.error}>{error}</Text> : <ActivityIndicator style={{ flex: 1 }} />;
+  if (!records || !db) return error ? <Notice tone="error">{error}</Notice> : <ActivityIndicator style={{ flex: 1 }} />;
 
   const reminder = backupReminder(
     {
@@ -115,7 +115,7 @@ export default function StandaloneHome() {
   return (
     <Screen title={t("standaloneHomeTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
-      <Text style={styles.muted}>{t("standaloneClockNotice")}</Text>
+      <Notice tone="info">{t("standaloneClockNotice")}</Notice>
       <Text style={styles.text}>{now.toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}</Text>
       {reminder.due ? (
         <View style={[styles.card, { gap: 8 }]}>
@@ -130,7 +130,7 @@ export default function StandaloneHome() {
       />
       {profileMissing?.length ? (
         <View style={[styles.card, { gap: 8 }]}>
-          <Text accessibilityRole="alert" style={styles.error}>{standaloneProfileMissingText(profileMissing)}</Text>
+          <Notice tone="error">{standaloneProfileMissingText(profileMissing)}</Notice>
           <Button kind="secondary" label={t("standaloneProfileComplete")} onPress={() => router.push("/offline-profile")} />
         </View>
       ) : null}
@@ -166,12 +166,12 @@ export default function StandaloneHome() {
           </Text>
           {record.upload_issue ? (
             <>
-              <Text accessibilityRole="alert" style={styles.error}>{heldText(record.refusal_code)}</Text>
+              <Notice tone="error">{heldText(record.refusal_code)}</Notice>
               <Button kind="secondary" label={t("standaloneRetry")} onPress={() => void retryHeldDraft(db, record.id).then(load)} />
             </>
           ) : null}
           {isOverAgeLimit(record.started_at ?? record.updated_at, now) ? (
-            <Text accessibilityRole="alert" style={styles.error}>{t("standaloneAgeWarning", { days: STANDALONE_AGE_WARNING_DAYS })}</Text>
+            <Notice tone="warning">{t("standaloneAgeWarning", { days: STANDALONE_AGE_WARNING_DAYS })}</Notice>
           ) : null}
           {record.completed ? (
             // Coded rows get Revise coding only; View and prefill come with digitva-9cll.24.
@@ -186,7 +186,7 @@ export default function StandaloneHome() {
         </View>
         );
       })}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
       <Button kind="secondary" label={t("settings")} onPress={openSettings} />
       <Button kind="secondary" label={t("lockNow")} onPress={() => void lockNow()} />
     </Screen>

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-11-06
 ---
 
 # Current Data Model
@@ -512,11 +512,29 @@ instrument translation string; accepting writes through `update_string`
   read by a migration: `resource/icd11_mms_2026_01_hierarchy.csv` /
   `mas_icd11_mms`, below.
 
+### `mas_ui_locale`
+
+Migration `921a78710fbf` (digitva-s028). One UI language the Expo app may
+offer, and whether the server lists and serves its pack
+(`docs/policy/ui-strings.md`, "Publishing a UI language").
+
+- PK `locale_code` `String(16)` (2 or 3 lower-case letters, checked in the
+  service; never `en`). ISO codes, unlike `mas_languages`, whose codes are
+  narration-language names.
+- `native_name` `String(64)` NOT NULL; `bcp47_tag` `String(35)` NOT NULL;
+  `direction` `String(3)` NOT NULL, server default `ltr`, CHECK
+  `ltr`/`rtl` (`ck_mas_ui_locale_direction`); `is_published` Boolean NOT NULL,
+  server default false; `updated_by` FK -> `va_users` (NULL allowed);
+  `updated_at` timestamptz NOT NULL, server default `now()`.
+- Seeded with `hi` published. A handful of rows; read by PK or in full.
+- Downgrade drops the table (no string text lives here).
+- Written by `app/services/ui_string_service.set_ui_language`.
+
 ### `mas_ui_string_override`
 
 Migration `m4v8r2t6q1w9` (digitva-fsjz). One administrator's correction to one
 Expo UI string in one locale, served to every browser and phone without a new
-build. The bundled JSON under `mobile/digitva-collect/src/strings` is untouched.
+build. WHO form labels use the `form:` key prefix (digitva-s028). The bundled JSON under `mobile/digitva-collect/src/strings` is untouched.
 
 - PK (`locale_code`, `string_key`): one correction per key and locale, so the
   pair is also the unique key. `locale_code` `String(16)`, `string_key`

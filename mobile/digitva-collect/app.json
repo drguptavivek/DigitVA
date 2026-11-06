@@ -11,6 +11,15 @@
     ],
     "scheme": "digitvacollect",
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
       "expo-router",
       "expo-localization",
       "expo-secure-store",
@@ -19,7 +28,10 @@
       "./plugins/with-android-release-signing",
       "./plugins/with-android-abi-splits",
       "./plugins/with-android-legacy-gallery",
+      "./plugins/with-android-theme",
       "./plugins/with-android-collect-plus",
+      "./plugins/with-ios-collect-plus",
+      "./plugins/with-ios-scene-lifecycle",
       [
         "expo-sqlite",
         {
@@ -29,7 +41,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Scan the enrolment QR code shown by your DigitVA administrator.",
+          "cameraPermission": "Scan your enrolment QR code and photograph the written narrative and documents for an interview.",
           "recordAudioAndroid": false
         }
       ],
@@ -45,7 +57,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Photograph the written narrative and documents for the interview.",
+          "photosPermission": "DigitVA attaches photos you choose to a verbal autopsy interview.",
+          "cameraPermission": "Scan your enrolment QR code and photograph the written narrative and documents for an interview.",
           "microphonePermission": "Record the respondent's account of the death for the interview."
         }
       ]
@@ -73,7 +86,8 @@
     "ios": {
       "bundleIdentifier": "com.causeofdeathindia.digitvacollect",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data."
+        "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "web": {

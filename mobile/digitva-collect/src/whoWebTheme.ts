@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 
 import type { FormTheme } from "@drguptavivek/who-2022-va";
 
-import { uiRadius, useTheme, type Theme } from "./theme";
+import { disabledButtonTone, uiRadius, useTheme, type Theme } from "./theme";
 
 /**
  * CSS custom properties of @drguptavivek/who-2022-va (web entry), all read from the `ui` tokens. A choice row uses
@@ -33,15 +33,32 @@ export function whoWebThemeVars({ ui }: Pick<Theme, "ui">): Record<string, strin
   };
 }
 
-/** Colours of the WHO form engine (native and web `theme` prop), read from the same `ui` tokens, light and dark. */
-export function whoFormTheme({ ui }: Pick<Theme, "ui">): FormTheme {
+/**
+ * The form theme with the engine's `fontScale` (Settings > Display > Text size), `canvas` and `shadow`. The installed
+ * package's types may predate them; the intersection keeps this compiling either way, and the engine ignores them
+ * until rebuilt.
+ */
+export type AppFormTheme = FormTheme & { fontScale?: number; canvas?: string; shadow?: string; disabledBackground?: string; disabledText?: string };
+
+/**
+ * Colours of the WHO form engine (native and web `theme` prop), read from the same `ui` tokens, light and dark
+ * (high contrast included), and the text size factor of the app's own text tokens. `canvas` is the page behind the
+ * cards (as the app's screens); `shadow` is the phone card's shadow colour, none in dark mode (as the app's Card).
+ * `primarySoft` is `ui.accent`, the primary tint in both modes (not the amber attention colour).
+ */
+export function whoFormTheme({ ui, textScale = 1, mode = "light" }: Pick<Theme, "ui"> & { textScale?: number; mode?: Theme["mode"] }): AppFormTheme {
+  const disabled = disabledButtonTone(ui);
   return {
+    disabledBackground: disabled.bg,
+    disabledText: disabled.fg,
+    fontScale: textScale,
     primary: ui.primary,
     onPrimary: ui.primaryForeground,
     primarySoft: ui.accent,
     accent: ui.primaryPressed,
     surface: ui.card,
     surfaceAlt: ui.muted,
+    canvas: ui.page,
     border: ui.border,
     borderStrong: ui.input,
     text: ui.foreground,
@@ -50,7 +67,8 @@ export function whoFormTheme({ ui }: Pick<Theme, "ui">): FormTheme {
     dangerSoft: ui.destructiveSoft,
     success: ui.success,
     focus: ui.ring,
-    scrim: ui.scrim
+    scrim: ui.scrim,
+    shadow: mode === "dark" ? "transparent" : ui.foreground
   };
 }
 
@@ -67,10 +85,10 @@ export function useWhoWebTheme() {
   }, [ui, mode]);
 }
 
-/** The form theme of the current light or dark mode; a new object only when the mode changes. */
-export function useWhoFormTheme(): FormTheme {
-  const { ui } = useTheme();
-  return useMemo(() => whoFormTheme({ ui }), [ui]);
+/** The form theme of the current mode, contrast and text size; a new object only when one of them changes. */
+export function useWhoFormTheme(): AppFormTheme {
+  const { ui, textScale, mode } = useTheme();
+  return useMemo(() => whoFormTheme({ ui, textScale, mode }), [ui, textScale, mode]);
 }
 
 /**

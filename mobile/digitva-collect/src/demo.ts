@@ -14,6 +14,7 @@ import { enrolDemoDevice, signIn, type Account } from "./auth";
 import { demoServerOrigin } from "./enrolment";
 import { normalizeUsername } from "./demoRules";
 import { t } from "./i18n";
+import { deviceFamilyLabel } from "./platformFamily";
 import { solveChallenge } from "./pow";
 import { errorText } from "./ui";
 
@@ -96,7 +97,7 @@ export async function enrolAndSignInDemo(
 ): Promise<Account> {
   const name = normalizeUsername(username);
   onProgress?.({ stage: "enrol" });
-  await enrolDemoDevice(demoServer(), name, password, Constants.deviceName ?? "Android", APP_VERSION);
+  await enrolDemoDevice(demoServer(), name, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
   onProgress?.({ stage: "signin" });
   // Pinned to Demo: a switch while this ran keeps neither the account nor its tokens.
   return signIn(name, password, "demo");

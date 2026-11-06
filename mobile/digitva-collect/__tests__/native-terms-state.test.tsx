@@ -27,7 +27,7 @@ jest.mock("../src/autoLock", () => ({
     stop: jest.fn(),
   }),
 }));
-jest.mock("../src/i18n", () => ({ setUiLocale: () => "en" }));
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, setUiLocale: () => "en" }));
 import { AppStateProvider, useAppState } from "../src/AppState";
 import { acceptDeviceTerms, authedRequest } from "../src/auth";
 

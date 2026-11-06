@@ -410,7 +410,7 @@ export function CaseWorkspaceScreen({
 
   const identityKey = `${identity.mode}:${identity.vaSid}`;
   if (loading || !workspace) {
-    return <Screen title="Case workspace" headerAction={<Button label="Exit" kind="secondary" onPress={onExit} />}>
+    return <Screen title="Case workspace" headerAction={Platform.OS === "web" ? <Button label="Exit" kind="secondary" onPress={onExit} /> : undefined}>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : <Text style={styles.muted}>Loading case…</Text>}
     </Screen>;
   }
@@ -485,7 +485,7 @@ export function CaseWorkspaceScreen({
       nextBlockedReason={nextBlockedReason}
       smartvaPanel={browser && identity.mode !== "view" ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} lifecycle={identity.mode === "coding" ? smartvaLifecycle : undefined} onChanged={smartvaChanged} /> : undefined}
     >
-      <ContextualHelpBanner
+      {Platform.OS === "web" ? <ContextualHelpBanner
         screen={
           identity.mode === "coding"
             ? "caseCoding"
@@ -493,7 +493,7 @@ export function CaseWorkspaceScreen({
               ? "caseReviewing"
               : "caseView"
         }
-      />
+      /> : null}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       {browser && identity.mode === "view" ? (
         selectedCode === "smartva_section" ? (

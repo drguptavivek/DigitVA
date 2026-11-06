@@ -32,7 +32,7 @@ import { WHO_VA_FORM_VERSION } from "../version.js";
 import { englishAlongside, plainText } from "./localize.js";
 import { focusDomQuestion } from "./dom-element.js";
 import { createRichText } from "./rich-text-view.js";
-import { FormThemeContext, type FormTheme } from "./theme.js";
+import { FormThemeContext, useFormTheme, type FormTheme } from "./theme.js";
 import { createSectionNavigation, type SectionNavItem } from "./section-navigation.js";
 import { createProblemsDialog, type ProblemRow } from "./problems-dialog.js";
 import {
@@ -435,6 +435,8 @@ export function createWhoVaForm(
       narrow && styles.navSmallText
     ];
     const lineProps = compact ? { numberOfLines: 1 } : {};
+    const theme = useFormTheme();
+    const backTone = compact && theme?.disabledBackground && theme.disabledText ? theme : undefined;
     return (
       <View style={compact ? styles.footerBar : styles.footer} testID="form-footer">
         <Pressable
@@ -444,11 +446,11 @@ export function createWhoVaForm(
             questionControlStyles.button,
             questionControlStyles.buttonSecondary,
             styles.navButton,
-            !canGoBack && questionControlStyles.buttonDisabled
+            !canGoBack && (backTone ? { backgroundColor: backTone.disabledBackground } : questionControlStyles.buttonDisabled)
           ]}
           onPress={onBack}
         >
-          <Text {...lineProps} style={secondaryText}>
+          <Text {...lineProps} style={!canGoBack && backTone ? [secondaryText, { color: backTone.disabledText }] : secondaryText}>
             {messages.back}
           </Text>
         </Pressable>
@@ -587,6 +589,8 @@ export function createWhoVaForm(
     choiceColumns: number;
     code: string;
     data: SubmissionData;
+    /** How a question with issues is marked: the edge bar, or nothing on the phone bar (tint and message only). */
+    errorStyle: object | undefined;
     guidance: string;
     hint: string;
     hintEnglish: string;
@@ -654,6 +658,7 @@ export function createWhoVaForm(
       choiceColumns,
       code,
       data,
+      errorStyle,
       guidance,
       hint,
       hintEnglish,
@@ -694,7 +699,7 @@ export function createWhoVaForm(
             styles.question,
             splitLayout && styles.questionRow,
             question.control === "note" && styles.note,
-            hasIssues && styles.questionError,
+            hasIssues && errorStyle,
             highlighted && styles.questionHighlight
           ]}
           testID={`question-card-${question.name}`}
@@ -719,6 +724,7 @@ export function createWhoVaForm(
                       onPress: () => setCollapsed((current) => !current)
                     }
                   : {})}
+                accessibilityLanguage={locale}
                 style={[
                   styles.label,
                   instruction && styles.labelInstruction,
@@ -730,7 +736,7 @@ export function createWhoVaForm(
               >
                 <RichText source={label} />
                 {question.required && question.control !== "note" ? (
-                  <Text style={styles.required}> *</Text>
+                  <Text style={styles.required}>{"\u00a0*"}</Text>
                 ) : null}
               </Text>
               {isQuestionComplete ? (
@@ -744,18 +750,18 @@ export function createWhoVaForm(
               ) : null}
             </View>)}
             {labelEnglish && !repeatedPrompt && !collapsed ? (
-              <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
+              <Text lang="en" accessibilityLanguage="en" style={styles.english} testID={`question-english-${question.name}`}>
                 <RichText source={labelEnglish} />
               </Text>
             ) : null}
             {hint ? (
               <Text style={styles.hint}>
-                <RichText source={hint} />
+                <RichText source={hint} plainColor />
               </Text>
             ) : null}
             {hintEnglish ? (
-              <Text lang="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
-                <RichText source={hintEnglish} />
+              <Text lang="en" accessibilityLanguage="en" style={styles.english} testID={`question-hint-english-${question.name}`}>
+                <RichText source={hintEnglish} plainColor />
               </Text>
             ) : null}
             {guidance ? (
@@ -1516,6 +1522,7 @@ export function createWhoVaForm(
           choiceColumns={compact ? 2 : medium ? 3 : 4}
           code={code}
           data={snapshot.data}
+          errorStyle={props.compactFooter ? undefined : styles.questionError}
           guidance={
             props.showSourceGuidance
               ? interpolateSubmissionReferences(localizedRich(question.guidance, locale, ""), snapshot.data)
@@ -1749,15 +1756,20 @@ export function createWhoVaForm(
           {localized(snapshot.currentSection.label, locale, snapshot.currentSection.name)}
         </Text>
         <FocusNotice text={focusNotice} />
-        <View style={styles.sectionCard}>{snapshot.questions.map((question, index, all) => renderQuestion(question, index, all))}</View>
-        {props.compactFooter ? null : navigation}
-        <Text style={styles.draftStatus}>
-          {draftStatus === "saved"
-            ? messages.draftSaved(draftId)
-            : draftStatus === "error"
-              ? messages.draftSaveFailed
-              : messages.draftId(draftId)}
-        </Text>
+        <View style={[styles.sectionCard, props.compactFooter && styles.sectionCardPhone]}>{snapshot.questions.map((question, index, all) => renderQuestion(question, index, all))}</View>
+        {/* The phone bar's host shows the save state in its own top bar; a draft caption would repeat it. */}
+        {props.compactFooter ? null : (
+          <>
+            {navigation}
+            <Text style={styles.draftStatus}>
+              {draftStatus === "saved"
+                ? messages.draftSaved(draftId)
+                : draftStatus === "error"
+                  ? messages.draftSaveFailed
+                  : messages.draftId(draftId)}
+            </Text>
+          </>
+        )}
       </>
     );
 
@@ -1785,6 +1797,7 @@ export function createWhoVaForm(
           {medium ? (
             <>
               <SectionHeaderBar
+                compact={props.compactFooter === true}
                 current={snapshot.currentSectionIndex + 1}
                 items={navItems}
                 messages={messages}

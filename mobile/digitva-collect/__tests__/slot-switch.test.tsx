@@ -40,7 +40,9 @@ jest.mock("../src/interviewerDb", () => ({
 jest.mock("../src/autoLock", () => ({
   createAutoLock: () => ({ activity: jest.fn(), appStateChanged: jest.fn(), stop: jest.fn() }),
 }));
-jest.mock("../src/i18n", () => ({ setUiLocale: () => "en", t: (key: string) => key }));
+// The UI pack fetch is a public reference read, not the account traffic this file counts.
+jest.mock("../src/uiPacks", () => ({ syncUiPacks: jest.fn(async () => undefined), offerBundledUiLanguagesOnly: jest.fn() }));
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, setUiLocale: () => "en", t: (key: string) => key }));
 
 import { AppStateProvider, useAppState } from "../src/AppState";
 import * as auth from "../src/auth";

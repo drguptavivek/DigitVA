@@ -7,7 +7,7 @@
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, Text, TextInput } from "react-native";
+import { Alert, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { unlockInterviewer } from "../auth";
@@ -15,8 +15,9 @@ import { t } from "../i18n";
 import { hasInterviewerStore, isUnlocked, resetMissingStore } from "../interviewerDb";
 import { homeRoute } from "../standalone/home";
 import { PIN_BOXES, PinBoxes } from "../PinBoxes";
-import { Button, Screen, useUiStyles } from "../ui";
-import { pendingUnlockOffer, UnlockOffer } from "../UnlockOffer";
+import { controls, spacing, useTheme } from "../theme";
+import { Button, Notice, PasswordInput, Screen, TextLink, useUiStyles } from "../ui";
+import { biometricText, pendingUnlockOffer, UnlockOffer, useBiometricKind } from "../UnlockOffer";
 import {
   biometricEnabled,
   enableBiometric,
@@ -38,6 +39,8 @@ const wrongPinText = (failures: number) =>
 
 export default function Unlock() {
   const styles = useUiStyles();
+  const { ui, typography } = useTheme();
+  const bioKind = useBiometricKind();
   const router = useRouter();
   const { userId, refresh, enableBiometric: enableBiometricParam, enableScreenLock: enableScreenLockParam } =
     useLocalSearchParams<{ userId: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string }>();
@@ -201,47 +204,69 @@ export default function Unlock() {
     return (
       <Screen title={t("unlockTitle")}>
         <Text style={styles.muted}>{account.name}</Text>
-        <Text style={styles.error} testID="store-missing">{t(account.standalone ? "storeMissingStandalone" : "storeMissing")}</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Notice tone="error" testID="store-missing">{t(account.standalone ? "storeMissingStandalone" : "storeMissing")}</Notice>
+        {error ? <Notice tone="error">{error}</Notice> : null}
         <Button kind="danger" label={t("storeMissingReset")} onPress={resetStore} />
       </Screen>
     );
   }
+  // One heading per screen (the "Unlock" title): the profile name is a body line in ink over one line saying what
+  // to do. Rhythm measured to the links' text, not their 44pt boxes: boxes 12pt to "My PIN is longer", that link
+  // 24pt to Unlock, Unlock 24pt to Switch profile (the "longer PIN" link belongs to the boxes).
+  // A TextLink centres its text line in a 44pt box, and the line box has leading around the glyphs (half of
+  // lineHeight - fontSize above, half below): the space above and below the visible text that the link adds.
+  // Roboto's cap top sits a little lower in the line than its descender rises (about 1/16 em each way,
+  // measured on the emulator in round 5), so the inset above the text is larger than the one below it.
+  const linkBox = Math.max(0, (controls.minTouchTarget - typography.body.lineHeight) / 2) + (typography.body.lineHeight - typography.body.fontSize) / 2;
+  const glyphShift = typography.body.fontSize / 16;
+  const linkOffsetAbove = (rhythm: number) => rhythm - (linkBox + glyphShift);
+  const linkOffsetBelow = (rhythm: number) => rhythm - (linkBox - glyphShift);
   return (
     <Screen title={t("unlockTitle")}>
-      <Text style={styles.muted}>{account.name}</Text>
-      <Text style={styles.muted}>{t("pin")}</Text>
-      {longPin ? (
-        <TextInput
-          style={styles.input}
-          accessibilityLabel={t("pin")}
-          secureTextEntry
-          autoComplete="off"
-          importantForAutofill="no"
-          keyboardType="number-pad"
-          autoFocus
-          maxLength={PIN_MAX_LENGTH}
-          value={pin}
-          onChangeText={(text) => setPin(text.replace(/\D/g, "").slice(0, PIN_MAX_LENGTH))}
-          onSubmitEditing={() => pin.length >= PIN_BOXES && void tryPin(pin)}
-        />
-      ) : (
-        <>
-          <PinBoxes value={pin} onChange={setPin} label={t("pin")} shakeSignal={shake} />
-          <Pressable accessibilityRole="link" onPress={() => setLongPin(true)} hitSlop={8}>
-            <Text style={styles.muted}>{t("pinLonger")}</Text>
-          </Pressable>
-        </>
-      )}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label={t("unlock")} disabled={busy || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
-      {biometric ? (
-        <Button kind="secondary" label={t("biometricEnable")} disabled={busy} onPress={() => void tryBiometric()} />
-      ) : null}
-      {screenLock ? (
-        <Button kind="secondary" label={t("screenLockEnable")} disabled={busy} onPress={() => void tryScreenLock()} />
-      ) : null}
-      <Button kind="secondary" label={t("home")} onPress={() => router.replace("/")} />
+      <View style={{ gap: spacing.lg }}>
+        <View style={{ gap: spacing.xxs }}>
+          <Text testID="unlock-name" style={{ ...typography.body, color: ui.foreground }}>{account.name}</Text>
+          <Text style={styles.muted}>{t("unlockSubtitle")}</Text>
+        </View>
+        <View style={{ gap: spacing.sm }}>
+          {longPin ? (
+            <PasswordInput
+              accessibilityLabel={t("pin")}
+              showLabel={t("pinShow")}
+              hideLabel={t("pinHide")}
+              autoComplete="off"
+              importantForAutofill="no"
+              keyboardType="number-pad"
+              autoFocus
+              maxLength={PIN_MAX_LENGTH}
+              value={pin}
+              onChangeText={(text) => setPin(text.replace(/\D/g, "").slice(0, PIN_MAX_LENGTH))}
+              onSubmitEditing={() => pin.length >= PIN_BOXES && void tryPin(pin)}
+            />
+          ) : (
+            <>
+              <PinBoxes value={pin} onChange={setPin} label={t("pin")} shakeSignal={shake} />
+              <View testID="pin-longer-link" style={{ marginTop: linkOffsetAbove(spacing.sm) - spacing.sm }}>
+                <TextLink label={t("pinLonger")} onPress={() => setLongPin(true)} />
+              </View>
+            </>
+          )}
+          {error ? <Notice tone="error">{error}</Notice> : null}
+        </View>
+        <View testID="unlock-actions" style={{ gap: spacing.sm, marginTop: longPin || error ? 0 : linkOffsetBelow(spacing.lg) - spacing.lg }}>
+          <Button label={t("unlock")} disabled={busy || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
+          {biometric ? (
+            <Button kind="secondary" label={biometricText("biometricEnable", bioKind)} disabled={busy} onPress={() => void tryBiometric()} />
+          ) : null}
+          {screenLock ? (
+            <Button kind="secondary" label={t("screenLockEnable")} disabled={busy} onPress={() => void tryScreenLock()} />
+          ) : null}
+          {/* The accounts list: while locked, Home is behind this lock, so the way out is to another profile. */}
+          <View testID="switch-profile-link" style={{ marginTop: linkOffsetAbove(spacing.lg) - spacing.sm }}>
+            <TextLink label={t("switchInterviewer")} onPress={() => router.replace("/")} />
+          </View>
+        </View>
+      </View>
     </Screen>
   );
 }

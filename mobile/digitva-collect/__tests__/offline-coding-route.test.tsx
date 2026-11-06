@@ -177,16 +177,26 @@ jest.mock("../src/workspace/CaseWorkspaceScreen", () => {
     return workspace ? props.renderDoris(workspace, async () => undefined, props.onDone, props.api) : null;
   }
 });
-jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
+jest.mock("../src/i18n", () => ({ t: (key: string) => key, uiLanguageTag: () => "en" }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  const { View } = jest.requireActual("react-native") as typeof import("react-native");
+  const { View, TextInput } = jest.requireActual("react-native") as typeof import("react-native");
+  const press = ({ label, onPress }: { label: string; onPress?: () => void }) => ReactActual.createElement("button", {
+    accessibilityRole: "button", accessibilityLabel: label, onPress,
+  });
   return {
-    Button: ({ label, onPress }: { label: string; onPress?: () => void }) => ReactActual.createElement("button", {
-      accessibilityRole: "button", accessibilityLabel: label, onPress,
-    }),
+    Button: press,
+    TextLink: press,
+    ChoiceRow: press,
+    Card: ({ children }: { children?: React.ReactNode }) => ReactActual.createElement(View, null, children),
+    FieldLabel: () => null,
+    Separator: () => null,
+    TextField: (props: object) => ReactActual.createElement(TextInput, props),
     Screen: ({ children, sidebar }: { children: React.ReactNode; sidebar?: React.ReactNode }) => ReactActual.createElement(View, null, sidebar, children),
     errorText: () => "error",
+    // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
+    Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, card: {}, input: {} }),
   };
 });

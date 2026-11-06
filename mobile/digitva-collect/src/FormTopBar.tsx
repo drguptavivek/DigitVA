@@ -3,11 +3,11 @@
  * a save-state dot and an overflow menu. `Sheet` is the bottom list also used for the revision reason select.
  */
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, Text, View } from "react-native";
 
 import { t } from "./i18n";
-import { radius, spacing, typography, useTheme } from "./theme";
+import { BottomSheet, SheetRow } from "./nativeShell/BottomSheet";
+import { radius, spacing, useTheme } from "./theme";
 import Svg, { Path } from "react-native-svg";
 import { CheckMark } from "./ui/controls";
 import { Chevron } from "./web/Chevron";
@@ -26,41 +26,39 @@ const BAR_HEIGHT = 48;
 const BAR_HEIGHT_WITH_LABEL = 56;
 
 /**
- * A bottom sheet of choices; choosing one closes the sheet, then calls its handler. The sheet is laid out above the
- * system navigation bar (Android draws the Modal edge to edge) and scrolls when the list is taller than the screen.
+ * A bottom sheet of choices on the app's BottomSheet (handle, 20/600 title, laid out above the Android navigation
+ * bar, scrolling when taller than the screen); choosing one closes the sheet, then calls its handler. Actions are
+ * SheetRows; a choice list (items with `selected`) marks the current one with the primary check and bold label.
  */
-export function Sheet({ visible, title, items, onClose }: { visible: boolean; title?: string; items: SheetItem[]; onClose(): void }) {
-  const { ui } = useTheme();
-  const insets = useSafeAreaInsets();
+export function Sheet({ visible, title, items, onClose }: { visible: boolean; title: string; items: SheetItem[]; onClose(): void }) {
+  const { ui, typography } = useTheme();
+  const choose = (item: SheetItem) => {
+    onClose();
+    item.onPress();
+  };
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-      <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ flex: 1, backgroundColor: ui.scrim, justifyContent: "flex-end" }}>
-        <View testID="sheet-panel" style={{ maxHeight: "85%", backgroundColor: ui.popover, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: insets.bottom + spacing.lg }}>
-          {title ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, padding: spacing.md }}>{title}</Text> : null}
-          <ScrollView keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" bounces={false}>
-          {items.map((item) => (
-            <Pressable
-              key={item.key}
-              accessibilityRole="menuitem"
-              accessibilityLabel={item.label}
-              accessibilityState={{ disabled: Boolean(item.disabled), selected: Boolean(item.selected) }}
-              disabled={item.disabled}
-              onPress={() => {
-                onClose();
-                item.onPress();
-              }}
-              style={{ minHeight: 48, paddingHorizontal: spacing.md, justifyContent: "center", opacity: item.disabled ? 0.5 : 1 }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-                {item.selected ? <CheckMark color={ui.primary} size={18} /> : null}
-                <Text style={{ ...typography.body, color: ui.popoverForeground, fontWeight: item.selected ? "700" : "400", flexShrink: 1 }}>{item.label}</Text>
-              </View>
-            </Pressable>
-          ))}
-          </ScrollView>
-        </View>
-      </Pressable>
-    </Modal>
+    <BottomSheet visible={visible} title={title} onClose={onClose}>
+      {items.map((item) =>
+        item.selected === undefined ? (
+          <SheetRow key={item.key} label={item.label} disabled={item.disabled} onPress={() => choose(item)} />
+        ) : (
+          <Pressable
+            key={item.key}
+            accessibilityRole="menuitem"
+            accessibilityLabel={item.label}
+            accessibilityState={{ disabled: Boolean(item.disabled), selected: item.selected }}
+            disabled={item.disabled}
+            onPress={() => choose(item)}
+            style={{ minHeight: 48, paddingVertical: 12, justifyContent: "center", opacity: item.disabled ? 0.5 : 1 }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+              {item.selected ? <CheckMark color={ui.primary} size={18} /> : null}
+              <Text style={{ ...typography.body, color: ui.popoverForeground, fontWeight: item.selected ? "700" : "400", flexShrink: 1 }}>{item.label}</Text>
+            </View>
+          </Pressable>
+        ),
+      )}
+    </BottomSheet>
   );
 }
 
@@ -90,7 +88,7 @@ export function FormTopBar({
   /** Shown when the project requires consent: the decision in words (never colour alone); tapping changes it. */
   consentChip?: { label: string; decision: "granted" | "refused" | "none"; onPress?(): void };
 }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const [open, setOpen] = useState(false);
   const dot = saveState === "saved" ? ui.success : saveState === "saving" ? ui.warningText : ui.destructiveText;
   const state = t(SAVE_LABEL[saveState]);
@@ -139,7 +137,7 @@ export function FormTopBar({
           {[5, 12, 19].map((cy) => <Path key={cy} d={`M12 ${cy}m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0`} stroke={ui.foreground} strokeWidth={2.5} fill="none" strokeLinecap="round" />)}
         </Svg>
       </Pressable>
-      <Sheet visible={open} items={menuItems} onClose={() => setOpen(false)} />
+      <Sheet visible={open} title={t("formMenuTitle")} items={menuItems} onClose={() => setOpen(false)} />
     </View>
   );
 }

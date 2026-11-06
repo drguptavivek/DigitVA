@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { t } from "../i18n";
-import { controls, radius, spacing, typography, useTheme } from "../theme";
+import { Icon, icons } from "../Icon";
+import { controls, radius, spacing, useTheme } from "../theme";
 import { Chevron } from "../web/Chevron";
 import { toggleProject } from "../web/stats/view";
 
@@ -14,7 +15,7 @@ const WIDE = 768;
 const MENU_WIDTH = 280;
 
 function useSelectStyles() {
-  const { colors } = useTheme();
+  const { colors, typography } = useTheme();
   return useMemo(() => StyleSheet.create({
     field: {
       flexDirection: "row", alignItems: "center", gap: spacing.xs, flexShrink: 1, minHeight: controls.minTouchTarget, maxWidth: 320,
@@ -36,7 +37,7 @@ function useSelectStyles() {
     optionOn: { backgroundColor: colors.accentSoft },
     optionText: { flex: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     box: { width: 20, height: 20, borderRadius: radius.sm, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  }), [colors]);
+  }), [colors, typography]);
 }
 
 function CheckMark({ color }: { color: string }) {
@@ -57,15 +58,17 @@ export function projectSummary(projects: ProjectChoice[], value: string[]): stri
  * press and reports `[]` or `[id]`; *multiple* keeps the menu open and reports the next set (from All a press narrows
  * to that project; every project, or none, is All). One project is plain text; no project renders nothing.
  */
-export function ProjectSelect({ projects, value, onChange, multiple = false, disabled = false }: {
+export function ProjectSelect({ projects, value, onChange, multiple = false, disabled = false, fieldRow = false }: {
   projects: ProjectChoice[];
   value: string[];
   onChange: (next: string[]) => void;
   multiple?: boolean;
   disabled?: boolean;
+  /** Phone presentation: "Project" label above a hairline picker row (as the Register unit picker); ignored on the web. */
+  fieldRow?: boolean;
 }) {
   const s = useSelectStyles();
-  const { colors } = useTheme();
+  const { colors, ui, typography, focusWidth } = useTheme();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE;
   const [open, setOpen] = useState(false);
@@ -121,8 +124,25 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
       {projects.map((project) => row(project.id, project.name, project.id, multiple ? all || value.includes(project.id) : value[0] === project.id))}
     </ScrollView>
   );
-  return (
-    <>
+  const phoneRow = fieldRow && Platform.OS !== "web";
+  const trigger = phoneRow ? (
+    <View style={{ gap: spacing.xxs }}>
+      <Text style={{ ...typography.subhead, fontWeight: "600", color: ui.foreground, fontFamily: controls.fontFamily }}>{t("filterProject")}</Text>
+      <Pressable
+        ref={button}
+        accessibilityRole="button"
+        accessibilityLabel={field}
+        accessibilityState={{ expanded: open, disabled }}
+        disabled={disabled}
+        onPress={show}
+        // The Register unit picker's look: white fill, a hairline edge, a primary chevron.
+        style={[{ flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: controls.minHeight, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: focusWidth, borderColor: ui.border, backgroundColor: ui.card }, disabled && { opacity: 0.5 }]}
+      >
+        <Text numberOfLines={1} style={{ ...typography.body, flex: 1, color: ui.foreground }}>{projectSummary(projects, value)}</Text>
+        <Icon name={icons.chevronRight} color={ui.primary} size={16} />
+      </Pressable>
+    </View>
+  ) : (
       <Pressable
         ref={button}
         accessibilityRole="button"
@@ -135,6 +155,10 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
         <Text numberOfLines={1} ellipsizeMode="tail" style={s.fieldText}>{field}</Text>
         <Chevron expanded />
       </Pressable>
+  );
+  return (
+    <>
+      {trigger}
       <Modal visible={open} transparent animationType={wide ? "none" : "slide"} onRequestClose={() => setOpen(false)}>
         <View style={wide ? s.backdropMenu : s.backdropSheet}>
           <Pressable accessibilityRole="button" accessibilityLabel={t("closeList")} onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />

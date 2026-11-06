@@ -5,7 +5,7 @@
  */
 import { t, type StringKey } from "../i18n";
 
-export type HelpScreen = "home" | "worklist" | "form" | "revision" | "settings" | "register";
+export type HelpScreen = "home" | "worklist" | "form" | "revision" | "settings" | "register" | "coding" | "case";
 
 /** The same pages the browser's contextual help opens (src/web/ContextualHelp.tsx); a test keeps them equal. */
 export const HELP_SLUGS: Record<HelpScreen, string> = {
@@ -15,6 +15,8 @@ export const HELP_SLUGS: Record<HelpScreen, string> = {
   revision: "/help/data-collection",
   settings: "/help/getting-started",
   register: "/help/data-collection",
+  coding: "/help/coding-workflow",
+  case: "/help/coding-workflow",
 };
 
 export function helpScreenFor(pathname: string): HelpScreen {
@@ -30,6 +32,11 @@ export function helpScreenFor(pathname: string): HelpScreen {
       return "settings";
     case "/register":
       return "register";
+    case "/coding":
+    case "/reviewing":
+      return "coding";
+    case "/workspace":
+      return "case";
     default:
       return "home";
   }
@@ -47,7 +54,7 @@ export interface HelpContent {
 const ENROLLED_ONLY_TODO = new Set(["help_worklist_do2", "help_worklist_do3", "help_settings_do3", "help_register_do3"]);
 
 export function helpContent(screen: HelpScreen, state: { offline?: boolean; unsent?: number; standalone?: boolean }): HelpContent {
-  const key = (part: string) => `help_${screen}_${part}` as StringKey;
+  const key = (part: string) => `help_${screen}_${part}` as StringKey; // coding and case live in theme-en.json; t() takes either
   const lines: string[] = [];
   if (state.offline) lines.push(t("helpOffline"));
   if (state.unsent) lines.push(t(state.standalone ? "helpUnsentStandalone" : "helpUnsent", { count: state.unsent }));

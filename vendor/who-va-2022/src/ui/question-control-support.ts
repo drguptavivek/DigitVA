@@ -3,53 +3,84 @@ import { type WhoVaUiMessages } from "../i18n.js";
 import { localized, plainText } from "./localize.js";
 import type { AnswerValue, AttachmentReference, InstrumentQuestion } from "../types.js";
 import { defaultFormTheme as T } from "./theme.js";
-import { withWebTheme } from "./web-theme.js";
+import { withPetrol, withWebTheme } from "./web-theme.js";
 
 export const questionControlStyles = {
-  input: withWebTheme(
-    {
-      borderWidth: 1,
-      borderColor: T.borderStrong,
-      borderRadius: 8,
-      minHeight: 44,
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      color: T.text,
-      backgroundColor: T.surface
-    },
-    { borderColor: "controlBorder", borderRadius: "controlRadius", color: "ink", backgroundColor: "surface" }
+  input: withPetrol(
+    withWebTheme(
+      {
+        borderWidth: 1,
+        borderColor: T.borderStrong,
+        borderRadius: 8,
+        minHeight: 44,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        color: T.text,
+        backgroundColor: T.surface
+      },
+      { borderColor: "controlBorder", borderRadius: "controlRadius", color: "ink", backgroundColor: "surface" }
+    ),
+    // Petrol: a surface fill with only the faint hairline tone at its edge (never the strong control edge),
+    // so a field still shows on a card of the same surface.
+    // 2px so the focus ring (`inputFocused`) only recolours the edge and the text never shifts.
+    withWebTheme({ borderWidth: 2, borderColor: T.border }, { borderColor: "border" })
   ),
+  // Petrol only: the one outline in the theme, the field being typed in (TextInput wrapper in question-controls.tsx).
+  inputFocused: withWebTheme({ borderColor: T.primary }, { borderColor: "brand" }),
   narrativeInput: { minHeight: 160, textAlignVertical: "top" as const },
-  inputError: withWebTheme(
-    { borderColor: T.danger, backgroundColor: T.dangerSoft },
-    { borderColor: "danger", backgroundColor: "dangerSoft" }
+  inputError: withPetrol(
+    withWebTheme(
+      { borderColor: T.danger, backgroundColor: T.dangerSoft },
+      { borderColor: "danger", backgroundColor: "dangerSoft" }
+    ),
+    // Petrol: an error is a tint fill plus the message under the field, never a red line.
+    withWebTheme({ borderColor: T.dangerSoft }, { borderColor: "dangerSoft" })
   ),
-  inputReadOnly: withWebTheme(
-    { opacity: 0.72, backgroundColor: T.surfaceAlt },
-    { backgroundColor: "border" }
-  ),
+  // A read-only value is an answer, so its text keeps full ink contrast; the fill alone marks it read-only.
+  inputReadOnly: withWebTheme({ backgroundColor: T.surfaceAlt }, { backgroundColor: "border" }),
   // A choice is a row: the radio or checkbox indicator, then the label. The
   // whole row is the touch target (48px tall at minimum).
-  choice: withWebTheme(
-    {
-      alignItems: "flex-start" as const,
-      borderWidth: 1,
-      borderColor: T.borderStrong,
-      borderRadius: 8,
-      columnGap: 12,
-      flexDirection: "row" as const,
-      minHeight: 48,
-      paddingHorizontal: 12,
-      paddingVertical: 11,
-      marginTop: 8,
-      backgroundColor: T.surface
-    },
-    { borderColor: "controlBorder", borderRadius: "controlRadius", backgroundColor: "surface" }
+  choice: withPetrol(
+    withWebTheme(
+      {
+        alignItems: "flex-start" as const,
+        borderWidth: 1,
+        borderColor: T.borderStrong,
+        borderRadius: 8,
+        columnGap: 12,
+        flexDirection: "row" as const,
+        minHeight: 48,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        marginTop: 8,
+        backgroundColor: T.surface
+      },
+      { borderColor: "controlBorder", borderRadius: "controlRadius", backgroundColor: "surface" }
+    ),
+    // Petrol: no edge; the row is the card's own surface.
+    withWebTheme({ borderColor: T.surface }, { borderColor: "surface" })
   ),
-  choiceSelected: withWebTheme(
-    { borderColor: T.primary, backgroundColor: T.primarySoft },
-    { borderColor: "brand", backgroundColor: "brandSoft" }
+  choiceSelected: withPetrol(
+    withWebTheme(
+      { borderColor: T.primary, backgroundColor: T.primarySoft },
+      { borderColor: "brand", backgroundColor: "brandSoft" }
+    ),
+    // Petrol: selected is a tint fill (the indicator carries the primary colour), so no line is drawn inside the row.
+    withWebTheme({ borderColor: T.primarySoft }, { borderColor: "brandSoft" })
   ),
+  // Petrol only (`useChoicePresentation` in question-controls.tsx): a one-column list of choices is one grouped
+  // card, rows edge to edge, split by inset hairlines (sheets 03/04).
+  choiceGroup: withWebTheme(
+    { backgroundColor: T.surface, borderRadius: 8, marginTop: 8, overflow: "hidden" as const },
+    { backgroundColor: "surface", borderRadius: "controlRadius" }
+  ),
+  choiceGrouped: withPetrol({}, { borderRadius: 0, borderWidth: 0, marginTop: 0 }),
+  // Inset to the label: row padding (12) + indicator (22) + gap (12).
+  choiceSeparator: withWebTheme(
+    { backgroundColor: T.border, height: 1, marginLeft: 46 },
+    { backgroundColor: "border" }
+  ),
+  choiceTextSelected: withPetrol({}, { fontWeight: "600" as const }),
   choiceText: withWebTheme(
     { color: T.text, flexShrink: 1, fontSize: 16, lineHeight: 24 },
     { color: "inkSubtle" }
@@ -86,9 +117,17 @@ export const questionControlStyles = {
     { color: "onPrimary" }
   ),
   // The English beneath a translated choice label (`show-english`).
-  choiceEnglish: withWebTheme(
-    { color: T.textMuted, fontSize: 13, fontStyle: "italic" as const, lineHeight: 19 },
-    { color: "muted" }
+  choiceEnglish: withPetrol(
+    withWebTheme(
+      { color: T.textMuted, fontSize: 13, fontStyle: "italic" as const, lineHeight: 19 },
+      { color: "muted" }
+    ),
+    // Petrol: the same ink at 16, never grey or italic; regular weight even inside a selected (semibold) label:
+    // weight, not grey, makes the second line secondary.
+    withWebTheme(
+      { color: T.text, fontSize: 16, fontStyle: "normal" as const, fontWeight: "400" as const, lineHeight: 24 },
+      { color: "ink" }
+    )
   ),
   // Layout appearances: `columns`, `columns-n`, `columns-pack`, `likert`,
   // and the range `picker`/`rating` all lay choices out along a row.
@@ -132,16 +171,20 @@ export const questionControlStyles = {
     flexWrap: "wrap" as const
   },
   numberInput: { paddingHorizontal: 8, textAlign: "center" as const },
-  stepButton: withWebTheme(
-    {
-      alignItems: "center" as const,
-      backgroundColor: T.border,
-      borderRadius: 8,
-      height: 44,
-      justifyContent: "center" as const,
-      width: 44
-    },
-    { backgroundColor: "border", borderRadius: "controlRadius" }
+  stepButton: withPetrol(
+    withWebTheme(
+      {
+        alignItems: "center" as const,
+        backgroundColor: T.border,
+        borderRadius: 8,
+        height: 44,
+        justifyContent: "center" as const,
+        width: 44
+      },
+      { backgroundColor: "border", borderRadius: "controlRadius" }
+    ),
+    // Petrol: a secondary control, the primary tint with the glyph in the primary colour.
+    withWebTheme({ backgroundColor: T.primarySoft }, { backgroundColor: "brandSoft" })
   ),
   stepGlyph: withWebTheme(
     { color: T.text, fontSize: 22, fontWeight: "700" as const, lineHeight: 26 },
@@ -155,18 +198,21 @@ export const questionControlStyles = {
     flexDirection: "row" as const,
     flexWrap: "wrap" as const
   },
-  dateField: withWebTheme(
-    {
-      alignItems: "center" as const,
-      backgroundColor: T.surface,
-      borderColor: T.borderStrong,
-      borderRadius: 8,
-      borderWidth: 1,
-      flexDirection: "row" as const,
-      minHeight: 44,
-      paddingHorizontal: 4
-    },
-    { backgroundColor: "surface", borderColor: "controlBorder", borderRadius: "controlRadius" }
+  dateField: withPetrol(
+    withWebTheme(
+      {
+        alignItems: "center" as const,
+        backgroundColor: T.surface,
+        borderColor: T.borderStrong,
+        borderRadius: 8,
+        borderWidth: 1,
+        flexDirection: "row" as const,
+        minHeight: 44,
+        paddingHorizontal: 4
+      },
+      { backgroundColor: "surface", borderColor: "controlBorder", borderRadius: "controlRadius" }
+    ),
+    withWebTheme({ borderColor: T.border }, { borderColor: "border" })
   ),
   datePart: withWebTheme(
     {
@@ -200,6 +246,11 @@ export const questionControlStyles = {
   starEmpty: withWebTheme({ color: T.borderStrong, fontSize: 26 }, { color: "controlBorder" }),
   dropdownList: { marginTop: 6 },
   hint: withWebTheme({ color: T.textMuted, fontSize: 13, marginBottom: 10 }, { color: "muted" }),
+  // Petrol only: the calendar date field (a host with pickDate): one input-height row, the date or "Select date" at input size,
+  // vertically centred, and a trailing calendar icon.
+  dateButton: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, gap: 8 },
+  dateButtonText: withWebTheme({ color: T.text, flexShrink: 1, fontSize: 16, lineHeight: 22 }, { color: "ink" }),
+  dateButtonPlaceholder: withWebTheme({ color: T.textMuted }, { color: "muted" }),
   // The gap keeps adjacent buttons apart; without it they touched on the phone.
   actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginTop: 8 },
   buttonCompact: { alignSelf: "flex-start" as const },

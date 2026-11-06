@@ -5,6 +5,7 @@ jest.mock("react-native-safe-area-context", () => {
   const { View } = jest.requireActual("react-native");
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
 });
+import { ShellContext, type Shell } from "../src/nativeShell/shellContext";
 import { Button, Screen } from "../src/ui";
 
 const render = async (element: React.ReactElement) => {
@@ -43,5 +44,37 @@ describe("Screen immersive variant", () => {
   it("standard variant still shows the title", async () => {
     const tree = await render(<Screen title="Interview title"><Text>body</Text></Screen>);
     expect(tree.root.findAllByType(Text).map((n) => n.props.children)).toContain("Interview title");
+  });
+});
+
+describe("Screen title with the phone bar", () => {
+  // Only the fields Screen reads; the rest of the shell is irrelevant here.
+  const shell = (titleInBar: boolean) => ({ header: true, tabs: false, titleInBar, screenTitle: undefined, publishTitle: jest.fn() }) as unknown as Shell;
+  const headers = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header" && n.props.children === "Settings");
+  const action = <Text accessibilityLabel="Add">+</Text>;
+
+  it("keeps the on-page title and its action when the bar shows no title (tab roots, pre-login, web)", async () => {
+    const value = shell(false);
+    const tree = await render(<ShellContext.Provider value={value}><Screen title="Settings" headerAction={action}><Text>body</Text></Screen></ShellContext.Provider>);
+    expect(headers(tree)).toHaveLength(1);
+    expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityLabel === "Add")).toHaveLength(1);
+    expect(value.publishTitle).toHaveBeenCalledWith(expect.any(Object), "Settings");
+  });
+
+  it("drops the on-page title when the bar shows it, keeping any header action on the page", async () => {
+    const plain = await render(<ShellContext.Provider value={shell(true)}><Screen title="Settings"><Text>body</Text></Screen></ShellContext.Provider>);
+    expect(plain.root.findAllByType(Text).map((n) => n.props.children)).toContain("body");
+    expect(headers(plain)).toHaveLength(0);
+    const withAction = await render(<ShellContext.Provider value={shell(true)}><Screen title="Settings" headerAction={action}><Text>body</Text></Screen></ShellContext.Provider>);
+    expect(withAction.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityLabel === "Add")).toHaveLength(1);
+    expect(headers(withAction)).toHaveLength(0);
+  });
+
+  it("withdraws its title when it unmounts", async () => {
+    const value = shell(true);
+    const tree = await render(<ShellContext.Provider value={value}><Screen title="Settings"><Text>body</Text></Screen></ShellContext.Provider>);
+    const key = (value.publishTitle as jest.Mock).mock.calls[0][0];
+    await act(async () => tree.unmount());
+    expect(value.publishTitle).toHaveBeenLastCalledWith(key, undefined);
   });
 });

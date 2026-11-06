@@ -3,6 +3,7 @@
  * installs anything. Failures are silent: "unknown" is shown as "Couldn't check" in Settings and nowhere else.
  */
 import { requireOptionalNativeModule } from "expo";
+import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
 import { assertOnline } from "./network";
@@ -86,6 +87,8 @@ async function fromGitHub(abi: string): Promise<Release> {
 
 /** Whether a newer APK is released. `server` is the enrolled server's origin; undefined skips straight to GitHub. */
 export async function checkForUpdate(server?: string): Promise<UpdateResult> {
+  // iOS has no APK to offer; updates come from the App Store / TestFlight.
+  if (Platform.OS === "ios") return { status: "unknown" };
   // The server hosts only the arm64 APK, so a 32-bit-only phone goes straight to its GitHub armeabi-v7a asset.
   const abi = is32BitOnly() ? "armeabi-v7a" : "arm64";
   let latest: Release | undefined;
@@ -107,6 +110,7 @@ export async function checkForUpdate(server?: string): Promise<UpdateResult> {
 
 /** The start-up check: at most once a day after an answer; an unreachable check is tried again at the next start. */
 export async function checkForUpdateDaily(server: string | undefined, now = Date.now()): Promise<UpdateResult | undefined> {
+  if (Platform.OS === "ios") return undefined;
   const last = Number(await getUiPreference("update_check_at")) || 0;
   if (now - last < CHECK_INTERVAL_MS && now >= last) return undefined;
   const result = await checkForUpdate(server);

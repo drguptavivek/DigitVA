@@ -12,8 +12,10 @@ type PhoneKey = "informant_phone" | "informant_phone_2";
  * field shows them 3-3-4. *onValidity* reports the blur check; the caller
  * blocks submit while a number is invalid.
  */
-export function PhoneField({ label, value, error, disabled, onChange, onValidity }: {
+export function PhoneField({ label, value, error, disabled, onChange, onValidity, edge = false }: {
   label: string;
+  /** Inside a white card: the faint hairline edge (styles.inputHairline). */
+  edge?: boolean;
   value: string;
   error?: string;
   disabled?: boolean;
@@ -29,7 +31,7 @@ export function PhoneField({ label, value, error, disabled, onChange, onValidity
         inputMode="tel"
         keyboardType="phone-pad"
         placeholder={PHONE_PLACEHOLDER}
-        style={styles.input}
+        style={[styles.input, edge && styles.inputHairline]}
         editable={!disabled}
         value={phoneDisplay(value)}
         onChangeText={(text) => onChange(phoneDigits(text, value))}
@@ -44,7 +46,8 @@ export function PhoneField({ label, value, error, disabled, onChange, onValidity
  * The informant's numbers: "Phone number", and a second one revealed by
  * "Add another number" (or shown when it already has a value). Both optional.
  */
-export function PhoneNumbers({ values, errors, disabled, onChange, onValidity }: {
+export function PhoneNumbers({ values, errors, disabled, onChange, onValidity, edge = false }: {
+  edge?: boolean;
   values: Record<PhoneKey, string>;
   errors: Partial<Record<PhoneKey, string | undefined>>;
   disabled?: boolean;
@@ -61,6 +64,7 @@ export function PhoneNumbers({ values, errors, disabled, onChange, onValidity }:
         value={values[key]}
         error={errors[key]}
         disabled={disabled}
+        edge={edge}
         onChange={(digits) => onChange(key, digits)}
         onValidity={(valid) => onValidity(key, valid)}
       />

@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-06
 ---
 
 # Expo Web Client Boundary
@@ -356,18 +356,178 @@ Owner, 2026-10-24. An interviewer never loses typed work by leaving a screen.
   are not drawn on screen while the tab is hidden, and come back when it is shown.
 - Sign-out and re-enrol count the registration in progress as unsent work.
 
+## Theme (Petrol; owner decision 2026-11-05, `digitva-3qah`)
+
+The phone app (Android and iOS share one design) and the browser screens built
+from the same components follow the Petrol theme in
+`docs/design/collect-petrol-theme/README.md`.
+
+- **Colours.** Petrol primary with an amber accent. Tokens are authored in
+  OKLCH (`src/themeColors.ts`) and React Native draws their hex; a test checks
+  every hex against its OKLCH value. Existing token names stay and map onto
+  the Petrol values.
+- **Fonts.** Native system fonts (SF Pro on iOS, Roboto on Android).
+- **Cards have no borders.** A card stands apart from the canvas by tone and a
+  faint shadow (none in dark mode). Rows inside a card are split by an inset
+  hairline. Selected and error states are a tint fill, secondary buttons are
+  tint-filled, and destructive actions are red text. Fields carry only a faint
+  hairline tone at their edge; the field being typed in is the only one with a
+  focus ring. A field error is the error tint plus the message directly under
+  that field.
+- **Accent.** Amber only as a filled badge (or the attention-row tint), always
+  with ink text; never as text colour and never with white text.
+- **Red and green** mean error and success and nothing else.
+- **Hindi** (and any second language) is drawn in the same ink as English;
+  weight, not grey, makes it secondary.
+- **Rows** are at least 48 pt tall, 56 pt with a second line.
+- **Icons** are native: SF Symbols on iOS and Material Symbols on Android
+  (through `expo-symbols`, which draws Material Symbols from a font on Android
+  and the web), mapped to the same meaning per icon in `src/Icon.tsx`.
+- **Dark mode** is derived from the same tokens.
+- **Messages** (hints, consent notices, save errors) are notice cards near the
+  action they answer, not loose coloured paragraphs. Up to three short
+  options are an equal-width segmented control; four options, or any label
+  that would wrap (sex, birth-date precision), are choice rows in one card. A
+  form's primary action sits full width in a sticky footer.
+- **One filled button per screen.** Other actions are tint-filled secondary
+  buttons, or text links (Cancel, "I have a sign-in code", "Forgot
+  password?"). Lists that open another screen are rows with chevrons, never
+  buttons.
+- **Passwords and long PINs** have a show/hide eye inside the field (44 pt,
+  "Show password" / "Hide password"); showing only unmasks the text, and the
+  value stays in the screen's state. The PIN boxes put their eye at the end
+  of the row, and the Confirm row takes focus only once the PIN row is full.
+
+## App speed (owner 2026-11-06, `digitva-xxfz`)
+
+The app must feel instant on a field phone. Budgets are measured on the
+reference phone (Samsung SM-E146B, 6 GB) with the CI release APK, never a
+debug build, and are p90 over ten runs:
+
+| Moment | Budget |
+| --- | --- |
+| Cold start to the unlock screen | 2.0 s |
+| PIN entered to Home drawn | 1.0 s |
+| Tab switch or screen push to first frame | 300 ms, no blank frame |
+| Open a draft or new interview to first question | 1.5 s |
+| Next / Back page in the WHO form | 200 ms |
+| Typing and scrolling in forms and lists | no dropped frames (60 fps) |
+| Case list of 1,000 rows, first draw | 500 ms |
+| Any SQLite read behind a screen | 50 ms, index-backed |
+| Send of 50 interviews | the UI stays responsive throughout |
+
+- **Measure before fixing.** Each change cites a before/after number from
+  the reference phone. Profiling uses the CI release APK with the React
+  Native performance tools and `adb shell am start -W`; no local release
+  builds.
+- **Startup.** Only what the first screen needs loads at launch: heavy
+  screens (form engine, coding, DORIS, ICD-11) load on first use, and
+  collectors never load the coding engine. No network call blocks the first
+  screen.
+- **Lists.** Long lists are virtualised (`FlatList` with stable keys, fixed
+  row heights where possible, memoised rows); counts come from one aggregate
+  query, never by loading rows.
+- **SQLite.** Every list and lookup query is index-backed (a Jest test checks
+  `EXPLAIN QUERY PLAN` for the named queries); writes are batched in
+  transactions; no query per row; large JSON is parsed once per open.
+- **Rendering.** No work in render that can be memoised; context values are
+  stable; animations run on the UI thread (Reanimated); answers are saved
+  without re-rendering the whole form.
+- **Telemetry.** The existing first-party performance telemetry
+  (`docs/policy/app-performance-telemetry.md`) adds bucketed timings for cold
+  start, unlock to Home and form page change, with the same aggregate-only,
+  no-identifier rules, so slow phones in the field show up.
+
+## Text size, high contrast and screen readers (owner 2026-11-06, `digitva-khxv`)
+
+- **Text size** in Settings: Small, Medium (default) and Large, a segmented
+  control saved with the other UI preferences on the device (not per account,
+  never sent to the server). It scales every text token, the WHO form
+  included: Small 0.9, Medium 1.0, Large 1.2. It multiplies the phone's own
+  font size setting, which the app keeps honouring; the combined scale is
+  capped at 2.0 so screens stay usable. Row heights, PIN boxes and buttons
+  grow with the text; nothing is cut off or overlaps at Large with the phone
+  set to its largest size.
+- **High contrast** in Settings: an on/off switch, saved the same way, that
+  works in light and dark mode. It swaps in a high-contrast palette: body and
+  secondary text at 7:1 or better against their background, primary
+  buttons and links at 7:1, field edges and separators at 3:1, a thicker
+  focus ring, and a stronger canvas/card tone step. Cards still have no
+  borders. Meaning never rests on colour alone (errors keep their icon and
+  message). When the phone itself asks for more contrast (iOS Increase
+  Contrast, Android high-contrast text) the switch starts on.
+- **Screen readers.** There is no in-app switch: the app works with the
+  phone's TalkBack (Android) and VoiceOver (iOS). Every control has a label,
+  role and state (selected, checked, disabled, expanded); screen titles are
+  headings; a new screen puts focus on its title; errors, toasts and notices
+  that appear after an action are announced; decorative icons are hidden;
+  reading order follows the layout; and every gesture (pull to refresh,
+  swipe) has a button or accessibility action that does the same thing. WHO
+  form questions read as question, then the Hindi line, then the choices
+  with their state.
+- **WCAG.** The phone app and the browser screens meet WCAG 2.2 level AA
+  (applied to native apps as W3C's WCAG2ICT guidance describes), with the
+  high-contrast palette at AAA contrast (7:1). The criteria that bite most
+  here:
+  - 1.4.3 and 1.4.11: text 4.5:1 (3:1 at 18 pt or 14 pt bold); focus rings,
+    icons that carry meaning and selected states 3:1. Labelled text fields
+    meet 1.4.11 through their label; the field edge hairline
+    is decorative (the token stays). Disabled
+    controls are exempt but stay legible.
+  - 1.4.4 and 1.4.10: text to 200% (the phone setting times Large) without
+    loss of content; screens scroll vertically and never need sideways
+    scrolling at 320 pt width.
+  - 1.4.1: colour is never the only signal (errors carry an icon and text;
+    selected rows a check mark).
+  - 2.5.8: targets at least 24 pt; this app's own minimum is 44 pt.
+  - 2.5.1 and 2.5.7: every swipe, drag or pull has a single-tap alternative.
+  - 2.4.3, 2.4.6, 2.4.7, 2.4.11: logical focus order, descriptive headings
+    and labels, a visible focus indicator that the sticky footer and bars
+    never cover (hardware keyboard and the browser).
+  - 2.2.1: idle sign-out and any timeout warn first and let the user extend.
+    The phone's 5-minute auto-lock shows a non-modal, announced notice 30
+    seconds before ("This phone locks in 30 seconds") with Stay unlocked,
+    which restarts the timer; any touch does too.
+  - 3.1.1 and 3.1.2: the screen language is set, and Hindi text inside an
+    English screen (or the reverse) carries its own language, so the screen
+    reader pronounces it (`accessibilityLanguage` on iOS, `lang` on the web).
+  - 3.3.1, 3.3.2, 3.3.3: required fields and formats are stated before
+    entry; an error names the field and says how to fix it.
+  - 4.1.2 and 4.1.3: name, role and value on every control; status messages
+    announced without moving focus.
+- **Checking.** Token contrast is checked by a Jest test for every palette
+  (light, dark, both high-contrast). A Jest test walks the rendered screens
+  and fails on a pressable without a label or role, or a target under
+  44 pt. The browser screens are checked with axe-core in Playwright at
+  375, 768 and 1366 px. Each release is checked by hand on a phone with
+  TalkBack, with VoiceOver, at Large text with the largest phone font, and in
+  high contrast; the results go into the release checklist.
+
 ## Phone shell: header, tabs and Help
 
-Owner-approved design, 2026-10-23 (`digitva-gmt7`). The Android app has a 48 dp
-brand-blue header (emblem, a spinner or Offline marker only while syncing or offline, Help,
-the 文A app-language button, account avatar), bottom tabs
-(Home, Interviews, Register death, Sync; the badge on Sync is the unsent count)
+Owner-approved design, 2026-10-23 (`digitva-gmt7`), revised by the owner
+2026-11-05 and 2026-11-06 (`digitva-22i1`: the header and tab bar are light bars on the canvas colour with a
+hairline edge, ink title, primary back arrow; a tab tap returns to that tab's screen without rebuilding it, and
+Android Back on Interviews or Register goes Home). The phone app (Android and iOS alike) has a 48 dp header:
+on a tab root (the accounts list, Home, Interviews, and Register when it is
+a tab) the emblem and "DigitVA"; on any other screen a back arrow in its place
+(Back for assistive tech, 48 dp target) that goes back, or to the account's Home
+when there is nothing to go back to, followed by the screen's title on one line
+(cut short with an ellipsis so the right-hand controls stay); that screen drops
+its large on-page title but keeps any action from its title row on the page. Tab
+roots, the pre-login screens and the forms keep their on-page title, and the
+browser is unchanged. No screen puts its own actions in the bar yet (to be added
+screen by screen).
+On the right only a spinner or Offline marker while syncing or offline, and the
+account avatar. Help and the app language are in the account sheet and Settings,
+not the signed-in header. Screens drop buttons that only went back. Bottom tabs
+(Home, Interviews, Register, Sync; the badge on Sync is the unsent count)
 and an account menu sheet (Settings, Help, language, Lock now, Switch
 profile (locks first), Sign out (keeps the encrypted data, `digitva-dxgj`), version). The
 tabs follow the account's `collection_access`, `registration_access` and
 `registered_deaths_access` through the browser's `navEntries` rules and never
 show coding or review (web-only). Header and tabs are hidden on the interview
-and revision forms; the unlock, sign-in, enrol and PIN screens show a minimal header (emblem, title, 文A) and no tabs; tabs are
+and revision forms; the unlock, sign-in, enrol and PIN screens show a minimal header (emblem, title, 文A, and Help only where "Try DORIS" is offered), no back arrow and no tabs; tabs are
 also hidden while the keyboard is open, while locked and on the accounts list.
 Phones (shortest side under 600 dp) are locked to portrait; tablets rotate.
 Dragging any scrolling screen, the interview form included, closes the keyboard.
@@ -386,18 +546,29 @@ the app's English and Hindi dictionaries, so it works offline; only "Open the
 full guide" needs the network and opens the server's help page in the phone's
 browser.
 
-Home is a dashboard from local data only: the next step (Resume draft, or Start
-an interview when none), the unsent count (Send now) and the cases needing a
-visit (View, opening Interviews on the To do chip), then Register a death when
-the account may register. Interviews searches name, ID, unit and village
+Home is a dashboard from local data only: the counts card (unsent, cases
+needing a visit, opening Interviews on the To do chip, drafts, opening it on
+the Drafts chip). While anything is unsent (or the count is not known yet),
+Send now is the screen's one filled button and the next step (Resume draft, or
+Start an interview when none) is tint-filled; with nothing unsent Send now is
+not shown and the next step is the filled button. Then Register a death when
+the account may register,
+and for coders the coding case lists (Local, Online, My coded cases) as rows
+with chevrons in one card. Interviews searches name, ID, unit and village
 (case-insensitive, Unicode-normalised, so Hindi works), filters by All, Drafts,
 To do, Sent and Revisions with counts, and shows one card per case: the name as
 title, the ID as a muted second line, a status badge and one primary action.
+Interviews has no Send or Refresh button: pulling the list down refreshes it,
+and the Sync sheet's Send now and Refresh buttons are the single-tap
+alternative (2.5.1); the coding case lists sit above the search row.
 Choosing a site and unit is a searchable full-height sheet of unit names (site
 headers only across several real sites; internal placeholder names never
-shown), with the last choice under Recent. Lists show skeleton rows while
+shown), with the last choice under Recent. Register a death shows the site and unit
+as one field (the chosen unit's name, or a prompt) that opens the same sheet with
+the chosen row ticked; when every unit shares one site, the site name is shown
+once under the list instead of on each row. Lists show skeleton rows while
 loading, an empty state with the next action, and a persistent notice while
-offline (Refresh disabled with the reason; work stays on the phone).
+offline (pull-to-refresh off with the reason; work stays on the phone).
 
 Unsent (`mobile/digitva-collect/src/unsentWork.ts`, one count for the Sync badge,
 the Home card and the Sync sheet; never in the header): what Send now uploads
@@ -503,6 +674,58 @@ Every browser screen has a compact language icon at the top right. Outside
 an interview it switches the English/Hindi app UI. During an interview the
 project-configured questionnaire selector occupies that slot and changes
 questionnaire and app UI language together.
+
+**Adding a UI language** (owner 2026-11-06, `digitva-s028`, builds on the
+UI-strings editor in `docs/policy/ui-strings.md` and `digitva-dt1e`): a new
+app language is added the way a questionnaire language is, by an admin on the
+server, and reaches phones and browsers through the API with no app release.
+
+- **Server is the source.** Admin, UI strings (the existing editor, with its
+  machine drafts, review, placeholder and markup checks) holds every language,
+  including ones with no bundled file. A language is offered to clients once
+  an admin publishes it on the Languages panel; machine drafts are never
+  served. `GET /api/v1/ui-strings` lists the published UI languages (code,
+  native name, BCP 47 tag, direction, version, share reviewed), and
+  `GET /api/v1/ui-strings/<locale>` returns the full pack (bundled text with
+  accepted corrections over it, or accepted rows alone for a language with no
+  bundle), versioned with an ETag as now. No sign-in is needed: the packs are
+  reference text with no personal data.
+- **Two layers, one pack.** The pack carries the app strings and the WHO
+  form's own labels (Next, Back, Don't know, validation messages;
+  `vendor/who-va-2022/src/languages/`) as two namespaces, edited on the same
+  admin page. Questionnaire question and choice text stays in the existing
+  instrument translation packs.
+- **Phone.** The app downloads the list and the packs it needs when it can
+  reach its server (start, language switch, sync), keeps the last pack per
+  language on the device, and lays it over the bundled dictionary. Offline it
+  uses the stored pack; with none, the bundled text; missing keys fall back to
+  English. A pack that fails the client's checks (unknown key, placeholder set
+  differing from English, markup) is dropped key by key, never applied. A
+  language the server stops publishing loses its stored pack at the next good
+  list; a failed list request (the server answers `503` when its export cannot
+  be read) leaves the stored list and packs as they were.
+- **Bundled languages** (English, Hindi now) ship in the app so the first
+  screen, an unenrolled phone and standalone mode work offline. Before
+  enrolment only bundled languages are offered. A published language moves
+  into the bundle at a release with `flask ui-strings bake`, as the strings
+  policy describes.
+- **No language codes in screens.** Pickers, date and number formatting and
+  screen-reader language tags read one list: bundled languages plus the
+  server's published list. A guard test fails on a hard-coded code (`"hi"`)
+  outside the strings and data files. Two or three languages show a segmented
+  control; four or more a list sheet, each name in its own script.
+- **Questionnaire languages** are added and published by admins (Languages,
+  Instrument translations) and reach phones as translation packs. The phone
+  offers every questionnaire language the project enables, whether or not a
+  UI pack exists for it; without one, the app's own text stays English (the
+  earlier filter to UI languages is dropped).
+- **Right-to-left** (Urdu): the language's direction is honoured through React
+  Native's RTL support with mirrored chevrons and back arrows; an RTL
+  language stays unpublished until checked on a phone.
+- **Fonts:** system fonts only; a phone that cannot draw a script does not
+  offer that language.
+- **Review state** travels with the pack, so the app can label a language
+  "machine-translated" until a native speaker has reviewed it.
 
 The shared theme uses platform system fonts with Latin and Devanagari support,
 semantic light and dark colors, and touch controls at least 48 pixels high.

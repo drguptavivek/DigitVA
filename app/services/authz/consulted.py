@@ -57,9 +57,12 @@ PUBLIC_ENDPOINTS = {
               "the probe asserts it.",
     "expo_client.expo_index": "Public Expo web-app shell; no case data.",
     "expo_client.expo_asset": "Public Expo bundle assets; no case data.",
-    "api_v1.ui_strings_api.ui_string_overrides": "Public UI string corrections (the sign-in "
+    "api_v1.ui_strings_api.ui_languages": "Public list of published UI languages (the sign-in "
                                           "screen is translated too); reference text "
                                           "only, no personal data (ui-strings.md).",
+    "api_v1.ui_strings_api.ui_string_pack": "Public UI language pack (the sign-in screen is "
+                                            "translated too); reference text only, no "
+                                            "personal data (ui-strings.md).",
     "api_v1.app_release_api.server_version": "Public server compatibility and build revision; no user data.",
     "api_v1.app_release_api.android_latest": "Public app-update check: version and download "
                                              "link, no user data.",

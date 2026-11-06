@@ -2,7 +2,8 @@ import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 20, left: 0, right: 0 }) }));
-import { TOAST_ERROR_MS, TOAST_EXPANDED_MS, TOAST_MS, ToastProvider, useToast } from "../src/toast";
+import { TOAST_ERROR_MS, TOAST_EXPANDED_MS, TOAST_MS, ToastProvider, useToast, useToastClearance } from "../src/toast";
+import { ui } from "../src/theme";
 
 let show!: ReturnType<typeof useToast>["show"];
 function Probe() {
@@ -78,4 +79,26 @@ it("is a polite live region that lets touches through around it and sits above t
   expect(json).toContain('"accessibilityLiveRegion":"polite"');
   expect(json).toContain('"pointerEvents":"box-none"');
   expect(json).toContain('"bottom":36');
+});
+
+it("sits above a bar that reserves its height, and back above the inset once the bar is gone", async () => {
+  function Bar() {
+    useToastClearance(72);
+    return null;
+  }
+  await act(async () => tree.update(<ToastProvider><Probe /><Bar /></ToastProvider>));
+  await act(async () => { show({ kind: "info", text: "hello" }); });
+  expect(text(tree)).toContain('"bottom":88');
+  await act(async () => tree.update(<ToastProvider><Probe /></ToastProvider>));
+  expect(text(tree)).toContain('"bottom":36');
+});
+
+it("has no outline: error is the error tint with error text, info the primary tint", async () => {
+  await act(async () => { show({ kind: "error", text: "failed" }); show({ kind: "info", text: "note" }); });
+  const [error, info] = alerts(tree).map((node) => node.props.style);
+  expect(error).toMatchObject({ backgroundColor: ui.light.destructiveSoft });
+  expect(info).toMatchObject({ backgroundColor: ui.light.accent });
+  for (const style of [error, info]) expect(style.borderWidth ?? 0).toBe(0);
+  expect(text(tree)).toContain(`"color":"${ui.light.destructiveText}"`);
+  expect(text(tree)).toContain(`"color":"${ui.light.accentForeground}"`);
 });

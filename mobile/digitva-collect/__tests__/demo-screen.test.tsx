@@ -16,8 +16,13 @@ jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
     Button: (props: { label: string }) => ReactActual.createElement("button", props),
+    // The password field with its eye, as the masked text input it wraps.
+    PasswordInput: (props: object) => ReactActual.createElement("textinput", { ...props, secureTextEntry: true }),
     Screen: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("screen", null, children),
     errorText: () => "generic",
+    // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
+    Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, card: {} }),
   };
 });

@@ -1,24 +1,24 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { Platform, useColorScheme, type TextStyle } from "react-native";
+import { AccessibilityInfo, Platform, useColorScheme, useWindowDimensions, type TextStyle } from "react-native";
 
 import {
+  getUiHighContrast,
+  getUiTextSize,
   getUiTheme,
+  peekUiHighContrast,
+  peekUiTextSize,
   peekUiTheme,
+  setUiHighContrast,
+  setUiTextSize,
   setUiTheme,
   subscribeUiPreferences,
+  type HighContrastPreference,
+  type TextSizePreference,
   type ThemePreference
 } from "./preferences";
+import { petrolHex } from "./themeColors";
 
 export type ColorMode = "light" | "dark";
-
-/**
- * Brand blue, the only raw hexes outside the `ui` table. `primary` fills buttons and dots, `soft` is the
- * selected-row fill, `ring` the focus ring. Text on `soft` keeps >= 4.5:1 (ui-consistency contrast test).
- */
-const brand = {
-  light: { primary: "#1D4ED8", pressed: "#1E40AF", soft: "#E8F0FF", on: "#FFFFFF", ring: "#2563EB" },
-  dark: { primary: "#78A9FF", pressed: "#A7C4FF", soft: "#1C3764", on: "#081429", ring: "#9CC0FF" }
-} as const;
 
 /** shadcn writes tokens as "H S% L%"; React Native needs hex, so the table below stays in shadcn's own numbers. */
 export function hsl(h: number, s: number, l: number): string {
@@ -52,6 +52,10 @@ export type UiTokens = {
   /** chart-1..5: Part I lines A-E; `chartPart2` is the slate Part II family. */
   chart: readonly ChartToken[];
   chartPart2: ChartToken;
+  /** Petrol extensions: `primaryTint` (selected rows, secondary buttons; the same value as `accent`), `attention`
+   * (the amber badge fill, only ever with `onAttention` ink text) and its row tint, the success tint, and the
+   * inset hairline between rows of a card. */
+  primaryTint: string; attention: string; onAttention: string; attentionTint: string; successTint: string; separator: string;
   /** Modal backdrop behind dialogs and sheets. */
   scrim: string;
   /** Box shadow of popovers, menus and dialogs (web CSS `boxShadow`); native uses `elevation`. */
@@ -83,21 +87,28 @@ const zincDark = {
 /**
  * shadcn/ui "zinc" semantic tokens for the DORIS editor (docs/current-state/doris-ui-tokens.md).
  * The single token source of the app: `palette` (old screens), `webPalette` and the WHO CSS variables are derived from it.
- * Neutrals are shadcn's; `primary` and `ring` are the DigitVA brand blue.
+ * Names are shadcn's; the values are the Petrol theme (src/themeColors.ts, OKLCH source), normal or high contrast.
  */
-export const ui: Record<ColorMode, UiTokens> = {
+function petrolTokens(petrolLight: ReturnType<typeof petrolHex>, petrolDark: ReturnType<typeof petrolHex>): Record<ColorMode, UiTokens> {
+  return {
   light: {
     ...zincLight,
-    // Blend with the app: tinted secondary/muted/accent and a stronger 1px border; cards stay white on the white page surface.
-    page: "#F6F8FB",
-    // `accent` is the brand-soft selected fill (choice rows, chips); text on it is `accentForeground`.
-    secondary: "#EEF3F8", muted: "#EEF3F8", accent: brand.light.soft, accentForeground: "#10233F", mutedForeground: "#53657A",
-    // `border` is the card/divider hairline; `input` the stronger (>= 3:1) edge of every control, choice row and outline button.
-    border: "#CBD5E1", input: "#6B7C93",
-    primary: brand.light.primary, primaryForeground: brand.light.on, primaryPressed: brand.light.pressed,
-    destructiveText: "#B42318", destructiveSoft: "#FDECEC", success: "#1F7A4D", warningText: "#9A6700", disabled: "#8A99AA",
-    warning: "#FEF3C7", warningForeground: "#3B2200", warningBorder: "#B45309",
-    ring: brand.light.ring,
+    // Petrol: cards (white) on the canvas; inputs are white fills on the canvas with no edge until focused.
+    page: petrolLight.canvas, background: petrolLight.card, card: petrolLight.card, popover: petrolLight.card,
+    foreground: petrolLight.text, cardForeground: petrolLight.text, popoverForeground: petrolLight.text,
+    // `secondary`/`muted` are the neutral fill (chips, segmented track); `accent` is the primary tint (selected fill).
+    secondary: petrolLight.neutralFill, secondaryForeground: petrolLight.text, muted: petrolLight.neutralFill,
+    accent: petrolLight.primaryTint, accentForeground: petrolLight.text, mutedForeground: petrolLight.secondaryText,
+    // `border` is the inset hairline; `input` the >= 3:1 edge of checkboxes, radios and outline buttons.
+    border: petrolLight.separator, input: petrolLight.controlEdge,
+    primary: petrolLight.primary, primaryForeground: petrolLight.onPrimary, primaryPressed: petrolLight.primaryPressed,
+    destructive: petrolLight.error, destructiveForeground: petrolLight.onPrimary,
+    destructiveText: petrolLight.error, destructiveSoft: petrolLight.errorTint, success: petrolLight.success,
+    warningText: petrolLight.guidance, disabled: petrolLight.disabled,
+    warning: petrolLight.accentTint, warningForeground: petrolLight.text, warningBorder: petrolLight.guidance,
+    ring: petrolLight.primary,
+    primaryTint: petrolLight.primaryTint, attention: petrolLight.accent, onAttention: petrolLight.onAccent,
+    attentionTint: petrolLight.accentTint, successTint: petrolLight.successTint, separator: petrolLight.separator,
     chart: [
       { bar: "#C2185B", tint: "#FCE4EC", soft: "#F8BBD0", foreground: "#4A0A24" },
       { bar: "#B45309", tint: "#FEF3C7", soft: "#FCD34D", foreground: "#3B2200" },
@@ -111,18 +122,22 @@ export const ui: Record<ColorMode, UiTokens> = {
   },
   dark: {
     ...zincDark,
-    // The page and input fill are one tone (#131E2E); cards sit one step lighter, borders lighter than both.
-    background: "#131E2E", page: "#131E2E", foreground: "#F4F7FB",
-    card: "#1B2A3D", cardForeground: "#F4F7FB",
-    popover: "#1B2A3D", popoverForeground: "#F4F7FB",
-    secondary: "#243449", secondaryForeground: "#F4F7FB",
-    muted: "#243449", mutedForeground: "#B5C2D1",
-    accent: brand.dark.soft, accentForeground: "#F4F7FB",
-    border: "#3E5068", input: "#7C90AB",
-    primary: brand.dark.primary, primaryForeground: brand.dark.on, primaryPressed: brand.dark.pressed,
-    destructiveText: "#FF8A80", destructiveSoft: "#4B2025", success: "#75D5A4", warningText: "#F5C76B", disabled: "#718097",
-    warning: "#38280B", warningForeground: "#FFF3D1", warningBorder: "#FBBF24",
-    ring: brand.dark.ring,
+    // Derived dark mode: the card tone for cards and inputs on the dark canvas; no shadow.
+    page: petrolDark.canvas, background: petrolDark.card, card: petrolDark.card, popover: petrolDark.card,
+    foreground: petrolDark.text, cardForeground: petrolDark.text, popoverForeground: petrolDark.text,
+    secondary: petrolDark.neutralFill, secondaryForeground: petrolDark.text, muted: petrolDark.neutralFill,
+    accent: petrolDark.primaryTint, accentForeground: petrolDark.text, mutedForeground: petrolDark.secondaryText,
+    border: petrolDark.separator, input: petrolDark.controlEdge,
+    // Dark-mode buttons carry ink text.
+    primary: petrolDark.primary, primaryForeground: petrolDark.onPrimary, primaryPressed: petrolDark.primaryPressed,
+    // The error fill stays the light-mode red (light text 5.5:1); the dark error colour is for text only.
+    destructive: petrolLight.error, destructiveForeground: petrolDark.text,
+    destructiveText: petrolDark.error, destructiveSoft: petrolDark.errorTint, success: petrolDark.success,
+    warningText: petrolDark.guidance, disabled: petrolDark.disabled,
+    warning: petrolDark.accentTint, warningForeground: petrolDark.text, warningBorder: petrolDark.accent,
+    ring: petrolDark.primary,
+    primaryTint: petrolDark.primaryTint, attention: petrolDark.accent, onAttention: petrolDark.onAccent,
+    attentionTint: petrolDark.accentTint, successTint: petrolDark.successTint, separator: petrolDark.separator,
     chart: [
       { bar: "#F48FB1", tint: "#3B1A27", soft: "#6A2540", foreground: "#FFE4EE" },
       { bar: "#FBBF24", tint: "#38280B", soft: "#6B4A0C", foreground: "#FFF3D1" },
@@ -134,7 +149,12 @@ export const ui: Record<ColorMode, UiTokens> = {
     scrim: "rgba(0, 0, 0, 0.6)",
     shadow: "0 8px 24px rgba(0, 0, 0, 0.5)"
   }
-};
+  };
+}
+
+export const ui: Record<ColorMode, UiTokens> = petrolTokens(petrolHex("light"), petrolHex("dark"));
+/** Settings > Display > High contrast: the same token names on the high-contrast Petrol palette. */
+export const uiHighContrast: Record<ColorMode, UiTokens> = petrolTokens(petrolHex("light", true), petrolHex("dark", true));
 
 export type RoleTone = "reporter" | "interviewer" | "supervisor" | "coder" | "reviewer" | "manager" | "pi" | "admin" | "neutral";
 type RoleColours = { bg: string; border: string; fg: string };
@@ -192,11 +212,16 @@ const webFontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
 /** The one font-size scale: 12 caption, 14 body/label, 16 inputs and choice rows (no iOS zoom), 18/20/24/26 headings. */
 export const fontSize = { caption: 12, body: 14, input: 16, headline: 18, heading: 20, title: 24, display: 26 } as const;
 
-/** System fonts provide broad multi-script coverage; the web gets an explicit fallback stack. */
+/**
+ * System fonts provide broad multi-script coverage; the web gets an explicit fallback stack. These are the Medium
+ * sizes; screens read `useTheme().typography` (and `.fontSize`), which carry the Text size setting.
+ */
 export const typography = {
   largeTitle: { fontSize: fontSize.display, lineHeight: 34, fontWeight: "700" as const },
   title: { fontSize: fontSize.title, lineHeight: 32, fontWeight: "700" as const },
   headline: { fontSize: fontSize.headline, lineHeight: 26, fontWeight: "600" as const },
+  /** Sheet titles and a screen's one name heading (Unlock, Set PIN): 20pt semibold, below the page title. */
+  heading: { fontSize: fontSize.heading, lineHeight: 28, fontWeight: "600" as const },
   body: { fontSize: fontSize.input, lineHeight: 24, fontWeight: "400" as const },
   subhead: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "400" as const },
   caption: { fontSize: fontSize.caption, lineHeight: 16, fontWeight: "400" as const }
@@ -212,9 +237,13 @@ export const controlText = { includeFontPadding: false, textAlignVertical: "cent
 /** One radius scale (lg cards, md controls, sm chips/badges inside controls, full pills/dots). */
 export const radius = uiRadius;
 
-/** Control height 40, 44 minimum tap target on touch/phone, 1px borders, 12px gaps, 16px card padding. */
+/**
+ * Control height 48 (fields and full-width buttons), 36 for compact controls inside a row (segmented, chips, small
+ * buttons; their hit slop makes the 44 tap target), 44 minimum tap target, 12px gaps, 16px card padding.
+ */
 export const controls = {
-  minHeight: 40,
+  minHeight: 48,
+  compactHeight: 36,
   minTouchTarget: 44,
   borderWidth: 1,
   gap: spacing.sm,
@@ -239,62 +268,185 @@ const paletteOf = (t: UiTokens): Palette => ({
 });
 
 export const palette: Record<ColorMode, Palette> = { light: paletteOf(ui.light), dark: paletteOf(ui.dark) };
+const paletteHighContrast: Record<ColorMode, Palette> = { light: paletteOf(uiHighContrast.light), dark: paletteOf(uiHighContrast.dark) };
 
 export type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
 export type ButtonSize = "sm" | "default" | "icon";
 
-/** Fill, border and text colour of a button variant; shared by `Button` in src/ui.tsx and the DORIS kit. */
+/**
+ * Fill, border and text colour of a button variant; shared by `Button` in src/ui.tsx and the DORIS kit.
+ * Petrol: primary filled, secondary tint-filled with primary text (no outline inside a card), destructive red text.
+ */
 export const buttonTone = (t: UiTokens, variant: ButtonVariant) => ({
   default: { bg: t.primary, border: t.primary, fg: t.primaryForeground },
-  secondary: { bg: t.secondary, border: t.secondary, fg: t.secondaryForeground },
+  secondary: { bg: t.primaryTint, border: t.primaryTint, fg: t.primary },
   outline: { bg: t.background, border: t.input, fg: t.foreground },
   ghost: { bg: "transparent", border: "transparent", fg: t.foreground },
-  destructive: { bg: t.destructive, border: t.destructive, fg: t.destructiveForeground }
+  destructive: { bg: "transparent", border: "transparent", fg: t.destructiveText }
 })[variant];
+
+/** `fg` laid over `bg` at `alpha` (0..1), as hex: the colour a faded label draws. */
+export function blendHex(fg: string, bg: string, alpha: number): string {
+  const channel = (hex: string, at: number) => parseInt(hex.slice(at, at + 2), 16);
+  const mix = (at: number) => Math.round(channel(fg, at) * alpha + channel(bg, at) * (1 - alpha)).toString(16).padStart(2, "0");
+  return `#${mix(1)}${mix(3)}${mix(5)}`.toUpperCase();
+}
+
+const luminance = (hex: string) => {
+  const linear = (at: number) => {
+    const c = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linear(1) + 0.7152 * linear(3) + 0.0722 * linear(5);
+};
+
+/** WCAG contrast ratio of two hex colours. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * A disabled filled button: the primary tint with the primary label faded toward it, never the canvas grey (which
+ * read as a missing button). The fade starts at 60% and stops where the label would fall under 4.5:1.
+ */
+export const disabledButtonTone = (t: UiTokens) => {
+  let alpha = 0.6;
+  while (alpha < 1 && contrastRatio(blendHex(t.primary, t.primaryTint, alpha), t.primaryTint) < 4.5) alpha = Math.min(1, alpha + 0.05);
+  return { bg: t.primaryTint, border: t.primaryTint, fg: blendHex(t.primary, t.primaryTint, alpha) };
+};
 
 /** Minimum button width (also chips): short labels such as "No" or "Add" never collapse into a circle. */
 export const BUTTON_MIN_WIDTH = 72;
+/** A switch's thumb: white in both modes and contrasts, on the primary (on) or border (off) track. */
+export const SWITCH_THUMB = "#ffffff";
+
+/** Settings > Display > Text size: the factor each choice puts on every text token. */
+export const TEXT_SIZE_SCALE: Record<TextSizePreference, number> = { small: 0.9, medium: 1, large: 1.2 };
+/** The largest text the app draws: the Text size choice times the phone's font size, capped (WCAG 1.4.4, 200%). */
+export const MAX_TEXT_SCALE = 2;
+
+/**
+ * The factor the font tokens carry. React Native multiplies every font size and line height by the phone's font
+ * scale itself, so the tokens carry the Text size choice divided back by whatever exceeds the 2.0 cap: on screen
+ * the text is choice x phone scale, never more than 2.0x the Medium size. A missing or zero phone scale is 1.
+ */
+export function tokenTextScale(size: TextSizePreference, osFontScale: number): number {
+  const os = osFontScale > 0 ? osFontScale : 1;
+  return Math.min(TEXT_SIZE_SCALE[size] * os, MAX_TEXT_SCALE) / os;
+}
+
+export type Typography = Record<keyof typeof typography, { fontSize: number; lineHeight: number; fontWeight: NonNullable<TextStyle["fontWeight"]> }>;
+export type FontSizes = Record<keyof typeof fontSize, number>;
+
+const scaled = (value: number, factor: number) => Math.round(value * factor * 2) / 2;
+
+/** The text tokens times `factor` (sizes and line heights, to the half point). */
+export function scaleTypography(factor: number): { typography: Typography; fontSize: FontSizes } {
+  const entries = Object.entries(typography).map(([name, style]) => [name, { ...style, fontSize: scaled(style.fontSize, factor), lineHeight: scaled(style.lineHeight, factor) }]);
+  const sizes = Object.entries(fontSize).map(([name, size]) => [name, scaled(size, factor)]);
+  return { typography: Object.fromEntries(entries) as Typography, fontSize: Object.fromEntries(sizes) as FontSizes };
+}
 
 export type Theme = {
   mode: ColorMode;
+  /** Settings > Display > High contrast, after the phone's own contrast setting (src/themeColors.ts petrolHighContrast). */
+  highContrast: boolean;
+  /** The factor on the text tokens (tokenTextScale); sizes that must grow with the text (PIN digits) multiply by it. */
+  textScale: number;
+  /** Width of the focus ring on the field being typed in (and the web outline): thicker in high contrast. */
+  focusWidth: number;
   colors: Palette;
   spacing: typeof spacing;
-  typography: typeof typography;
+  typography: Typography;
+  fontSize: FontSizes;
   radius: typeof radius;
   controls: typeof controls;
   ui: UiTokens;
 };
 
-export function getTheme(mode: ColorMode): Theme {
-  return { mode, colors: palette[mode], spacing, typography, radius, controls, ui: ui[mode] };
+const scaleCache = new Map<number, ReturnType<typeof scaleTypography>>();
+
+export function getTheme(mode: ColorMode, options: { highContrast?: boolean; textScale?: number } = {}): Theme {
+  const highContrast = options.highContrast ?? false;
+  const textScale = options.textScale ?? 1;
+  let text = scaleCache.get(textScale);
+  if (!text) {
+    text = scaleTypography(textScale);
+    scaleCache.set(textScale, text);
+  }
+  return {
+    mode, highContrast, textScale, focusWidth: highContrast ? 3 : 2,
+    colors: (highContrast ? paletteHighContrast : palette)[mode], spacing, ...text, radius, controls,
+    ui: (highContrast ? uiHighContrast : ui)[mode]
+  };
 }
 
 /*
- * One shared preference store. Every useTheme() instance reads the same
- * in-memory value synchronously, so a remount never repaints with another
- * scheme. Web primes from localStorage at module load (before first render);
- * native renders the system scheme until its single async read lands.
+ * One shared preference store (theme, text size, high contrast, and the phone's own contrast setting). Every
+ * useTheme() instance reads the same in-memory value synchronously, so a remount never repaints with another
+ * scheme. Web primes from localStorage at module load (before first render); native renders the defaults until
+ * its async reads land.
  */
-let storedPreference: ThemePreference = peekUiTheme() ?? "system";
+type DisplayState = {
+  theme: ThemePreference;
+  textSize: TextSizePreference;
+  highContrast: HighContrastPreference;
+  /** The phone asks for more contrast (Android high-contrast text, iOS Increase Contrast, web prefers-contrast). */
+  osHighContrast: boolean;
+};
+let stored: DisplayState = {
+  theme: peekUiTheme() ?? "system",
+  textSize: peekUiTextSize() ?? "medium",
+  highContrast: peekUiHighContrast() ?? "system",
+  osHighContrast: false
+};
 const storeListeners = new Set<() => void>();
 
-function applyPreference(next: ThemePreference) {
-  if (next === storedPreference) return;
-  storedPreference = next;
+function applyDisplay(patch: Partial<DisplayState>) {
+  const next = { ...stored, ...patch };
+  if ((Object.keys(next) as (keyof DisplayState)[]).every((key) => next[key] === stored[key])) return;
+  stored = next;
   for (const listener of storeListeners) listener();
 }
 
-if (peekUiTheme() === null) {
-  void getUiTheme()
-    // getUiPreference already lets a preference set while the read was in flight win.
-    .then(applyPreference)
+if (peekUiTheme() === null || peekUiTextSize() === null || peekUiHighContrast() === null) {
+  // getUiPreference already lets a preference set while the read was in flight win.
+  void Promise.all([getUiTheme(), getUiTextSize(), getUiHighContrast()])
+    .then(([theme, textSize, highContrast]) => applyDisplay({ theme, textSize, highContrast }))
     .catch(() => undefined);
 }
 subscribeUiPreferences(() => {
   // Unknown (null) means keep the current value, e.g. a locale change before any theme read.
-  const next = peekUiTheme();
-  if (next !== null) applyPreference(next);
+  const patch: Partial<DisplayState> = {};
+  const theme = peekUiTheme();
+  const textSize = peekUiTextSize();
+  const highContrast = peekUiHighContrast();
+  if (theme !== null) patch.theme = theme;
+  if (textSize !== null) patch.textSize = textSize;
+  if (highContrast !== null) patch.highContrast = highContrast;
+  applyDisplay(patch);
 });
+
+/** The phone's own contrast request, read once and followed while the app runs. Missing APIs mean "no". */
+function watchOsContrast() {
+  if (Platform.OS === "web") {
+    const query = typeof globalThis.matchMedia === "function" ? globalThis.matchMedia("(prefers-contrast: more)") : undefined;
+    if (!query) return;
+    applyDisplay({ osHighContrast: query.matches });
+    query.addEventListener?.("change", (event) => applyDisplay({ osHighContrast: event.matches }));
+    return;
+  }
+  const android = Platform.OS === "android";
+  const read = android ? AccessibilityInfo.isHighTextContrastEnabled : AccessibilityInfo.isDarkerSystemColorsEnabled;
+  if (typeof read !== "function") return;
+  void read.call(AccessibilityInfo).then((on) => applyDisplay({ osHighContrast: Boolean(on) })).catch(() => undefined);
+  const onChange = (on: boolean) => applyDisplay({ osHighContrast: Boolean(on) });
+  if (typeof AccessibilityInfo.addEventListener !== "function") return;
+  if (android) AccessibilityInfo.addEventListener("highTextContrastChanged", onChange);
+  else AccessibilityInfo.addEventListener("darkerSystemColorsChanged", onChange);
+}
+watchOsContrast();
 
 function subscribeStore(listener: () => void) {
   storeListeners.add(listener);
@@ -302,28 +454,53 @@ function subscribeStore(listener: () => void) {
     storeListeners.delete(listener);
   };
 }
-const getStoredPreference = () => storedPreference;
+const getStored = () => stored;
+
+/** High contrast is on when chosen, or, until the user chooses, when the phone asks for more contrast. */
+export const highContrastOn = (preference: HighContrastPreference, osHighContrast: boolean) =>
+  preference === "system" ? osHighContrast : preference === "on";
 
 /**
- * Theme hook. The stored preference is UI-only and defaults to the platform
- * colour scheme. Hindi and other scripts continue to use the platform font.
+ * Theme hook. The stored preferences are UI-only and device-local: colour scheme (defaults to the platform's),
+ * text size and high contrast. Hindi and other scripts continue to use the platform font.
  */
 export function useTheme(): Theme & {
   preference: ThemePreference;
   setPreference: (preference: ThemePreference) => Promise<void>;
+  textSize: TextSizePreference;
+  setTextSize: (size: TextSizePreference) => Promise<void>;
+  setHighContrast: (on: boolean) => Promise<void>;
 } {
   const systemScheme = useColorScheme();
-  const preference = useSyncExternalStore(subscribeStore, getStoredPreference, getStoredPreference);
-  const mode: ColorMode = preference === "system" ? (systemScheme === "dark" ? "dark" : "light") : preference;
-  const theme = useMemo(() => getTheme(mode), [mode]);
+  const { fontScale } = useWindowDimensions();
+  const state = useSyncExternalStore(subscribeStore, getStored, getStored);
+  const mode: ColorMode = state.theme === "system" ? (systemScheme === "dark" ? "dark" : "light") : state.theme;
+  const highContrast = highContrastOn(state.highContrast, state.osHighContrast);
+  const textScale = tokenTextScale(state.textSize, fontScale);
+  const theme = useMemo(() => getTheme(mode, { highContrast, textScale }), [mode, highContrast, textScale]);
   const updatePreference = useCallback(async (next: ThemePreference) => {
-    applyPreference(next);
+    applyDisplay({ theme: next });
     await setUiTheme(next);
   }, []);
-  return { ...theme, preference, setPreference: updatePreference };
+  const updateTextSize = useCallback(async (next: TextSizePreference) => {
+    applyDisplay({ textSize: next });
+    await setUiTextSize(next);
+  }, []);
+  // The user's choice is stored explicitly, so it wins over the phone's setting from then on.
+  const updateHighContrast = useCallback(async (on: boolean) => {
+    const next = on ? "on" : "off";
+    applyDisplay({ highContrast: next });
+    await setUiHighContrast(next);
+  }, []);
+  return { ...theme, preference: state.theme, setPreference: updatePreference, textSize: state.textSize, setTextSize: updateTextSize, setHighContrast: updateHighContrast };
 }
 
 /** Test seam: reset the shared store to an explicit preference. */
 export function __setThemePreferenceForTest(next: ThemePreference) {
-  applyPreference(next);
+  applyDisplay({ theme: next });
+}
+
+/** Test seam: set text size, high contrast or the phone's contrast setting in the shared store. */
+export function __setDisplayForTest(patch: Partial<DisplayState>) {
+  applyDisplay(patch);
 }

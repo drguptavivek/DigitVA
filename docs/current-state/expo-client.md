@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-06
 ---
 
 # Expo Client Hosting And Access
@@ -43,8 +43,10 @@ The HMR overlay points Flask at the small
 `deploy/expo-hmr/index.html` sentinel only to mark the Expo client as present;
 the browser shell itself comes from Metro. `src/strings/*.json` is mounted as
 `ui-strings` for the administrative bundle reader; Metro bundles client strings
-from source. `GET /api/v1/ui-strings/<locale>` supplies database corrections only
-and retains its existing 60-second cache. A named Docker volume holds
+from source. `GET /api/v1/ui-strings/<locale>` supplies the full pack of a
+published language (bundled text with database corrections over it, plus the
+WHO form labels) and retains its existing 60-second cache. Under HMR no
+`form-*.json` is mounted, so the form-label namespace is empty there. A named Docker volume holds
 `mobile/digitva-collect/node_modules`; the host's dependencies are not
 overwritten. `make dev-hmr-stop` stops only the two HMR containers and restores
 the ordinary Flask binding on port 8051. This path does not run an Expo export,
@@ -476,20 +478,46 @@ helpers in `src/training.ts`.
   `training=1`. The menu keeps the user's own bootstrap (`unscopedBootstrap`).
 - The Expo home sends a trainee with Start pending to `/training` once per
   browser session (`takeTrainingRedirect`); the Flask hook skips `/app/`.
-- New UI strings are in `src/strings/en.json` and `hi.json`.
+- New UI strings are in `src/strings/en.json` and `hi.json`, or the theme
+  screens' `theme-en.json` and `theme-hi.json`.
 
 ## Web export and UI string corrections
 
-`npm run export:web` in `mobile/digitva-collect` runs `expo export --platform web`
-and then copies `src/strings/*.json` into `dist/ui-strings/`. The server reads
-those files for the UI string corrections (digitva-fsjz): the reference is
-`dist/ui-strings/en.json`, and each other `<locale>.json` is the bundled text a
-correction is checked against. Only the export is in the server image (see
+`npm run export:web` in `mobile/digitva-collect` runs `expo export --platform web`,
+copies `src/strings/*.json` into `dist/ui-strings/` and runs
+`scripts/export-form-ui-strings.mjs`, which writes the WHO form labels as
+`dist/ui-strings/form-<locale>.json` (`form-en.json` is the reference, from the
+vendor's English templates). The server reads those files for the UI string
+editor and packs (digitva-fsjz, digitva-s028): the reference is `en.json` with
+`theme-en.json` and `form-en.json`, and each other locale's files are the
+bundled text a correction is checked against. Only the export is in the server image (see
 `.dockerignore`), so rebuild the export after changing a bundled string.
 
 The loader reads a file again only when its mtime changes, so a rebuilt export
-is seen without a restart. A locale is served through `GET /api/v1/ui-strings/<locale>`;
-the policy and the admin page are in `docs/policy/ui-strings.md`.
+is seen without a restart. `GET /api/v1/ui-strings` lists the published UI
+languages and `GET /api/v1/ui-strings/<locale>` serves one's pack; the policy
+and the admin page are in `docs/policy/ui-strings.md`.
+
+## UI languages on the client (digitva-dt1e, digitva-s028)
+
+- `src/i18n.ts` holds one language list: the bundled languages (English,
+  Hindi) plus, on an enrolled phone or in a browser, the server's published
+  ltr languages (right-to-left is not offered yet). Each entry has the code,
+  the name in its own script, the BCP 47 tag, the direction and the review
+  share. `normalizeLocale`, `uiLanguageTag()` (date and number formatting)
+  and `translate(locale, key)` read it; `t()` is the server pack, then the
+  bundled text, then English, per key.
+- `src/uiPacks.ts` fetches the list and the current language's pack (start,
+  language switch, after a phone sync), checks each key, stores the last copy
+  (`src/uiPackStore.ts` / `.native.ts`) and exposes `useUiLanguages()` and
+  `formUiTranslations(base)` for the WHO form's `uiTranslations` prop. Before
+  enrolment and in standalone mode only the bundled languages are offered.
+- `questionnaireLocales` no longer filters to UI languages: every
+  questionnaire language the project enables is offered, and the app's own
+  text stays English for one with no UI pack.
+- `__tests__/ui-language-code-guard.test.ts` fails on a quoted UI language
+  code (`"hi"`, `"hi-IN"`) in `src/` outside the strings and data files, with
+  an allow-list naming the reason for each exception.
 
 ## Registration numbers (digitva-kzyp, stage 3)
 
@@ -560,22 +588,199 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   `filter=todo|drafts|sent|revisions` opens it on a chip). Home is the
   dashboard (next step, unsent, cases needing a visit, Register a death);
   Interviews is a search box, filter chips with counts and a `FlatList` of
-  cards, one primary action each. Both are built from the same local rows
+  cards, one primary action each, refreshed by pulling the list
+  (`RefreshControl`); its Send and Refresh buttons moved to the Sync sheet.
+  The coding case lists (`src/ui/CodingCaseChips.tsx`) are rows of one grouped
+  card on Home, above the Interviews search and in Settings. The mode banner
+  (`ModeBanner.tsx`) treats the account list and the standalone setup routes
+  as standalone only while the phone has no server enrolment (`device`); a
+  standalone account's own screens keep it. Both are built from the same local rows
   (`src/ui/interviewRows.ts`, pure), views in `src/nativeRoutes/worklistParts.tsx`.
   The site/unit picker (`src/ui/ChoiceSheet.tsx`, model `src/ui/sitePicker.ts`)
   lists unit names only, groups by site only across several real sites, hides
   internal placeholder names, and keeps the last choice per project in the
   interviewer's encrypted `meta` (`src/recentTarget.ts`). `src/ui/StateView.tsx`
   holds the Empty, Loading (skeleton rows) and Offline states.
+- `NativeChrome.tsx` draws the header bar (owner revision 2026-11-05, same on
+  Android and iOS, since iOS has no system back button). Tab roots
+  (`isNativeTabRoot` in `navAdapter.ts`) show the emblem; every other route
+  with the header shows a back chevron in its place, then the screen's title
+  (one line, ellipsized). The chevron goes
+  `router.back()`, or with no history replaces to the account's home. Help and
+  文A show in the bar only before sign-in; after sign-in they are in the
+  Account sheet and Settings. `Screen` (`src/ui.tsx`) publishes its `title`
+  through the shell (`publishTitle`; the newest mounted screen wins, so popping
+  a pushed screen shows the one underneath again), and when `shell.titleInBar`
+  (`showNativeBackTitle` in `navAdapter.ts`, the same rule as the arrow) it
+  drops the on-page title, keeping any `headerAction` right-aligned on the
+  page. Tab roots, pre-login and immersive screens and the browser keep the
+  on-page title. No per-screen bar actions yet. Back-only
+  text buttons are gone; Cancel and Save buttons stay. Register's site and unit
+  is one field that opens the site picker sheet. Home starts with the logo,
+  "DigitVA" and the project name (`Screen` `lead`). The launch screen is the
+  logo on white (`expo-splash-screen` in `app.json`).
+- Look of the bars (`digitva-22i1`, toward `docs/design/collect-petrol-theme`):
+  header and tab bar are the canvas colour (`ui.page`) with a hairline
+  separator, the title in ink, the chevron, Help and 文A in primary, the
+  avatar on the primary tint. The active tab is primary with a semibold 12 pt
+  label, the others muted; there is no indicator bar. The root `Stack`'s
+  `contentStyle` is the canvas too, so a mounting screen never shows white.
+- Tab switches never remount a screen that is already in the root `Stack`
+  (`tabMove` in `navAdapter.ts`): Home and Interviews (one screen with
+  `view`) and any tab already in the stack use `router.dismissTo`, which pops
+  back to that screen and replaces its params under the same route key;
+  Register first opened from a tab root is pushed (Home stays mounted beneath
+  it), from a pushed screen such as a case it replaces that screen. A tab's
+  first visit is still a fresh mount. Android Back on Interviews or Register
+  with nothing beneath goes Home; on Home it leaves the app as before.
+- Toasts (`src/toast.tsx`) have no outline: error is the error tint with error
+  text, info the primary tint, success success text on the card. The tab bar
+  reserves its height (`useToastClearance`), so toasts sit above it, else
+  above the bottom inset.
 - `sheets.tsx` holds the Account, Help and Sync sheets; Help text is
   `help_<screen>_what|do1..3` in `src/strings/*.json`, chosen by
   `helpContent.ts`, whose guide slugs a test keeps equal to
   `SCREEN_HELP_CONFIG`. The guide URL is the enrolled server plus the slug,
   opened with `Linking.openURL`.
-- `src/nativeRoutes/settings.tsx` is the sectioned Settings page.
+- `src/nativeRoutes/settings.tsx` is the sectioned Settings page: an
+  uppercase section label above each grouped card of rows (Account, Devices,
+  Phone (mode and app language in one card), Display, Security, Coding,
+  Permissions, Diagnostics, Help, About), with the explanation as the card's
+  footer line. A card's refresh (Refresh devices, Refresh access) is its last
+  action row; Camera and Microphone are value rows that ask again (or open the
+  phone's settings) while not allowed. The app-language pickers (Settings, the
+  Account sheet, the pre-login header) read `useUiLanguages()` through
+  `src/ui/LanguagePicker.tsx`: a segmented control for two or three languages,
+  a list sheet from four, "Machine-translated" under an unreviewed language.
+- Auto-lock warning (WCAG 2.2.1): `src/autoLock.ts` calls `onWarn(true)` 30 s
+  before the 5-minute idle lock (`LOCK_WARNING_MS`); `AppState.lockWarning`
+  is true while an account is unlocked, and `nativeShell/LockWarning.tsx`
+  (mounted in `app/_layout.tsx`) shows a warning `Notice` under the header,
+  "This phone locks in 30 seconds", with Stay unlocked calling `activity()`.
+  The warning Notice is an assertive live region and is announced on iOS.
+
+### Display preferences
+
+- Text size: Small 0.9, Medium 1.0, Large 1.2, stored on the device as
+  `ui_text_size`. It multiplies the phone's own font scale, and the product
+  is capped at 2.0 in `tokenTextScale`; screens read `useTheme().typography`.
+- High contrast: stored as `ui_high_contrast`; unset follows the phone's
+  increase-contrast setting. It swaps in the high-contrast palette and a
+  3 pt focus ring.
+- The WHO form gets both through `useWhoFormTheme` (`fontScale`).
+- Both are device-local and never sent to the server.
+- Screen readers: `announce(text)` (VoiceOver only; TalkBack reads the live
+  region) and `focusForAccessibility(node)` (moves the reader to a new
+  screen's title, only while a reader runs) are in `src/ui.tsx`. The 30 s
+  auto-lock warning is described above.
 - Error log: `src/errorLog.ts` (scrubbing, buffer, export text),
   `src/errorLogDb.ts` (table `error_log`, cap, install), `src/errorExport.ts`
   (React Native `Share`). Rules: [policy](../policy/expo-client.md).
+
+### Shared UI rules (phone)
+
+Reference screenshots of every frozen screen, in light, dark, high contrast
+and large text, are in `docs/design/collect-petrol-theme/frozen/` (table in
+its README). Screens use these components instead of their own styles.
+
+- `src/ui.tsx`:
+  - `Card` is borderless and never holds another `Card`. `grouped` runs rows
+    edge to edge; `label` is the section caption above and `footer` the
+    explanation below. `Separator` is the inset hairline between rows: it
+    starts at the text (`icon`: after the 24 dp glyph; `choice`: after the
+    radio ring of a `ChoiceRow`).
+  - `ListRow`: label, optional second line and value, 48 dp (56 dp with a
+    second line). A row that pushes a screen or opens a picker shows a
+    chevron; an action row (`action`) draws its label in primary with no
+    chevron.
+  - `ThemedSwitch` is the one switch (primary track on, border track off).
+  - `SegmentedControl` is 48 dp on its own and 36 dp (`compact`) inside a
+    labelled row, with a 44 dp touch target. Inside a card, and always in dark
+    mode, the selected segment takes the primary tint and primary text.
+  - `TextField` (focus ring only while typing, error tint when invalid),
+    `FieldLabel` (the optional `required` suffix is the words "Required" in
+    secondary text, not an asterisk) and `ChoiceRow` groups (radio or
+    checkbox rows in one card, selected = tint fill and semibold label).
+- `src/nativeShell/BottomSheet.tsx`: `BottomSheet` has a grab handle and a
+  20 dp semibold title; `SheetRow` is 48 dp with 12 dp vertical padding.
+  `src/ConfirmDialog.tsx` draws no ring on the phone except in high contrast.
+- `src/ui/LanguagePicker.tsx`: a segmented control for two or three
+  languages, a list sheet from four, "Machine-translated" under an
+  unreviewed language (also see Settings above).
+- Dates on the phone: `dateOnly` ("3 Nov 2026", `src/ui/interviewRows.ts`)
+  and `formatWhen` / `formatDisplayTimestamp` ("6 Nov 2026, 4:50 am",
+  `src/ui/CaseCard.tsx`, phone branch) use the UI language's tag. The web
+  keeps ISO.
+- Coding screens: `QueueScreen`, `WorkflowHistory` and `SmartVaReference`
+  (`src/workspace/`) switch to the phone presentation on `Platform.OS`;
+  `WorkspaceLayout` and `CategoryPanel` have `.web` twins and the native
+  files switch on the phone width. The web layout is unchanged.
+  `humanizeKey` (`src/workspace/humanizeKey.ts`) turns a raw state, role or
+  reason key ("risk_factors") into a label ("Risk factors"); any other
+  string passes through.
+- Android date picker (`plugins/with-android-theme.js`, a config plugin): a
+  dialog theme overlay gives the system date picker the light primary as its
+  accent; at night the body is the card colour with the light-primary header
+  and ink text. `android:headerTextColor` is private, so the header text
+  follows the framework's inverse text colours (`textColorSecondaryInverse`
+  is set for the year).
+- WHO form: `src/whoWebTheme.ts` maps the `ui` tokens onto the form theme,
+  now including `canvas` (the page behind the cards), `shadow` (none in dark
+  mode) and the disabled button tone. In `vendor/who-va-2022` the phone bar
+  (`compactFooter`) draws the section card without a border, marks a question
+  with issues by tint and message only (no edge bar), keeps the stepper caption
+  on one line, and omits the Draft saved caption (the host's top bar shows
+  the save state). Some vendor changes are visible on the web too: a
+  read-only answer keeps full contrast (no opacity), a hint's span colour is
+  ignored, the stepper's secondary control is tinted, the Sections drawer
+  has a title and 48 dp rows, and the required asterisk follows a
+  no-break space.
+
+## iOS
+
+Rules: [iOS client policy](../policy/ios-client.md). The same Expo project
+builds for iOS; Android and the web are unchanged. The native modules on iOS
+(ICD-11, SmartVA, device info), their staging and the simulator checks are in
+the iOS section of [the engine interface](icd11-android-engine-interface.md#ios).
+
+- `app.config.js` varies `ios.bundleIdentifier` with the variant exactly as
+  `android.package` (`.dev`, `.plus`), sets `ios.buildNumber` from
+  `DIGITVA_IOS_BUILD_NUMBER` for a `DIGITVA_IOS_RELEASE_BUILD=1` build (else
+  `"1"`), turns on `supportsTablet`, and exposes `extra.digitvaIosAppStoreId`
+  from `DIGITVA_IOS_APP_STORE_ID`. `app.json` declares
+  `ITSAppUsesNonExemptEncryption: false` and the camera, photo library and
+  microphone reasons. Scripts: `npm run prebuild:ios`, `npm run ios`,
+  `npm run ios:plus`.
+- `src/platformFamily.ts`: `offlineEnginePlatform()` (Android or iOS) gates the
+  Plus routes and services together with `isPlusVariant()`;
+  `deviceFamilyLabel()` names this device "Android", "iPhone", "iPad" or "Web"
+  for the default device name at enrolment and the error-log export.
+  `src/platformLabel.ts` is separate: it renders another device's stored
+  `platform` value in the device lists.
+- Dates: `src/platform.ts` `pickDate` keeps `DateTimePickerAndroid.open` on
+  Android. On iOS it parks a request in `src/iosDatePicker.ts`;
+  `src/IosDatePickerHost.tsx`, mounted once by the native `ShellRoot`
+  (`src/nativeShell/chrome.tsx`), shows an inline picker in a modal. Done
+  resolves the ISO day, Cancel or dismissal resolves undefined, and a second
+  request resolves the open one with undefined.
+- Sharing: `src/standalone/shareFile.ts` uses the Android SEND intent on
+  Android and `expo-sharing` `shareAsync` (with a UTI) elsewhere; the file is
+  deleted afterwards on both. `expo-sharing` is excluded from Android
+  autolinking (`package.json` `expo.autolinking.android.exclude`), and its
+  config plugin (an iOS share extension) is not added.
+- Updates: `checkForUpdate` returns `unknown` and `checkForUpdateDaily`
+  returns undefined on iOS without a network call (`src/updateCheck.ts`), so
+  the start-up check offers nothing; Settings shows the App Store row only
+  when the id is configured, and never the APK or Play row.
+- The phone-clock settings button calls `Linking.openSettings()` on iOS.
+- Still Android-only: background notification polling
+  (`src/notificationTask.ts`, `app/_layout.tsx`). Performance telemetry also runs on iOS (`platform: "ios"`).
+- Builds: `.github/workflows/ios-build.yml` compiles the plain app and, on
+  demand, Collect Plus with SmartVA only (no iOS ICD-11 engine is published
+  for CI); `scripts/ios-local-build.sh plain|plus-smartva|plus [--run]` builds
+  any of the three on a Mac.
+- The date picker, share sheet, clock button and App Store row are verified
+  with Jest and `tsc` only, not yet on a simulator.
 
 ## Collect Plus (experimental, adb-only)
 
@@ -583,8 +788,10 @@ A second Android variant of this app, built with `APP_VARIANT=plus`; never
 published (policy: [field data collection](../policy/field-data-collection.md)).
 
 - `app.config.js` (`resolveVariant`): name "DigitVA Collect Plus", package
-  `com.causeofdeathindia.digitvacollect.plus`, version `<version>-plus` (the
-  update check then reports "unknown"), scheme `digitvacollectplus`,
+  `com.causeofdeathindia.digitvacollect.plus`, the plain version (no
+  "-plus" suffix, which store checks reject; Plus is told apart by name, package and bundle id, and the update
+  check asks the server for the variant by package, `isPlusVariant`; old Plus APKs that report `-plus` are still
+  parsed by `versionCode` and stored as text by the server), scheme `digitvacollectplus`,
   `extra.appVariant = "plus"` (read by `src/appVariant.ts`). Unset, the config
   is unchanged.
 - `plugins/with-android-collect-plus.js`: for plus, native libraries are
@@ -766,8 +973,10 @@ the device while unenrolled.
   an unlocked standalone account's Settings > "Export and backup" holds Export my records, Back up this phone and
   Restore from a backup (`src/standalone/DataActions.tsx`). The home re-reads the last backup time on every focus,
   so a backup made in Settings clears the reminder.
-- **Offline coding** (Settings > Collect Plus > "Offline coding";
-  `src/nativeRoutes/offlineCoding.native.tsx`): lists completed-unsent
+- **Offline coding** (route `/offline-coding`, `src/nativeRoutes/offlineCoding.native.tsx`;
+  reached from the "Local cases" row of the coding case lists, `src/ui/CodingCaseChips.tsx`,
+  shown on the Collect Plus home and worklist, or from a standalone record's "Code" or "Revise"
+  button, `src/nativeRoutes/standalone.tsx`): lists completed-unsent
   interviews (metadata only, no PII in the list), opens a case in the shared
   `CaseWorkspaceScreen` (as online coding) over a local `WorkspaceApi`
   (`digitva-9cll.22.8`): categories, sub-categories, summary and counts come
@@ -878,6 +1087,9 @@ Plus stages the MIT Rust engine through `scripts/build-smartva-android.sh` and
 C ABI, using embedded data and the `mobile-core` Cargo feature. The default
 desktop build still includes reports; the phone excludes chart/font/workbook
 dependencies. Algorithm 3.0.1 and Rust wrapper 3.0.2 remain unchanged.
+iOS Plus links the same crate as a static library from `scripts/build-smartva-ios.sh`
+and the ICD-11 engine as a NativeAOT framework from `engine-src/build-ios.sh`, in
+the app process; see the iOS section of `icd11-android-engine-interface.md`.
 
 `smartva/ensureLocal.ts` reserves the per-draft upload/editor lease before its
 first await and coalesces completion and coding-entry requests. A valid completed

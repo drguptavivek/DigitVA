@@ -13,7 +13,7 @@ jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBoots
 jest.mock("../src/i18n", () => ({
   t: (key: string, v: Record<string, string | number> = {}) => key + Object.values(v).map((x) => `|${x}`).join(""),
 }));
-jest.mock("../src/ui", () => ({
+jest.mock("../src/ui", () => require("../test-support/uiMockExtras").withUiExtras({
   Button: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) =>
     <button data-label={label} data-disabled={disabled ? "1" : ""} onClick={onPress} />,
   useUiStyles: () => ({ error: {}, muted: {}, input: {}, card: {}, text: {}, row: {}, fieldLabel: {}, headline: {} }),
@@ -45,7 +45,9 @@ describe("IdentifierFields", () => {
     expect(input.props.accessibilityLabel).toBe("idRequiredA11y|MCCD number");
     const style = ([] as object[]).concat(input.props.style).flat() as Array<Record<string, unknown>>;
     expect(String(style.find((s) => s && s.fontFamily)?.fontFamily)).toMatch(/mono|Menlo|Consolas/i);
-    expect(text(tree)).toContain("MCCD number *");
+    expect(text(tree)).toContain("MCCD number");
+    expect(text(tree)).toContain("fieldRequiredMark"); // the grey Required suffix, not an asterisk
+    expect(text(tree)).not.toContain("MCCD number *");
     expect(text(tree)).toContain("idExample|MCCD123");
   });
 

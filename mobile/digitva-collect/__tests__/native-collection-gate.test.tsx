@@ -52,6 +52,11 @@ jest.mock("../src/ui", () => {
   return {
     Button: ({ label, onPress }: { label: string; onPress: () => void }) =>
       ReactActual.createElement("button", { label, onPress }),
+    // The coding case lists are rows now; a tappable row stands in as a button with its label.
+    ListRow: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) =>
+      ReactActual.createElement("button", { label, onPress, disabled }),
+    Card: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("card", null, children),
+    Separator: () => null,
     Screen: ({ children }: { children: React.ReactNode }) =>
       ReactActual.createElement("screen", null, children),
     errorText: () => "accessError",

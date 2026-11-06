@@ -29,7 +29,7 @@ import {
 import {
   questionnaireDefault,
   t,
-  UI_LOCALES,
+  isLocaleCode,
 } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { initialDataFromPrefill } from "../prefill";
@@ -137,7 +137,7 @@ function configForRevision(row: RevisionRow, project: ProjectSettings): Revision
   const savedLocale = row.envelope.locale || row.config?.locale;
   const locale = savedLocale ??
     questionnaireDefault(options?.available_locales, options?.default_locale);
-  if (!UI_LOCALES.some((entry) => entry.code === locale)) {
+  if (!isLocaleCode(locale)) {
     throw new Error("revision_locale_unavailable");
   }
   const translationVersion =

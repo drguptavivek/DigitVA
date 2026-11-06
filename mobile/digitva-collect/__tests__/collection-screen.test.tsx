@@ -60,6 +60,7 @@ jest.mock("../src/client/api", () => ({
 }));
 jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/i18n", () => ({
+  uiLanguageTag: () => "en",
   t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : "") + (values.id ? `:${values.id}` : ""),
 }));
 jest.mock("../src/ui", () => ({
@@ -952,3 +953,8 @@ describe("reported death card strings", () => {
     expect(require("../src/strings/hi.json")[key]).toContain("{value}");
   });
 });
+
+// These are the browser's screens: the shared case card keeps its ISO timestamps there (the phone writes "6 Nov 2026, 4:50 am").
+const { Platform: webPlatform } = require("react-native");
+beforeAll(() => { webPlatform.OS = "web"; });
+afterAll(() => { webPlatform.OS = "ios"; });

@@ -5,14 +5,14 @@
  * the engine takes about 20 seconds; the device-wide ICD-11 / DORIS switch (Settings) is respected.
  */
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { t } from "../i18n";
 import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
 import { offlineEngine } from "../offlineEngine";
 import { describeProgress } from "../offlineEngineCheck";
-import { Button, Screen, useUiStyles } from "../ui";
+import { Button, Card, ChoiceRow, Notice, Screen, Separator, useUiStyles } from "../ui";
 import { createGuidanceRequester } from "../workspace/offlineDoris";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
 import type { WorkspaceIdentity } from "../workspace/contracts";
@@ -28,7 +28,6 @@ const noop = async () => undefined;
 /** The editor, picker and example chooser; mounted only while the switch is on and the user has continued. */
 function Demo() {
   const styles = useUiStyles();
-  const router = useRouter();
   const [engineReady, setEngineReady] = useState(false);
   const [failed, setFailed] = useState("");
   const [progress, setProgress] = useState("");
@@ -64,14 +63,17 @@ function Demo() {
   return (
     <Screen title={t("dorisDemoTitle")}>
       <Text style={styles.text}>{t("dorisDemoIntro")}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {[{ id: DORIS_DEMO_BLANK, label: t("dorisDemoBlank") }, ...DORIS_DEMO_EXAMPLES].map((item) => (
-          <Button key={item.id} kind={item.id === loaded.id ? "primary" : "secondary"} label={item.label} onPress={() => choose(item.id)} />
+      <Card grouped>
+        {[{ id: DORIS_DEMO_BLANK, label: t("dorisDemoBlank") }, ...DORIS_DEMO_EXAMPLES].map((item, index) => (
+          <Fragment key={item.id}>
+            {index ? <Separator choice /> : null}
+            <ChoiceRow label={item.label} selected={item.id === loaded.id} onPress={() => choose(item.id)} />
+          </Fragment>
         ))}
-      </View>
+      </Card>
       {example ? <Text style={styles.muted}>{example.purpose}</Text> : null}
       {failed ? <>
-        <Text accessibilityRole="alert" style={styles.error}>{`${t("dorisDemoEngineFailed")} (${failed})`}</Text>
+        <Notice tone="error">{`${t("dorisDemoEngineFailed")} (${failed})`}</Notice>
         <Button kind="secondary" label={t("dorisDemoRetry")} onPress={() => setAttempt((value) => value + 1)} />
       </> : !engineReady ? (
         <View accessibilityRole="progressbar" style={{ gap: 8 }}>
@@ -82,7 +84,6 @@ function Demo() {
       ) : (
         <DorisPanel key={session.identity.vaSid} workspace={session.workspace} identity={session.identity} api={api} request={session.request} onSaved={noop} onDone={() => undefined} demo />
       )}
-      <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={() => router.back()} />
     </Screen>
   );
 }
@@ -105,7 +106,6 @@ export default function DorisDemo() {
       <Screen title={t("icd11DorisDisabledTitle")}>
         <Text accessibilityRole="alert" style={styles.text}>{t("dorisDemoDisabledBody")}</Text>
         <Button label={t("icd11DorisOpenSettings")} onPress={() => router.push("/settings")} />
-        <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={() => router.back()} />
       </Screen>
     );
   }
@@ -114,7 +114,6 @@ export default function DorisDemo() {
       <Screen title={t("dorisDemoTitle")}>
         <Text style={styles.text}>{t("icd11DorisContinueBody")}</Text>
         <Button label={t("icd11DorisContinue")} onPress={() => setContinued(true)} />
-        <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={() => router.back()} />
       </Screen>
     );
   }

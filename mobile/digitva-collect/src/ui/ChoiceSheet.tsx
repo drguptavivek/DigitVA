@@ -9,11 +9,12 @@ import { FlatList, Pressable, Text, TextInput, View } from "react-native";
 import { t } from "../i18n";
 import { BottomSheet } from "../nativeShell/BottomSheet";
 import { CheckMark } from "./controls";
-import { controls, radius, spacing, typography, useTheme } from "../theme";
+import { controls, radius, spacing, useTheme } from "../theme";
 
 export interface ChoiceRow { key: string; label: string; selected?: boolean; onPick(): void }
 export interface ChoiceSection { key: string; title?: string; rows: ChoiceRow[] }
-export interface ChoiceList { recent?: ChoiceRow; sections: ChoiceSection[] }
+/** `note`: one muted line under the rows (the register picker names the one shared site there). */
+export interface ChoiceList { recent?: ChoiceRow; sections: ChoiceSection[]; note?: string }
 
 type Entry = { kind: "cap"; key: string; text: string } | { kind: "row"; key: string; row: ChoiceRow };
 
@@ -25,10 +26,10 @@ export function ChoiceSheet(props: { visible: boolean; title: string; searchLabe
 function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
   visible: boolean; title: string; searchLabel: string; onClose(): void; build(query: string): ChoiceList;
 }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const [query, setQuery] = useState("");
+  const list = useMemo(() => build(query), [query, build]);
   const entries = useMemo<Entry[]>(() => {
-    const list = build(query);
     const out: Entry[] = [];
     // "Recent" is a shortcut for browsing; a search shows only matches.
     if (list.recent && !query.trim()) out.push({ kind: "cap", key: "cap-recent", text: t("pickerRecent") }, { kind: "row", key: `recent-${list.recent.key}`, row: { ...list.recent, selected: true } });
@@ -38,7 +39,7 @@ function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
       for (const row of section.rows) out.push({ kind: "row", key: `${section.key}-${row.key}`, row });
     }
     return out;
-  }, [query, build]);
+  }, [query, list]);
   return (
     <BottomSheet visible={visible} title={title} onClose={onClose} full>
       <TextInput
@@ -54,6 +55,7 @@ function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
         data={entries}
         keyExtractor={(entry) => entry.key}
         keyboardShouldPersistTaps="handled"
+        ListFooterComponent={list.note && entries.length > 0 ? <Text style={{ ...typography.caption, color: ui.mutedForeground, paddingVertical: spacing.sm }}>{list.note}</Text> : null}
         ListEmptyComponent={<Text style={{ ...typography.body, color: ui.mutedForeground, paddingVertical: spacing.md }}>{t("pickerNoMatch")}</Text>}
         renderItem={({ item }) =>
           item.kind === "cap" ? (

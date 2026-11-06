@@ -8,18 +8,20 @@ import { Text, View, type StyleProp, type TextStyle } from "react-native";
 
 import { t, type StringKey } from "../i18n";
 import { roleLabelKey } from "../web/roleHome";
-import { controlText, fontSize, radius, roleTone, spacing, useTheme } from "../theme";
+import { controlText, radius, roleTone, spacing, useTheme } from "../theme";
 
-export function RoleChip({ role, label, cadre }: { role: string; label?: string; cadre?: string | null }) {
-  const { mode } = useTheme();
-  const tone = roleTone(mode, role);
+/** `plain`: the phone's Petrol look, a primary-tint fill with no edge and no role colour (red is for errors only). */
+export function RoleChip({ role, label, cadre, plain = false }: { role: string; label?: string; cadre?: string | null; plain?: boolean }) {
+  const { mode, ui, fontSize, textScale } = useTheme();
+  const tone = plain ? { bg: ui.primaryTint, border: ui.primaryTint, fg: ui.primary } : roleTone(mode, role);
   const name = label ?? t(roleLabelKey(role));
   return (
     <View
       testID={`role-chip-${role}`}
-      style={{ alignSelf: "flex-start", backgroundColor: tone.bg, borderColor: tone.border, borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: spacing.xs, paddingVertical: 2 }}
+      // The phone's plain chip is 28pt tall (growing with the text), so a row of chips lines up at every text size.
+      style={{ alignSelf: "flex-start", justifyContent: "center", minHeight: plain ? 28 * Math.max(1, textScale) : undefined, backgroundColor: tone.bg, borderColor: tone.border, borderWidth: plain ? 0 : 1, borderRadius: radius.sm, paddingHorizontal: spacing.xs, paddingVertical: 2 }}
     >
-      <Text style={[controlText, { color: tone.fg, fontSize: fontSize.caption, lineHeight: 18, fontWeight: "600" }]}>
+      <Text style={[controlText, { color: tone.fg, fontSize: fontSize.caption, lineHeight: 18 * textScale, fontWeight: "600" }]}>
         {cadre ? t("orgRoleCadre", { role: name, cadre }) : name}
       </Text>
     </View>

@@ -4,7 +4,7 @@
  * payloads are available for handling and must never be logged.
  */
 
-import { assertOnline, noteRequestOk } from "./network";
+import { assertOnline, noteRequestOk, serverFetch } from "./network";
 import { recordServerDate } from "./phoneClock";
 
 export class ApiError extends Error {
@@ -948,7 +948,7 @@ async function requestOnce<T>(
   if (tracked) cookieRequests.add(controller);
   try {
     assertOnline();
-    const response = await fetch(`${server}${scopedPath(path, options.csrf)}`, {
+    const response = await serverFetch(`${server}${scopedPath(path, options.csrf)}`, {
       method: options.method ?? "GET",
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",
@@ -1092,7 +1092,7 @@ export async function requestRaw(
   if (tracked) cookieRequests.add(controller);
   try {
     assertOnline();
-    const response = await fetch(`${server}${scopedPath(path, options.csrf)}`, {
+    const response = await serverFetch(`${server}${scopedPath(path, options.csrf)}`, {
       method: options.method ?? "GET",
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",

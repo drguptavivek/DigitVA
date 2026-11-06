@@ -56,7 +56,7 @@ export type {
   WhoVaMortalityLevel,
   WhoVaPresetPrefill
 } from "./prefill.js";
-export { defaultFormTheme } from "./ui/theme.js";
+export { defaultFormTheme, FormThemeContext } from "./ui/theme.js";
 export type { FormTheme } from "./ui/theme.js";
 export type { WhoVaDraftController, WhoVaFormProps, WhoVaPlatformServices } from "./ui/create-who-va-form.js";
 export {

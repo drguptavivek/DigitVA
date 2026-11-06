@@ -5,6 +5,7 @@ import { Dimensions, StyleSheet, Text } from "react-native";
 import { CategoryPanel } from "../src/workspace/CategoryPanel.web";
 import { WorkspaceLayout } from "../src/workspace/WorkspaceLayout.web";
 import type { WorkspacePayload } from "../src/workspace/contracts";
+import { ui } from "../src/theme";
 
 // Desktop width so the section rail (hidden under 768px) is rendered.
 beforeAll(() => Dimensions.set({ window: { width: 1280, height: 900, scale: 1, fontScale: 1 } }));
@@ -36,7 +37,7 @@ test("browser category panel keeps the HTMX query/response table and flip colour
   expect(output).toContain("Cough");
   expect(output).toContain("Informational response: Yes");
   expect(output.match(/"children":\["Yes"\]/g)).toHaveLength(2);
-  expect(output).toContain("#1D4ED8");
+  expect(output).toContain(ui.light.primary);
   expect(output).toContain("#2f7a50");
   const yesBadges = renderer.root.findAllByType(Text).filter((node) => node.props.children === "Yes");
   expect(yesBadges).toHaveLength(2);

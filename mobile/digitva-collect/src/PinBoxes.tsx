@@ -2,13 +2,19 @@
  * The PIN as six boxes, one digit each (docs/policy/mobile-sign-in.md section 9). The PIN is one string in the
  * parent; the boxes only show it. Typing fills left to right and moves on, backspace on an empty box steps back, a
  * pasted run of digits fills every box, and a wrong PIN (the parent bumps `shakeSignal` and clears `value`) shakes
- * the row. Masked unless Show is on; the numeric keypad opens at once.
+ * the row. Masked unless Show (the eye at the trailing end of the row, centred on the boxes) is on; the numeric
+ * keypad opens at once. Boxes are 48 x 56pt fills with no edge (growing with the text); only the box being typed in
+ * has the focus ring.
+ * `onFilled` fires when typing fills the last box, and bumping `focusSignal` focuses the first empty box, so a
+ * parent moves on to the next row only once this one is full (Set PIN's Confirm row).
  */
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, Text, TextInput, View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
+import { Animated, Pressable, TextInput, View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
 
 import { t } from "./i18n";
+import { useTheme } from "./theme";
 import { useUiStyles } from "./ui";
+import { StateIcon } from "./ui/StateView";
 
 export const PIN_BOXES = 6;
 
@@ -43,7 +49,9 @@ export function PinBoxes({
   onChange,
   label,
   shakeSignal = 0,
-  autoFocus = true
+  autoFocus = true,
+  onFilled,
+  focusSignal = 0
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -52,11 +60,21 @@ export function PinBoxes({
   /** Changing this to a new non-zero number shakes the row. */
   shakeSignal?: number;
   autoFocus?: boolean;
+  /** Called when a typed or pasted digit fills the last box. */
+  onFilled?: () => void;
+  /** Changing this to a new non-zero number focuses the first empty box. */
+  focusSignal?: number;
 }) {
   const styles = useUiStyles();
+  const { ui, textScale } = useTheme();
   const refs = useRef<(TextInput | null)[]>([]);
   const [shown, setShown] = useState(false);
+  const [focusedBox, setFocusedBox] = useState<number>();
   const shake = useRef(new Animated.Value(0)).current;
+  // The latest PIN, updated before onChange: digits typed faster than a re-render must build on each other, not on
+  // the stale `value` prop (which put the second digit back into the first box).
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
     if (!shakeSignal) return;
@@ -64,14 +82,21 @@ export function PinBoxes({
     refs.current[0]?.focus();
   }, [shakeSignal, shake]);
 
+  useEffect(() => {
+    if (focusSignal) refs.current[Math.min(valueRef.current.length, PIN_BOXES - 1)]?.focus();
+  }, [focusSignal]);
+
   function change(result: { value: string; focus: number }) {
+    const wasFull = valueRef.current.length === PIN_BOXES;
+    valueRef.current = result.value;
     onChange(result.value);
-    refs.current[result.focus]?.focus();
+    if (result.value.length === PIN_BOXES && !wasFull && onFilled) onFilled();
+    else refs.current[result.focus]?.focus();
   }
 
   return (
-    <View accessibilityLabel={label} style={{ gap: 8 }}>
-      <Animated.View style={{ flexDirection: "row", gap: 8, transform: [{ translateX: shake }] }}>
+    <View accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Animated.View style={{ flex: 1, flexDirection: "row", gap: 8, transform: [{ translateX: shake }] }}>
         {Array.from({ length: PIN_BOXES }, (_, index) => (
           <TextInput
             key={index}
@@ -80,7 +105,9 @@ export function PinBoxes({
             }}
             testID={`pin-box-${index}`}
             accessibilityLabel={`${label} ${index + 1} / ${PIN_BOXES}`}
-            style={[styles.input, { flex: 1, minWidth: 0, textAlign: "center", paddingHorizontal: 0, fontSize: 22 }]}
+            style={[styles.input, focusedBox === index && styles.inputFocused, { flex: 1, minWidth: 0, maxWidth: 48 * Math.max(1, textScale), height: 56 * Math.max(1, textScale), textAlign: "center", paddingHorizontal: 0, fontSize: 22 * textScale }]}
+            onFocus={() => setFocusedBox(index)}
+            onBlur={() => setFocusedBox((current) => (current === index ? undefined : current))}
             keyboardType="number-pad"
             inputMode="numeric"
             secureTextEntry={!shown}
@@ -90,15 +117,21 @@ export function PinBoxes({
             autoCorrect={false}
             selectTextOnFocus
             value={value[index] ?? ""}
-            onChangeText={(text) => change(applyPinInput(value, index, text))}
+            onChangeText={(text) => change(applyPinInput(valueRef.current, index, text))}
             onKeyPress={(event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-              if (event.nativeEvent.key === "Backspace" && index >= value.length && value.length > 0) change(backspaceFromEmpty(value));
+              const current = valueRef.current;
+              if (event.nativeEvent.key === "Backspace" && index >= current.length && current.length > 0) change(backspaceFromEmpty(current));
             }}
           />
         ))}
       </Animated.View>
-      <Pressable accessibilityRole="button" onPress={() => setShown((on) => !on)} hitSlop={8}>
-        <Text style={styles.muted}>{shown ? t("pinHide") : t("pinShow")}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={shown ? t("pinHide") : t("pinShow")}
+        onPress={() => setShown((on) => !on)}
+        style={{ width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
+      >
+        <StateIcon name={shown ? "eyeOff" : "eye"} color={ui.mutedForeground} />
       </Pressable>
     </View>
   );

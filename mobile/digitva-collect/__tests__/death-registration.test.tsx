@@ -34,8 +34,8 @@ let mockBootstrap = createBootstrap();
 const mockNavigation = { addListener: () => () => undefined, dispatch: () => undefined };
 jest.mock("expo-router", () => ({ useNavigation: () => mockNavigation, useIsFocused: () => true, useRouter: () => ({ replace: mockReplace, push: mockPush, setParams: mockSetParams, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap }) }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key), uiLocale: () => mockLocale }));
-jest.mock("../src/ui", () => ({
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key), uiLocale: () => mockLocale }));
+jest.mock("../src/ui", () => require("../test-support/uiMockExtras").withUiExtras({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
   stateLabel: (state: string) => `state:${state}`,
   useUiStyles: () => ({ error: {}, muted: {}, input: {}, card: {}, text: {}, row: {} })

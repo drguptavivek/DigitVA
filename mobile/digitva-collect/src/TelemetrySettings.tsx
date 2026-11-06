@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { Switch, Text, View } from "react-native";
+import { View } from "react-native";
 
 import { t } from "./i18n";
 import { getPerformanceTelemetryEnabled, setPerformanceTelemetryEnabled } from "./performanceTelemetry";
-import { Button, useUiStyles } from "./ui";
+import { spacing } from "./theme";
+import { Button, ListRow, Notice, ThemedSwitch } from "./ui";
 
-/** The owner-visible opt-out. It only changes aggregate performance diagnostics, never field data or sync. */
+/**
+ * The owner-visible opt-out, as one row of Settings' Diagnostics card ("Usage diagnostics" and its switch; the card's
+ * footer explains it). It only changes aggregate performance diagnostics, never field data or sync.
+ */
 export function TelemetrySettings() {
-  const styles = useUiStyles();
   const [enabled, setEnabled] = useState(true);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -31,22 +34,16 @@ export function TelemetrySettings() {
     }
   }
   return (
-    <View style={{ gap: 8 }}>
-      <Text style={styles.muted}>{t("telemetryDescription")}</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <Text style={styles.text}>{t(enabled ? "telemetryOn" : "telemetryOff")}</Text>
-        <Switch
-          accessibilityLabel={t("telemetryTitle")}
-          value={enabled}
-          onValueChange={(next) => void change(next)}
-        />
-      </View>
+    <>
+      <ListRow
+        label={t("telemetryTitle")}
+        trailing={<ThemedSwitch accessibilityLabel={t("telemetryTitle")} accessibilityHint={t("telemetryDescription")} value={enabled} onValueChange={(next) => void change(next)} />}
+      />
       {error ? (
-        <>
-          <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
-          <Button kind="secondary" label={t("telemetryRetry")} onPress={() => void change(false)} />
-        </>
+        <View style={{ padding: spacing.sm }}>
+          <Notice tone="error" action={<Button size="sm" kind="secondary" label={t("telemetryRetry")} onPress={() => void change(false)} />}>{error}</Notice>
+        </View>
       ) : null}
-    </View>
+    </>
   );
 }

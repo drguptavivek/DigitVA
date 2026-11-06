@@ -10,6 +10,7 @@ import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
 import { uiTextKnown } from "./i18n";
 import { networkSpell, OfflineError } from "./network";
+import { deviceFamilyLabel } from "./platformFamily";
 
 export interface ErrorEntry {
   at: string;
@@ -110,9 +111,26 @@ export function describeError(error: unknown): string {
   return "unknown";
 }
 
+type PlatformConstants = { Brand?: string; Model?: string; Release?: string; systemName?: string; osVersion?: string };
+
+/**
+ * The device and OS version stored with each entry. The field stays `android` (the stored shape and the
+ * error-log column do not change); on iOS it holds the iOS version and the device is "iPhone" or "iPad", since
+ * iOS reports no model name to the app without a native call.
+ */
 function deviceInfo(): { device: string; android: string } {
-  const constants = (Platform.constants ?? {}) as { Brand?: string; Model?: string; Release?: string };
+  const constants = (Platform.constants ?? {}) as PlatformConstants;
+  if (Platform.OS === "ios") {
+    const version = constants.osVersion ?? (Platform.Version === undefined ? undefined : String(Platform.Version));
+    return { device: deviceFamilyLabel(), android: version || "unknown" };
+  }
   return { device: [constants.Brand, constants.Model].filter(Boolean).join(" ") || "unknown", android: constants.Release ?? "unknown" };
+}
+
+/** The OS name printed before the stored version in the export: "Android" on Android, else the system's own name. */
+function systemLabel(): string {
+  if (Platform.OS !== "ios") return "Android";
+  return ((Platform.constants ?? {}) as PlatformConstants).systemName || "iOS";
 }
 
 /** File one error. Fire and forget: logging must never throw into the code that reports the error. */
@@ -166,10 +184,11 @@ export function buildErrorExport(entries: ErrorEntry[], now: Date, maxChars = 60
   const date = now.toISOString().slice(0, 10);
   const name = `digitva-errors-${date}.txt`;
   const { device, android } = deviceInfo();
-  let text = [`File: ${name}`, `App: DigitVA v${APP_VERSION}`, `Device: ${device}, Android ${android}`, `Exported: ${now.toISOString()}`, `Entries: ${entries.length}`, ""].join("\n");
+  const system = systemLabel();
+  let text = [`File: ${name}`, `App: DigitVA v${APP_VERSION}`, `Device: ${device}, ${system} ${android}`, `Exported: ${now.toISOString()}`, `Entries: ${entries.length}`, ""].join("\n");
   let shown = 0;
   for (const entry of entries) {
-    const line = `${entry.at} | v${entry.appVersion} | ${entry.route || "-"} | ${entry.what} | ${entry.device}, Android ${entry.android}\n`;
+    const line = `${entry.at} | v${entry.appVersion} | ${entry.route || "-"} | ${entry.what} | ${entry.device}, ${system} ${entry.android}\n`;
     if (text.length + line.length > maxChars) {
       text += `… ${entries.length - shown} older entries left out to fit the share sheet.\n`;
       break;

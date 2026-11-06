@@ -1,15 +1,19 @@
 /**
  * Storage for non-sensitive UI preferences only.
  *
- * The browser adapter deliberately has a two-key allowlist. Interview answers,
+ * The browser adapter deliberately has a short key allowlist. Interview answers,
  * identifiers and tokens must stay in their existing stores and never enter
  * localStorage.
  */
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-export type PreferenceKey = "ui_locale" | "ui_theme" | "update_check_at";
+export type PreferenceKey = "ui_locale" | "ui_theme" | "ui_text_size" | "ui_high_contrast" | "update_check_at";
 export type ThemePreference = "system" | "light" | "dark";
+/** Settings > Display > Text size; device-local, never sent to the server. */
+export type TextSizePreference = "small" | "medium" | "large";
+/** Settings > Display > High contrast; "system" (never chosen) follows the phone's own contrast setting. */
+export type HighContrastPreference = "system" | "on" | "off";
 
 const listeners = new Set<() => void>();
 const memoryPreferences: Partial<Record<PreferenceKey, string>> = {};
@@ -25,21 +29,40 @@ function browserStorage(): Storage | undefined {
 }
 
 function isPreferenceKey(value: string): value is PreferenceKey {
-  return value === "ui_locale" || value === "ui_theme" || value === "update_check_at";
+  return value === "ui_locale" || value === "ui_theme" || value === "ui_text_size" || value === "ui_high_contrast" || value === "update_check_at";
+}
+
+const asTextSize = (value: string | null): TextSizePreference => (value === "small" || value === "large" ? value : "medium");
+const asHighContrast = (value: string | null): HighContrastPreference => (value === "on" || value === "off" ? value : "system");
+
+/** Synchronous read of `key` for first paint: in-memory value, else browser storage; undefined when unknown. */
+function peekUiPreference(key: PreferenceKey): string | null | undefined {
+  const value = memoryPreferences[key];
+  if (value !== undefined) return value;
+  try {
+    return browserStorage()?.getItem(key);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Synchronous read for first paint: in-memory value, else browser storage. Null when unknown (native before its async read). */
 export function peekUiTheme(): ThemePreference | null {
-  let value: string | null | undefined = memoryPreferences.ui_theme;
-  if (value === undefined) {
-    try {
-      value = browserStorage()?.getItem("ui_theme");
-    } catch {
-      value = undefined;
-    }
-  }
+  const value = peekUiPreference("ui_theme");
   if (value === undefined) return null;
   return value === "light" || value === "dark" ? value : "system";
+}
+
+/** As peekUiTheme, for the text size. */
+export function peekUiTextSize(): TextSizePreference | null {
+  const value = peekUiPreference("ui_text_size");
+  return value === undefined ? null : asTextSize(value);
+}
+
+/** As peekUiTheme, for high contrast. */
+export function peekUiHighContrast(): HighContrastPreference | null {
+  const value = peekUiPreference("ui_high_contrast");
+  return value === undefined ? null : asHighContrast(value);
 }
 
 export async function getUiPreference(key: PreferenceKey): Promise<string | null> {
@@ -90,6 +113,22 @@ export async function getUiTheme(): Promise<ThemePreference> {
 
 export async function setUiTheme(theme: ThemePreference): Promise<void> {
   return setUiPreference("ui_theme", theme);
+}
+
+export async function getUiTextSize(): Promise<TextSizePreference> {
+  return asTextSize(await getUiPreference("ui_text_size"));
+}
+
+export async function setUiTextSize(size: TextSizePreference): Promise<void> {
+  return setUiPreference("ui_text_size", size);
+}
+
+export async function getUiHighContrast(): Promise<HighContrastPreference> {
+  return asHighContrast(await getUiPreference("ui_high_contrast"));
+}
+
+export async function setUiHighContrast(value: HighContrastPreference): Promise<void> {
+  return setUiPreference("ui_high_contrast", value);
 }
 
 /** Subscribe to preference changes made by this app instance. */

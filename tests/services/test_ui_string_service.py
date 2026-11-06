@@ -2,12 +2,13 @@
 import os
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from app import db
 from app.services import ui_string_service as svc
 from tests.base import BaseTestCase
-from tests.ui_string_fixtures import EN, HI, write_export
+from tests.ui_string_fixtures import EN, FORM_EN, FORM_HI, HI, write_export
 
 
 class UiStringServiceTests(BaseTestCase):
@@ -18,6 +19,7 @@ class UiStringServiceTests(BaseTestCase):
         self.root = self._tempdir.name
         self.app.config["EXPO_CLIENT_DIST"] = self.root
         write_export(Path(self.root), {"en": EN, "hi": HI})
+        svc._pack_cache.clear()
         self.actor = self.base_admin_user.user_id
 
     def tearDown(self):
@@ -191,6 +193,97 @@ class UiStringServiceTests(BaseTestCase):
         self.assertEqual(exported["navCoding"], "सुधार")
         self.assertEqual(exported["loginTitle"], HI["loginTitle"])
         self.assertEqual(list(exported), list(HI))
+
+
+    # -- namespaces (digitva-s028) ---------------------------------------
+
+    def _with_side_files(self):
+        write_export(Path(self.root), {
+            "theme-en": {"passwordShow": "Show password"},
+            "theme-hi": {"passwordShow": "पासवर्ड दिखाएँ"},
+            "form-en": FORM_EN,
+            "form-hi": FORM_HI,
+        })
+
+    def test_bundle_merges_theme_strings_and_prefixes_form_labels(self):
+        self._with_side_files()
+        english = svc._bundle("en")
+        self.assertEqual(english["passwordShow"], "Show password")
+        self.assertEqual(english["form:next"], "Next")
+        self.assertEqual(svc._bundle("hi")["form:next"], "आगे")
+        self.assertEqual(svc.locales(), ["hi"])  # side files are not locales
+
+    def test_form_label_corrections_keep_the_english_placeholders(self):
+        self._with_side_files()
+        with self.assertRaises(svc.InvalidUiStringText):
+            svc.set_override("hi", "form:required", "आवश्यक है", self.actor)
+        svc.set_override("hi", "form:required", "{label} आवश्यक है", self.actor)
+        self.assertEqual(svc.overrides("hi")["strings"], {"form:required": "{label} आवश्यक है"})
+
+    def test_export_leaves_the_form_labels_out(self):
+        self._with_side_files()
+        svc.set_override("hi", "form:next", "अगला", self.actor)
+        self.assertNotIn("form:next", svc.export("hi"))
+        self.assertIn("passwordShow", svc.export("hi"))
+
+    def test_an_added_language_is_editable_before_it_is_published(self):
+        with self.assertRaises(svc.UiStringError):
+            svc.set_override("ur", "navCoding", "کوڈنگ", self.actor)
+        svc.set_ui_language("ur", "اردو", "ur-IN", "rtl", False, self.actor)
+        svc.set_override("ur", "navCoding", "کوڈنگ", self.actor)
+        self.assertIn("ur", svc.reviewable_locales())
+        with self.assertRaises(svc.UiStringError):
+            svc.pack("ur")
+
+    def test_pack_version_moves_with_a_rebuilt_bundle(self):
+        svc.set_ui_language("hi", "हिन्दी", "hi-IN", "ltr", True, self.actor)
+        before = svc.pack("hi")["version"]
+        write_export(Path(self.root), {"hi": {**HI, "loginHelp": "नया"}})
+        path = Path(self.root) / "ui-strings" / "hi.json"
+        stat = path.stat()
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+        self.assertNotEqual(svc.pack("hi")["version"], before)
+
+    # -- publishing (digitva-s028 review) --------------------------------
+
+    def test_no_published_flag_keeps_the_state_and_a_new_language_starts_unpublished(self):
+        self.assertFalse(svc.set_ui_language("hi", "हिन्दी", "hi-IN", "ltr", None, self.actor)["published"])
+        svc.set_ui_language("hi", "हिन्दी", "hi-IN", "ltr", True, self.actor)
+        kept = svc.set_ui_language("hi", "हिंदी", "hi-IN", "ltr", None, self.actor)
+        self.assertTrue(kept["published"])
+        self.assertEqual(svc.pack("hi")["native_name"], "हिंदी")
+
+    def test_publishing_needs_a_bundle_or_an_accepted_row(self):
+        svc.set_ui_language("pa", "ਪੰਜਾਬੀ", "pa-IN", "ltr", False, self.actor)  # adding is fine
+        db.session.add(svc.MasUiStringOverride(
+            locale_code="pa", string_key="navCoding", text="ਮਸ਼ੀਨ", source=svc.SOURCE_MACHINE,
+        ))
+        db.session.flush()
+        with self.assertRaises(svc.NothingToPublish):  # a machine draft is not enough
+            svc.set_ui_language("pa", "ਪੰਜਾਬੀ", "pa-IN", "ltr", True, self.actor)
+        svc.accept("pa", "navCoding", self.actor)
+        self.assertTrue(svc.set_ui_language("pa", "ਪੰਜਾਬੀ", "pa-IN", "ltr", True, self.actor)["published"])
+        self.assertTrue(svc.set_ui_language("hi", "हिन्दी", "hi-IN", "ltr", True, self.actor)["published"])
+
+    def test_published_languages_raises_instead_of_dropping_an_unreadable_pack(self):
+        svc.set_ui_language("hi", "हिन्दी", "hi-IN", "ltr", True, self.actor)
+        self.assertEqual([lang["locale"] for lang in svc.published_languages()], ["hi"])
+        path = Path(self.root) / "ui-strings" / "hi.json"
+        path.write_bytes(b'{"navCoding": "\xa3"}')
+        stat = path.stat()
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5_000_000_000))
+        with self.assertLogs(svc.log, "WARNING"), self.assertRaises(svc.UiStringError):
+            svc.published_languages()
+
+    def test_published_languages_reads_versions_in_one_query(self):
+        svc.set_ui_language("hi", "हिन्दी", "hi-IN", "ltr", True, self.actor)
+        svc.set_override("pa", "navCoding", "ਕੋਡਿੰਗ", self.actor)
+        svc.set_ui_language("pa", "ਪੰਜਾਬੀ", "pa-IN", "ltr", True, self.actor)
+        with unittest.mock.patch.object(svc, "_versions", wraps=svc._versions) as versions:
+            listed = svc.published_languages()
+        self.assertEqual([lang["locale"] for lang in listed], ["hi", "pa"])
+        self.assertEqual(versions.call_count, 1)
+        self.assertEqual(listed[1]["version"], svc.pack("pa")["version"])
 
 
 if __name__ == "__main__":

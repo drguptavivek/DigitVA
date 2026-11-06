@@ -1,5 +1,6 @@
 import fixtures from "../../../tests/fixtures/local_smartva/input-parity.json";
 import { cleanSmartVaInput, createSmartVaRequest } from "../src/smartva/input";
+import { genderLabel } from "../src/smartva/gender";
 import { projectSmartVaResult, smartVaCacheKey } from "../src/smartva/projection";
 
 describe("local SmartVA contracts", () => {
@@ -116,6 +117,17 @@ describe("local SmartVA contracts", () => {
       icd11_label: "8B20 — Stroke not known if ischaemic or haemorrhagic",
     });
   });
+
+  it("returns a no-result reference when the engine replies with no prediction", () => {
+    const projected = projectSmartVaResult({ total_vas: 0, predictions: [] });
+    expect(projected).toMatchObject({ no_result: true, gender: null, module: null, symptoms: [] });
+    expect(projected.causes.map((cause) => cause.cause)).toEqual([null, null, null]);
+  });
+
+  it.each([["1", "Male"], ["2", "Female"], ["1.0", "Male"], ["Female", "Female"], ["9", "Missing"], ["", "Missing"], [null, "Missing"]])(
+    "shows sex %p as %s, the server's rule", (sex, label) => {
+      expect(genderLabel(sex)).toBe(label);
+    });
 
   it("rejects result arrays that do not contain exactly one case", () => {
     expect(() => projectSmartVaResult({ total_vas: 2, predictions: [{}, {}] })).toThrow("exactly one prediction");

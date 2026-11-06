@@ -12,12 +12,13 @@ import { parseRichText, type RichTextSpan } from "./rich-text.js";
 
 const HEADING_SCALE: Record<number, number> = { 1: 1.5, 2: 1.35, 3: 1.2, 4: 1.1, 5: 1, 6: 1 };
 
-function spanStyle(span: RichTextSpan): Record<string, unknown> | undefined {
+/** `plainColor`: drop the span's own colour, so the caller's text colour holds (a hint stays muted, never red). */
+function spanStyle(span: RichTextSpan, plainColor = false): Record<string, unknown> | undefined {
   const style: Record<string, unknown> = {};
   if (span.bold) style.fontWeight = "700";
   if (span.italic) style.fontStyle = "italic";
   if (span.underline) style.textDecorationLine = "underline";
-  if (span.color) style.color = span.color;
+  if (span.color && !plainColor) style.color = span.color;
   if (span.backgroundColor) style.backgroundColor = span.backgroundColor;
   if (span.heading) {
     style.fontWeight = "700";
@@ -30,16 +31,17 @@ export function createRichText(Text: React.ElementType) {
   /**
    * `source` is the already-localized, already-interpolated string. Plain text
    * short-circuits to the string itself so the common case adds no elements.
+   * `plainColor` ignores the markup's colours (hints: red is reserved for errors).
    */
-  return function RichText({ source }: { source: string }) {
+  return function RichText({ source, plainColor = false }: { source: string; plainColor?: boolean }) {
     const spans = useMemo(() => parseRichText(source), [source]);
-    if (spans.length === 1 && spanStyle(spans[0] as RichTextSpan) === undefined) {
+    if (spans.length === 1 && spanStyle(spans[0] as RichTextSpan, plainColor) === undefined) {
       return <>{spans[0]?.text ?? ""}</>;
     }
     return (
       <>
         {spans.map((span, index) => {
-          const style = spanStyle(span);
+          const style = spanStyle(span, plainColor);
           return style ? (
             <Text key={index} style={style}>
               {span.text}

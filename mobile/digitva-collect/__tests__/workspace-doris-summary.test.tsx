@@ -106,4 +106,14 @@ describe("SmartVaReference", () => {
     expect(out).not.toContain("Age quartile");
     act(() => tree.unmount());
   });
+
+  it("shows a plain message for a no-result case and the server's words for a raw gender code", () => {
+    let tree!: ReactTestRenderer;
+    act(() => { tree = create(<SmartVaReference value={{ no_result: true, age: null, gender: null, causes: [], symptoms: [] }} />); });
+    expect(texts(tree.toJSON())).toContain("SmartVA produced no result for this case.");
+    act(() => tree.unmount());
+    act(() => { tree = create(<SmartVaReference value={{ age: "30.0", gender: "2", causes: [{ cause: "Stroke", rank: 1 }], symptoms: [] }} />); });
+    expect(texts(tree.toJSON())).toContain("30 years \u00b7 Female");
+    act(() => tree.unmount());
+  });
 });

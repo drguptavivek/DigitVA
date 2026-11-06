@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { Text, View } from "react-native";
 
 import { t } from "./i18n";
-import { typography, useTheme } from "./theme";
+import { useTheme } from "./theme";
 import { Button } from "./ui";
 
 const clock = (seconds: number) =>
@@ -39,7 +39,7 @@ export function AttachmentAudioPlayer({ uri, accessibilityLabel, onError }: { ur
           }
         }}
       />
-      <Text style={[typography.body, { color: theme.colors.text }]}>
+      <Text style={[theme.typography.body, { color: theme.colors.text }]}>
         {clock(status.currentTime)} / {clock(status.duration)}
       </Text>
     </View>

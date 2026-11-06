@@ -7,6 +7,7 @@ const mockState: {
   accounts: Array<{ user_id: string; standalone?: boolean }>;
   slot?: "active" | "demo";
   standaloneAvailable: boolean;
+  device?: { server: string };
 } = { pathname: "/", accounts: [], standaloneAvailable: false };
 
 jest.mock("expo-router", () => ({ usePathname: () => mockState.pathname }));
@@ -14,7 +15,7 @@ jest.mock("../src/AppState", () => ({ useAppState: () => mockState }));
 jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ userId: mockState.userId }) }));
 jest.mock("../src/theme", () => ({
   typography: { subhead: { fontSize: 14, lineHeight: 20 } },
-  useTheme: () => ({ ui: {
+  useTheme: () => ({ typography: { subhead: { fontSize: 14, lineHeight: 20 } }, ui: {
     warning: "#FEF3C7", warningBorder: "#B45309", warningForeground: "#3B2200",
     accent: "#E8F0FF", accentForeground: "#10233F", border: "#CBD5E1",
   } }),
@@ -41,6 +42,7 @@ beforeEach(() => {
   mockState.accounts = [];
   mockState.slot = "active";
   mockState.standaloneAvailable = false;
+  mockState.device = undefined;
 });
 
 describe("resolveModeBanner", () => {
@@ -60,6 +62,27 @@ describe("resolveModeBanner", () => {
     expect(resolveModeBanner({ pathname: "/worklist", userId: "server", accounts: [serverAccount], slot: "active", standaloneAvailable: true })).toBeUndefined();
     expect(resolveModeBanner({ pathname: "/standalone-setup", accounts: [serverAccount], slot: "active", standaloneAvailable: false })).toBeUndefined();
     expect(resolveModeBanner({ pathname: "/form", userId: "offline", accounts: [standaloneAccount, serverAccount], slot: "active", standaloneAvailable: false })).toBeUndefined();
+  });
+});
+
+describe("after enrolling on a server", () => {
+  it("does not call the account list or setup route standalone once the phone is enrolled", () => {
+    // Before enrolling, the account list of a phone with a standalone account is standalone mode.
+    expect(resolveModeBanner({ pathname: "/", accounts: [standaloneAccount], slot: "active", standaloneAvailable: true })).toBe("standalone");
+    expect(resolveModeBanner({ pathname: "/", accounts: [standaloneAccount], slot: "active", standaloneAvailable: true, enrolled: true })).toBeUndefined();
+    expect(resolveModeBanner({ pathname: "/standalone-setup", accounts: [standaloneAccount], slot: "active", standaloneAvailable: true, enrolled: true })).toBeUndefined();
+    expect(resolveModeBanner({ pathname: "/sign-in", accounts: [standaloneAccount], slot: "active", standaloneAvailable: true, enrolled: true })).toBeUndefined();
+  });
+
+  it("still labels the standalone account's own screens", () => {
+    expect(resolveModeBanner({ pathname: "/form", userId: "offline", accounts: [standaloneAccount], slot: "active", standaloneAvailable: true, enrolled: true })).toBe("standalone");
+  });
+
+  it("hides the banner on the enrolled phone's home list", () => {
+    Object.assign(mockState, { pathname: "/", accounts: [standaloneAccount], standaloneAvailable: true });
+    expect(renderedText(renderBanner())).toContain("Standalone Mode - Server Disabled");
+    Object.assign(mockState, { device: { server: "https://digitva.example.org" } });
+    expect(renderedText(renderBanner())).not.toContain("Standalone Mode");
   });
 });
 

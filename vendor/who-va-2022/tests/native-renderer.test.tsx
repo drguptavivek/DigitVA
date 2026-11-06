@@ -4,7 +4,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { InstrumentDefinition } from "../src/index.js";
+import { defaultFormTheme, type InstrumentDefinition } from "../src/index.js";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -141,6 +141,25 @@ function button(container: HTMLElement, label: string): HTMLButtonElement | unde
 }
 
 describe("native renderer integration", () => {
+  it("draws the calendar glyph in the host theme's secondary text colour, never the default palette's", async () => {
+    const pickDate = vi.fn().mockResolvedValue("2026-07-18");
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const theme = { ...defaultFormTheme, textMuted: "#5c6872" };
+
+    await act(async () => {
+      root.render(<WhoVaForm instrument={nativeInstrument} platform={{ pickDate }} theme={theme} />);
+    });
+
+    const glyph = container.querySelector('[data-testid="question-interview_date"] svg');
+    expect(glyph).not.toBeNull();
+    expect(glyph?.getAttribute("fill")).toBe("#5c6872");
+    expect(defaultFormTheme.textMuted).not.toBe("#5c6872");
+
+    await act(async () => root.unmount());
+  });
+
   it("mounts the native entry, navigates sections, and delegates controls to host services", async () => {
     const pickDate = vi.fn().mockResolvedValue("2026-07-18");
     const container = document.createElement("div");
@@ -153,6 +172,11 @@ describe("native renderer integration", () => {
 
     expect(container.textContent).toContain("Section 1 of 2");
     expect(container.textContent).toContain("Dates");
+    // Without a host theme the empty calendar field reads "Select date" with no calendar icon (the Petrol icon
+    // needs a host theme, see the glyph test above).
+    const dateButton = container.querySelector<HTMLElement>('[data-testid="question-interview_date"]');
+    expect(dateButton?.textContent).toContain("Select date");
+    expect(dateButton?.querySelector("svg")).toBeNull();
 
     await act(async () => {
       container.querySelector<HTMLButtonElement>('[data-testid="question-interview_date"]')?.click();

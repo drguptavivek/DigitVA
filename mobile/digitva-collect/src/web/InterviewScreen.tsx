@@ -41,6 +41,7 @@ import type { WhoCoreRuntime } from "../whoCoreRuntime";
 import { RefusalPanel } from "../RefusalPanel";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { isRefused, refusalAnswers } from "../refusalBoundary";
+import { formUiTranslations, useFormPackRevision } from "../uiPacks";
 
 /**
  * The package's own UI strings (en, plus its built-in Hindi and French packs)
@@ -51,7 +52,7 @@ import { isRefused, refusalAnswers } from "../refusalBoundary";
  */
 export function interviewUiTranslations(core: WhoCoreRuntime) {
   return Object.fromEntries(
-    Object.entries({ en: {}, ...core.WHO_VA_BUILT_IN_UI_TRANSLATIONS }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
+    Object.entries({ en: {}, ...formUiTranslations(core.WHO_VA_BUILT_IN_UI_TRANSLATIONS) }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
   );
 }
 
@@ -1091,9 +1092,12 @@ export default function InterviewScreen() {
       } as unknown as ViewStyle)
     : undefined;
   const WhoVaFormComponent = whoRuntime?.web.WhoVaForm;
+  // Server form-label packs (digitva-s028): the revision moves when a pack arrives, which rebuilds the labels.
+  const formPackRevision = useFormPackRevision();
   const uiTranslations = useMemo(
     () => whoRuntime ? interviewUiTranslations(whoRuntime.core) : undefined,
-    [whoRuntime],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [whoRuntime, formPackRevision],
   );
   const updateLiveAnswers = useCallback((data: Record<string, unknown> | undefined) => {
     if (!data || typeof data !== "object") return;

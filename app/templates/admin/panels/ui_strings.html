@@ -56,6 +56,41 @@
     {% endif %}
   </div>
 
+  <div class="card card-body small py-2 mb-3" id="uis-languages">
+    <strong>UI languages</strong>
+    <span class="text-muted">A language reaches phones and browsers only once published. Machine
+      drafts are never served. Keep a right-to-left language unpublished until it is checked on a
+      phone.</span>
+    <table class="table table-sm align-middle small mt-2 mb-2">
+      <thead><tr><th scope="col">Code</th><th scope="col">Native name</th><th scope="col">BCP 47</th>
+        <th scope="col">Direction</th><th scope="col">Published</th><th scope="col"></th></tr></thead>
+      <tbody>
+        {% for lang in ui_languages %}
+        <tr>
+          <td><code>{{ lang.locale }}</code></td><td>{{ lang.native_name }}</td><td>{{ lang.bcp47_tag }}</td>
+          <td>{{ lang.direction }}</td><td>{{ 'yes' if lang.published else 'no' }}</td>
+          <td><button type="button" class="btn btn-sm btn-outline-primary uis-lang-toggle"
+                      data-lang="{{ lang|tojson|forceescape }}">{{ 'Unpublish' if lang.published else 'Publish' }}</button></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted">No UI language added yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-2"><label class="form-label small mb-1" for="uis-lang-code">Code</label>
+        <input class="form-control form-control-sm" id="uis-lang-code" maxlength="3" placeholder="pa"></div>
+      <div class="col-sm-3"><label class="form-label small mb-1" for="uis-lang-name">Native name</label>
+        <input class="form-control form-control-sm" id="uis-lang-name" maxlength="64" placeholder="ਪੰਜਾਬੀ"></div>
+      <div class="col-sm-2"><label class="form-label small mb-1" for="uis-lang-tag">BCP 47 tag</label>
+        <input class="form-control form-control-sm" id="uis-lang-tag" maxlength="35" placeholder="pa-IN"></div>
+      <div class="col-sm-2"><label class="form-label small mb-1" for="uis-lang-dir">Direction</label>
+        <select class="form-select form-select-sm" id="uis-lang-dir"><option value="ltr">ltr</option><option value="rtl">rtl</option></select></div>
+      <div class="col-sm-3"><button type="button" class="btn btn-sm btn-outline-primary" id="uis-lang-save">Add or update</button>
+        <div class="form-text">A new language starts unpublished; an existing one keeps its state.</div></div>
+    </div>
+  </div>
+
   {% if not locales %}
     <div class="alert alert-warning small py-2">
       No UI language is bundled in this server's Expo export. Run
@@ -220,6 +255,31 @@
       post(API + 'machine-translate', { locales: chosen }).then(function (res) {
         if (res.ok) { target.disabled = true; showAlert('Queued. Reload the panel for the counts.'); return; }
         showAlert(res.data.error || 'The run was not queued.');
+      });
+      return;
+    }
+    if (target.id === 'uis-lang-save' || target.classList.contains('uis-lang-toggle')) {
+      var lang;
+      if (target.id === 'uis-lang-save') {
+        lang = {
+          locale: document.getElementById('uis-lang-code').value.trim(),
+          native_name: document.getElementById('uis-lang-name').value,
+          bcp47_tag: document.getElementById('uis-lang-tag').value,
+          direction: document.getElementById('uis-lang-dir').value,
+        };  // no published flag: the server keeps the current state
+      } else {
+        lang = JSON.parse(target.getAttribute('data-lang'));
+        lang.published = !lang.published;
+      }
+      fetch('/admin/api/ui-languages/' + encodeURIComponent(lang.locale), {
+        method: 'PUT',
+        headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(lang),
+      }).then(function (r) {
+        return r.json().then(function (d) {
+          if (r.ok) { reload(); return; }
+          showAlert(d.error || 'The language was not saved.');
+        });
       });
       return;
     }

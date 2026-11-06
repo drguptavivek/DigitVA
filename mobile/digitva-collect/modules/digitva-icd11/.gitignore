@@ -3,3 +3,4 @@ android/src/main/jniLibs/
 android/src/main/assets/
 android/.cxx/
 android/build/
+ios/Engine/

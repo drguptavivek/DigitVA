@@ -9,3 +9,4 @@ ios/
 expo-env.d.ts
 *.apk
 !modules/*/android/
+!modules/*/ios/

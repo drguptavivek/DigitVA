@@ -14,6 +14,28 @@ export class OfflineError extends TypeError {
   }
 }
 
+/**
+ * A request that never reached the server. A TypeError, like the fetch of React Native and browsers, so the "no
+ * network" handling applies; iOS's expo fetch instead rejects with a plain Error ("fetch failed: ... Could not
+ * connect to the server"), which serverFetch turns into this.
+ */
+export class NetworkError extends TypeError {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : "network request failed");
+    this.name = "NetworkError";
+  }
+}
+
+/** fetch whose transport failures are always TypeErrors; an abort (timeout or caller) rejects as it did. */
+export async function serverFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (error instanceof TypeError || init.signal?.aborted) throw error;
+    throw new NetworkError(error);
+  }
+}
+
 let offline = false;
 /** Bumped at each connectivity change and each good response; the error log files a network failure once per value. */
 let spell = 0;

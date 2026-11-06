@@ -44,6 +44,7 @@ jest.mock("../src/client/api", () => ({
 }));
 jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/i18n", () => ({
+  uiLanguageTag: () => "en",
   t: (key: string, values: Record<string, string> = {}) => key + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : ""),
 }));
 jest.mock("../src/ui", () => ({
@@ -396,3 +397,8 @@ describe("both screens", () => {
     await act(async () => deaths.unmount());
   });
 });
+
+// These are the browser's screens: the shared case card keeps its ISO timestamps there (the phone writes "6 Nov 2026, 4:50 am").
+const { Platform: webPlatform } = require("react-native");
+beforeAll(() => { webPlatform.OS = "web"; });
+afterAll(() => { webPlatform.OS = "ios"; });

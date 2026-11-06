@@ -26,6 +26,7 @@ import { OrgTree } from "./OrgTree";
 import { roleSummary } from "./OrganizationScreen";
 import { roleLabelKey } from "./roleHome";
 import { useOpenedUnits } from "./useOpenedUnits";
+import { platformLabel } from "../platformLabel";
 
 /**
  * The Users page (digitva-75wn, digitva-x79t): everyone the server lets this viewer see (admin all, project PI their
@@ -325,8 +326,8 @@ function UserDevicesPanel({ user, canManage }: { user: Pick<DirectoryUser, "user
         {devices && !devices.length ? <Text style={styles.muted}>{t("usersDevices", { count: 0 })}</Text> : null}
         {devices?.map((device) => (
           <View key={device.device_id} style={styles.card}>
-            <Text style={styles.text}>{device.name || device.platform || "Device"}{device.current ? ` · ${t("deviceCurrent")}` : ""}</Text>
-            <Text style={styles.muted}>{[device.platform, device.app_version].filter(Boolean).join(" · ")}</Text>
+            <Text style={styles.text}>{device.name || platformLabel(device.platform) || "Device"}{device.current ? ` · ${t("deviceCurrent")}` : ""}</Text>
+            <Text style={styles.muted}>{[platformLabel(device.platform), device.app_version].filter(Boolean).join(" · ")}</Text>
             <Button
               size="sm"
               kind="secondary"

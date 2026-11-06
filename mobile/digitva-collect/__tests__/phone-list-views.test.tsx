@@ -6,22 +6,30 @@ jest.mock("react-native-safe-area-context", () => ({
   ...jest.requireActual("react-native-safe-area-context"),
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock("../src/ui", () => ({
-  Button: ({ label, onPress, disabled }: { label: string; onPress?: () => void; disabled?: boolean }) =>
-    (jest.requireActual("react") as typeof React).createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
+jest.mock("../src/ui", () => require("../test-support/uiMockExtras").withUiExtras({
+  Button: ({ label, onPress, disabled, kind }: { label: string; onPress?: () => void; disabled?: boolean; kind?: string }) =>
+    (jest.requireActual("react") as typeof React).createElement("button", { "data-label": label, "data-kind": kind, disabled, onClick: onPress }, label),
   useUiStyles: () => ({ card: {}, error: {}, muted: {}, text: {} }),
   stateLabel: (s: string) => s,
+  Card: ({ children, testID }: { children: React.ReactNode; testID?: string }) =>
+    (jest.requireActual("react") as typeof React).createElement("section", { testID }, children),
+  Separator: () => null,
+  Notice: ({ children, tone }: { children: React.ReactNode; tone?: string }) =>
+    (jest.requireActual("react") as typeof React).createElement("aside", { "data-tone": tone ?? "info" }, children),
+  ListRow: ({ label, secondary, value, onPress, accessibilityLabel, tone, badge }: { label: string; secondary?: string; value?: string; onPress?: () => void; accessibilityLabel?: string; tone?: string; badge?: boolean }) =>
+    (jest.requireActual("react") as typeof React).createElement(onPress ? "button" : "div", { "data-label": accessibilityLabel ?? label, "data-tone": tone, "data-badge": badge, onClick: onPress }, label, secondary, value),
 }));
 jest.mock("../src/web/LocationCapture", () => ({ MapsPinButton: () => null }));
 
 import { CaseCard as SharedCaseCard } from "../src/ui/CaseCard";
 import { CaseCard as WebCaseCard, formatDisplayTimestamp, sexLabel } from "../src/web/DeathsList";
-import { HomeView, InterviewsView, SitePickerSheet } from "../src/nativeRoutes/worklistParts";
+import { HomeView, InterviewsView, ProjectLine, SitePickerSheet } from "../src/nativeRoutes/worklistParts";
 import { OfflineNotice, SkeletonCards, StateView } from "../src/ui/StateView";
 import { buildInterviewItems, interviewCounts } from "../src/ui/interviewRows";
 import { homeSummary } from "../src/ui/homeSummary";
+import en from "../src/strings/en.json";
 
-const text = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON(), (k, v) => (k === "data" && Array.isArray(v) ? undefined : v));
+const text = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON(), (k, v) => ((k === "data" && Array.isArray(v)) || k === "refreshControl" || k === "ListHeaderComponent" ? undefined : v));
 /** Every string a Text node shows (the Modal host cannot be serialised, so the sheet tests read text this way). */
 const shown = (tree: ReactTestRenderer) =>
   tree.root.findAllByType(Text).map((node) => [node.props.children].flat(3).filter((c) => typeof c === "string").join("")).join("\n");
@@ -43,14 +51,14 @@ const sources = (extra = {}) => ({ drafts: [], registrations: [], cases: [], onl
 const noop = () => undefined;
 const interviewsProps = (items: ReturnType<typeof buildInterviewItems>, extra = {}) => ({
   loaded: true, offline: false, items, canRegister: true, refreshing: false, busy: false, canRefresh: true, hasMore: false,
-  loadingMore: false, loadFailed: false, onAction: noop, onRetryDemo: noop, onRegister: noop, onRefresh: noop, onSend: noop, onLoadMore: noop, ...extra,
+  loadingMore: false, loadFailed: false, onAction: noop, onRetryDemo: noop, onRegister: noop, onRefresh: noop, onLoadMore: noop, ...extra,
 });
 
 describe("CaseCard", () => {
   it("is the one card: the web list re-exports it unchanged", () => {
     expect(WebCaseCard).toBe(SharedCaseCard);
     expect(sexLabel("male")).toBe("Male");
-    expect(formatDisplayTimestamp("2026-10-23")).toBe("2026-10-23");
+    expect(formatDisplayTimestamp("2026-10-23")).toBe("23 Oct 2026");
   });
 
   it("keeps the ID at the foot by default and under the title with idBelowTitle", async () => {
@@ -69,7 +77,7 @@ describe("CaseCard", () => {
 describe("Home", () => {
   const items = buildInterviewItems(sources({ drafts: [draft("d1", { death_id: "C1" }), draft("d2")], cases: [caseRow("C1", "Ramesh Kumar"), caseRow("C2", "Sunita Devi"), caseRow("C3", "Mohan Lal")] }));
   const summary = homeSummary(items, interviewCounts(items));
-  const base = { loaded: true, offline: false, summary, unsent: 1, canStart: true, canRegister: true, busy: false, onResume: noop, onStart: noop, onRegister: noop, onSend: noop, onViewTodo: noop };
+  const base = { loaded: true, offline: false, summary, unsent: 1, canStart: true, busy: false, onResume: noop, onStart: noop, onSend: noop, onViewTodo: noop };
 
   it("shows the draft count, the name of the latest draft, and unsent and need-a-visit numbers from local data", async () => {
     await render(<HomeView {...base} />);
@@ -79,13 +87,12 @@ describe("Home", () => {
     expect(labelled(tree, "Resume draft")).toHaveLength(1);
     expect(out).toContain('"1"'); // unsent comes from the shared count, not from drafts
     expect(out).toContain('"2"'); // C2 and C3 still need a visit
-    expect(labelled(tree, "Register a death").length).toBeGreaterThan(0);
   });
 
-  it("wires Resume, Send now and View, and hides Register when the account may not register", async () => {
+  it("wires Resume, Send now and View; Register lives in the go rows, not in Home's own content", async () => {
     const calls: string[] = [];
-    await render(<HomeView {...base} canRegister={false} onResume={() => calls.push("resume")} onSend={() => calls.push("send")} onViewTodo={() => calls.push("view")} />);
-    for (const label of ["Resume draft", "Send now", "View"]) await act(async () => labelled(tree, label)[0].props.onClick());
+    await render(<HomeView {...base} onResume={() => calls.push("resume")} onSend={() => calls.push("send")} onViewTodo={() => calls.push("view")} />);
+    for (const label of ["Resume draft", "Send now", "2 need a visit. View"]) await act(async () => labelled(tree, label)[0].props.onClick());
     expect(calls).toEqual(["resume", "send", "view"]);
     expect(labelled(tree, "Register a death")).toHaveLength(0);
   });
@@ -98,6 +105,20 @@ describe("Home", () => {
     expect(tree.root.findAllByProps({ testID: "state-offline" }).length).toBeGreaterThan(0);
   });
 
+  it("puts the counts in one card; Unsent takes the attention tint and badge only while something waits", async () => {
+    await render(<HomeView {...base} unsent={1} />);
+    expect(tree.root.findAllByProps({ testID: "home-counts" }).length).toBeGreaterThan(0);
+    const unsentRow = labelled(tree, "Unsent")[0];
+    expect(unsentRow.props).toMatchObject({ "data-tone": "attention", "data-badge": true });
+    expect(labelled(tree, "Drafts in progress")).toHaveLength(1);
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={0} />);
+    const idle = labelled(tree, "Unsent")[0];
+    expect(idle).toBeDefined();
+    expect(idle.props["data-tone"]).toBeUndefined();
+    expect(idle.props["data-badge"]).toBe(false);
+  });
+
   it("shows attached files beside the record count, not inside it", async () => {
     await render(<HomeView {...base} unsent={1} unsentFiles={2} />);
     expect(text(tree)).toContain("Attached files also waiting: 2");
@@ -106,9 +127,71 @@ describe("Home", () => {
     expect(text(tree)).not.toContain("attached files");
   });
 
+  it("has one filled button: Send now while something is unsent; the next step is tint-filled", async () => {
+    await render(<HomeView {...base} />);
+    expect(labelled(tree, "Send now")[0].props["data-kind"]).toBeUndefined();
+    expect(labelled(tree, "Resume draft")[0].props["data-kind"]).toBe("secondary");
+  });
+
+  it("with nothing unsent hides Send now and fills the next step, Resume or Start", async () => {
+    await render(<HomeView {...base} unsent={0} />);
+    expect(labelled(tree, "Resume draft")[0].props["data-kind"]).toBe("primary");
+    expect(labelled(tree, "Send now")).toHaveLength(0);
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={0} summary={homeSummary([], interviewCounts([]))} />);
+    expect(labelled(tree, "Start an interview")[0].props["data-kind"]).toBe("primary");
+    expect(labelled(tree, "Send now")).toHaveLength(0);
+  });
+
+  it("keeps Send now as the primary while the queue is not counted yet, and for waiting files alone", async () => {
+    await render(<HomeView {...base} unsent={undefined} />);
+    expect(labelled(tree, "Send now")[0].props["data-kind"]).toBeUndefined();
+    expect(labelled(tree, "Resume draft")[0].props["data-kind"]).toBe("secondary");
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={0} unsentFiles={1} />);
+    expect(labelled(tree, "Send now")).toHaveLength(1);
+  });
+
   it("shows skeleton rows, not a spinner, while the local store loads", async () => {
     await render(<HomeView {...base} loaded={false} />);
     expect(tree.root.findAllByProps({ testID: "state-loading" }).length).toBeGreaterThan(0);
+  });
+
+  it("draws the loading Home as its three cards, with no counts, buttons or wrong content", async () => {
+    await render(<HomeView {...base} loaded={false}><button data-label="Register a death" /></HomeView>);
+    const loading = tree.root.findAll((n) => typeof n.type === "string" && n.props.testID === "state-loading")[0];
+    expect(loading.props.accessibilityLabel).toBe(en.loading);
+    // The counts card, the next-step card and the go-rows card (the Card mock renders a <section>).
+    expect(loading.findAllByType("section" as never)).toHaveLength(3);
+    expect(labelled(tree, "Start an interview")).toHaveLength(0);
+    expect(labelled(tree, "Send now")).toHaveLength(0);
+    expect(labelled(tree, "Register a death")).toHaveLength(0);
+  });
+
+  it("offline keeps the next step filled and Send now visible but disabled", async () => {
+    await render(<HomeView {...base} offline unsent={2} summary={homeSummary([], interviewCounts([]))} />);
+    expect(labelled(tree, "Send now")[0].props.disabled).toBe(true);
+    expect(labelled(tree, "Start an interview")[0].props["data-kind"]).toBe("primary");
+    expect(labelled(tree, "Start an interview")[0].props.disabled).toBe(false);
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} offline unsent={2} />);
+    expect(labelled(tree, "Resume draft")[0].props["data-kind"]).toBe("primary");
+    // Online the same queue demotes the next step (frozen look).
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={2} />);
+    expect(labelled(tree, "Resume draft")[0].props["data-kind"]).toBe("secondary");
+  });
+});
+
+describe("ProjectLine", () => {
+  it("keeps its line while there is no project yet, so the cards under it never jump", async () => {
+    await render(<ProjectLine project="GUJ026" name="Gujarat Health System" />);
+    expect(shown(tree)).toContain("GUJ026 · Gujarat Health System");
+    await act(async () => tree.unmount());
+    await render(<ProjectLine />);
+    const empty = tree.root.findAll((n) => typeof n.type === "string" && n.props.testID === "project-line-empty");
+    expect(empty).toHaveLength(1);
+    expect(empty[0].props.style.minHeight).toBe(20);
   });
 });
 
@@ -156,11 +239,35 @@ describe("Interviews", () => {
     expect(text(tree)).toContain("SENT-1");
   });
 
-  it("shows the Empty state with Register a death, Loading skeletons, and Offline with Refresh disabled and the reason", async () => {
+  it("follows a new route filter while mounted (Home's View links reuse the Interviews tab)", async () => {
+    await render(<InterviewsView {...interviewsProps(items)} initialFilter="sent" />);
+    expect(cards()).toHaveLength(1);
+    expect(text(tree)).toContain("SENT-1");
+    await act(async () => tree.update(<InterviewsView {...interviewsProps(items)} initialFilter="todo" />));
+    expect(cards()).toHaveLength(1);
+    expect(text(tree)).toContain("Sunita Devi");
+    expect(text(tree)).not.toContain("SENT-1");
+    // A chip tap still wins until the route names a different filter.
+    await act(async () => pressable(tree, "All").props.onPress());
+    await act(async () => tree.update(<InterviewsView {...interviewsProps(items)} initialFilter="todo" />));
+    expect(cards()).toHaveLength(3);
+  });
+
+  it("scrolls the header (search, chips, and the caller's header) with the list", async () => {
+    await render(<InterviewsView {...interviewsProps(items)} header={<Text testID="caller-header">Coding case lists</Text>} />);
+    const list = tree.root.findAll((n) => n.props.ListHeaderComponent !== undefined)[0];
+    expect(list).toBeDefined();
+    // An element, not an inline component type, so typing in search keeps focus across renders.
+    expect(React.isValidElement(list.props.ListHeaderComponent)).toBe(true);
+    expect(list.findAllByProps({ testID: "caller-header" }).length).toBeGreaterThan(0);
+    expect(list.findAll((n) => n.props.accessibilityLabel === "Search interviews").length).toBeGreaterThan(0);
+  });
+
+  it("shows the Empty state with Register a death, Loading skeletons, and Offline with pull-to-refresh off and the reason", async () => {
     const registered: string[] = [];
     await render(<InterviewsView {...interviewsProps([], { onRegister: () => registered.push("x") })} />);
     expect(text(tree)).toContain("No interviews yet");
-    await act(async () => labelled(tree, "Register a death")[0].props.onClick());
+    await act(async () => pressable(tree, "Register a death").props.onPress());
     expect(registered).toEqual(["x"]);
     await act(async () => tree.unmount());
     await render(<InterviewsView {...interviewsProps([], { loaded: false })} />);
@@ -168,8 +275,64 @@ describe("Interviews", () => {
     await act(async () => tree.unmount());
     await render(<InterviewsView {...interviewsProps(items, { offline: true })} />);
     expect(tree.root.findAllByProps({ testID: "state-offline" }).length).toBeGreaterThan(0);
-    expect(labelled(tree, "Refresh")[0].props.disabled).toBe(true);
+    expect(refreshControl().props.enabled).toBe(false);
     expect(text(tree)).toContain("Refresh needs a connection.");
+  });
+
+  const refreshControl = () => tree.root.findByProps({ testID: "interviews-list" }).props.refreshControl;
+  const links = () => tree.root.findAll((n) => n.props.accessibilityRole === "button" && typeof n.props.onPress === "function" && n.type !== "button")
+    .filter((n) => typeof n.type !== "string").map((n) => ({ label: n.props.accessibilityLabel, disabled: Boolean(n.props.disabled) }));
+
+  it("chooses the empty-state copy by loaded and offline first, Register second", async () => {
+    // Not loaded: skeleton, never the empty copy (no flip while reference data is read).
+    await render(<InterviewsView {...interviewsProps([], { loaded: false, canRegister: false })} />);
+    expect(tree.root.findAllByProps({ testID: "state-loading" }).length).toBeGreaterThan(0);
+    expect(text(tree)).not.toContain("No interviews yet");
+    expect(text(tree)).not.toContain("Connect to the internet");
+    await act(async () => tree.unmount());
+    // Online coder-only account: no "Connect to the internet", no Register.
+    await render(<InterviewsView {...interviewsProps([], { canRegister: false })} />);
+    expect(text(tree)).toContain("No cases on this phone yet. Pull down to refresh.");
+    expect(text(tree)).not.toContain("Connect to the internet");
+    expect(links()).toEqual([{ label: "Refresh", disabled: false }]);
+    await act(async () => tree.unmount());
+    // Online with Register: the frozen copy and links.
+    await render(<InterviewsView {...interviewsProps([])} />);
+    expect(text(tree)).toContain("No cases on this phone yet. Pull down to refresh, or register a death.");
+    expect(links()).toEqual([{ label: "Refresh", disabled: false }, { label: "Register a death", disabled: false }]);
+    await act(async () => tree.unmount());
+    // Offline: the connect hint; Register first, then Refresh waiting for the connection.
+    await render(<InterviewsView {...interviewsProps([], { offline: true })} />);
+    expect(text(tree)).toContain("Connect to the internet and tap Refresh to load your cases.");
+    expect(links()).toEqual([{ label: "Register a death", disabled: false }, { label: "Refresh", disabled: true }]);
+    await act(async () => tree.unmount());
+    await render(<InterviewsView {...interviewsProps([], { offline: true, canRegister: false })} />);
+    expect(text(tree)).toContain("Connect to the internet and tap Refresh to load your cases.");
+    expect(links()).toEqual([{ label: "Refresh", disabled: true }]);
+  });
+
+  it("has no Send now or Refresh button: Send lives in the Sync sheet and the list refreshes when pulled", async () => {
+    const calls: string[] = [];
+    await render(<InterviewsView {...interviewsProps(items, { onRefresh: () => calls.push("refresh") })} />);
+    expect(cards()).toHaveLength(3);
+    expect(labelled(tree, "Send now")).toHaveLength(0);
+    expect(labelled(tree, "Refresh")).toHaveLength(0);
+    expect(refreshControl().props).toMatchObject({ refreshing: false, enabled: true });
+    await act(async () => refreshControl().props.onRefresh());
+    expect(calls).toEqual(["refresh"]);
+  });
+
+  it("shows the refresh spinner while refreshing and ignores a pull while offline or busy", async () => {
+    const calls: string[] = [];
+    await render(<InterviewsView {...interviewsProps(items, { refreshing: true })} />);
+    expect(refreshControl().props.refreshing).toBe(true);
+    await act(async () => tree.unmount());
+    for (const extra of [{ offline: true }, { busy: true }]) {
+      await render(<InterviewsView {...interviewsProps(items, { ...extra, onRefresh: () => calls.push("refresh") })} />);
+      await act(async () => refreshControl().props.onRefresh());
+      await act(async () => tree.unmount());
+    }
+    expect(calls).toEqual([]);
   });
 });
 

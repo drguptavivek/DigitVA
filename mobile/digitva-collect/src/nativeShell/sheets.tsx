@@ -1,49 +1,58 @@
 /** The three shell sheets: Account menu, Help and Sync. Open state lives in the ShellProvider (shell.tsx). */
 import { usePathname, useRouter } from "expo-router";
 import { useState } from "react";
-import { Linking, Pressable, Text, TextInput, View } from "react-native";
+import { Linking, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { signOut } from "../auth";
-import { t, UI_LOCALES } from "../i18n";
+import { t } from "../i18n";
 import { isUnlocked } from "../interviewerDb";
 import { confirmSignOut } from "../signOutConfirm";
-import { radius, spacing, typography, useTheme } from "../theme";
+import { spacing, useTheme } from "../theme";
 import { useToast } from "../toast";
 import { APP_VERSION } from "../appVersion";
+import { isPlusVariant } from "../appVariant";
+import { displayProjectName } from "../projectName";
 import { canTryDorisDemo } from "../dorisDemoAccess";
-import { Button } from "../ui";
+import { icons } from "../Icon";
+import { Button, Card, ListRow, Notice, SectionLabel, Separator, TextField } from "../ui";
+import { UiLanguageRow } from "../ui/LanguagePicker";
 import { BulletItem } from "../ui/controls";
 import { RoleChip, RoleChips } from "../ui/RoleChip";
 import { BottomSheet, SheetRow } from "./BottomSheet";
 import { faqEntries, type FaqTarget } from "./faq";
 import { helpContent, helpGuideUrl, helpScreenFor } from "./helpContent";
-import { clock, useShell, type SyncStatus } from "./shellContext";
+import { syncedText, useShell, type SyncStatus } from "./shellContext";
 
-/** "Synced 14:05 · 3 unsent" (parts that are not known yet are left out). */
+/** The unsent count in the Sync sheet's words: "3 unsent", "Nothing to send" at 0. */
+export function unsentText(unsent: number): string {
+  return unsent > 0 ? t("syncUnsentScoped", { count: unsent }) : t("syncNothingToSend");
+}
+
+/** "Synced today, 2:05 pm · 3 unsent" (parts that are not known yet are left out); the Sync sheet's words. */
 export function syncSummary(sync: SyncStatus): string {
-  const parts = [sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")];
-  if (sync.work) parts.push(t("syncUnsentCount", { count: sync.work.unsent }));
+  const parts = [syncedText(sync.lastAt)];
+  if (sync.work) parts.push(unsentText(sync.work.unsent));
   return parts.join(" · ");
 }
 
-/** The account's phone roles as chips, then the project name. */
+/** The project on its own line (display name), then the account's phone roles as chips on theirs. */
 function RoleLine({ account, project }: { account: { collection_access?: boolean; registration_access?: boolean }; project?: string }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const roles = [account.collection_access ? "interviewer" : "", account.registration_access ? "death_reporter" : ""].filter(Boolean);
   return (
-    <RoleChips>
-      {roles.map((role) => <RoleChip key={role} role={role} />)}
-      {project ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{project}</Text> : null}
-    </RoleChips>
+    <View style={{ gap: spacing.xs }}>
+      {project ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{displayProjectName(project)}</Text> : null}
+      {roles.length ? <RoleChips>{roles.map((role) => <RoleChip key={role} role={role} plain />)}</RoleChips> : null}
+    </View>
   );
 }
 
 export function AccountSheet() {
   const shell = useShell();
   const router = useRouter();
-  const { accounts, device, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
-  const { ui } = useTheme();
+  const { accounts, device, lockNow, reload } = useAppState();
+  const { ui, typography } = useTheme();
   const toast = useToast();
   const lockFailed = () => toast.show({ kind: "error", text: t("errGeneric") });
   const account = accounts.find((item) => item.user_id === shell.userId);
@@ -68,32 +77,29 @@ export function AccountSheet() {
     }
   }
   return (
-    <BottomSheet visible={shell.sheet === "account"} title={account?.name ?? t("accountsTitle")} onClose={shell.closeSheet}>
+    // Two white cards: the sheet takes the canvas tone so they stand apart from it, as on a screen.
+    <BottomSheet cards visible={shell.sheet === "account"} title={account?.name ?? t("accountsTitle")} onClose={shell.closeSheet}>
       {account ? <RoleLine account={account} project={shell.server ? device?.project_name : undefined} /> : null}
-      <Text style={{ ...typography.caption, color: ui.mutedForeground, marginBottom: spacing.xs }}>{syncSummary(shell.sync)}</Text>
-      <SheetRow label={t("settings")} onPress={go(() => router.push({ pathname: "/settings", params: { userId } }))} />
-      <SheetRow label={t("formHelp")} onPress={() => shell.openSheet("help")} />
-      <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
-        <Text style={{ ...typography.body, color: ui.popoverForeground }}>{t("languageLabel")}</Text>
-        <View style={{ flexDirection: "row", borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, overflow: "hidden" }}>
-          {UI_LOCALES.map((locale) => (
-            <Pressable
-              key={locale.code}
-              accessibilityRole="button"
-              accessibilityLabel={locale.label}
-              accessibilityState={{ selected: locale.code === uiLocale }}
-              onPress={() => void chooseUiLocale(locale.code)}
-              style={{ minHeight: 40, minWidth: 80, alignItems: "center", justifyContent: "center", backgroundColor: locale.code === uiLocale ? ui.accent : ui.popover }}
-            >
-              <Text style={{ ...typography.subhead, color: locale.code === uiLocale ? ui.accentForeground : ui.popoverForeground, fontWeight: locale.code === uiLocale ? "700" : "400" }}>{locale.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-      <SheetRow label={t("lockNow")} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
-      <SheetRow label={t("switchInterviewer")} onPress={go(() => void lockNow().then((locked) => (locked ? router.replace("/") : lockFailed())))} />
-      <SheetRow label={t("signOut")} tone="danger" disabled={!userId} onPress={go(() => userId && void confirmSignOut(userId, () => void doSignOut()))} />
-      <Text style={{ ...typography.caption, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("appVersionLabel", { version: APP_VERSION })}</Text>
+      <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs, marginBottom: spacing.sm }}>{syncSummary(shell.sync)}</Text>
+      <Card grouped>
+        <ListRow icon={icons.settings} label={t("settings")} onPress={go(() => router.push({ pathname: "/settings", params: { userId } }))} />
+        <Separator icon />
+        <ListRow icon={icons.help} label={t("formHelp")} onPress={() => shell.openSheet("help")} />
+        <Separator icon />
+        {/* The translate glyph (as in the Sign in bar) lines its label up with Settings and Help. */}
+        <UiLanguageRow icon={icons.language} label={t("languageLabel")} />
+      </Card>
+      {/* Actions, not navigation: no chevrons. Sign out keeps the encrypted data (digitva-dxgj), so it is ink, not red. */}
+      <Card grouped style={{ marginTop: spacing.md }}>
+        <ListRow icon={icons.lock} label={t("lockNow")} chevron={false} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
+        <Separator icon />
+        <ListRow icon={icons.switchUser} label={t("switchInterviewer")} chevron={false} onPress={go(() => void lockNow().then((locked) => (locked ? router.replace("/") : lockFailed())))} />
+        <Separator icon />
+        <ListRow icon={icons.signOut} label={t("signOut")} chevron={false} disabled={!userId} onPress={go(() => userId && void confirmSignOut(userId, () => void doSignOut()))} />
+      </Card>
+      <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs, paddingHorizontal: spacing.md }}>
+        {isPlusVariant() ? t("appVersionVariant", { version: APP_VERSION, variant: "Plus" }) : t("appVersionLabel", { version: APP_VERSION })}
+      </Text>
     </BottomSheet>
   );
 }
@@ -103,7 +109,7 @@ export function HelpSheet() {
   const pathname = usePathname();
   const { accounts } = useAppState();
   const toast = useToast();
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const screen = helpScreenFor(pathname);
   // Standalone has no server and no Sync tab, so its Help never points at either.
   const standalone = accounts.find((item) => item.user_id === shell.userId)?.standalone === true;
@@ -123,7 +129,7 @@ export function HelpSheet() {
     shell.closeSheet();
     const params = { userId: shell.userId };
     if (target === "settings") router.push({ pathname: "/settings", params });
-    else router.replace({ pathname: "/worklist", params: { ...params, view: "interviews", filter: target } });
+    else router.dismissTo({ pathname: "/worklist", params: { ...params, view: "interviews", filter: target } });
   }
   // Every "go" button opens something of an account (its menu with Sign out, Sync, Settings, its worklist), so none is
   // offered unless that account's store is unlocked: before the PIN, Help is the guide, the FAQ text and Try DORIS only.
@@ -153,13 +159,14 @@ export function HelpSheet() {
         </View>
       ) : null}
       <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, marginTop: spacing.lg }}>{t("faqTitle")}</Text>
-      <TextInput
+      {/* On the white sheet the field takes the neutral fill; no edge until focused. */}
+      <TextField
+        onCard
         accessibilityLabel={t("faqSearch")}
         placeholder={t("faqSearch")}
-        placeholderTextColor={ui.mutedForeground}
         value={query}
         onChangeText={setQuery}
-        style={{ ...typography.body, color: ui.popoverForeground, borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, minHeight: 48, paddingHorizontal: spacing.sm, marginVertical: spacing.xs }}
+        style={{ marginVertical: spacing.xs }}
       />
       {entries.length === 0 ? <Text style={{ ...typography.body, color: ui.mutedForeground }}>{t("faqNone")}</Text> : null}
       {entries.map((entry) => (
@@ -183,22 +190,29 @@ export function SyncSheet() {
   const shell = useShell();
   const { accounts } = useAppState();
   const router = useRouter();
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const { sync } = shell;
   const account = accounts.find((item) => item.user_id === shell.userId);
   const standalone = account?.standalone === true;
   const work = sync.work;
+  const attention = work?.items.filter((item) => item.state === "attention") ?? [];
+  const queued = work?.items.filter((item) => item.state !== "attention") ?? [];
+  // Nothing to send: Send now is hidden and Refresh becomes the sheet's one filled button.
+  const nothingToSend = work !== undefined && work.unsent === 0 && !work.unsentFiles;
   const openDrafts = () => {
     shell.closeSheet();
-    router.replace({ pathname: standalone ? "/standalone" : "/worklist", params: { userId: shell.userId, view: "interviews", filter: "drafts" } });
+    router.dismissTo({ pathname: standalone ? "/standalone" : "/worklist", params: { userId: shell.userId, view: "interviews", filter: "drafts" } });
   };
   return (
     <BottomSheet visible={shell.sheet === "sync"} title={t("tabSync")} onClose={shell.closeSheet}>
-      {standalone ? <Text style={{ ...typography.body, color: ui.popoverForeground }}>{t("standaloneWarning")}</Text> : null}
-      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
-      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{work ? t("syncUnsentScoped", { count: work.unsent }) : t("syncUnsentUnknown")}</Text>
-      {work?.attention ? <Text style={{ ...typography.subhead, color: ui.destructiveText }}>{t("syncAttentionCount", { count: work.attention })}</Text> : null}
-      {work?.items.map((item) => (
+      {standalone ? <Notice tone="warning">{t("standaloneWarning")}</Notice> : null}
+      {/* One status line, then the count: what the sheet is for. */}
+      <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{syncedText(sync.lastAt)}</Text>
+      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{work ? unsentText(work.unsent) : t("syncUnsentUnknown")}</Text>
+      {work?.attention ? <Notice tone="error">{t("syncAttentionCount", { count: work.attention })}</Notice> : null}
+      {/* Refused items first, under their own label, only when there are any; then the rest of the unsent work. */}
+      {attention.length ? <View style={{ marginTop: spacing.sm, marginLeft: -spacing.md }}><SectionLabel>{t("syncNeedsAttention")}</SectionLabel></View> : null}
+      {[...attention, ...queued].map((item) => (
         <View key={item.key} testID="sync-item" style={{ paddingVertical: spacing.xxs }}>
           <Text style={{ ...typography.body, color: ui.popoverForeground }}>{`${t(`unsentKind_${item.kind}`)}: ${item.title}`}</Text>
           <Text style={{ ...typography.caption, color: item.state === "attention" ? ui.destructiveText : ui.mutedForeground }}>{t(`unsentState_${item.state}`)}</Text>
@@ -210,10 +224,10 @@ export function SyncSheet() {
       {standalone ? <Button kind="secondary" label={t("standaloneEnrol")} onPress={() => { shell.closeSheet(); router.push("/enrol"); }} /> : null}
       {sync.result ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("syncLastResult", { text: sync.result })}</Text> : null}
       {account && !standalone && isUnlocked(account.user_id) ? (
-        <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
-          {/* Nothing to send, or no connection: Send now would only fail, so it waits. */}
-          <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId || sync.offline || (work !== undefined && work.unsent === 0 && !work.unsentFiles)} onPress={() => void shell.sendNow()} />
-          <Button kind="secondary" label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />
+        <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+          {/* No connection: Send now would only fail, so it waits. */}
+          {nothingToSend ? null : <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId || sync.offline} onPress={() => void shell.sendNow()} />}
+          <Button kind={nothingToSend ? "primary" : "secondary"} label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />
         </View>
       ) : null}
     </BottomSheet>

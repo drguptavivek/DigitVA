@@ -40,7 +40,8 @@ import {
   type Slot,
 } from "./auth";
 import { createAutoLock, type AutoLock } from "./autoLock";
-import { setUiLocale } from "./i18n";
+import { requestedUiLocale, setUiLocale, subscribeUiLanguages, uiLocale as resolvedUiLocale } from "./i18n";
+import { offerBundledUiLanguagesOnly, syncUiPacks } from "./uiPacks";
 import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interviewerDb";
 import { errorText } from "./ui";
 import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline } from "./network";
@@ -89,6 +90,8 @@ interface AppState {
   unlocked(): void;
   /** Restart the idle timer (touches are caught at the root; the form reports its saves). */
   activity(): void;
+  /** Native only: the idle lock is 30 seconds away and an account is unlocked (the "Stay unlocked" notice). */
+  lockWarning?: boolean;
   /** Native only: an automatic refresh failed; shown as a banner, never the gate. */
   backgroundError?: string;
   dismissBackgroundError?(): void;
@@ -128,6 +131,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<Slot>("active");
   const [uiLocale, setLocaleState] = useState("en");
   const [lockVersion, setLockVersion] = useState(0);
+  const [lockWarning, setLockWarning] = useState(false);
   const [error, setErrorText] = useState<string>();
   const [errorBlocking, setErrorBlocking] = useState(false);
   const [backgroundErrorText, setBackgroundErrorText] = useState<string>();
@@ -207,7 +211,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const timer = createAutoLock(() => {
       void lockNow().catch((lockError) => setError(lockError));
-    });
+    }, Date.now, (warning) => setLockWarning(warning && anyUnlocked()));
     autoLock.current = timer;
     const subscription = NativeAppState.addEventListener("change", (state) =>
       timer.appStateChanged(state),
@@ -361,13 +365,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [flushBeforeRefresh, reload, bumpRefresh, reportBackgroundError, setBackgroundError]);
 
+  // UI language packs (digitva-dt1e): only an enrolled phone reaches a server; before enrolment and
+  // in standalone mode the bundled languages alone are offered.
+  const packServer = useRef<string | undefined>(undefined);
+  packServer.current = device?.server;
+  const refreshUiPacks = useCallback((locale: string | null | undefined) => {
+    const server = packServer.current;
+    if (!server) return;
+    // Offline or refused: the stored pack (or the bundled text) stays in use.
+    void syncUiPacks(server, locale).catch(() => undefined);
+  }, []);
+  useEffect(() => subscribeUiLanguages(() => setLocaleState(resolvedUiLocale())), []);
+  useEffect(() => {
+    if (!ready) return;
+    if (device?.server) refreshUiPacks(requestedUiLocale());
+    else offerBundledUiLanguagesOnly();
+  }, [ready, device?.server, refreshUiPacks]);
+
   const syncAccount = useCallback(async (
     userId: string,
     handle: Db,
     callbacks?: NativeSyncCallbacks,
   ) => {
-    return runNativeSync(userId, handle, callbacks);
-  }, []);
+    const result = await runNativeSync(userId, handle, callbacks);
+    refreshUiPacks(requestedUiLocale());
+    return result;
+  }, [refreshUiPacks]);
 
   useEffect(() => {
     accountsRef.current = accounts;
@@ -474,8 +497,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));
+    refreshUiPacks(code);
     await SecureStore.setItemAsync(UI_LOCALE_KEY, code);
-  }, []);
+  }, [refreshUiPacks]);
 
   const clearError = useCallback(() => setError(undefined), [setError]);
 
@@ -495,6 +519,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       lockNow,
       unlocked,
       activity,
+      lockWarning,
       clearError,
       onBeforeLock,
       error,
@@ -520,6 +545,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       lockNow,
       unlocked,
       activity,
+      lockWarning,
       clearError,
       onBeforeLock,
       error,

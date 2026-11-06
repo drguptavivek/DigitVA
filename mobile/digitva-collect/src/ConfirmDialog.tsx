@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Modal, Platform, StyleSheet, Text, View } from "react-native";
 
 import { t } from "./i18n";
-import { controls, radius, spacing, typography, useTheme } from "./theme";
+import { controls, radius, spacing, useTheme } from "./theme";
 import { Button } from "./ui";
 
 /**
@@ -27,7 +27,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const { colors, ui } = useTheme();
+  const { colors, ui, typography, highContrast } = useTheme();
   const cancelRef = useRef<{ focus?: () => void } | null>(null);
   const confirmRef = useRef<{ focus?: () => void } | null>(null);
   const cancelCb = useRef(onCancel);
@@ -61,10 +61,10 @@ export function ConfirmDialog({
           // "alertdialog" exists only on the web: Android throws on an unknown accessibilityRole and the app closes.
           {...(Platform.OS === "web" ? { role: "alertdialog" as never } : { accessibilityRole: "alert" as const })}
           accessibilityLabel={title}
-          style={[s.dialog, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[s.dialog, { backgroundColor: colors.surface, borderColor: colors.border }, Platform.OS !== "web" && !highContrast ? { borderWidth: 0 } : null]}
         >
-          <Text accessibilityRole="header" style={[s.title, { color: colors.text }]}>{title}</Text>
-          <Text style={[s.message, { color: colors.textMuted }]}>{message}</Text>
+          <Text accessibilityRole="header" style={[s.title, typography.headline, { color: colors.text }]}>{title}</Text>
+          <Text style={[s.message, typography.subhead, { color: colors.textMuted }]}>{message}</Text>
           <View style={s.actions}>
             <View ref={cancelRef as never}>
               <Button kind="secondary" label={cancelLabel} onPress={onCancel} />
@@ -82,7 +82,7 @@ export function ConfirmDialog({
 const s = StyleSheet.create({
   backdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md},
   dialog: { width: "100%", maxWidth: 420, borderWidth: 1, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
-  title: { ...typography.headline, fontFamily: controls.fontFamily },
-  message: { ...typography.subhead, fontFamily: controls.fontFamily },
+  title: { fontFamily: controls.fontFamily },
+  message: { fontFamily: controls.fontFamily },
   actions: { flexDirection: "row", justifyContent: "flex-end", flexWrap: "wrap", gap: spacing.xs },
 });

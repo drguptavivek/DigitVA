@@ -21,7 +21,7 @@ import { useToast } from "../toast";
 import { checkForUpdateDaily } from "../updateCheck";
 import { errorText } from "../ui";
 import type { WorkSummary } from "../unsentWork";
-import { isPreLoginRoute, showNativeHeader, showNativeTabs } from "./navAdapter";
+import { isPreLoginRoute, showNativeBackTitle, showNativeHeader, showNativeTabs } from "./navAdapter";
 import { AccountSheet, HelpSheet, SyncSheet } from "./sheets";
 import { ShellContext, type Shell, type ShellSheet, type SyncStatus } from "./shellContext";
 
@@ -42,7 +42,7 @@ export function useKeyboardOpen(): boolean {
 export function ShellProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname().replace(/\/$/, "") || "/";
   const params = useGlobalSearchParams<{ userId?: string | string[] }>();
-  const { accounts, lockVersion, offline, dataChanged, syncAccount, reload, device } = useAppState();
+  const { accounts, lockVersion, offline, dataChanged, syncAccount, reload, device, ready } = useAppState();
   const toast = useToast();
   const keyboardOpen = useKeyboardOpen();
   const [sheet, setSheet] = useState<ShellSheet>(null);
@@ -51,6 +51,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
   const busyRef = useRef(false);
+  // Insertion order is mount order; a Map keeps a key's place when its title changes.
+  const [titles, setTitles] = useState<Map<object, string>>(() => new Map());
 
   const requested = first(params.userId);
   const userId = requested && accounts.some((account) => account.user_id === requested) ? requested : undefined;
@@ -144,7 +146,18 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     });
   }, [run, standalone, toast]);
 
+  const publishTitle = useCallback((key: object, title: string | undefined) => setTitles((current) => {
+    if (current.get(key) === title) return current;
+    const next = new Map(current);
+    if (title === undefined) next.delete(key);
+    else next.set(key, title);
+    return next;
+  }), []);
+  const screenTitle = Array.from(titles.values()).at(-1);
+
   const header = showNativeHeader(pathname) || isPreLoginRoute(pathname);
+  // NativeHeader draws nothing until the app state is ready, so the title stays on the page until then.
+  const titleInBar = Boolean(ready) && showNativeBackTitle(pathname, account);
   const tabs = showNativeTabs({ pathname, userId, unlocked, keyboardOpen });
   const sync: SyncStatus = useMemo(() => ({ work, lastAt, busy, result, offline: Boolean(offline) }), [work, lastAt, busy, result, offline]);
   const value: Shell = useMemo(() => ({
@@ -159,7 +172,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     refreshNow,
     header,
     tabs,
-  }), [sheet, userId, server, sync, sendNow, recount, refreshNow, header, tabs]);
+    titleInBar,
+    screenTitle,
+    publishTitle,
+  }), [sheet, userId, server, sync, sendNow, recount, refreshNow, header, tabs, titleInBar, screenTitle, publishTitle]);
   return (
     <ShellContext.Provider value={value}>
       {children}

@@ -46,6 +46,16 @@ jest.mock("expo-intent-launcher", () => ({
     mockOnShare?.(bytes);
   }),
 }));
+// iOS shares through expo-sharing (src/standalone/shareFile.ts); the same capture runs so both paths see the bytes.
+const mockShareAsync = jest.fn(async (uri: string, options: { mimeType: string; UTI?: string; dialogTitle?: string }) => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const file = uri.replace(/^file:\/\//, "");
+  const bytes = fs.readFileSync(file);
+  mockShared.push({ name: path.basename(file), mime: options.mimeType, bytes, existedDuringShare: true });
+  mockOnShare?.(bytes);
+});
+jest.mock("expo-sharing", () => ({ shareAsync: (...args: unknown[]) => (mockShareAsync as (...a: unknown[]) => Promise<void>)(...args) }));
 jest.mock("expo-document-picker", () => ({}));
 jest.mock("../src/ConfirmDialog", () => ({}));
 
@@ -56,6 +66,15 @@ import { backupReminder } from "../src/standalone/age";
 import { buildExport, collectRecords, dataActionsAllowed, exportAndShare, toCsv } from "../src/standalone/export";
 import { sweepExportLeftovers } from "../src/standalone/shareFile";
 import { LAST_BACKUP_META_KEY, lastBackupAt } from "../src/standalone/records";
+
+import { Platform } from "react-native";
+import * as IntentLauncher from "expo-intent-launcher";
+
+// jest-expo runs as iOS; these cases are the Android intent path unless a test switches to iOS.
+const setOs = (os: "android" | "ios") => Object.defineProperty(Platform, "OS", { value: os, configurable: true });
+const realOs = Platform.OS;
+beforeEach(() => setOs("android"));
+afterAll(() => setOs(realOs as "android" | "ios"));
 
 const sha = (b: Buffer) => nodeCrypto.createHash("sha256").update(b).digest("hex");
 const known = new Map<string, string>(); // content hash -> key (what SQLCipher's page HMAC enforces)
@@ -164,6 +183,38 @@ describe("export", () => {
     expect(mockShared).toHaveLength(1);
     expect(mockShared[0]).toMatchObject({ mime: "text/csv" });
     expect(mockShared[0].name).toMatch(/^digitva-records-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(fs.readdirSync(mockDir)).toEqual([]);
+  });
+
+  it("shares through the Android SEND intent on Android, never expo-sharing", async () => {
+    const db = await seeded(USER_A);
+    mockShareAsync.mockClear();
+    expect(await exportAndShare(db, USER_A, "csv")).toBe(1);
+    expect(IntentLauncher.startActivityAsync).toHaveBeenCalledWith("android.intent.action.SEND", expect.objectContaining({ type: "text/csv", flags: 1 }));
+    expect(mockShareAsync).not.toHaveBeenCalled();
+  });
+
+  it("shares through the iOS share sheet with the UTI and deletes the file afterwards", async () => {
+    setOs("ios");
+    const db = await seeded(USER_A);
+    (IntentLauncher.startActivityAsync as jest.Mock).mockClear();
+    mockShareAsync.mockClear();
+    expect(await exportAndShare(db, USER_A, "csv")).toBe(1);
+    expect(mockShareAsync).toHaveBeenCalledTimes(1);
+    const [uri, options] = mockShareAsync.mock.calls[0];
+    expect(uri).toMatch(/^file:\/\/.*digitva-records-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(options).toEqual({ mimeType: "text/csv", UTI: "public.comma-separated-values-text", dialogTitle: expect.stringMatching(/\.csv$/) });
+    expect(IntentLauncher.startActivityAsync).not.toHaveBeenCalled();
+    expect(mockShared).toHaveLength(1);
+    expect(fs.readdirSync(mockDir)).toEqual([]);
+  });
+
+  it("deletes the file on iOS when the share sheet fails", async () => {
+    setOs("ios");
+    const db = await seeded(USER_A);
+    mockOnShare = () => { throw new Error("no target"); };
+    await expect(exportAndShare(db, USER_A, "json")).rejects.toThrow("no target");
+    expect(mockShared).toHaveLength(1); // the share was reached
     expect(fs.readdirSync(mockDir)).toEqual([]);
   });
 

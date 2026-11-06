@@ -1,16 +1,18 @@
 /**
  * Export, backup and restore actions. A standalone account's Settings renders all three (dataActionsAllowed). An enrolled
  * account's Settings renders backup and restore only (`exportAllowed` off): CSV/JSON export is standalone-only.
- * The policy warning is shown before every action.
+ * The policy warning is shown before every action. Rendered inside the caller's grouped card: one row per action, and
+ * the open action's fields under the rows (never a card in a card).
  */
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
-import { Switch, Text, TextInput, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { ConfirmDialog } from "../ConfirmDialog";
 import type { Db } from "../drafts";
 import { t } from "../i18n";
-import { Button, errorText, useUiStyles } from "../ui";
+import { spacing } from "../theme";
+import { Button, errorText, ListRow, PasswordInput, Separator, ThemedSwitch, useUiStyles } from "../ui";
 import { BackupError, backupAndShare, passphraseValid, restoreBackup } from "./backup";
 import { exportAndShare, type ExportFormat } from "./export";
 import { sweepExportLeftovers } from "./shareFile";
@@ -86,46 +88,51 @@ export function DataActions({ db, userId, onChanged, exportAllowed = true }: { d
   };
 
   return (
-    <View style={[styles.card, { gap: 8 }]}>
-      {exportAllowed ? <Button kind="secondary" label={t("dataExport")} onPress={() => open("export")} /> : null}
-      <Button kind="secondary" label={t("dataBackup")} onPress={() => open("backup")} />
-      <Button kind="secondary" label={t("dataRestore")} onPress={() => open("restore")} />
-      {panel ? <Text style={styles.muted}>{t("dataWarning")}</Text> : null}
-      {panel === "export" ? (
-        <>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Switch value={omit} onValueChange={setOmit} accessibilityLabel={t("dataExportOmit")} />
-            <Text style={[styles.text, { flex: 1 }]}>{t("dataExportOmit")}</Text>
-          </View>
-          <Button label={t("dataExportCsv")} loading={busy} onPress={() => void doExport("csv")} />
-          <Button label={t("dataExportJson")} loading={busy} onPress={() => void doExport("json")} />
-        </>
-      ) : null}
-      {panel === "backup" || panel === "restore" ? (
-        <>
-          <TextInput style={styles.input} value={pass} onChangeText={setPass} secureTextEntry autoCapitalize="none" autoCorrect={false} accessibilityLabel={t("dataPassphrase")} placeholder={t("dataPassphrase")} />
-          {panel === "backup" ? (
+    <>
+      {exportAllowed ? <><ListRow label={t("dataExport")} onPress={() => open("export")} /><Separator /></> : null}
+      <ListRow label={t("dataBackup")} onPress={() => open("backup")} />
+      <Separator />
+      <ListRow label={t("dataRestore")} onPress={() => open("restore")} />
+      {panel || message || pendingFile ? (
+        <View style={{ gap: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: spacing.md }}>
+          {panel ? <Text style={styles.muted}>{t("dataWarning")}</Text> : null}
+          {panel === "export" ? (
             <>
-              <TextInput style={styles.input} value={again} onChangeText={setAgain} secureTextEntry autoCapitalize="none" autoCorrect={false} accessibilityLabel={t("dataPassphraseConfirm")} placeholder={t("dataPassphraseConfirm")} />
-              <Button label={t("dataBackup")} loading={busy} onPress={() => void doBackup()} />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ThemedSwitch value={omit} onValueChange={setOmit} accessibilityLabel={t("dataExportOmit")} />
+                <Text style={[styles.text, { flex: 1 }]}>{t("dataExportOmit")}</Text>
+              </View>
+              <Button label={t("dataExportCsv")} loading={busy} onPress={() => void doExport("csv")} />
+              <Button label={t("dataExportJson")} loading={busy} onPress={() => void doExport("json")} />
             </>
-          ) : (
-            <Button label={t("dataRestorePick")} loading={busy} onPress={() => void pickAndRestore()} />
-          )}
-        </>
+          ) : null}
+          {panel === "backup" || panel === "restore" ? (
+            <>
+              <PasswordInput onCard value={pass} onChangeText={setPass} accessibilityLabel={t("dataPassphrase")} placeholder={t("dataPassphrase")} />
+              {panel === "backup" ? (
+                <>
+                  <PasswordInput onCard value={again} onChangeText={setAgain} accessibilityLabel={t("dataPassphraseConfirm")} placeholder={t("dataPassphraseConfirm")} />
+                  <Button label={t("dataBackup")} loading={busy} onPress={() => void doBackup()} />
+                </>
+              ) : (
+                <Button label={t("dataRestorePick")} loading={busy} onPress={() => void pickAndRestore()} />
+              )}
+            </>
+          ) : null}
+          {message ? <Text accessibilityRole="alert" style={styles.text}>{message}</Text> : null}
+          {panel ? <Button kind="secondary" label={t("dataClose")} onPress={() => open(null)} /> : null}
+          {pendingFile ? (
+            <ConfirmDialog
+              title={t("dataRestoreNewerTitle")}
+              message={t("dataRestoreNewer", { count: pendingFile.count })}
+              confirmLabel={t("dataRestoreReplace")}
+              destructive
+              onConfirm={() => void doRestore(pendingFile.uri, true)}
+              onCancel={() => setPendingFile(null)}
+            />
+          ) : null}
+        </View>
       ) : null}
-      {message ? <Text accessibilityRole="alert" style={styles.text}>{message}</Text> : null}
-      {panel ? <Button kind="secondary" label={t("dataClose")} onPress={() => open(null)} /> : null}
-      {pendingFile ? (
-        <ConfirmDialog
-          title={t("dataRestoreNewerTitle")}
-          message={t("dataRestoreNewer", { count: pendingFile.count })}
-          confirmLabel={t("dataRestoreReplace")}
-          destructive
-          onConfirm={() => void doRestore(pendingFile.uri, true)}
-          onCancel={() => setPendingFile(null)}
-        />
-      ) : null}
-    </View>
+    </>
   );
 }

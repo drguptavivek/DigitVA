@@ -47,7 +47,7 @@ import {
   questionLabel
 } from "./question-control-support.js";
 import { englishAlongside, plainText } from "./localize.js";
-import { defaultFormTheme as T } from "./theme.js";
+import { defaultFormTheme as T, useFormTheme } from "./theme.js";
 
 /** Tabler "calendar" outline (24 grid, stroke 2): the same line-icon family as the app header, drawn in the glyph colour. Only rendered where the web date input exists. */
 const CALENDAR_ICON = React.createElement(
@@ -239,7 +239,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
   const {
     View,
     Text: PrimitiveText,
-    TextInput,
+    TextInput: HostTextInput,
     DateInput,
     Select,
     PartialSelect,
@@ -250,6 +250,35 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     SvgPath
   } = primitives;
   const RichText = primitives.RichText;
+
+  /**
+   * The host TextInput with the Petrol focus ring: with a host theme, while focused the field's edge takes the
+   * primary colour (`inputFocused`), then the caller's own onFocus/onBlur run. A part with no edge (a date part)
+   * shows none. Without a host theme the host TextInput gets the props untouched.
+   */
+  const TextInput: React.ElementType = React.forwardRef(function FocusRingInput(
+    props: { style?: unknown; onFocus?: (event: unknown) => void; onBlur?: (event: unknown) => void; [prop: string]: unknown },
+    ref: React.Ref<unknown>
+  ) {
+    const [focused, setFocused] = useState(false);
+    const petrol = useFormTheme() !== undefined;
+    if (!petrol) return <HostTextInput {...props} ref={ref} />;
+    return (
+      <HostTextInput
+        {...props}
+        ref={ref}
+        style={[props.style, focused && questionControlStyles.inputFocused]}
+        onFocus={(event: unknown) => {
+          setFocused(true);
+          props.onFocus?.(event);
+        }}
+        onBlur={(event: unknown) => {
+          setFocused(false);
+          props.onBlur?.(event);
+        }}
+      />
+    );
+  });
 
   /**
    * A choice label, with its markup rendered when a renderer is supplied, and
@@ -273,9 +302,12 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     if (!english) return label;
     return (
       <>
-        {label}
+        {/* Two languages in one label: each part names its own, so a screen reader switches voice. */}
+        <PrimitiveText lang={locale} accessibilityLanguage={locale}>
+          {label}
+        </PrimitiveText>
         {"\n"}
-        <PrimitiveText lang="en" style={questionControlStyles.choiceEnglish}>
+        <PrimitiveText lang="en" accessibilityLanguage="en" style={questionControlStyles.choiceEnglish}>
           {RichText ? <RichText source={english} /> : plainText(english)}
         </PrimitiveText>
       </>
@@ -301,7 +333,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     gallery:
       "M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4 2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z",
     attach:
-      "M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"
+      "M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z",
+    calendar: "M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13z"
   } as const;
   type IconName = keyof typeof ICON_PATHS;
   /** What a host without SVG shows instead of an icon. */
@@ -314,7 +347,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     hide: "⊘",
     camera: "📷",
     gallery: "🖼",
-    attach: "📎"
+    attach: "📎",
+    calendar: "📅"
   };
 
   /** One icon, decorative: the button around it carries the name. */
@@ -1414,6 +1448,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     onAnswer: (value: AnswerValue | undefined) => void;
   }) {
     const [busy, setBusy] = useState(false);
+    // Petrol (a host theme): the input-sized row with a calendar glyph in the host's secondary text colour.
+    const theme = useFormTheme();
     const readOnly = question.readOnly;
     const shownText = busy
       ? messages.openingCalendar
@@ -1428,6 +1464,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         testID={`question-${question.name}`}
         style={[
           questionControlStyles.input,
+          theme && questionControlStyles.dateButton,
           hasIssues && questionControlStyles.inputError,
           (readOnly || busy) && questionControlStyles.buttonDisabled
         ]}
@@ -1443,9 +1480,21 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }
         }}
       >
-        <PrimitiveText style={value == null ? questionControlStyles.hint : questionControlStyles.choiceText}>
-          {shownText}
-        </PrimitiveText>
+        {theme ? (
+          <>
+            {/* The placeholder is input-sized text, centred like any field's entry (not the small hint style). */}
+            <PrimitiveText
+              style={[questionControlStyles.dateButtonText, value == null && questionControlStyles.dateButtonPlaceholder]}
+            >
+              {shownText}
+            </PrimitiveText>
+            <Glyph icon="calendar" color={theme.textMuted} size={22} />
+          </>
+        ) : (
+          <PrimitiveText style={value == null ? questionControlStyles.hint : questionControlStyles.choiceText}>
+            {shownText}
+          </PrimitiveText>
+        )}
       </Pressable>
     );
   }
@@ -1921,6 +1970,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const likert = hasAppearance(question, "likert");
     const bare = hasAppearance(question, "no-buttons");
     const searchable = hasAppearance(question, "search");
+    const petrol = useFormTheme() !== undefined;
 
     const choices = useMemo(() => {
       const all = question.choices ?? [];
@@ -1981,6 +2031,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         cellStyle.push(questionControlStyles.choicePacked);
       }
     }
+    // A one-column list: under a host theme (Petrol) the rows sit edge to edge in one grouped card (see `wrap`).
+    const listed = !grid && !inline;
+    if (listed) cellStyle.push(questionControlStyles.choiceGrouped);
     if (bare) cellStyle.push(questionControlStyles.choiceBare);
     // Inline cells size to their label, so only list and grid labels fill the row.
     const textStyle = inline
@@ -1999,7 +2052,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
 
     // The measuring wrapper exists whenever a grid is possible, so the
     // first layout can decide the column count.
-    const wrap = (cells: React.ReactNode) =>
+    const group = (cells: React.ReactNode[]) => (
+      <View style={questionControlStyles.choiceGroup} testID={`question-${question.name}-choice-group`}>
+        {cells.flatMap((cell, index) =>
+          index ? [<View key={`separator-${index}`} style={questionControlStyles.choiceSeparator} />, cell] : [cell]
+        )}
+      </View>
+    );
+    const wrap = (cells: React.ReactNode[]) =>
       gridCandidate ? (
         <View
           onLayout={(event: { nativeEvent: { layout: { width: number } } }) =>
@@ -2009,10 +2069,12 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           testID={`question-${question.name}-choices`}
           {...(grid ? { "data-columns": grid.columns } : {})}
         >
-          {cells}
+          {petrol && listed && cells.length ? group(cells) : cells}
         </View>
       ) : inline ? (
         <View style={questionControlStyles.choiceRow}>{cells}</View>
+      ) : petrol && cells.length ? (
+        group(cells)
       ) : (
         cells
       );
@@ -2052,7 +2114,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <ChoiceIndicator kind="radio" selected={selected} />
-          <PrimitiveText style={textStyle}>
+          <PrimitiveText style={[textStyle, selected && questionControlStyles.choiceTextSelected]}>
             <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
         </Pressable>
@@ -2104,7 +2166,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <ChoiceIndicator kind="checkbox" selected={selected} />
-          <PrimitiveText style={textStyle}>
+          <PrimitiveText style={[textStyle, selected && questionControlStyles.choiceTextSelected]}>
             <ChoiceLabel choice={choice} locale={locale} showEnglish={props.showEnglish} />
           </PrimitiveText>
         </Pressable>

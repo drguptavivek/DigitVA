@@ -58,7 +58,7 @@ jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchPara
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, onBeforeLock: () => () => undefined, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
 // The real `ui` tokens, so the form theme the screen derives is the app's own; `mockColorMode` flips light and dark.
 let mockColorMode: "light" | "dark" = "light";
-jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, spacing: jest.requireActual("../src/theme").spacing, typography: jest.requireActual("../src/theme").typography, controls: jest.requireActual("../src/theme").controls, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
+jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, spacing: jest.requireActual("../src/theme").spacing, typography: jest.requireActual("../src/theme").typography, controls: jest.requireActual("../src/theme").controls, disabledButtonTone: jest.requireActual("../src/theme").disabledButtonTone, useTheme: () => ({colors: {}, typography: jest.requireActual("../src/theme").typography, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
   useUiStyles: () => ({}),
@@ -323,6 +323,9 @@ it("hands the form the app theme tokens, light and dark", async () => {
   const light = tree.root.findByType(WhoVaForm).props.theme;
   expect(light).toEqual(whoFormTheme({ui: tokens.light}));
   expect(light.primary).toBe(tokens.light.primary);
+  // The phone footer's disabled Back uses the app's disabled button tone, not an opacity.
+  expect(light.disabledBackground).toBe(tokens.light.primaryTint);
+  expect(light.disabledText).toBe(jest.requireActual("../src/theme").disabledButtonTone(tokens.light).fg);
   mockColorMode = "dark";
   await act(async () => {tree.update(<InterviewScreen />);});
   const dark = tree.root.findByType(WhoVaForm).props.theme;

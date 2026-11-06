@@ -1,40 +1,46 @@
 import { useRouter } from "expo-router";
-import { View } from "react-native";
+import type { ReactNode } from "react";
 
+import { icons } from "../Icon";
 import { t } from "../i18n";
 import { useIcd11DorisPreference } from "../icd11DorisPreference";
-import { Button } from "../ui";
+import { Card, ListRow, Separator } from "../ui";
 
-/** The two sources of coding cases; online is the only chip that follows connectivity. */
-export function CodingCaseChips({ userId, canLocal, offline }: { userId: string; canLocal: boolean; offline?: boolean }) {
+/**
+ * The coding case lists as rows of one grouped card (design sheet 01): each opens its list screen, so they are
+ * navigation rows with chevrons, never buttons or a filter. Online is the only row that follows connectivity.
+ * `leading`: other "go somewhere" rows of the screen (Home's Register a death) at the top of the same card, each
+ * followed by an icon-inset Separator.
+ */
+export function CodingCaseChips({ userId, canLocal, offline, leading }: { userId: string; canLocal: boolean; offline?: boolean; leading?: ReactNode }) {
   const router = useRouter();
   const preference = useIcd11DorisPreference();
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="tablist">
+    <Card grouped testID="coding-case-lists">
+      {leading}
       {canLocal ? (
-        <Button
-          size="sm"
-          kind="secondary"
-          label={t("localCases")}
-          disabled={!preference.enabled}
-          style={{ flexGrow: 1, minWidth: 140 }}
-          onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })}
-        />
+        <>
+          <ListRow
+            icon={icons.localCases}
+            label={t("localCases")}
+            disabled={!preference.enabled}
+            onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })}
+          />
+          <Separator icon />
+        </>
       ) : null}
-      <Button
-        size="sm"
+      <ListRow
+        icon={icons.onlineCases}
         label={t("onlineCases")}
         disabled={offline === true}
-        style={{ flexGrow: 1, minWidth: 140 }}
         onPress={() => router.push({ pathname: "/coding", params: { userId } })}
       />
-      <Button
-        size="sm"
-        kind="secondary"
+      <Separator icon />
+      <ListRow
+        icon={icons.codedCases}
         label={t("myCodedCases")}
-        style={{ flexGrow: 1, minWidth: 140 }}
         onPress={() => router.push({ pathname: "/coding", params: { userId, initialHistory: "1" } })}
       />
-    </View>
+    </Card>
   );
 }

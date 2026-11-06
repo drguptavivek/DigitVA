@@ -23,15 +23,25 @@ const mockStrings: Record<string, string> = {
   offlineProfileLevelLow: "Low",
   offlineProfileLevelHigh: "High",
   offlineProfileSaved: "Saved {time}",
+  offlineProfileSectionProfile: "Profile",
+  offlineProfileSectionOptional: "Optional",
+  offlineProfileSectionPresets: "Presets",
 };
 
 jest.mock("../src/i18n", () => ({ t: (key: string) => mockStrings[key] ?? key }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
+  const { TextInput } = jest.requireActual("react-native");
+  const el = (name: string) => ({ children, ...props }: { children?: React.ReactNode }) => ReactActual.createElement(name, props, children);
+  const press = (label: string, onPress?: () => void) => ReactActual.createElement("button", { accessibilityRole: "button", accessibilityLabel: label, onPress });
   return {
-    Button: ({ label, onPress, expanded }: { label: string; onPress?: () => void; expanded?: boolean }) => ReactActual.createElement("button", {
-      accessibilityRole: "button", accessibilityLabel: label, onPress, expanded,
-    }),
+    Button: ({ label, onPress }: { label: string; onPress?: () => void }) => press(label, onPress),
+    TextLink: ({ label, onPress }: { label: string; onPress?: () => void }) => press(label, onPress),
+    Card: ({ label, children }: { label?: string; children?: React.ReactNode }) => ReactActual.createElement("card", { label }, children),
+    FieldLabel: ({ label }: { label: string }) => ReactActual.createElement("fieldlabel", { label }),
+    TextField: (props: object) => ReactActual.createElement(TextInput, props),
+    ChoiceRow: ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => ReactActual.createElement("choice", { label, selected, onPress }),
+    Separator: el("separator"),
     useUiStyles: () => ({ input: {}, muted: {}, error: {} }),
   };
 });
@@ -83,4 +93,24 @@ it("collapsing optional details preserves prefilled values on save", async () =>
   await press(tree, "Save profile");
 
   expect(onSubmit).toHaveBeenCalledWith(profile);
+});
+
+it("groups the fields in Profile, Optional and Presets cards, with Not set first in each choice group", async () => {
+  const tree = await render(jest.fn());
+  const cards = tree.root.findAll((n) => (n.type as string) === "card").map((n) => n.props.label);
+  expect(cards).toEqual(["Profile", "Optional", "Presets"]);
+  const sex = tree.root.findAll((n) => n.props.accessibilityRole === "radiogroup" && n.props.accessibilityLabel === "Sex")[0];
+  const choices = sex.findAll((n) => (n.type as string) === "choice");
+  expect(choices.map((n) => n.props.label)).toEqual(["Not set", "Male", "Female", "Other"]);
+  expect(choices.map((n) => n.props.selected)).toEqual([false, false, true, false]);
+});
+
+it("a choice changes the stored value, Not set clears it, and no Settings button is added", async () => {
+  const onSubmit = jest.fn();
+  const tree = await render(onSubmit);
+  const hiv = tree.root.findAll((n) => n.props.accessibilityRole === "radiogroup" && n.props.accessibilityLabel === "HIV mortality level")[0];
+  await act(async () => { hiv.findAll((n) => (n.type as string) === "choice" && n.props.label === "Not set")[0].props.onPress(); });
+  await press(tree, "Save profile");
+  expect(onSubmit).toHaveBeenCalledWith({ ...profile, hiv_mortality: null });
+  expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Settings")).toHaveLength(0);
 });

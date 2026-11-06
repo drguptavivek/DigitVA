@@ -108,7 +108,7 @@ describe("strings", () => {
       expect(en[key]).toContain("security and sign-in audit records are kept, without its name");
       expect(hi[key]).toContain("सुरक्षा और साइन-इन ऑडिट रिकॉर्ड");
     } else {
-      expect(en[key]).toContain("audit history");
+      expect(en[key].toLowerCase()).toContain("audit history");
       expect(hi[key]).toContain("ऑडिट इतिहास");
     }
   });

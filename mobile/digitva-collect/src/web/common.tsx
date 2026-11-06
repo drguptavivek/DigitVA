@@ -5,7 +5,8 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWind
 
 import { useAppState } from "../AppState";
 import { ClientApiError } from "../client/api";
-import { t, UI_LOCALES } from "../i18n";
+import { t } from "../i18n";
+import { useUiLanguages } from "../uiPacks";
 import { radius, useTheme } from "../theme";
 import { Button, errorReference, Screen, useUiStyles } from "../ui";
 import { MenuChoiceRow, XMark } from "../ui/controls";
@@ -67,7 +68,7 @@ export function UiLanguageSwitcher() {
     };
   }, [open, anchorId]);
 
-  const options = UI_LOCALES;
+  const options = useUiLanguages();
   async function selectLocale(code: string) {
     await chooseUiLocale(code);
     setOpen(false);

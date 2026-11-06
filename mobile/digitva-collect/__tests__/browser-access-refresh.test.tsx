@@ -8,7 +8,7 @@ jest.mock("../src/preferences", () => ({
   getUiLocalePreference: async () => "en",
   setUiLocalePreference: async () => undefined,
 }));
-jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value, t: (key: string) => key }));
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, setUiLocale: (value: string) => value, t: (key: string) => key }));
 
 import { AppStateProvider, useAppState } from "../src/AppState.web";
 import { claimFirstHomeLoad } from "../src/web/roleHome";

@@ -46,6 +46,9 @@ jest.mock("../src/ui", () => {
     Screen: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("screen", null, children),
     errorText: () => "error",
     stateLabel: (value: string) => value,
+    // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
+    Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
     useUiStyles: () => ({ error: {}, muted: {}, text: {}, headline: {}, card: {}, row: {}, input: {} }),
   };
 });

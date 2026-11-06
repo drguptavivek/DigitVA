@@ -3,7 +3,7 @@ title: UI String Corrections Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-11-06
 ---
 
 # UI String Corrections Policy
@@ -22,8 +22,9 @@ on the server, whatever the page shows.
 ## What the editor does
 
 - Reads the reference (`en`) and each bundled locale from the served Expo
-  export: `<EXPO_CLIENT_DIST>/ui-strings/<locale>.json`, copied in by
-  `npm run export:web` in `mobile/digitva-collect`. The source files stay under
+  export: `<EXPO_CLIENT_DIST>/ui-strings/<locale>.json` with its
+  `theme-<locale>.json` and `form-<locale>.json` (see "Two namespaces"), copied
+  in by `npm run export:web` in `mobile/digitva-collect`. The source files stay under
   `mobile/digitva-collect/src/strings/`; the server never edits them.
 - Lists the reference keys with the English, the bundled text, the current
   text and a status. Filters: all, corrected, missing, machine.
@@ -55,7 +56,8 @@ Refused with a message, and nothing is written:
   app fills in;
 - markup or a link the English does not have, or control characters, by the same
   rule the questionnaire editor applies (`validate_translation_text`);
-- the locale is `en`, or is not a shipped locale. A path-like locale is refused
+- the locale is `en`, or is neither a shipped locale, a machine locale nor a
+  language added on the page. A path-like locale is refused
   before it reaches the filesystem.
 
 ## Versioning
@@ -71,16 +73,110 @@ Every save and every revert writes one log line naming the locale, key, actor,
 and the old and new text (truncated to 120 characters), as the questionnaire
 editor's `update_string` does. There is no audit table for these corrections.
 
+## Two namespaces
+
+The editor and the packs cover two namespaces of UI text (digitva-s028):
+
+- **App strings**: `src/strings/<locale>.json` plus the theme screens'
+  `src/strings/theme-<locale>.json`, both copied into the export as they are.
+- **WHO form labels** (Next, Back, Don't know, validation messages): the
+  vendor package's own labels, `vendor/who-va-2022/src/languages/ui.ts`.
+  `npm run export:web` runs `scripts/export-form-ui-strings.mjs`, which writes
+  `ui-strings/form-en.json` (the reference, from the vendor's English
+  templates) and `ui-strings/form-<locale>.json` for each built-in translation.
+  In the editor and in `mas_ui_string_override` these keys carry the prefix
+  `form:` (`form:next`); app keys are camelCase, so the two cannot collide.
+
+Every check above (known English key, placeholder equality, markup) applies to
+both. Questionnaire question and choice text stays in the instrument
+translation packs (`docs/policy/va-form-project-configuration.md`).
+
+## Publishing a UI language
+
+A UI language reaches clients only once an administrator publishes it on the
+UI strings page ("UI languages" card, `PUT /admin/api/ui-languages/<locale>`,
+admin only, CSRF-checked). Each language is one `mas_ui_locale` row: the code
+(2 or 3 lower-case letters, never `en`), its name in its own script, a BCP 47
+tag starting with the code (`pa-IN`), the direction (`ltr` or `rtl`) and the
+published flag. Adding a language makes it editable on the page, with machine
+drafts and review, before it is published; it needs no bundled file. A new
+language starts unpublished, and a save that sends no `published` flag keeps
+the current state, so editing a name never unpublishes a language. Publishing
+a language with no bundled file and no accepted row is refused (`422`,
+`nothing_to_publish`): it would serve an empty pack. The language codes are ISO codes, not the narration-language names of
+`mas_languages`, which is why the Languages panel's table is not reused.
+
+Unpublished languages are never listed or served, whatever rows they hold.
+Hindi was seeded published by the migration, because its corrections were
+served before this gate existed. A right-to-left language stays unpublished
+until it is checked on a phone; the app does not offer one yet in any case.
+Every change writes one log line naming the locale, the actor and the old and
+new settings.
+
 ## Public read
 
-`GET /api/v1/ui-strings/<locale>` returns `{version, strings}`, where `strings`
-holds the corrections only. It needs no sign-in, because the sign-in screen is
-translated too. The body is reference text and holds no personal data. The ETag
-is the version; a matching `If-None-Match` gets `304`. `Cache-Control` is
-`public, max-age=60`. `en`, and any unshipped locale, is `404`.
+No sign-in is needed, because the sign-in screen is translated too. The bodies
+are reference text and hold no personal data. Both responses carry an ETag (a
+quoted SHA-256 hex, the form the app's `If-None-Match` check accepts); a
+matching `If-None-Match` gets `304`. `Cache-Control` is `public, max-age=60`.
 
-The Expo app lays these corrections over the bundled dictionary on start and on a
-language switch. The client side is tracked as digitva-dt1e.
+- `GET /api/v1/ui-strings` lists the published UI languages:
+  `{version, languages: [{locale, native_name, bcp47_tag, direction, version,
+  reviewed}]}`, ordered by code.
+- `GET /api/v1/ui-strings/<locale>` returns one published language's full
+  pack: `{version, locale, native_name, bcp47_tag, direction, reviewed,
+  strings, form}`. `strings` is the app namespace and `form` the WHO form
+  labels (keys without the `form:` prefix): the bundled text with the accepted
+  corrections over it, or the accepted rows alone for a language with no
+  bundle. Only keys of the English reference are served, and machine drafts
+  never. `en`, and any unpublished locale, is `404`.
+
+If the export cannot be read (the folder or `en.json` missing mid-deploy, a
+file that is not UTF-8 JSON) both reads answer `503` (`unavailable`), never a
+shortened list: a phone drops the pack of a language the list no longer names.
+
+Each built pack is kept in process memory, one entry per published language,
+until its fingerprint moves: the export folder, the corrections' version
+(count and newest edit of the accepted rows), the language row's edit time and
+the mtimes of `<locale>.json`, `theme-<locale>.json`, `form-<locale>.json` and
+the three `en` files. A repeat or revalidating read costs two small queries
+and six `stat` calls; the list reads every language's version in one query.
+
+`version` is the SHA-256 of the rest of the body, so it moves with a
+correction and with a rebuilt export alike. `reviewed` is the share (0 to 1,
+three decimals) of the reference keys, both namespaces, whose text an
+administrator wrote or accepted; bundled text counts as unreviewed. The app
+labels a language "machine-translated" by this share.
+
+Compatibility: before digitva-s028 `strings` held the corrections only. No
+released app read the endpoint (the client was digitva-dt1e), and a full pack
+laid over a bundle gives the same text as the corrections laid over it, so the
+field kept its name.
+
+The admin export (`/admin/api/ui-strings/<locale>/export`) holds the app
+namespace only. `flask ui-strings bake` still writes `<locale>.json` from the
+keys of `en.json`, so accepted theme-screen and form-label rows have no bake
+path yet: theme rows are served from the pack, and form labels move into
+`vendor/who-va-2022/src/languages/ui.ts` by hand at a release.
+
+## The app side (digitva-dt1e)
+
+`mobile/digitva-collect/src/uiPacks.ts` fetches the list and the pack it needs
+when the app can reach its server (start, language switch, after a phone
+sync), keeps the last list and the last pack per language on the device
+(`src/uiPackStore.ts`: localStorage in a browser, a file under the app's
+documents folder on a phone; packs are reference text, not PII), and lays the
+pack over the bundled dictionary in `t()`. Offline it uses the stored pack;
+with none, the bundled text; missing keys fall back to English. Each key is
+checked again on the phone (a known English key, the same placeholder set, no
+markup or control characters) and a key that fails is dropped, never applied.
+When a fetched list no longer offers a language whose pack the app holds (it
+was unpublished), the app drops that pack in memory and overwrites its stored
+file, so a bundled language shows its bundled text again. A list request that
+fails (offline, `503`, any non-200) changes nothing: the stored list and packs
+stay.
+Before enrolment and in standalone mode only the bundled languages (English,
+Hindi) are offered. `useUiLanguages()` gives every screen the one list.
 
 ## Google Translate link
 
@@ -157,8 +253,9 @@ the bundle. Machine drafts are carried by dump and load only, never baked.
 ## Storage
 
 Corrections and machine candidates live in `mas_ui_string_override`, one row per
-(locale, key), told apart by `source` (`edited` or `machine`). Reverting
-deletes the row. The downgrade of its migration refuses while rows exist.
+(locale, key), told apart by `source` (`edited` or `machine`); form labels use
+the `form:` key prefix. Reverting deletes the row. The UI languages and their
+published flag live in `mas_ui_locale`. The downgrade of its migration refuses while rows exist.
 See `docs/current-state/data-model.md`.
 
 ## Related

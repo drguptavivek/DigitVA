@@ -6,7 +6,7 @@
 import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
 import type { Db, DraftRow } from "../drafts";
-import { t, uiLocale, type StringKey } from "../i18n";
+import { t, uiLanguageTag, type StringKey } from "../i18n";
 import { otherDraftWarning } from "./CaseCard";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
@@ -139,7 +139,7 @@ const draftIssueLines = (draft: DraftRow, refusal?: SendRefusal): InterviewItem[
 export function formatWhen(value: string | null | undefined): string {
   const date = value ? new Date(value) : undefined;
   if (!date || Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(uiLocale() === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return date.toLocaleString(uiLanguageTag(), { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 /** The labelled time, or undefined when the timestamp is missing or unreadable. */
@@ -148,10 +148,15 @@ const whenText = (key: StringKey, value: string | null | undefined): string | un
   return time ? t(key, { time }) : undefined;
 };
 
-function dateOnly(value: string | null | undefined): string | null {
+/** "3 Nov 2026", the date part of formatWhen. */
+export function dateOnly(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+  if (Number.isNaN(date.getTime())) return value;
+  // A bare YYYY-MM-DD, or a timestamp at exactly midnight UTC, is a calendar date: format it in UTC so a
+  // west-of-UTC phone does not show the day before. Real timestamps keep local time.
+  const utc = /^\d{4}-\d{2}-\d{2}(T00:00:00(\.0+)?Z)?$/.test(value);
+  return date.toLocaleDateString(uiLanguageTag(), { day: "numeric", month: "short", year: "numeric", ...(utc ? { timeZone: "UTC" } : {}) });
 }
 
 /** All items, newest work first within each kind: drafts, revisions, to do, sent. */
@@ -193,7 +198,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
     const refusalOnly = (reg.fields as unknown as Record<string, unknown>).refusal_only === true;
     items.push({
       key: `registration-${reg.client_death_id}`, kind: "drafts", title: refusalOnly ? t("outcome_refused") : reg.fields.deceased_name,
-      sex: reg.fields.deceased_sex, dateOfDeath: reg.fields.date_of_death,
+      sex: reg.fields.deceased_sex, dateOfDeath: dateOnly(reg.fields.date_of_death),
       badge: { label: attention ? t("needsEdit") : t("pendingSend"), tone: attention ? "warning" : "neutral" },
       action: refusalOnly ? undefined : { type: "registration", clientDeathId: reg.client_death_id, label: t("viewDetails") },
       timeText: whenText("interviewSaved", reg.created_at),

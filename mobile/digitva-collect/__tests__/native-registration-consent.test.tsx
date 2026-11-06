@@ -49,7 +49,7 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
     });
   return { WhoVaQuestionControls: { Date: control, Integer: control, Text: control } };
 }, { virtual: true });
-jest.mock("@drguptavivek/who-2022-va", () => ({ resolveUiMessages: () => ({}), WHO_VA_BUILT_IN_UI_TRANSLATIONS: {} }), { virtual: true });
+jest.mock("@drguptavivek/who-2022-va", () => ({ FormThemeContext: (jest.requireActual("react") as typeof React).createContext(undefined), resolveUiMessages: () => ({}), WHO_VA_BUILT_IN_UI_TRANSLATIONS: {} }), { virtual: true });
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: [mockAccount], lockVersion: 0 }) }));
 jest.mock("../src/deathRegistrationApi", () => ({
   getDeathRegistrationAccess: jest.fn(async () => undefined),
@@ -78,17 +78,24 @@ jest.mock("../src/web/StationConsentPanel", () => ({
   },
 }));
 jest.mock("../src/platform", () => ({ platformServices: {} }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => key, uiLocale: () => "en" }));
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, t: (key: string) => key, uiLocale: () => "en" }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   const Component = ({ children }: { children?: React.ReactNode }) => ReactActual.createElement("screen", null, children);
-  return {
+  return require("../test-support/uiMockExtras").withUiExtras({
     Button: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) =>
       ReactActual.createElement("button", { label, onPress, disabled }),
     Row: Component,
-    Screen: Component,
-    useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, card: {} }),
-  };
+    Card: Component,
+    Separator: () => null,
+    Notice: ({ children, action }: { children?: React.ReactNode; action?: React.ReactNode }) => ReactActual.createElement("notice", null, children, action),
+    ChoiceRow: ({ label, onPress }: { label: string; onPress: () => void }) => ReactActual.createElement("button", { label, onPress }),
+    SegmentedControl: ({ options, onChange, disabled }: { options: Array<{ value: string; label: string }>; onChange: (value: string) => void; disabled?: boolean }) =>
+      ReactActual.createElement("segmented", null, options.map((option) => ReactActual.createElement("button", { key: option.value, label: option.label, disabled, onPress: () => onChange(option.value) }))),
+    // The sticky footer holds Save, Cancel and Discard.
+    Screen: ({ children, footer }: { children?: React.ReactNode; footer?: React.ReactNode }) => ReactActual.createElement("screen", null, children, footer),
+    useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, card: {}, fieldLabel: {} }),
+  });
 });
 
 import Register from "../src/nativeRoutes/register";
@@ -144,7 +151,15 @@ it("keeps the informant's details closed, with the reason, when the project has 
   expect(fields()).not.toContain("informant_name");
   expect(fields()).not.toContain("address_house_street");
   expect(text()).toContain("consentInformantNoNotice");
+  // One sentence is the section label and a secondary line, not a card holding it.
+  const informant = tree.root.findAll((node) => node.props.testID === "register-informant" && typeof node.type === "string");
+  expect(informant).toHaveLength(1);
   expect(mockPanel).toBeUndefined();
+  // The Sex rows sit inside the card's padding as one rounded group: no negative margin out to the card's edges.
+  const sex = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radiogroup" && node.props.accessibilityLabel === "fieldSex");
+  expect(sex).toHaveLength(1);
+  expect(sex[0].props.style).toMatchObject({ borderRadius: 8, overflow: "hidden" });
+  expect(sex[0].props.style.marginHorizontal).toBeUndefined();
   await fillRequired();
   await press("save");
   await settle();

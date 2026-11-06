@@ -43,11 +43,24 @@ describe("t()", () => {
   });
 });
 
-it("limits new questionnaire choices to enabled supported languages", () => {
+it("offers every enabled questionnaire language, with or without a UI pack (digitva-s028)", () => {
   const available = [{code: "ar"}, {code: "hi"}, {code: "en"}];
-  expect(questionnaireLocales(available)).toEqual([{code: "hi"}, {code: "en"}]);
-  expect(questionnaireDefault(available, "ar")).toBe("en");
+  expect(questionnaireLocales(available)).toEqual(available);
+  expect(questionnaireDefault(available, "ar")).toBe("ar");
   expect(questionnaireDefault([{code: "hi"}], "ar")).toBe("hi");
-  expect(() => questionnaireDefault([{code: "ar"}], "ar")).toThrow("questionnaire_language_not_enabled");
+  expect(questionnaireDefault([{code: "ar"}], "fr")).toBe("ar");
+  expect(() => questionnaireDefault([], "ar")).toThrow("questionnaire_language_not_enabled");
   expect(questionnaireDefault(undefined, undefined)).toBe("en");
+});
+
+describe("isLocaleCode (draft resume in any enabled questionnaire language)", () => {
+  const { isLocaleCode } = jest.requireActual("../src/i18n");
+  it("accepts language codes without a UI pack and refuses junk", () => {
+    expect(isLocaleCode("ml")).toBe(true);
+    expect(isLocaleCode("pt-br")).toBe(true);
+    expect(isLocaleCode("hi")).toBe(true);
+    expect(isLocaleCode("")).toBe(false);
+    expect(isLocaleCode("../en")).toBe(false);
+    expect(isLocaleCode(7)).toBe(false);
+  });
 });

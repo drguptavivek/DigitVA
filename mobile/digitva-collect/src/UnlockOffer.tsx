@@ -1,15 +1,17 @@
 /**
  * The unlock-options offer (docs/policy/mobile-sign-in.md section 9): after the first PIN setup, and once more on a
- * later PIN unlock, offer fingerprint and phone screen lock, whichever the phone supports. Skippable. `pin` is the
+ * later PIN unlock, offer the biometric (fingerprint, Face ID or Touch ID) and phone screen lock, whichever the phone supports. Skippable. `pin` is the
  * PIN just typed or set; nothing here stores it except the chosen option's vault entry.
  */
 import { canUseBiometricAuthentication } from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { Text } from "react-native";
 
-import { t } from "./i18n";
+import { t, type StringKey } from "./i18n";
 import { Button, useUiStyles } from "./ui";
 import {
+  biometricKind,
+  type BiometricKind,
   biometricEnabled,
   enableBiometric,
   enableScreenLock,
@@ -19,6 +21,26 @@ import {
   unlockOfferCount,
   UNLOCK_OFFER_MAX
 } from "./vault";
+
+type BiometricText = "unlockOptionsOffer" | "biometricEnable" | "biometricOn" | "biometricOff";
+
+/** `key` as this phone's biometric is called: the plain key says fingerprint; `_face` / `_touch` say Face ID / Touch ID. */
+export function biometricText(key: BiometricText, kind: BiometricKind): string {
+  return t(kind === "fingerprint" ? key : (`${key}_${kind}` satisfies StringKey));
+}
+
+/** This phone's biometric kind for labels; fingerprint until known. */
+export function useBiometricKind(): BiometricKind {
+  const [kind, setKind] = useState<BiometricKind>("fingerprint");
+  useEffect(() => {
+    let active = true;
+    void biometricKind().then((value) => active && setKind(value));
+    return () => {
+      active = false;
+    };
+  }, []);
+  return kind;
+}
 
 /** Which options the offer would show now: none when already offered enough, or one is on, or the phone has neither. */
 export async function pendingUnlockOffer(userId: string): Promise<{ biometric: boolean; screenLock: boolean } | null> {
@@ -40,6 +62,7 @@ export function UnlockOffer({
   onDone: () => void;
 }) {
   const styles = useUiStyles();
+  const kind = useBiometricKind();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -61,9 +84,9 @@ export function UnlockOffer({
 
   return (
     <>
-      <Text style={styles.text}>{t("unlockOptionsOffer")}</Text>
+      <Text style={styles.text}>{biometricText("unlockOptionsOffer", kind)}</Text>
       {options.biometric ? (
-        <Button label={t("biometricEnable")} disabled={busy} onPress={() => void turnOn(() => enableBiometric(userId, pin, t("biometricPrompt")))} />
+        <Button label={biometricText("biometricEnable", kind)} disabled={busy} onPress={() => void turnOn(() => enableBiometric(userId, pin, t("biometricPrompt")))} />
       ) : null}
       {options.screenLock ? (
         <Button label={t("screenLockEnable")} disabled={busy} onPress={() => void turnOn(() => enableScreenLock(userId, pin, t("screenLockPrompt")))} />

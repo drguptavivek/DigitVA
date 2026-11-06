@@ -27,13 +27,14 @@ const pressable = (tree: ReactTestRenderer) => tree.root.findAll((n) => n.props.
 
 describe("shadcn zinc tokens", () => {
   it("converts shadcn HSL numbers to the published zinc hex values", () => {
-    expect(ui.light.background).toBe("#FFFFFF");
+    // Petrol theme values (src/themeColors.ts); the HSL helper still converts shadcn's numbers.
+    expect(ui.light.background).toBe("#ffffff");
     expect(hsl(240, 10, 3.9)).toBe("#09090B");
-    expect(ui.light.border).toBe("#CBD5E1");
-    expect(ui.dark.background).toBe("#131E2E");
-    expect(ui.dark.card).toBe("#1B2A3D");
-    expect(ui.dark.destructive).toBe(hsl(0, 62.8, 30.6));
-    expect(ui.light.destructive).toBe(hsl(0, 72.2, 50.6));
+    expect(ui.light.border).toBe("#d1d9dd");
+    expect(ui.dark.background).toBe("#1a2127");
+    expect(ui.dark.card).toBe("#1a2127");
+    expect(ui.dark.destructive).toBe("#b3261e");
+    expect(ui.light.destructive).toBe("#b3261e");
     expect(uiRadius).toMatchObject({ lg: 8, md: 6, sm: 4 });
   });
 
@@ -54,9 +55,9 @@ describe("shadcn zinc tokens", () => {
     expect(lum(ui.light.card)).toBeGreaterThanOrEqual(lum(palette.light.surface) - 0.001);
   });
 
-  it("keeps brand blue as primary in both modes", () => {
-    expect(ui.light.primary).toBe("#1D4ED8");
-    expect(ui.dark.primary).toBe("#78A9FF");
+  it("keeps petrol as primary in both modes", () => {
+    expect(ui.light.primary).toBe("#1f4d60");
+    expect(ui.dark.primary).toBe("#6fb6d6");
   });
 
   it.each(["light", "dark"] as const)("keeps every text/background token pair at 4.5:1 in %s mode", (mode) => {
@@ -100,7 +101,8 @@ describe("primitives", () => {
   beforeEach(() => { mockTheme.mode = "light"; });
 
   it("Button variants map to tokens in light and dark", () => {
-    const expected = { default: ["primary", "primaryForeground"], secondary: ["secondary", "secondaryForeground"], destructive: ["destructive", "destructiveForeground"] } as const;
+    // Petrol: secondary is tint-filled; destructive is red text with no fill (checked below).
+    const expected = { default: ["primary", "primaryForeground"], secondary: ["primaryTint", "primary"] } as const;
     for (const mode of ["light", "dark"] as const) {
       mockTheme.mode = mode;
       for (const [variant, [bg]] of Object.entries(expected)) {
@@ -109,6 +111,8 @@ describe("primitives", () => {
       }
       const outline = render(<Button label="Go" variant="outline" onPress={() => undefined} />);
       expect(flat(pressable(outline).props.style)).toMatchObject({ backgroundColor: ui[mode].background, borderColor: ui[mode].input });
+      const destructive = render(<Button label="Go" variant="destructive" onPress={() => undefined} />);
+      expect(flat(pressable(destructive).props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: "transparent" });
       const ghost = render(<Button label="Go" variant="ghost" onPress={() => undefined} />);
       expect(flat(ghost.root.findAll((n) => n.props.hitSlop !== undefined)[0].props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: "transparent" });
     }

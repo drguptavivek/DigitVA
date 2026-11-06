@@ -19,7 +19,7 @@ let mockAccounts: Array<{ user_id: string; name: string; server?: string; standa
 jest.mock("expo-router", () => ({ usePathname: () => mockPathname, useGlobalSearchParams: () => mockParams, useRouter: () => ({}) }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({ accounts: mockAccounts, lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice }),
+  useAppState: () => ({ ready: true, accounts: mockAccounts, lockVersion: 0, offline: false, dataChanged: mockDataChanged, syncAccount: mockSync, reload: mockReload, device: mockDevice }),
 }));
 let mockDevice: { server: string } | undefined;
 let mockPlay = false;
@@ -183,4 +183,32 @@ it("Send now offline is a calm toast and no request", async () => {
   expect(mockSync).not.toHaveBeenCalled();
   expect(mockToast).toHaveBeenCalledWith({ kind: "info", text: "You're offline. Your work is saved and will send when you're back online." });
   expect(shell.sync.result).toBeUndefined();
+});
+
+it("puts the title in the bar on pushed screens only, never on tab roots, forms or pre-login screens", async () => {
+  mockPathname = "/settings";
+  await mount();
+  expect(shell.titleInBar).toBe(true);
+  for (const path of ["/worklist", "/", "/form", "/unlock"]) {
+    mockPathname = path;
+    await act(async () => tree.update(<ShellProvider><Probe /></ShellProvider>));
+    expect(shell.titleInBar).toBe(false);
+  }
+});
+
+it("shows the newest mounted screen's title, and the one underneath again when it is popped", async () => {
+  await mount();
+  const home = {};
+  const settings = {};
+  expect(shell.screenTitle).toBeUndefined();
+  act(() => shell.publishTitle(home, "Home"));
+  act(() => shell.publishTitle(settings, "Settings"));
+  expect(shell.screenTitle).toBe("Settings");
+  // A screen underneath retitling (its data reloaded) keeps its place under the pushed one.
+  act(() => shell.publishTitle(home, "Home (2)"));
+  expect(shell.screenTitle).toBe("Settings");
+  act(() => shell.publishTitle(settings, undefined));
+  expect(shell.screenTitle).toBe("Home (2)");
+  act(() => shell.publishTitle(home, undefined));
+  expect(shell.screenTitle).toBeUndefined();
 });

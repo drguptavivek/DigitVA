@@ -16,8 +16,10 @@ export interface FormTheme {
   accent: string;
   /** Cards, inputs and choice rows. */
   surface: string;
-  /** Page behind the cards, code chips, read-only inputs, image backdrops. */
+  /** Code chips, read-only inputs, image backdrops; also the page behind the cards when `canvas` is unset. */
   surfaceAlt: string;
+  /** The page behind the cards and the code chips (the host's canvas). Unset: `surfaceAlt`. */
+  canvas?: string;
   /** Card and divider hairlines. */
   border: string;
   /** The edge of every control and choice row (>= 3:1 against `surface`). */
@@ -32,6 +34,16 @@ export interface FormTheme {
   focus: string;
   /** Modal and drawer backdrop. */
   scrim: string;
+  /** Phone bar (`compactFooter`) only: the colour of the section card's faint shadow. Unset: no shadow. */
+  shadow?: string;
+  /** Phone bar only: a disabled footer button's fill and label (replaces the 0.45 opacity). Both unset: opacity. */
+  disabledBackground?: string;
+  disabledText?: string;
+  /**
+   * Native only: the factor on every font size and line height of the form (the host's text-size setting).
+   * The platform's own font scale still applies on top. Unset or 1: sizes are untouched.
+   */
+  fontScale?: number;
 }
 
 export const defaultFormTheme: FormTheme = {

@@ -3,7 +3,7 @@ import { Platform, Text, TextInput, View } from "react-native";
 
 import { t } from "./i18n";
 import { checkIdentifier, typedCaret, type IdentifierRule, type IdentifierType } from "./identifiers";
-import { Button, useUiStyles } from "./ui";
+import { Button, FieldLabel, useUiStyles } from "./ui";
 
 /** The number's face; the theme has no monospace token. */
 export const MONOSPACE = Platform.select({ web: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", ios: "Menlo", default: "monospace" });
@@ -29,7 +29,8 @@ export function identifierIssueText(type: IdentifierType, rule: IdentifierRule |
   return type.example ? t("idErrPatternExample", { label, example: type.example }) : t("idErrPattern", { label });
 }
 
-function IdentifierRow({ type, value, onChange, error, warning, onContinue, onEdit, disabled }: {
+function IdentifierRow({ type, value, onChange, error, warning, onContinue, onEdit, disabled, edge }: {
+  edge?: boolean;
   type: IdentifierType;
   value: string;
   onChange: (value: string) => void;
@@ -46,11 +47,11 @@ function IdentifierRow({ type, value, onChange, error, warning, onContinue, onEd
   const [forced, setForced] = useState<{ start: number; end: number } | undefined>();
   const rule = value ? checkIdentifier(type, value) : undefined;
   const advice = error || (rule ? identifierIssueText(type, rule) : "");
-  const labelText = type.required_at_report ? `${type.label} *` : type.label;
   const a11yLabel = type.required_at_report ? t("idRequiredA11y", { label: type.label }) : type.label;
   return (
     <View style={{ gap: 4, minWidth: 0 }} testID={`identifier-${type.code}`}>
-      <Text style={styles.fieldLabel}>{labelText}</Text>
+      {/* Required is the grey word after the label, never an asterisk; the red advice replaces it. */}
+      <FieldLabel label={type.label} required={Boolean(type.required_at_report) && !advice} />
       <TextInput
         accessibilityLabel={a11yLabel}
         testID={`identifier-input-${type.code}`}
@@ -73,7 +74,7 @@ function IdentifierRow({ type, value, onChange, error, warning, onContinue, onEd
           }
           onChange(next.value);
         }}
-        style={[styles.input, { fontFamily: MONOSPACE, minWidth: 0, maxWidth: "100%" }]}
+        style={[styles.input, edge && styles.inputHairline, { fontFamily: MONOSPACE, minWidth: 0, maxWidth: "100%" }]}
       />
       {type.example ? <Text style={styles.muted}>{t("idExample", { example: type.example })}</Text> : null}
       {advice ? <Text style={styles.error} accessibilityRole="alert">{advice}</Text> : null}
@@ -99,7 +100,11 @@ function ActionButton({ label, onPress }: { label: string; onPress?: () => void 
  * server message under it, and a duplicate warning with Continue and Edit (a warning never blocks).
  * The client checks are advice; the caller decides whether a broken rule stops the submit.
  */
-export function IdentifierFields({ types, values, onChange, errors = {}, warnings = {}, onContinue, onEdit, disabled }: {
+export function IdentifierFields({ types, values, onChange, errors = {}, warnings = {}, onContinue, onEdit, disabled, edge = false, title = true }: {
+  /** Inside a white card: the faint hairline edge. */
+  edge?: boolean;
+  /** The "Registration numbers" heading; off where a section label above the card already names the group. */
+  title?: boolean;
   types: IdentifierType[];
   values: Record<string, string | undefined>;
   onChange: (code: string, value: string) => void;
@@ -115,7 +120,7 @@ export function IdentifierFields({ types, values, onChange, errors = {}, warning
   if (types.length === 0) return null;
   return (
     <View style={{ gap: 12, minWidth: 0 }} testID="identifier-fields">
-      <Text style={styles.headline}>{t("idSectionTitle")}</Text>
+      {title ? <Text style={styles.headline}>{t("idSectionTitle")}</Text> : null}
       {[...types].sort((a, b) => a.sort_order - b.sort_order).map((type) => (
         <IdentifierRow
           key={type.code}
@@ -127,6 +132,7 @@ export function IdentifierFields({ types, values, onChange, errors = {}, warning
           onContinue={() => onContinue?.(type.code)}
           onEdit={() => onEdit?.(type.code)}
           disabled={disabled}
+          edge={edge}
         />
       ))}
     </View>

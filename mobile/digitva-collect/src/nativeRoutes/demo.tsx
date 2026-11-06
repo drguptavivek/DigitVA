@@ -23,7 +23,7 @@ import {
 import { normalizeUsername, validateSignUp } from "../demoRules";
 import { t } from "../i18n";
 import { PowCancelled } from "../pow";
-import { Button, Screen, useUiStyles } from "../ui";
+import { Button, Notice, PasswordInput, Screen, useUiStyles } from "../ui";
 
 type Mode = "choose" | "create" | "existing";
 
@@ -142,12 +142,8 @@ export default function Demo() {
           />
           {mode === "create" ? <Text style={styles.muted}>{t("demoUsernameHint")}</Text> : null}
           <Text style={styles.muted}>{t("password")}</Text>
-          <TextInput
-            style={styles.input}
+          <PasswordInput
             accessibilityLabel={t("password")}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
             autoComplete={mode === "create" ? "new-password" : "current-password"}
             editable={!busy}
             value={password}
@@ -157,12 +153,8 @@ export default function Demo() {
             <>
               <Text style={styles.muted}>{t("demoPasswordHint")}</Text>
               <Text style={styles.muted}>{t("demoConfirmPassword")}</Text>
-              <TextInput
-                style={styles.input}
+              <PasswordInput
                 accessibilityLabel={t("demoConfirmPassword")}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
                 autoComplete="new-password"
                 editable={!busy}
                 value={confirm}
@@ -181,7 +173,7 @@ export default function Demo() {
             </>
           ) : null}
           {progress ? <Text style={styles.muted} accessibilityRole="progressbar">{progressText(progress)}</Text> : null}
-          {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+          {error ? <Notice tone="error">{error}</Notice> : null}
           <Button
             label={error ? t("demoTryAgain") : t(mode === "create" ? "demoSubmitCreate" : "demoSubmitExisting")}
             loading={busy}

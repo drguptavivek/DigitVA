@@ -12,7 +12,7 @@ jest.mock("../src/sync", () => ({
   registersDeaths: () => true,
   targetsFrom: () => []
 }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => key, uiLocale: () => "hi" }));
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, t: (key: string) => key, uiLocale: () => "hi" }));
 jest.mock("@drguptavivek/who-2022-va/native", () => {
   const React = require("react") as typeof import("react");
   return {

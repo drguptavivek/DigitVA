@@ -184,6 +184,7 @@ RETAINED_TABLES = {
     "mas_mentor_institute": "admin configuration",
     "mas_project_consent_settings": "admin configuration",
     "mas_training_sessions": "training project only",
+    "mas_ui_locale": "admin configuration; updated_by is an audit reference",
     "mas_ui_string_override": "admin configuration",
     "mas_va_cause_definitions": "admin configuration; ON DELETE SET NULL",
     "va_cod_bucket_scheme_snapshots": "admin configuration",

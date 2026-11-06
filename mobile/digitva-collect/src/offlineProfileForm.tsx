@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { t, type StringKey } from "./i18n";
 import type { OfflineProfile, StandaloneProfileField } from "./offlineProfile";
-import { Button, useUiStyles } from "./ui";
+import { radius, spacing } from "./theme";
+import { Button, Card, ChoiceRow, FieldLabel, Separator, TextField, TextLink, useUiStyles } from "./ui";
+import { formatWhen } from "./ui/interviewRows";
 
 type Sex = NonNullable<OfflineProfile["sex"]>;
 type Level = NonNullable<OfflineProfile["hiv_mortality"]>;
@@ -94,45 +96,32 @@ function Field({ label, value, onChange, keyboard }: {
   onChange: (value: string) => void;
   keyboard?: "numeric";
 }) {
-  const styles = useUiStyles();
+  const { inputHairline } = useUiStyles();
   return (
-    <View style={{ gap: 4 }}>
-      <Text style={styles.muted}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChange}
-        keyboardType={keyboard}
-        accessibilityLabel={label}
-        autoCapitalize="none"
-      />
+    <View style={{ gap: spacing.xs }}>
+      <FieldLabel label={label} />
+      <TextField value={value} onChangeText={onChange} keyboardType={keyboard} accessibilityLabel={label} autoCapitalize="none" style={inputHairline} />
     </View>
   );
 }
 
-function ChoiceRow({ label, options, value, onChange }: {
+/** A radio group with "Not set" first, like Register's Sex group (four options do not fit a SegmentedControl). */
+function ChoiceGroup({ label, options, value, onChange }: {
   label: string;
   options: Array<{ value: string; label: string }>;
   value: string | null;
   onChange: (value: string | null) => void;
 }) {
-  const styles = useUiStyles();
+  const all = [{ value: null, label: t("offlineProfileLevelUnset") }, ...options];
   return (
-    <View style={{ gap: 4 }}>
-      <Text style={styles.muted}>{label}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        <Button
-          kind={value === null ? "primary" : "secondary"}
-          label={t("offlineProfileLevelUnset")}
-          onPress={() => onChange(null)}
-        />
-        {options.map((option) => (
-          <Button
-            key={option.value}
-            kind={value === option.value ? "primary" : "secondary"}
-            label={option.label}
-            onPress={() => onChange(option.value)}
-          />
+    <View style={{ gap: spacing.xs }}>
+      <FieldLabel label={label} />
+      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ borderRadius: radius.lg, overflow: "hidden" }}>
+        {all.map((option, index) => (
+          <View key={option.value ?? "unset"}>
+            {index ? <Separator choice /> : null}
+            <ChoiceRow label={option.label} selected={option.value === value} onPress={() => onChange(option.value)} />
+          </View>
         ))}
       </View>
     </View>
@@ -182,46 +171,40 @@ export function OfflineProfileForm({
     });
   };
 
+  const sexOptions = SEX_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }));
+  const levelOptions = LEVEL_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }));
+  const saved = savedAt ? formatWhen(savedAt) : "";
+
   return (
-    <View style={{ gap: 8 }}>
-      <Field label={t("offlineProfileName")} value={draft.name} onChange={(value) => update("name", value)} />
-      <Field label={t("offlineProfileCountry")} value={draft.country} onChange={(value) => update("country", value)} />
-      {allRequired ? null : (
-        <Button
-          kind="secondary"
-          label={t(optionalOpen ? "offlineProfileHideOptional" : "offlineProfileShowOptional")}
-          expanded={optionalOpen}
-          onPress={() => setOptionalOpen((open) => !open)}
-        />
-      )}
+    <View style={{ gap: spacing.md }}>
+      <Card label={t("offlineProfileSectionProfile")}>
+        <Field label={t("offlineProfileName")} value={draft.name} onChange={(value) => update("name", value)} />
+        <Field label={t("offlineProfileCountry")} value={draft.country} onChange={(value) => update("country", value)} />
+        {allRequired ? null : (
+          <TextLink
+            label={t(optionalOpen ? "offlineProfileHideOptional" : "offlineProfileShowOptional")}
+            accessibilityLabel={t(optionalOpen ? "offlineProfileHideOptional" : "offlineProfileShowOptional")}
+            onPress={() => setOptionalOpen((open) => !open)}
+          />
+        )}
+      </Card>
       {optionalOpen ? (
-        <View style={{ gap: 8 }}>
-          <Field label={t("offlineProfileAge")} value={draft.ageYears} onChange={(value) => update("ageYears", value)} keyboard="numeric" />
-          <ChoiceRow
-            label={t("offlineProfileSex")}
-            options={SEX_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
-            value={draft.sex}
-            onChange={(value) => update("sex", value as Sex | null)}
-          />
-          <Field label={t("offlineProfileDesignation")} value={draft.designation} onChange={(value) => update("designation", value)} />
-          <Field label={t("offlineProfileFacility")} value={draft.facilityName} onChange={(value) => update("facilityName", value)} />
-          <Field label={t("offlineProfileState")} value={draft.state} onChange={(value) => update("state", value)} />
-          <Field label={t("offlineProfileOrgCode")} value={draft.orgCode} onChange={(value) => update("orgCode", value)} />
-          <ChoiceRow
-            label={t("offlineProfileHiv")}
-            options={LEVEL_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
-            value={draft.hivMortality}
-            onChange={(value) => update("hivMortality", value as Level | null)}
-          />
-          <ChoiceRow
-            label={t("offlineProfileMalaria")}
-            options={LEVEL_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
-            value={draft.malariaMortality}
-            onChange={(value) => update("malariaMortality", value as Level | null)}
-          />
-        </View>
+        <>
+          <Card label={t("offlineProfileSectionOptional")}>
+            <Field label={t("offlineProfileAge")} value={draft.ageYears} onChange={(value) => update("ageYears", value)} keyboard="numeric" />
+            <ChoiceGroup label={t("offlineProfileSex")} options={sexOptions} value={draft.sex} onChange={(value) => update("sex", value as Sex | null)} />
+            <Field label={t("offlineProfileDesignation")} value={draft.designation} onChange={(value) => update("designation", value)} />
+            <Field label={t("offlineProfileFacility")} value={draft.facilityName} onChange={(value) => update("facilityName", value)} />
+            <Field label={t("offlineProfileState")} value={draft.state} onChange={(value) => update("state", value)} />
+            <Field label={t("offlineProfileOrgCode")} value={draft.orgCode} onChange={(value) => update("orgCode", value)} />
+          </Card>
+          <Card label={t("offlineProfileSectionPresets")}>
+            <ChoiceGroup label={t("offlineProfileHiv")} options={levelOptions} value={draft.hivMortality} onChange={(value) => update("hivMortality", value as Level | null)} />
+            <ChoiceGroup label={t("offlineProfileMalaria")} options={levelOptions} value={draft.malariaMortality} onChange={(value) => update("malariaMortality", value as Level | null)} />
+          </Card>
+        </>
       ) : null}
-      {savedAt ? <Text style={styles.muted}>{t("offlineProfileSaved", { time: savedAt })}</Text> : null}
+      {saved ? <Text style={styles.muted}>{t("offlineProfileSaved", { time: saved })}</Text> : null}
       <Button label={submitLabel} loading={loading} disabled={loading} onPress={submit} />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       {onCancel && cancelLabel ? <Button kind="secondary" label={cancelLabel} disabled={loading} onPress={onCancel} /> : null}

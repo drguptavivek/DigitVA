@@ -60,6 +60,7 @@ jest.mock("../src/interviewerDb", () => ({
   createInterviewerDb: (...args: Parameters<typeof mockCreateInterviewerDb>) => mockCreateInterviewerDb(...args)
 }));
 jest.mock("../src/vault", () => ({
+  biometricKind: async () => "fingerprint",
   biometricEnabled: (...args: Parameters<typeof mockBiometricEnabled>) => mockBiometricEnabled(...args),
   failedAttempts: (...args: Parameters<typeof mockFailedAttempts>) => mockFailedAttempts(...args),
   readBiometricPin: (...args: Parameters<typeof mockReadBiometricPin>) => mockReadBiometricPin(...args),
@@ -99,14 +100,24 @@ jest.mock("../src/nativeAuthLinks", () => ({
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  return {
+  return require("../test-support/uiMockExtras").withUiExtras({
     Button: ({ label, onPress, disabled }: { label: string; onPress?: () => void; disabled?: boolean }) =>
       ReactActual.createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
     Row: ({ children }: { children: ReactNode }) => ReactActual.createElement("div", null, children),
+    TextLink: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) =>
+      ReactActual.createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
+    // The password / long-PIN field with its eye, as the masked TextInput it wraps.
+    PasswordInput: (props: object) => ReactActual.createElement((require("react-native") as typeof import("react-native")).TextInput, { ...props, secureTextEntry: true }),
     Screen: ({ children }: { children: ReactNode }) => ReactActual.createElement("main", null, children),
     errorText: () => "error",
+    // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
+    Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
+    SegmentedControl: ({ options, onChange, disabled }: { options: Array<{ value: string; label: string }>; onChange: (value: string) => void; disabled?: boolean }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement("div", null, options.map((option) =>
+        (jest.requireActual("react") as typeof import("react")).createElement("button", { key: option.value, "data-label": option.label, disabled, onClick: () => onChange(option.value) }, option.label))),
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, phoneInputRow: {}, phonePrefix: {}, phoneInput: {}, authLinks: {} })
-  };
+  });
 });
 
 import { ApiError } from "../src/api";
@@ -268,6 +279,39 @@ describe("native login refresh handoff", () => {
     expect(mockReadBiometricPin).not.toHaveBeenCalled();
     expect(mockHasInterviewerStore).not.toHaveBeenCalled();
     expect(mockUnlockInterviewer).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("has one heading: the profile name is a body line in ink, not a second 20pt heading", async () => {
+    mockParams = { userId: "u1" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    const name = tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "unlock-name")[0];
+    expect(name).toBeDefined();
+    const { typography, ui } = jest.requireActual("../src/theme") as typeof import("../src/theme");
+    const style = (require("react-native") as typeof import("react-native")).StyleSheet.flatten(name.props.style);
+    expect(style).toMatchObject({ fontSize: typography.body.fontSize, fontWeight: "400", color: ui.light.foreground });
+    expect(name.props.accessibilityRole).toBeUndefined();
+    await act(async () => tree!.unmount());
+  });
+
+  it("spaces the links by their text: boxes 12 to the PIN link, 24 to Unlock, 24 to Switch profile", async () => {
+    mockParams = { userId: "u1" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    const { controls, spacing, typography } = jest.requireActual("../src/theme") as typeof import("../src/theme");
+    const flatten = (require("react-native") as typeof import("react-native")).StyleSheet.flatten;
+    const margin = (testID: string) => flatten(tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID)[0].props.style).marginTop;
+    // A link's text sits this far inside its 44pt box (box inset plus half the line's leading), above and below.
+    const inset = (controls.minTouchTarget - typography.body.lineHeight) / 2 + (typography.body.lineHeight - typography.body.fontSize) / 2;
+    const glyph = typography.body.fontSize / 16;
+    expect(spacing.sm + margin("pin-longer-link") + inset + glyph).toBe(12);
+    expect(spacing.lg + margin("unlock-actions") + inset - glyph).toBe(24);
+    expect(spacing.sm + margin("switch-profile-link") + inset + glyph).toBe(24);
     await act(async () => tree!.unmount());
   });
 
@@ -497,7 +541,7 @@ describe("native login refresh handoff", () => {
     await settle();
     expect(editableInputs(tree!)).toHaveLength(6);
     expect(longField(tree!)).toBeUndefined();
-    act(() => tree!.root.findAll((n) => n.props.accessibilityRole === "link" && typeof n.props.onPress === "function")[0].props.onPress());
+    act(() => tree!.root.findByProps({ "data-label": "pinLonger" }).props.onClick());
     expect(editableInputs(tree!)).toHaveLength(0);
     act(() => longField(tree!).props.onChangeText("1234567"));
     expect(tree!.root.findByProps({ "data-label": "unlock" }).props.disabled).toBe(false);

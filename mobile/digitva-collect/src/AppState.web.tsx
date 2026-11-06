@@ -10,7 +10,8 @@ import {
   type ReactNode
 } from "react";
 
-import { setUiLocale, t } from "./i18n";
+import { requestedUiLocale, setUiLocale, subscribeUiLanguages, t, uiLocale as resolvedUiLocale } from "./i18n";
+import { syncUiPacks } from "./uiPacks";
 import { trainingBootstrap } from "./training";
 import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
 import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
@@ -357,6 +358,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const stored = await getUiLocalePreference();
       if (!active) return;
       setLocaleState(setUiLocale(stored ?? (typeof navigator !== "undefined" ? navigator.language : "en")));
+      // The browser's own server serves the UI packs (digitva-dt1e); offline, the stored pack stays.
+      void syncUiPacks("", requestedUiLocale()).catch(() => undefined);
       try {
         await reload();
       } catch {
@@ -374,9 +377,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     };
   }, [reload]);
 
+  useEffect(() => subscribeUiLanguages(() => setLocaleState(resolvedUiLocale())), []);
+
   const chooseUiLocale = useCallback(async (code: string) => {
     const normalized = setUiLocale(code);
     setLocaleState(normalized);
+    void syncUiPacks("", code).catch(() => undefined);
     await setUiLocalePreference(normalized);
   }, []);
 

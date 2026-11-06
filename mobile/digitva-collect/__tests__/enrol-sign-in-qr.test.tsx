@@ -44,6 +44,20 @@ jest.mock("../src/ui", () => {
       ReactActual.createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
     Screen: ({ children }: { children: ReactNode }) => ReactActual.createElement("main", null, children),
     errorText: () => mockErrorText(),
+    // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
+    Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
+    SegmentedControl: ({ options, onChange, disabled }: { options: Array<{ value: string; label: string }>; onChange: (value: string) => void; disabled?: boolean }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement("div", null, options.map((option) =>
+        (jest.requireActual("react") as typeof import("react")).createElement("button", { key: option.value, "data-label": option.label, disabled, onClick: () => onChange(option.value) }, option.label))),
+    // Welcome option rows and text links press like buttons; the password field keeps its masked TextInput.
+    ListRow: ({ label, onPress, disabled, value }: { label: string; onPress?: () => void; disabled?: boolean; value?: string }) =>
+      ReactActual.createElement("button", { "data-label": label, disabled, onClick: onPress }, label, value),
+    TextLink: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) =>
+      ReactActual.createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
+    PasswordInput: (props: object) => ReactActual.createElement((require("react-native") as typeof import("react-native")).TextInput, { ...props, secureTextEntry: true }),
+    Card: ({ children }: { children: ReactNode }) => ReactActual.createElement("section", null, children),
+    Separator: () => null,
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {} }),
   };
 });
@@ -65,7 +79,11 @@ const scan = (tree: ReactTestRenderer, data: string) =>
   act(() => tree.root.findByType("CameraView" as never).props.onBarcodeScanned({ data }));
 const press = (tree: ReactTestRenderer, label: string) =>
   act(async () => tree.root.findByProps({ "data-label": label }).props.onClick());
-const enterServer = (tree: ReactTestRenderer) => press(tree, "enrolTitle");
+const enterServer = (tree: ReactTestRenderer) => press(tree, "welcomeScanTitle");
+/** Opens the server-and-password form from Welcome (a no-op when it is already open). */
+const enterManual = async (tree: ReactTestRenderer) => {
+  if (tree.root.findAllByProps({ "data-label": "welcomeManualTitle" }).length) await press(tree, "welcomeManualTitle");
+};
 const text = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
 
 let logs: jest.SpyInstance[];
@@ -83,7 +101,7 @@ it("shows the server and waits for confirmation before redeeming a sign-in QR", 
   scan(tree, signInQr);
   expect(text(tree)).toContain("digitva.causeofdeathindia.com");
   expect(text(tree)).toContain("enrolConfirmSignInHint");
-  expect(text(tree)).not.toContain("enrolConfirmProject");
+  expect(text(tree)).not.toContain("interviewProject");
   expect(mockRedeem).not.toHaveBeenCalled();
 });
 
@@ -176,7 +194,11 @@ it("still enrols from an enrolment QR", async () => {
   const tree = await render();
   await enterServer(tree);
   scan(tree, enrolQr);
-  expect(text(tree)).toContain("enrolConfirmProject");
+  // Confirm server names the server and the project as rows, with one primary action.
+  expect(text(tree)).toContain("interviewProject");
+  expect(text(tree)).toContain("UNSW01");
+  expect(text(tree)).not.toContain("enrolManualSubmit");
+  expect(text(tree)).not.toContain("demoTryTitle");
   await press(tree, "enrolConfirm");
   expect(mockEnrol).toHaveBeenCalledWith(SERVER, "AbCdEf123456_-x", "Pixel", "1.0.0");
   expect(mockRedeem).not.toHaveBeenCalled();
@@ -184,7 +206,7 @@ it("still enrols from an enrolment QR", async () => {
 });
 
 async function fillManual(tree: ReactTestRenderer, password = "private-password") {
-  await enterServer(tree);
+  await enterManual(tree);
   for (const [label, value] of [["enrolServerAddress", SERVER], ["email", "asha@example.org"], ["password", password]]) {
     act(() => tree.root.findAllByType(TextInput).find((input) => input.props.accessibilityLabel === label)!.props.onChangeText(value));
   }
@@ -228,18 +250,59 @@ it("clears manual credentials when locking fails and when the form unmounts", as
   await fillManual(tree);
   act(() => tree.unmount());
   const remounted = await render();
-  await enterServer(remounted);
+  await enterManual(remounted);
   expect(remounted.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
 });
 
 it("uses the existing canonical mobile identifier in the manual form", async () => {
   mockPasswordEnrol.mockResolvedValueOnce({ user_id: "u1", name: "Asha" });
   const tree = await render();
-  await enterServer(tree);
+  await enterManual(tree);
   await press(tree, "mobile");
   for (const [label, value] of [["enrolServerAddress", SERVER], ["mobile", "9876543210"], ["password", "pw"]]) {
     act(() => tree.root.findAllByType(TextInput).find((input) => input.props.accessibilityLabel === label)!.props.onChangeText(value));
   }
   await press(tree, "enrolManualSubmit");
   expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "+919876543210", "pw", "Pixel", "1.0.0");
+});
+
+/** Labels and texts in render order, so an error's place next to its button can be asserted. */
+function order(tree: ReactTestRenderer): string[] {
+  const out: string[] = [];
+  const walk = (node: unknown) => {
+    if (typeof node === "string") out.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (node && typeof node === "object") {
+      const { props, children } = node as { props?: { "data-label"?: string }; children?: unknown };
+      if (props?.["data-label"]) out.push(props["data-label"]);
+      else walk(children);
+    }
+  };
+  walk(tree.toJSON());
+  return out;
+}
+
+it("shows a pasted code's error right under its Enrol button and clears it when the box is edited", async () => {
+  const tree = await render();
+  await enterServer(tree);
+  const paste = () => tree.root.findAllByType(TextInput).find((input) => input.props.multiline)!;
+  act(() => paste().props.onChangeText("{“v”:2}"));
+  await press(tree, "enrolSubmit");
+  const items = order(tree);
+  expect(items).toContain("errBadQr");
+  expect(items.indexOf("errBadQr")).toBe(items.indexOf("enrolSubmit") + 1);
+  // The scanner is its own view: the server-and-password form is not stacked under it.
+  expect(items).not.toContain("enrolManualSubmit");
+  act(() => paste().props.onChangeText("{"));
+  expect(order(tree)).not.toContain("errBadQr");
+});
+
+it("shows a login error right under the login button", async () => {
+  mockPasswordEnrol.mockRejectedValueOnce(new Error("network"));
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+  const items = order(tree);
+  expect(items).toContain("generic error");
+  expect(items.indexOf("generic error")).toBe(items.indexOf("enrolManualSubmit") + 1);
 });

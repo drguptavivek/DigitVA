@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
-import { typography, useTheme } from "../theme";
+import { useTheme } from "../theme";
 import { useShell } from "./shellContext";
 
 export type ModeBannerMode = "standalone" | "demo";
@@ -16,12 +16,18 @@ export interface ModeBannerState {
   accounts: readonly ModeBannerAccount[];
   slot?: "active" | "demo";
   standaloneAvailable: boolean;
+  /** The phone is enrolled on a server (AppState `device`). */
+  enrolled?: boolean;
 }
 
 const normalizePath = (pathname: string) => pathname.replace(/\/$/, "") || "/";
 
-/** Resolve the mode without inferring it from connectivity or a server URL. */
-export function resolveModeBanner({ pathname, userId, accounts, slot, standaloneAvailable }: ModeBannerState): ModeBannerMode | undefined {
+/**
+ * Resolve the mode without inferring it from connectivity or a server URL. A standalone account is the one sure
+ * signal; the setup routes and the account list only count while the phone is not enrolled on a server (after a QR
+ * enrol the phone still holds its standalone account, and its list and setup screens are no longer standalone mode).
+ */
+export function resolveModeBanner({ pathname, userId, accounts, slot, standaloneAvailable, enrolled = false }: ModeBannerState): ModeBannerMode | undefined {
   const route = normalizePath(pathname);
   if (slot === "demo" || route === "/demo") return "demo";
   if (!standaloneAvailable) return undefined;
@@ -31,16 +37,17 @@ export function resolveModeBanner({ pathname, userId, accounts, slot, standalone
   const setupRoute = route === "/standalone-setup";
   const standaloneRoute = route === "/standalone";
   const accountList = route === "/" && accounts.some((item) => item.standalone === true);
-  return setupRoute || standaloneRoute || accountList || standaloneAccount ? "standalone" : undefined;
+  if (standaloneAccount) return "standalone";
+  return !enrolled && (setupRoute || standaloneRoute || accountList) ? "standalone" : undefined;
 }
 
 export function ModeBanner() {
   const pathname = usePathname();
   const shell = useShell();
   // Browser AppState deliberately has no native accounts/slot; defaults keep the shared root web-safe.
-  const { accounts = [], slot, standaloneAvailable = false } = useAppState();
-  const mode = resolveModeBanner({ pathname, userId: shell.userId, accounts, slot, standaloneAvailable });
-  const { ui } = useTheme();
+  const { accounts = [], slot, standaloneAvailable = false, device } = useAppState();
+  const mode = resolveModeBanner({ pathname, userId: shell.userId, accounts, slot, standaloneAvailable, enrolled: Boolean(device) });
+  const { ui, typography } = useTheme();
   if (!mode) return null;
 
   const standalone = mode === "standalone";

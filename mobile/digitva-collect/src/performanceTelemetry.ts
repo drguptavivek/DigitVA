@@ -37,7 +37,7 @@ export interface PerformancePayload {
   day: string;
   app_version: string;
   variant: "collect" | "plus";
-  platform: "android";
+  platform: "android" | "ios";
   device_type: HardwareProfile["device_type"];
   ram_bucket: HardwareProfile["ram_bucket"];
   core_bucket: HardwareProfile["core_bucket"];
@@ -77,8 +77,11 @@ let flushDay: string | undefined;
 let storageWrites: Promise<void> = Promise.resolve();
 let purgePending = false;
 
+/** Telemetry runs on the two native platforms only; web has no hardware module and never sends. */
+const telemetryPlatform = (): "android" | "ios" | null => (Platform.OS === "android" || Platform.OS === "ios" ? Platform.OS : null);
+
 const nativeInfo = (): { getHardwareProfile?: () => HardwareProfile } | null => {
-  if (Platform.OS !== "android") return null;
+  if (!telemetryPlatform()) return null;
   try {
     return requireOptionalNativeModule<{ getHardwareProfile?: () => HardwareProfile }>("DigitvaDeviceInfo");
   } catch {
@@ -223,7 +226,7 @@ function startForeground(): void {
 
 /** Install the low-cost foreground counter once. It never starts a request or waits on storage. */
 export function installPerformanceTelemetryLifecycle(): () => void {
-  if (lifecycleInstalled || Platform.OS !== "android") return () => undefined;
+  if (lifecycleInstalled || !telemetryPlatform()) return () => undefined;
   lifecycleInstalled = true;
   setPerformanceErrorCounter(recordErrorMetric);
   setPerformanceCrashCounter(recordCrashMetric);
@@ -285,7 +288,7 @@ function seal(day: string): void {
     day,
     app_version: appVersion(),
     variant: isPlusVariant() ? "plus" : "collect",
-    platform: "android",
+    platform: telemetryPlatform() ?? "android",
     ...hardware(),
     metrics: {
       foreground_ms: safeInteger(metrics.foreground_ms, MAX_FOREGROUND_MS),
@@ -302,7 +305,7 @@ function seal(day: string): void {
 
 /** Flush at most once per calendar day. The caller supplies the existing authenticated transport. */
 export async function flushPerformanceTelemetry(_userId: string, send: SendBatch): Promise<void> {
-  if (Platform.OS !== "android" || !(await getPerformanceTelemetryEnabled())) return;
+  if (!telemetryPlatform() || !(await getPerformanceTelemetryEnabled())) return;
   await ensureState();
   if (!(await getPerformanceTelemetryEnabled())) return;
   const day = today();

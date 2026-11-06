@@ -1,6 +1,9 @@
 {
-  "platforms": ["android"],
+  "platforms": ["android", "ios"],
   "android": {
     "modules": ["expo.modules.digitvaicd11.DigitvaIcd11Module"]
+  },
+  "ios": {
+    "modules": ["DigitvaIcd11Module"]
   }
 }

@@ -6,13 +6,16 @@ import { Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { t } from "../i18n";
-import { radius, spacing, typography, useTheme } from "../theme";
-import { Button } from "../ui";
+import { radius, spacing, useTheme } from "../theme";
+import { Button, TextLink } from "../ui";
 
 const ICONS = {
   empty: ["M9 6l11 0", "M9 12l11 0", "M9 18l11 0", "M5 6l0 .01", "M5 12l0 .01", "M5 18l0 .01"],
   offline: ["M12 18l.01 0", "M9.2 15.1a4 4 0 0 1 5.6 0", "M6.4 12.3a8 8 0 0 1 11.2 0", "M3 3l18 18"],
   error: ["M12 9v4", "M12 16v.01", "M10.3 3.9l-8.5 14.5a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7 -3l-8.5 -14.5a2 2 0 0 0 -3.4 0"],
+  // Show / hide a masked value (the PIN boxes' toggle).
+  eye: ["M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"],
+  eyeOff: ["M10.6 10.6a2 2 0 0 0 2.8 2.8", "M16.7 16.7c-1.4 .9 -3 1.3 -4.7 1.3c-3.6 0 -6.6 -2 -9 -6c1.3 -2.1 2.7 -3.7 4.3 -4.7m3.1 -1.2a9 9 0 0 1 1.6 -.1c3.6 0 6.6 2 9 6c-.7 1.1 -1.4 2.1 -2.2 3", "M3 3l18 18"],
 } as const;
 
 export function StateIcon({ name, color, size = 24 }: { name: keyof typeof ICONS; color: string; size?: number }) {
@@ -25,15 +28,31 @@ export function StateIcon({ name, color, size = 24 }: { name: keyof typeof ICONS
   );
 }
 
-/** Empty or failed list: icon, title, hint and at most one action. */
-export function StateView({ kind = "empty", title, hint, actionLabel, onAction }: { kind?: "empty" | "error"; title: string; hint?: string; actionLabel?: string; onAction?: () => void }) {
-  const { ui } = useTheme();
+/**
+ * Empty or failed list: icon (secondary, so it never competes with the title), title, hint and at most one action:
+ * a filled button, or `links` (text links, when the action already has a home elsewhere such as a tab).
+ */
+export function StateView({ kind = "empty", title, hint, actionLabel, onAction, links }: {
+  kind?: "empty" | "error";
+  title: string;
+  hint?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  /** `disabled`: shown but waiting (Refresh while offline). */
+  links?: ReadonlyArray<{ label: string; onPress: () => void; disabled?: boolean }>;
+}) {
+  const { ui, typography } = useTheme();
   return (
-    <View testID={`state-${kind}`} accessibilityRole={kind === "error" ? "alert" : undefined} style={{ alignItems: "center", gap: spacing.xs, paddingVertical: spacing.lg, paddingHorizontal: spacing.md }}>
-      <StateIcon name={kind} color={kind === "error" ? ui.destructiveText : ui.mutedForeground} size={32} />
+    <View testID={`state-${kind}`} accessibilityRole={kind === "error" ? "alert" : undefined} style={{ alignItems: "center", gap: spacing.xs, paddingTop: spacing.xxl, paddingBottom: spacing.lg, paddingHorizontal: spacing.md }}>
+      <StateIcon name={kind} color={kind === "error" ? ui.destructiveText : ui.mutedForeground} size={40} />
       <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.foreground, textAlign: "center" }}>{title}</Text>
       {hint ? <Text style={{ ...typography.body, color: ui.mutedForeground, textAlign: "center" }}>{hint}</Text> : null}
       {actionLabel && onAction ? <Button label={actionLabel} onPress={onAction} /> : null}
+      {links?.length ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: spacing.lg }}>
+          {links.map((link) => <TextLink key={link.label} label={link.label} disabled={link.disabled} onPress={link.onPress} />)}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -45,7 +64,7 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
   return (
     <View testID="state-loading" accessible accessibilityLabel={t("loading")} accessibilityState={{ busy: true }} style={{ gap: spacing.xs }}>
       {Array.from({ length: count }, (_, index) => (
-        <View key={index} aria-hidden style={{ gap: spacing.xs, padding: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: ui.border, backgroundColor: ui.card }}>
+        <View key={index} aria-hidden style={{ gap: spacing.xs, padding: spacing.sm, borderRadius: radius.lg, backgroundColor: ui.card }}>
           {bar("55%", 18)}
           {bar("35%")}
           {bar("80%")}
@@ -57,9 +76,9 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
 
 /** Persistent "offline" banner. Work is safe on the phone; only network actions wait. */
 export function OfflineNotice() {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   return (
-    <View testID="state-offline" accessibilityRole="alert" style={{ flexDirection: "row", gap: spacing.xs, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: ui.warningBorder, backgroundColor: ui.warning }}>
+    <View testID="state-offline" accessibilityRole="alert" style={{ flexDirection: "row", gap: spacing.xs, padding: spacing.sm, borderRadius: radius.lg, backgroundColor: ui.warning }}>
       <StateIcon name="offline" color={ui.warningForeground} size={20} />
       <Text style={{ ...typography.subhead, color: ui.warningForeground, flex: 1 }}>{t("offlineNotice")}</Text>
     </View>

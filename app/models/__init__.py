@@ -64,6 +64,7 @@ from app.models.mas_organization import (
     MasOrgUnit,
     MasOrgUnitWorker,
 )
+from app.models.mas_ui_locale import MasUiLocale
 from app.models.mas_ui_string_override import MasUiStringOverride
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.models.va_allocations import VaAllocations
@@ -249,6 +250,7 @@ __all__ = [
     "MapLanguageAliases",
     "MasInstrumentLocales",
     "MasInstrumentVersions",
+    "MasUiLocale",
     "MasUiStringOverride",
     "MapInstrumentTranslations",
     "MapInstrumentTranslationSuggestions",

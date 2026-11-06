@@ -15,6 +15,7 @@ import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
 import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
 import { ClockWarning } from "../src/nativeShell/ClockNotice";
+import { LockWarning } from "../src/nativeShell/LockWarning";
 import { ModeBanner } from "../src/nativeShell/ModeBanner";
 import NativeIcd11DorisFirstLaunchGate from "../src/NativeIcd11DorisFirstLaunchGate";
 import { useDemoDocumentTitle } from "../src/DemoBadge";
@@ -49,7 +50,7 @@ function ActivityRoot() {
   }
   return (
     <View
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.background }}
       onStartShouldSetResponderCapture={() => {
         activity();
         return false;
@@ -57,10 +58,12 @@ function ActivityRoot() {
     >
       <ShellHeader />
       <ClockWarning />
+      <LockWarning />
       <ModeBanner />
       <NativeTermsGate>
         <Stack
-          screenOptions={{ headerShown: false, animation: "none" }}
+          // The canvas behind every screen, so a screen mounting or a transition never shows white.
+          screenOptions={{ headerShown: false, animation: "none", contentStyle: { backgroundColor: colors.background } }}
           screenLayout={({ children, route }) => (
             <NativeCollectionGate routeName={route.name} routeParams={route.params}>
               {children}

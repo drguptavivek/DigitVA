@@ -360,6 +360,10 @@ class RouteTests(Base):
         svc.set_override("pa", "loginTitle", "ਸਾਈਨ ਇਨ", self.actor)
         self.run_job(locales=["pa"])
         db.session.commit()
+        # Served only once published (digitva-s028).
+        self.assertEqual(self.client.get("/api/v1/ui-strings/pa").status_code, 404)
+        svc.set_ui_language("pa", "ਪੰਜਾਬੀ", "pa-IN", "ltr", True, self.actor)
+        db.session.commit()
         r = self.client.get("/api/v1/ui-strings/pa")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(list(r.get_json()["strings"]), ["loginTitle"])

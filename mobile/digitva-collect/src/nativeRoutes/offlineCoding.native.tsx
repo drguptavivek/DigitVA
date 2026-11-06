@@ -43,7 +43,8 @@ import { serverKeptAnswers } from "../coding/irrelevantAnswers";
 import { correctedNow } from "../phoneClock";
 import { codingContextFromInterview, createAllowabilityIndex, extractIcd11CodeExpression, isCluster, type AllowabilityPack } from "../coding/icd11Allowability";
 import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
-import { errorText, Button, Screen, useUiStyles } from "../ui";
+import { Button, errorText, Notice, Screen, useUiStyles } from "../ui";
+import { StateView } from "../ui/StateView";
 import { t } from "../i18n";
 import { createGuidanceRequester, createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
 import type { JsonRequester, WorkspaceApi } from "../workspace/api";
@@ -614,8 +615,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
 
   if (failed) {
     return (
-      <Screen title="Offline coding">
-        <Text accessibilityRole="alert" style={styles.error}>{failed}</Text>
+      <Screen title={t("localCases")}>
+        <Notice tone="error">{failed}</Notice>
         <Button kind="secondary" label="Retry" onPress={() => {
           setFailed("");
           setLoaded(undefined);
@@ -628,7 +629,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   }
   if (!loaded || !workspace) {
     return (
-      <Screen title="Offline coding">
+      <Screen title={t("localCases")}>
         {busy ? <>
           <Text style={styles.muted}>This case is being sent.</Text>
           <Button kind="secondary" label="Retry" onPress={() => setRetry((value) => value + 1)} />
@@ -656,15 +657,15 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
           {smartvaIsCurrent && smartvaCache?.status === "ready" && smartvaCache.result_json
             ? <Text style={styles.muted}>{t("localSmartVaUpdated", { date: new Date(smartvaCache.updated_at).toLocaleString() })} · {t("localSmartVaVersion", { version: smartvaCache.engine_version ?? "—" })}</Text>
             : smartvaIsCurrent && smartvaCache?.status === "error"
-              ? <Text accessibilityRole="alert" style={styles.error}>{t("localSmartVaFailed")}</Text>
+              ? <Notice tone="error">{t("localSmartVaFailed")}</Notice>
               : null}
-          {smartvaFailure ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+          {smartvaFailure ? <Notice tone="error">{smartvaFailure}</Notice> : null}
           <Button kind="secondary" label={t(smartvaIsCurrent && smartvaCache?.status === "ready" ? "localSmartVaRegenerate" : "localSmartVaRun")} onPress={() => { void runSmartVa(); }} disabled={smartvaBusy || smartvaAvailable !== true} />
           {smartvaBusy ? <Text style={styles.muted}>{t("localSmartVaWorking")}</Text> : null}
-          {smartvaAvailable === false ? <Text style={styles.muted}>{t("localSmartVaUnavailable")}</Text> : null}
+          {smartvaAvailable === false ? <Notice tone="info">{t("localSmartVaUnavailable")}</Notice> : null}
         </View> : <View style={[styles.card, { gap: 8 }]}>
           <Text style={styles.muted}>{t("localSmartVaOptionsNeeded")}</Text>
-          {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Text accessibilityRole="alert" style={styles.error}>{smartvaFailure}</Text> : null}
+          {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Notice tone="error">{smartvaFailure}</Notice> : null}
           <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
         </View>}
         {allowed && !engineReady ? <View accessibilityLiveRegion="polite" style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
@@ -677,7 +678,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
           {/* A saved Step 1 returns to the case list, as before the workspace. */}
           <DorisPanel workspace={current} identity={identity} api={guardedApi} request={request} onSaved={async () => finish()} onDone={finish} />
         </View>
-        {!allowed && <Text accessibilityRole="alert" style={styles.error}>Offline coding access for this project is unavailable.</Text>}
+        {!allowed && <Notice tone="error">Offline coding access for this project is unavailable.</Notice>}
       </View>
     );
   };
@@ -703,6 +704,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
 /** The list of completed-but-unsent interviews; opening one starts the offline editor. */
 function OfflineCaseList({ db, onOpen, account }: { db: Db; onOpen: (clientDraftId: string) => void; account: Account }) {
   const styles = useUiStyles();
+  const router = useRouter();
   const [rows, setRows] = useState<OfflineCodingCaseRow[] | undefined>(undefined);
   const [failed, setFailed] = useState("");
 
@@ -728,9 +730,17 @@ function OfflineCaseList({ db, onOpen, account }: { db: Db; onOpen: (clientDraft
     return () => { live = false; };
   }, [account, db]);
 
-  if (failed) return <Text accessibilityRole="alert" style={styles.error}>{failed}</Text>;
+  if (failed) return <Notice tone="error">{failed}</Notice>;
   if (!rows) return <Text style={styles.muted}>Loading…</Text>;
-  if (rows.length === 0) return <Text style={styles.muted}>No completed interviews waiting to be sent.</Text>;
+  if (rows.length === 0) {
+    return (
+      <StateView
+        title={t("localCasesEmptyTitle")}
+        hint={t("localCasesEmptyHint")}
+        links={[{ label: t("tabInterviews"), onPress: () => router.replace({ pathname: account.standalone ? "/standalone" : "/worklist", params: { userId: account.user_id, view: "interviews" } }) }]}
+      />
+    );
+  }
   return (
     <View style={{ gap: 8 }}>
       {rows.map((row) => (
@@ -809,15 +819,14 @@ export default function OfflineCoding() {
   }
   if (storeMissing) {
     return (
-      <Screen title="Offline coding">
-        <Text accessibilityRole="alert" style={styles.error}>{errorText(new Error("offline_store_unavailable"))}</Text>
-        <Button kind="secondary" label="Back" onPress={() => router.back()} />
+      <Screen title={t("localCases")}>
+        <Notice tone="error">{errorText(new Error("offline_store_unavailable"))}</Notice>
       </Screen>
     );
   }
   if (!db) {
     return (
-      <Screen title="Offline coding">
+      <Screen title={t("localCases")}>
         <Text style={styles.muted}>Opening…</Text>
       </Screen>
     );
@@ -830,7 +839,7 @@ export default function OfflineCoding() {
   // The case renders its own Screen (title and banner); wrapping it here would show both twice.
   if (selected) return <OfflineCase key={selected} db={db} userId={userId} clientDraftId={selected} account={account} onDone={closeCase} />;
   return (
-    <Screen title="Offline coding">
+    <Screen title={t("localCases")}>
       <OfflineCaseList key={reloadTick} db={db} account={account} onOpen={setSelected} />
     </Screen>
   );

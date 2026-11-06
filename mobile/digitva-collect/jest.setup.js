@@ -14,3 +14,14 @@ jest.mock("expo-network", () => ({
   getNetworkStateAsync: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
   addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
+
+// expo-symbols' web view puts its `fallback` element in the rendered props, which `toJSON()` cannot serialise.
+// A plain host view keeps the symbol names (`name`) and colour for assertions (src/Icon.tsx).
+jest.mock("expo-symbols", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return {
+    SymbolView: ({ name, tintColor, size, accessible, accessibilityLabel, importantForAccessibility }) =>
+      React.createElement(View, { testID: "symbol", name, tintColor, style: { width: size, height: size }, accessible, accessibilityLabel, importantForAccessibility }),
+  };
+});

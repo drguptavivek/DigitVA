@@ -122,10 +122,17 @@ describe("local standalone account", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("is refused off Android", async () => {
-    (Platform as { OS: string }).OS = "ios";
+  it("is refused on the web", async () => {
+    (Platform as { OS: string }).OS = "web";
     await expect(setUpStandaloneAccount(profile())).rejects.toThrow();
     expect(await loadAccounts()).toEqual([]);
+  });
+
+  it("is set up on iOS Collect Plus as on Android", async () => {
+    (Platform as { OS: string }).OS = "ios";
+    const account = await setUpStandaloneAccount(profile());
+    expect(account.standalone).toBe(true);
+    expect((await loadAccounts()).map((a) => a.user_id)).toEqual([account.user_id]);
   });
 
   it("unlocks with its PIN and not with a wrong one, never calling a server", async () => {

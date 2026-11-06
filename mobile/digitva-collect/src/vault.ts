@@ -16,6 +16,7 @@
 import { CryptoDigestAlgorithm, digestStringAsync, getRandomBytesAsync } from "expo-crypto";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 export const PIN_MIN_LENGTH = 6;
 export const PIN_MAX_LENGTH = 16;
@@ -135,6 +136,19 @@ async function disableBiometric(hash: string): Promise<void> {
     await SecureStore.deleteItemAsync(biometricKey(hash), biometricOptions(hash));
   } catch {
     // Already gone with its invalidated key.
+  }
+}
+
+/** What the labels call the biometric: Face ID or Touch ID on iOS; fingerprint elsewhere (Android wording unchanged). */
+export type BiometricKind = "fingerprint" | "face" | "touch";
+
+export async function biometricKind(): Promise<BiometricKind> {
+  if (Platform.OS !== "ios") return "fingerprint";
+  try {
+    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    return types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION) ? "face" : "touch";
+  } catch {
+    return "touch";
   }
 }
 

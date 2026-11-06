@@ -28,7 +28,7 @@ jest.mock("../src/autoLock", () => ({
     return { activity: jest.fn(), appStateChanged: jest.fn(), stop: jest.fn() };
   },
 }));
-jest.mock("../src/i18n", () => ({ setUiLocale: () => "en" }));
+jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, setUiLocale: () => "en" }));
 jest.mock("../src/ui", () => ({ errorText: (error: unknown) => `error:${String(error)}` }));
 jest.mock("../src/auth", () => ({
   loadActiveSlot: jest.fn(async () => "active"),

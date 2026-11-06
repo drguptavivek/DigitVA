@@ -13,29 +13,38 @@ import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
 import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr } from "../auth";
 import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
 import { isPlusVariant } from "../appVariant";
+import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
 import { mobileDigitsFromInput, normalizeMobileIdentifier } from "../nativeAuthLinks";
-import { Button, errorText, Screen, useUiStyles } from "../ui";
+import { Icon, icons } from "../Icon";
+import { radius, spacing, useTheme } from "../theme";
+import { Button, Card, errorText, ListRow, Notice, PasswordInput, Screen, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "0.0.0";
 
 export default function Enrol() {
   const styles = useUiStyles();
+  const { ui, typography } = useTheme();
   const router = useRouter();
   const { reload, switchSlot, lockNow, slot, standaloneAvailable } = useAppState();
   const [permission, requestPermission] = useCameraPermissions();
   const [pasted, setPasted] = useState("");
-  const [error, setError] = useState("");
+  /** Each error shows next to the action that produced it: the code (scan, paste, confirm), the login form or the demo button. */
+  const [error, setErrorState] = useState<{ at: "code" | "login" | "demo"; text: string }>();
+  const setError = (at: "code" | "login" | "demo", text: string) => setErrorState(text ? { at, text } : undefined);
+  const errorAt = (at: "code" | "login" | "demo") =>
+    error?.at === at ? <Notice tone="error">{error.text}</Notice> : null;
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<ScannedQr>();
-  const [showServerSetup, setShowServerSetup] = useState(false);
+  /** Welcome menu, QR scanner or the server-and-password form; a scanned code shows Confirm server over any of them. */
+  const [view, setView] = useState<"menu" | "scan" | "manual">("menu");
   const [server, setServer] = useState("");
   const [mode, setMode] = useState<"email" | "mobile">("email");
   const [identifier, setIdentifier] = useState("");
@@ -48,22 +57,22 @@ export default function Enrol() {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
-    setError("");
+    setError("login", "");
     try {
       const submittedIdentifier = mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
       if (!submittedIdentifier) {
-        setError(t("errMobile"));
+        setError("login", t("errMobile"));
         return;
       }
       if (!(await lockNow())) {
-        setError(t("errGeneric"));
+        setError("login", t("errGeneric"));
         return;
       }
-      const account = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? "Android", APP_VERSION);
+      const account = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
       await reload();
       router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
-      setError(caught instanceof EnrolmentError ? t(caught.key)
+      setError("login", caught instanceof EnrolmentError ? t(caught.key)
         : caught instanceof ApiError && caught.status === 404 ? t("errPasswordEnrolUnsupported") : errorText(caught));
     } finally {
       setPassword("");
@@ -77,9 +86,9 @@ export default function Enrol() {
     if (busyRef.current) return;
     try {
       setPending(parseScannedQr(raw, __DEV__));
-      setError("");
+      setError("code", "");
     } catch (caught) {
-      setError(caught instanceof EnrolmentError ? t(caught.key) : errorText(caught));
+      setError("code", caught instanceof EnrolmentError ? t(caught.key) : errorText(caught));
     }
   }
 
@@ -87,15 +96,15 @@ export default function Enrol() {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
-    setError("");
+    setError("code", "");
     try {
       // Enrolling chooses the Active slot, so every store is saved and locked first (section 10.1).
       if (!(await lockNow())) {
         setPending(undefined);
-        setError(t("errGeneric"));
+        setError("code", t("errGeneric"));
         return;
       }
-      const deviceName = Constants.deviceName ?? "Android";
+      const deviceName = Constants.deviceName ?? deviceFamilyLabel();
       if (payload.kind === "sign_in") {
         const account = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
         await reload();
@@ -111,128 +120,161 @@ export default function Enrol() {
       // One message for every refusal of a sign-in QR; the token and the server's detail are never shown or logged.
       const refused = payload.kind === "sign_in" && caught instanceof ApiError && (caught.status === 404 || caught.status === 400);
       const limited = payload.kind === "sign_in" && caught instanceof ApiError && caught.status === 429;
-      setError(refused ? t("errSignInQrInvalid") : limited ? t("errSignInQrRateLimited") : errorText(caught));
+      setError("code", refused ? t("errSignInQrInvalid") : limited ? t("errSignInQrRateLimited") : errorText(caught));
     } finally {
       busyRef.current = false;
       setBusy(false);
     }
   }
 
+  const styles2 = { section: { ...typography.caption, fontWeight: "600" as const, textTransform: "uppercase" as const, color: ui.mutedForeground, marginTop: spacing.xs, marginLeft: spacing.md } };
+  const offerStandalone = slot !== "demo" && offlineEnginePlatform() && isPlusVariant();
+  const tryDemo = () => void switchSlot?.("demo").catch((caught) => setError("demo", errorText(caught)));
+  const cancel = <TextLink label={t("cancel")} disabled={busy} onPress={() => { setView("menu"); setError("code", ""); }} />;
+  const working = busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null;
+
+  // Confirm server (design sheet 11): its own view, one primary action and a text Cancel, nothing else offered.
+  if (pending) {
+    return (
+      <Screen title={t("enrolTitle")}>
+        <View style={{ alignItems: "center", gap: spacing.xxs, paddingVertical: spacing.md }}>
+          <View style={{ width: 56, height: 56, borderRadius: radius.full, backgroundColor: ui.primaryTint, alignItems: "center", justifyContent: "center" }}>
+            <Icon name={icons.accepted} color={ui.primary} size={28} />
+          </View>
+          <Text accessibilityRole="header" style={[styles.headline, { textAlign: "center" }]}>{t("enrolCodeAccepted")}</Text>
+          <Text style={[styles.muted, { textAlign: "center" }]}>{t("enrolCheckServer")}</Text>
+        </View>
+        <Card grouped>
+          <ListRow label={t("enrolledServer")} value={new URL(pending.server).host} />
+          {pending.kind === "enroll" ? (
+            <>
+              <Separator />
+              <ListRow label={t("interviewProject")} value={pending.project} />
+            </>
+          ) : null}
+        </Card>
+        <Notice tone="warning">{pending.kind === "enroll" ? t("enrolConfirmHint") : t("enrolConfirmSignInHint")}</Notice>
+        <Button label={t("enrolConfirm")} loading={busy} disabled={busy} onPress={() => void submit(pending)} />
+        <TextLink label={t("cancel")} disabled={busy} onPress={() => setPending(undefined)} />
+        {errorAt("code")}
+      </Screen>
+    );
+  }
+
+  if (view === "scan") {
+    return (
+      <Screen title={t("welcomeScanTitle")}>
+        {permission?.granted ? (
+          <View style={{ height: 240, borderRadius: radius.lg, overflow: "hidden" }}>
+            <CameraView
+              style={{ flex: 1 }}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              onBarcodeScanned={({ data }) => review(data)}
+            />
+          </View>
+        ) : (
+          <Button label={t("enrolAllowCamera")} onPress={() => void requestPermission()} />
+        )}
+        {__DEV__ ? (
+          <View style={{ gap: spacing.xs }}>
+            <Text style={styles.muted}>{t("enrolPaste")}</Text>
+            <TextInput
+              accessibilityLabel={t("enrolPaste")}
+              style={[styles.input, { minHeight: 80 }]}
+              multiline
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              value={pasted}
+              onChangeText={(value) => {
+                setPasted(value);
+                if (error?.at === "code") setError("code", "");
+              }}
+            />
+            <Button kind="secondary" label={t("enrolSubmit")} disabled={busy || !pasted.trim()} onPress={() => review(pasted)} />
+          </View>
+        ) : null}
+        {errorAt("code")}
+        {cancel}
+        {working}
+      </Screen>
+    );
+  }
+
+  if (view === "manual") {
+    return (
+      <Screen title={t("welcomeManualTitle")}>
+        <Text style={styles.muted}>{t("enrolServerAddress")}</Text>
+        <TextInput
+          accessibilityLabel={t("enrolServerAddress")}
+          style={styles.input}
+          autoCapitalize="none"
+          autoCorrect={false}
+          spellCheck={false}
+          keyboardType="url"
+          editable={!busy}
+          value={server}
+          onChangeText={setServer}
+        />
+        <SegmentedControl
+          accessibilityLabel={t("signInIdentifierType")}
+          options={(["email", "mobile"] as const).map((option) => ({ value: option, label: t(option) }))}
+          value={mode}
+          disabled={busy}
+          onChange={(option) => { setMode(option); setIdentifier(""); setError("login", ""); }}
+        />
+        <Text style={styles.muted}>{t(mode)}</Text>
+        {mode === "mobile" ? (
+          <View style={styles.phoneInputRow}>
+            <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>+91</Text>
+            <TextInput accessibilityLabel={t("mobile")} style={[styles.input, styles.phoneInput]} autoComplete="tel"
+              keyboardType="phone-pad" editable={!busy} value={identifier}
+              onChangeText={(value) => setIdentifier(mobileDigitsFromInput(value))} />
+          </View>
+        ) : (
+          <TextInput accessibilityLabel={t("email")} style={styles.input} autoCapitalize="none" autoCorrect={false}
+            autoComplete="username" editable={!busy} value={identifier} onChangeText={setIdentifier} />
+        )}
+        <Text style={styles.muted}>{t("password")}</Text>
+        <PasswordInput accessibilityLabel={t("password")} autoComplete="current-password" editable={!busy} value={password} onChangeText={setPassword} />
+        <Button label={t("enrolManualSubmit")} loading={busy}
+          disabled={busy || !server.trim() || !identifier.trim() || !password || (mode === "mobile" && !normalizeMobileIdentifier(identifier))}
+          onPress={() => void submitPassword()} />
+        {errorAt("login")}
+        <TextLink label={t("cancel")} disabled={busy} onPress={() => { setView("menu"); setPassword(""); setError("login", ""); }} />
+      </Screen>
+    );
+  }
+
+  // Welcome (design sheet 11): one card of ways in, then the other ways; each row says what it is for in one line.
   return (
     <Screen title={t("enrolTitle")}>
-      <Text accessibilityRole="header" style={styles.headline}>{t("enrolServerTitle")}</Text>
-      <Text style={styles.text}>{t("enrolServerHint")}</Text>
-      <Button label={t("enrolTitle")} disabled={busy} onPress={() => setShowServerSetup(true)} />
-      {pending || slot === "demo" || Platform.OS !== "android" || !isPlusVariant() ? null : (
-        <View style={{ gap: 8 }}>
-          <Text accessibilityRole="header" style={styles.headline}>{t("enrolStandaloneTitle")}</Text>
-          <Text style={styles.muted}>{t("enrolStandaloneHint")}</Text>
-          {!standaloneAvailable ? <Text style={styles.muted}>{t("standaloneLogoutRequired")}</Text> : null}
-          <Button kind="secondary" label={t("standaloneEntry")} disabled={busy || standaloneAvailable !== true} onPress={() => router.push("/standalone-setup")} />
-        </View>
-      )}
-      {pending ? null : (
-        <View style={{ gap: 8 }}>
-          <Text accessibilityRole="header" style={styles.headline}>{t("enrolDemoTitle")}</Text>
-          <Text style={styles.muted}>{t("enrolDemoHint")}</Text>
-          <Text style={styles.muted}>{t("demoTryHint")}</Text>
-          <Button kind="secondary" label={t("demoTryTitle")} disabled={busy} onPress={() => void switchSlot?.("demo").catch((caught) => setError(errorText(caught)))} />
-        </View>
-      )}
-      {showServerSetup ? (
-        <View style={{ gap: 8 }}>
-          {pending ? (
-            <>
-              <Text style={[styles.text, { fontSize: 20, fontWeight: "700" }]} selectable>
-                {t("enrolConfirmServer", { host: new URL(pending.server).host })}
-              </Text>
-              {pending.kind === "enroll" ? (
-                <>
-                  <Text style={styles.text}>{t("enrolConfirmProject", { project: pending.project })}</Text>
-                  <Text style={styles.muted}>{t("enrolConfirmHint")}</Text>
-                </>
-              ) : (
-                <Text style={styles.muted}>{t("enrolConfirmSignInHint")}</Text>
-              )}
-              <Button label={t("enrolConfirm")} loading={busy} disabled={busy} onPress={() => void submit(pending)} />
-              <Button kind="secondary" label={t("cancel")} disabled={busy} onPress={() => setPending(undefined)} />
-            </>
-          ) : (
-            <>
-              {permission?.granted ? (
-                <View style={{ height: 280, borderRadius: 8, overflow: "hidden" }}>
-                  <CameraView
-                    style={{ flex: 1 }}
-                    facing="back"
-                    barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-                    onBarcodeScanned={({ data }) => review(data)}
-                  />
-                </View>
-              ) : (
-                <Button label={t("enrolAllowCamera")} onPress={() => void requestPermission()} />
-              )}
-              {__DEV__ ? (
-                <View style={{ gap: 8 }}>
-                  <Text style={styles.muted}>{t("enrolPaste")}</Text>
-                  <TextInput
-                    style={[styles.input, { minHeight: 80 }]}
-                    multiline
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    value={pasted}
-                    onChangeText={setPasted}
-                  />
-                  <Button label={t("enrolSubmit")} disabled={busy || !pasted.trim()} onPress={() => review(pasted)} />
-                </View>
-              ) : null}
-              {slot === "demo" ? null : (
-                <View style={{ gap: 8 }}>
-                  <Text accessibilityRole="header" style={styles.headline}>{t("enrolManualTitle")}</Text>
-                  <Text style={styles.muted}>{t("enrolServerAddress")}</Text>
-                  <TextInput
-                    accessibilityLabel={t("enrolServerAddress")}
-                    style={styles.input}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    editable={!busy}
-                    value={server}
-                    onChangeText={setServer}
-                  />
-                  <Text style={styles.muted}>{t("signInIdentifierType")}</Text>
-                  <View style={styles.row}>
-                    {(["email", "mobile"] as const).map((option) => (
-                      <Button key={option} kind={mode === option ? "primary" : "secondary"} label={t(option)} disabled={busy}
-                        onPress={() => { setMode(option); setIdentifier(""); setError(""); }} />
-                    ))}
-                  </View>
-                  <Text style={styles.muted}>{t(mode)}</Text>
-                  {mode === "mobile" ? (
-                    <View style={styles.phoneInputRow}>
-                      <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>+91</Text>
-                      <TextInput accessibilityLabel={t("mobile")} style={[styles.input, styles.phoneInput]} autoComplete="tel"
-                        keyboardType="phone-pad" editable={!busy} value={identifier}
-                        onChangeText={(value) => setIdentifier(mobileDigitsFromInput(value))} />
-                    </View>
-                  ) : (
-                    <TextInput accessibilityLabel={t("email")} style={styles.input} autoCapitalize="none" autoCorrect={false}
-                      autoComplete="username" editable={!busy} value={identifier} onChangeText={setIdentifier} />
-                  )}
-                  <Text style={styles.muted}>{t("password")}</Text>
-                  <TextInput accessibilityLabel={t("password")} style={styles.input} secureTextEntry autoCapitalize="none"
-                    autoCorrect={false} editable={!busy} value={password} onChangeText={setPassword} />
-                  <Button label={t("enrolManualSubmit")} loading={busy}
-                    disabled={busy || !server.trim() || !identifier.trim() || !password || (mode === "mobile" && !normalizeMobileIdentifier(identifier))}
-                    onPress={() => void submitPassword()} />
-                </View>
-              )}
-              <Button kind="secondary" label={t("cancel")} disabled={busy} onPress={() => setShowServerSetup(false)} />
-            </>
-          )}
-        </View>
-      ) : null}
-      {busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Text style={styles.muted}>{t("welcomeTagline")}</Text>
+      <Text accessibilityRole="header" style={styles2.section}>{t("welcomeGetStarted")}</Text>
+      <Card grouped>
+        <ListRow icon={icons.qr} label={t("welcomeScanTitle")} secondary={t("welcomeScanHint")} disabled={busy} onPress={() => setView("scan")} />
+        {slot === "demo" ? null : (
+          <>
+            <Separator />
+            <ListRow icon={icons.atSign} label={t("welcomeManualTitle")} secondary={t("welcomeManualHint")} disabled={busy} onPress={() => setView("manual")} />
+          </>
+        )}
+      </Card>
+      <Text accessibilityRole="header" style={styles2.section}>{t("welcomeOtherWays")}</Text>
+      <Card grouped>
+        {offerStandalone ? (
+          <>
+            <ListRow icon={icons.phoneOnly} label={t("welcomeStandaloneTitle")} secondary={t("welcomeStandaloneHint")}
+              disabled={busy || standaloneAvailable !== true} onPress={() => router.push("/standalone-setup")} />
+            <Separator />
+          </>
+        ) : null}
+        <ListRow icon={icons.play} label={t("demoTryTitle")} secondary={t("welcomeDemoHint")} disabled={busy} onPress={tryDemo} />
+      </Card>
+      {offerStandalone && !standaloneAvailable ? <Notice tone="info">{t("standaloneLogoutRequired")}</Notice> : null}
+      {errorAt("demo")}
+      {working}
     </Screen>
   );
 }

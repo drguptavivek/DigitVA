@@ -3,13 +3,13 @@
  * picker and the project chooser. Presentational: worklist.tsx owns the data, sync and refresh logic and passes
  * what each view shows plus the handlers it calls.
  */
-import { useCallback, useMemo, useState } from "react";
-import { FlatList, Pressable, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
 import { t } from "../i18n";
 import { clock } from "../nativeShell/shellContext";
-import { controlText, controls, radius, spacing, typography, useTheme } from "../theme";
-import { Button, useUiStyles } from "../ui";
+import { controlText, controls, radius, spacing, useTheme } from "../theme";
+import { Button, Card, ListRow, Notice as UiNotice, SectionLabel, Separator, TextField, TextLink, useUiStyles, type NoticeTone } from "../ui";
 import { Chevron } from "../web/Chevron";
 import { CaseCard } from "../ui/CaseCard";
 import { ChoiceSheet, type ChoiceList } from "../ui/ChoiceSheet";
@@ -22,15 +22,20 @@ import {
   type InterviewItem,
 } from "../ui/interviewRows";
 import type { HomeSummary } from "../ui/homeSummary";
+import { isInternalPlaceholderUnit } from "../ui/placeholderUnit";
 import { pickerModel, recentTarget, type PickerTarget } from "../ui/sitePicker";
 import { OfflineNotice, SkeletonCards, StateView } from "../ui/StateView";
 import type { RecentTarget } from "../recentTarget";
 
-/** "Hamirpur · Dr A. Sharma"; tapping it opens the project chooser when the account has more than one project. */
+/**
+ * "GUJ026 · Gujarat Health System" (code and display name); tapping it opens the project chooser when the account has
+ * more than one project. With no project yet (the reference data is still loading) it keeps its empty line, so the
+ * title block never collapses and the cards under it never jump.
+ */
 export function ProjectLine({ project, name, onPress }: { project?: string; name?: string; onPress?: () => void }) {
-  const { ui } = useTheme();
+  const { ui, typography } = useTheme();
   const text = [project, name].filter(Boolean).join(" · ");
-  if (!text) return null;
+  if (!text) return <View testID="project-line-empty" aria-hidden style={{ minHeight: typography.subhead.lineHeight }} />;
   const label = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
       <Text style={{ ...typography.subhead, color: ui.mutedForeground, flexShrink: 1 }}>{text}</Text>
@@ -60,49 +65,40 @@ export function ProjectSheet({ visible, projects, selectedId, onPick, onClose }:
   return <ChoiceSheet visible={visible} title={t("chooseProject")} searchLabel={t("pickerSearch")} onClose={onClose} build={build} />;
 }
 
-/** The site/unit picker: unit names only, grouped under a site header only across several sites. */
-export function SitePickerSheet({ visible, targets, recent, onPick, onClose }: {
-  visible: boolean; targets: PickerTarget[]; recent?: RecentTarget; onPick(target: PickerTarget): void; onClose(): void;
+/**
+ * The site/unit picker: unit names only, grouped under a site header only across several sites.
+ * Opt-in for Register a death: `selectedKey` ticks the chosen row, and `siteNote` names the one shared site once
+ * under the list (the worklist interview picker passes neither).
+ */
+export function SitePickerSheet({ visible, targets, recent, selectedKey, siteNote = false, onPick, onClose }: {
+  visible: boolean; targets: PickerTarget[]; recent?: RecentTarget; selectedKey?: string; siteNote?: boolean; onPick(target: PickerTarget): void; onClose(): void;
 }) {
   const build = useCallback((query: string): ChoiceList => {
     const model = pickerModel(targets, query);
     const last = recentTarget(targets, recent);
-    const row = (target: PickerTarget, label: string) => ({ key: target.key, label, onPick: () => onPick(target) });
+    const row = (target: PickerTarget, label: string) => ({ key: target.key, label, selected: target.key === selectedKey, onPick: () => onPick(target) });
+    const shared = siteNote && !model.headers ? targets.find((target) => target.unitName !== undefined && target.siteName)?.siteName : undefined;
     return {
       recent: last ? row(last, pickerModel([last]).groups[0]?.rows[0]?.label ?? last.label) : undefined,
       sections: model.groups.map((group) => ({ key: group.siteId, title: group.title, rows: group.rows.map((item) => row(item.target, item.label)) })),
+      note: shared && !isInternalPlaceholderUnit(shared) ? shared : undefined,
     };
-  }, [targets, recent, onPick]);
+  }, [targets, recent, selectedKey, siteNote, onPick]);
   return <ChoiceSheet visible={visible} title={t("chooseSite")} searchLabel={t("pickerSearch")} onClose={onClose} build={build} />;
 }
 
-/** A muted line for sync outcomes and paused-project notes. */
-export function Notice({ children }: { children: React.ReactNode }) {
-  const { ui } = useTheme();
-  return <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{children}</Text>;
-}
-
-function Card({ children, testID, fill }: { children: React.ReactNode; testID?: string; fill?: boolean }) {
-  const styles = useUiStyles();
-  return <View style={[styles.card, { gap: spacing.xs }, fill && { flex: 1 }]} testID={testID}>{children}</View>;
-}
-
-function Metric({ value, label, note, actionLabel, onAction, disabled, loading }: { value: number | string; label: string; note?: string; actionLabel: string; onAction(): void; disabled?: boolean; loading?: boolean }) {
-  const { ui } = useTheme();
+/** A sync outcome or paused-project note as a tinted notice; children may mix strings and expressions. */
+export function Notice({ children, tone = "info" }: { children: React.ReactNode; tone?: NoticeTone }) {
+  const { ui, typography } = useTheme();
   return (
-    <View style={{ flex: 1 }}>
-      {/* Side-by-side cards share one height with the button at the bottom, so a label that wraps
-          does not push one card's button below the other's. */}
-      <Card fill>
-        <Text style={{ ...typography.largeTitle, color: ui.foreground }}>{value}</Text>
-        <Text style={{ ...typography.body, color: ui.foreground }}>{label}</Text>
-        {note ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{note}</Text> : null}
-        <View style={{ flexGrow: 1 }} />
-        <Button kind="secondary" size="sm" label={actionLabel} onPress={onAction} disabled={disabled} loading={loading} />
-      </Card>
-    </View>
+    <UiNotice tone={tone}>
+      <Text style={{ ...typography.subhead, color: ui.foreground }}>{children}</Text>
+    </UiNotice>
   );
 }
+
+/** A count label as a row label: "need a visit" starts with a capital (no-op for Hindi). */
+const asRowLabel = (label: string) => label.charAt(0).toLocaleUpperCase() + label.slice(1);
 
 export interface HomeViewProps {
   loaded: boolean;
@@ -113,50 +109,117 @@ export interface HomeViewProps {
   /** Attached files waiting beside those records (shown as a note, not added to the count). */
   unsentFiles?: number;
   canStart: boolean;
-  canRegister: boolean;
   busy: boolean;
   onResume(item: InterviewItem): void;
   onStart(): void;
-  onRegister(): void;
   onSend(): void;
   onViewTodo(): void;
+  /** Open Interviews on the Drafts chip (the Drafts count row). */
+  onViewDrafts?(): void;
   children?: React.ReactNode;
 }
 
-/** Home: the next step, the two numbers that need action, and Register a death. */
+/**
+ * Home (design sheet 01): the counts in one grouped card (Unsent on the attention tint with an amber badge while
+ * anything waits, numbers in a right-aligned tabular column, every row keeping the chevron slot so they align),
+ * then the screen's one filled button: Send now while anything is unsent (or the count is not known yet), else the
+ * next step (Resume draft, or Start an interview); with nothing unsent Send now is not shown at all. Then the next-step card and `children` (the "go somewhere" rows: Register a death and the
+ * coding case lists, in one card), 16pt apart.
+ */
 export function HomeView(p: HomeViewProps) {
-  const { ui } = useTheme();
-  if (!p.loaded) return <SkeletonCards count={2} />;
+  const { ui, typography } = useTheme();
+  if (!p.loaded) return <HomeSkeleton />;
   const latest = p.summary.inProgress[0];
   const count = p.summary.inProgress.length;
   const edited = latest ? new Date(latest.updatedAt) : undefined;
+  const editedKnown = edited !== undefined && !Number.isNaN(edited.getTime());
+  const waiting = Boolean(p.unsent || p.unsentFiles);
+  // The primary is always the next useful action: Send now while work waits, else the next step is filled. An
+  // uncounted queue keeps Send now: hiding it would claim there is nothing to send. Offline, Send now stays but is
+  // disabled, and the next step (which works from the cached reference data) stays the filled button.
+  const offerSend = waiting || p.unsent === undefined;
+  const nextKind = offerSend && !p.offline ? "secondary" : "primary";
   return (
-    <View style={{ gap: spacing.sm }}>
+    <View style={{ gap: spacing.md }}>
       {p.offline ? <OfflineNotice /> : null}
-      <Card testID="home-next-step">
-        <Text style={{ ...typography.caption, fontWeight: "600", textTransform: "uppercase", color: ui.mutedForeground }}>{t("homeNextStep")}</Text>
-        {latest ? (
-          <>
-            <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.foreground }}>{count === 1 ? t("homeDraftsOne") : t("homeDraftsMany", { count })}</Text>
-            <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>
-              {edited && !Number.isNaN(edited.getTime()) ? t("homeLastEdited", { name: latest.title, time: clock(edited.getTime()) }) : latest.title}
-            </Text>
-            <Button label={t("homeResumeDraft")} onPress={() => p.onResume(latest)} />
-            {p.canStart ? <Button kind="secondary" label={t("newInterview")} onPress={p.onStart} /> : null}
-          </>
-        ) : (
-          <>
-            <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.foreground }}>{t("homeStartHint")}</Text>
-            <Button label={t("homeStartInterview")} disabled={!p.canStart} onPress={p.onStart} />
-          </>
-        )}
+      <Card grouped chevronSlot testID="home-counts">
+        <ListRow
+          label={t("homeUnsent")}
+          secondary={p.unsentFiles ? t("homeUnsentFiles", { count: p.unsentFiles }) : undefined}
+          value={String(p.unsent ?? "–")}
+          numeric
+          tone={waiting ? "attention" : undefined}
+          badge={waiting}
+        />
+        <Separator />
+        <ListRow
+          label={asRowLabel(t("homeNeedVisit"))}
+          value={String(p.summary.needVisit)}
+          numeric
+          accessibilityLabel={`${p.summary.needVisit} ${t("homeNeedVisit")}. ${t("homeView")}`}
+          onPress={p.onViewTodo}
+        />
+        <Separator />
+        <ListRow
+          label={t("homeDraftsInProgress")}
+          value={String(count)}
+          numeric
+          accessibilityLabel={p.onViewDrafts ? `${count} ${t("homeDraftsInProgress")}. ${t("homeView")}` : undefined}
+          onPress={p.onViewDrafts}
+        />
       </Card>
-      <View style={{ flexDirection: "row", gap: spacing.sm }}>
-        <Metric value={p.unsent ?? "–"} label={t("homeUnsent")} note={p.unsentFiles ? t("homeUnsentFiles", { count: p.unsentFiles }) : undefined} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy || p.offline || (p.unsent === 0 && !p.unsentFiles)} loading={p.busy} />
-        <Metric value={p.summary.needVisit} label={t("homeNeedVisit")} actionLabel={t("homeView")} onAction={p.onViewTodo} />
+      {offerSend ? <Button testID="home-send-now" label={t("homeSendNow")} onPress={p.onSend} disabled={p.busy || p.offline} loading={p.busy} /> : null}
+      <View style={{ gap: spacing.xs }}>
+        <SectionLabel>{t("homeNextStep")}</SectionLabel>
+        <Card testID="home-next-step">
+          {latest ? (
+            <>
+              <Text style={{ ...typography.body, color: ui.foreground }}>
+                {editedKnown ? t("homeResumeLine", { name: latest.title, time: clock(edited.getTime()) }) : latest.title}
+              </Text>
+              {count > 1 ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("homeDraftsMany", { count })}</Text> : null}
+              <Button testID="home-next-primary" kind={nextKind} label={t("homeResumeDraft")} onPress={() => p.onResume(latest)} />
+              {p.canStart ? <Button kind="secondary" label={t("newInterview")} onPress={p.onStart} /> : null}
+            </>
+          ) : (
+            <>
+              <Text style={{ ...typography.body, color: ui.foreground }}>{t("homeStartHint")}</Text>
+              <Button testID="home-next-primary" kind={nextKind} label={t("homeStartInterview")} disabled={!p.canStart} onPress={p.onStart} />
+            </>
+          )}
+        </Card>
       </View>
-      {p.canRegister ? <Button label={t("registerDeath")} onPress={p.onRegister} /> : null}
       {p.children}
+    </View>
+  );
+}
+
+/**
+ * Home while the store and its reference data load: the counts card, the NEXT STEP label and card, and the card of
+ * "go somewhere" rows, in their loaded geometry as placeholder bars, so nothing moves when the content arrives.
+ * Hidden from screen readers except one "Loading" label.
+ */
+function HomeSkeleton() {
+  const { ui, typography, textScale } = useTheme();
+  const bar = (width: `${number}%`, height = 14) => <View style={{ width, height, borderRadius: 4, backgroundColor: ui.border }} />;
+  // A ListRow's height (48pt, growing with the text size), a bar in place of its label.
+  const rows = (count: number) => Array.from({ length: count }, (_, index) => (
+    <View key={index}>
+      {index ? <Separator /> : null}
+      <View style={{ minHeight: 48 * Math.max(1, textScale), justifyContent: "center", paddingHorizontal: spacing.md }}>{bar("45%")}</View>
+    </View>
+  ));
+  return (
+    <View testID="state-loading" accessible accessibilityLabel={t("loading")} accessibilityState={{ busy: true }} style={{ gap: spacing.md }}>
+      <View aria-hidden><Card grouped>{rows(3)}</Card></View>
+      <View aria-hidden style={{ gap: spacing.xs }}>
+        <View style={{ minHeight: typography.caption.lineHeight, justifyContent: "center", paddingHorizontal: spacing.md, paddingTop: spacing.xs }}>{bar("25%", 12)}</View>
+        <Card>
+          <View style={{ minHeight: typography.body.lineHeight, justifyContent: "center" }}>{bar("80%", 16)}</View>
+          <View style={{ height: controls.minHeight, borderRadius: radius.md, backgroundColor: ui.border }} />
+        </Card>
+      </View>
+      <View aria-hidden><Card grouped>{rows(3)}</Card></View>
     </View>
   );
 }
@@ -170,7 +233,7 @@ const CHIPS: Array<{ key: InterviewFilter; label: () => string }> = [
 ];
 
 function FilterChips({ value, counts, onChange }: { value: InterviewFilter; counts: Record<InterviewFilter, number>; onChange(filter: InterviewFilter): void }) {
-  const { ui } = useTheme();
+  const { ui, typography, textScale } = useTheme();
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
       {CHIPS.map((chip) => {
@@ -184,9 +247,11 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
             accessibilityLabel={text}
             accessibilityState={{ selected: on }}
             onPress={() => onChange(chip.key)}
-            style={{ minHeight: controls.minTouchTarget, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, borderWidth: 1, borderColor: on ? ui.primary : ui.input, backgroundColor: on ? ui.primary : ui.background }}
+            // 36pt chips; the slop makes the 44pt target.
+            hitSlop={{ top: 4, bottom: 4 }}
+            style={{ minHeight: controls.compactHeight * Math.max(1, textScale), paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, backgroundColor: on ? ui.primaryTint : ui.card }}
           >
-            <Text numberOfLines={1} style={{ ...typography.subhead, ...controlText, lineHeight: 22, fontWeight: on ? "600" : "400", color: on ? ui.primaryForeground : ui.foreground }}>{text}</Text>
+            <Text numberOfLines={1} style={{ ...typography.subhead, ...controlText, lineHeight: 22 * textScale, fontWeight: on ? "600" : "400", color: on ? ui.primary : ui.foreground }}>{text}</Text>
           </Pressable>
         );
       })}
@@ -194,25 +259,10 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
   );
 }
 
-/** Delete draft: a small outlined danger action, never the loudest thing on the card. */
-function DeleteDraftButton({ onPress }: { onPress(): void }) {
-  const { ui } = useTheme();
-  const label = t("deleteDraft");
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={{ minHeight: controls.minTouchTarget, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: ui.destructiveText }}
-    >
-      <Text style={{ ...typography.subhead, ...controlText, lineHeight: 22, fontWeight: "500", color: ui.destructiveText }}>{label}</Text>
-    </Pressable>
-  );
-}
 
 /** One Interviews row: the shared CaseCard with the ID under the title, a status badge and one action. */
 export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void }) {
-  const { colors } = useTheme();
+  const { colors, typography } = useTheme();
   const styles = useUiStyles();
   return (
     <CaseCard
@@ -229,7 +279,8 @@ export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item:
         <>
           {/* The main action is wide and one line; Delete draft follows it as a small secondary action. */}
           {item.action ? <Button label={item.action.label} onPress={() => onAction(item.action as InterviewAction)} style={{ flexGrow: 1, flexShrink: 0, minWidth: 140 }} /> : null}
-          {item.deletable && onDelete ? <DeleteDraftButton onPress={() => onDelete(item)} /> : null}
+          {/* Delete draft: red text, never an outline and never the loudest thing on the card. */}
+          {item.deletable && onDelete ? <TextLink tone="destructive" label={t("deleteDraft")} onPress={() => onDelete(item)} /> : null}
         </>
       )}
     >
@@ -260,17 +311,28 @@ export interface InterviewsViewProps {
   onRetryDemo(item: InterviewItem): void;
   onDeleteDraft?(item: InterviewItem): void;
   onRegister(): void;
+  /** Pull-to-refresh; Send lives in the Sync sheet, so the list has no Send or Refresh button. */
   onRefresh(): void;
-  onSend(): void;
   onLoadMore(): void;
+  /** Above the search row and scrolling with the list (project line, the coding case lists). */
   header?: React.ReactNode;
   footer?: React.ReactNode;
 }
 
-/** Interviews: search, filter chips with counts, then a virtualised list of cards (the one scroller on the screen). */
+/**
+ * Interviews: `header` (project line, coding case lists), search and filter chips with counts, then the cards, all
+ * in one virtualised list (the one scroller on the screen, so the header scrolls away with the cards). Search and
+ * chips show even when the list is empty, so the empty state sits under them. Pulling the list down refreshes it (a
+ * no-op while busy or offline, where the reason is shown at its foot).
+ */
 export function InterviewsView(p: InterviewsViewProps) {
-  const { ui } = useTheme();
-  const [filter, setFilter] = useState<InterviewFilter>(() => parseInterviewFilter(p.initialFilter));
+  const { ui, typography } = useTheme();
+  const wanted = parseInterviewFilter(p.initialFilter);
+  const [filter, setFilter] = useState<InterviewFilter>(wanted);
+  // A link that returns to an open Interviews with another filter (Help, the Sync sheet) applies it; a plain tab tap
+  // keeps the address, so the chip the user picked stays.
+  // ponytail: the same filter linked twice after a manual chip change is not re-applied (the address is unchanged).
+  useEffect(() => setFilter(wanted), [wanted]);
   const [query, setQuery] = useState("");
   const counts = useMemo(() => interviewCounts(p.items), [p.items]);
   const shown = useMemo(() => filterInterviews(p.items, filter, query), [p.items, filter, query]);
@@ -283,26 +345,39 @@ export function InterviewsView(p: InterviewsViewProps) {
     ...(shown.length === 0 || !p.loaded ? [{ key: "__empty", part: "empty" as const }] : []),
     { key: "__footer", part: "footer" as const },
   ];
-  return (
-    <View style={{ flex: 1, gap: spacing.xs }}>
+  // An element, not a component: a new component type each render would remount the search field and drop its focus.
+  const listHeader = (
+    <View testID="interviews-header" style={{ gap: spacing.xs, paddingBottom: spacing.xs }}>
       {p.header}
       {p.offline ? <OfflineNotice /> : null}
-      {!empty || !p.loaded ? (
-        <>
-          <TextInput
-            accessibilityLabel={t("searchInterviewsLabel")}
-            placeholder={t("searchInterviews")}
-            placeholderTextColor={ui.mutedForeground}
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-            style={{ minHeight: 48, borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, paddingHorizontal: spacing.sm, ...typography.body, color: ui.foreground, backgroundColor: ui.background }}
-          />
-          <FilterChips value={filter} counts={counts} onChange={setFilter} />
-        </>
-      ) : null}
+      <TextField
+        accessibilityLabel={t("searchInterviewsLabel")}
+        placeholder={t("searchInterviews")}
+        value={query}
+        onChangeText={setQuery}
+        autoCorrect={false}
+      />
+      <FilterChips value={filter} counts={counts} onChange={setFilter} />
+    </View>
+  );
+  return (
+    <View style={{ flex: 1 }}>
       <FlatList keyboardDismissMode="on-drag"
+        ListHeaderComponent={listHeader}
+        testID="interviews-list"
         style={{ flex: 1 }}
+        // Pull to refresh for screen readers (WCAG 2.5.1); the Sync sheet's Refresh button does the same with one tap.
+        accessibilityActions={refreshDisabled ? undefined : [{ name: "refresh", label: t("refresh") }]}
+        onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === "refresh" && !refreshDisabled) p.onRefresh(); }}
+        refreshControl={(
+          <RefreshControl
+            refreshing={p.refreshing}
+            enabled={!refreshDisabled}
+            colors={[ui.primary]}
+            tintColor={ui.primary}
+            onRefresh={() => { if (!refreshDisabled) p.onRefresh(); }}
+          />
+        )}
         data={data}
         keyExtractor={(entry) => entry.key}
         keyboardShouldPersistTaps="handled"
@@ -311,12 +386,20 @@ export function InterviewsView(p: InterviewsViewProps) {
           if (entry.item) return <InterviewCard item={entry.item} onAction={p.onAction} onRetryDemo={p.onRetryDemo} onDelete={p.onDeleteDraft} />;
           if (entry.part === "empty") {
             if (!p.loaded) return <SkeletonCards count={3} />;
+            // Register has its own tab: the empty state offers it (and Refresh, the tap for pull-down) as text links.
+            // The copy follows the connection first and Register second. Offline, Register (which works offline) comes
+            // first and Refresh stays in view but waits for the connection the hint asks for.
             return empty ? (
               <StateView
                 title={t("stateEmptyTitle")}
-                hint={p.canRegister ? t("stateEmptyHint") : t("stateEmptyHintRefresh")}
-                actionLabel={p.canRegister ? t("registerDeath") : undefined}
-                onAction={p.canRegister ? p.onRegister : undefined}
+                hint={p.offline ? t("stateEmptyHintRefresh") : p.canRegister ? t("stateEmptyHint") : t("stateEmptyHintNoRegister")}
+                links={p.offline ? [
+                  ...(p.canRegister ? [{ label: t("registerDeath"), onPress: p.onRegister }] : []),
+                  { label: t("refresh"), onPress: p.onRefresh, disabled: true },
+                ] : [
+                  ...(refreshDisabled ? [] : [{ label: t("refresh"), onPress: p.onRefresh }]),
+                  ...(p.canRegister ? [{ label: t("registerDeath"), onPress: p.onRegister }] : []),
+                ]}
               />
             ) : <Text style={{ ...typography.body, color: ui.mutedForeground, paddingVertical: spacing.md }}>{t("noMatches")}</Text>;
           }
@@ -324,8 +407,6 @@ export function InterviewsView(p: InterviewsViewProps) {
             <View style={{ gap: spacing.xs }}>
               {p.loadFailed ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{p.loadFailedText ?? (p.offline ? t("revisionsNeedConnection") : t("revisionRetry"))}</Text> : null}
               {p.hasMore ? <Button kind="secondary" loading={p.loadingMore} label={t("loadMore")} onPress={p.onLoadMore} /> : null}
-              <Button kind="secondary" label={t("homeSendNow")} disabled={p.busy || !p.canRefresh} onPress={p.onSend} />
-              <Button kind="secondary" label={t("refresh")} loading={p.refreshing} disabled={refreshDisabled} onPress={p.onRefresh} />
               {p.offline ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{t("refreshNeedsConnection")}</Text> : null}
               {p.footer}
             </View>

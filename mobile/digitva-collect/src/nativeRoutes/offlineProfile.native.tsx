@@ -3,7 +3,7 @@
  * pure-offline coding (src/offlineProfile.ts). On-device only, like everything in offline mode; the fields feed
  * a future sync's provenance and the SmartVA endemicity inputs. Other builds redirect home.
  */
-import { Redirect, useRouter } from "expo-router";
+import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { Text } from "react-native";
 
@@ -22,7 +22,6 @@ function profileError(caught: unknown): string {
 }
 
 export default function OfflineProfileScreen() {
-  const router = useRouter();
   const styles = useUiStyles();
   const [initialProfile, setInitialProfile] = useState<OfflineProfile | null | undefined>(undefined);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -65,8 +64,6 @@ export default function OfflineProfileScreen() {
         error={error}
         savedAt={savedAt}
         onSubmit={save}
-        onCancel={() => router.back()}
-        cancelLabel={t("settings")}
       />
     </Screen>
   );

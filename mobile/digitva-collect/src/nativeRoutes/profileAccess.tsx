@@ -9,7 +9,7 @@ import { useIcd11DorisPreference } from "../icd11DorisPreference";
 import { isUnlocked } from "../interviewerDb";
 import { useShell } from "../nativeShell/shellContext";
 import { t } from "../i18n";
-import { Button, Screen, useUiStyles } from "../ui";
+import { Button, Notice, Screen, useUiStyles } from "../ui";
 
 /** Account-scoped display only: freshness never changes the server's authorization decisions. */
 export default function ProfileAccess() {
@@ -41,7 +41,7 @@ export default function ProfileAccess() {
       loaded.profile.accessDigest === account?.coding_history_access) ? loaded : undefined;
 
   return <Screen title={t("profileAccessTitle")}>
-    {!available ? <Text accessibilityRole="alert" style={styles.error}>{t("profileAccessSignInRequired")}</Text> :
+    {!available ? <Notice tone="warning">{t("profileAccessSignInRequired")}</Notice> :
       !visible ? <>
         <Text style={styles.muted}>{failed || loaded ? t("profileAccessUnavailable") : t("profileAccessLoading")}</Text>
         {failed || loaded ? <Button kind="secondary" label={t("retry")} onPress={() => setAttempt((value) => value + 1)} /> : null}
@@ -55,7 +55,7 @@ export default function ProfileAccess() {
           <Text style={styles.text}>{t("profileCountry")}: {visible.profile.country}</Text>
           <Text style={styles.text}>{t("profileState")}: {visible.profile.state || t("profileNotSaved")}</Text>
           <Text style={styles.text}>{t("profileUnitCode")}: {visible.profile.org_code || t("profileNotSaved")}</Text>
-        </> : <Text style={styles.muted}>{t("profileOfflineNotSaved")}</Text>}
+        </> : <Notice tone="info">{t("profileOfflineNotSaved")}</Notice>}
       </> : <>
         <Text accessibilityRole="header" style={styles.headline}>{visible.profile.name}</Text>
         <Text style={styles.text}>{t("profileMode")}: {slot === "demo" ? t("profileDemo") : t("profileServerEnrolled")}</Text>

@@ -386,7 +386,7 @@ const mockToast = jest.fn();
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  return {
+  return require("../test-support/uiMockExtras").withUiExtras({
     Button: ({
       label,
       onPress,
@@ -405,8 +405,18 @@ jest.mock("../src/ui", () => {
       ),
     Row: ({ children }: { children: ReactNode }) =>
       ReactActual.createElement("div", null, children),
-    Screen: ({ children, variant }: { children: ReactNode; variant?: string }) =>
-      ReactActual.createElement("main", { "data-variant": variant }, children),
+    Card: ({ children }: { children: ReactNode }) => ReactActual.createElement("div", null, children),
+    Separator: () => null,
+    ListRow: ({ label, value, onPress, accessibilityLabel }: { label: string; value?: string; onPress?: () => void; accessibilityLabel?: string }) =>
+      ReactActual.createElement(onPress ? "button" : "div", { "data-label": accessibilityLabel ?? label, onClick: onPress }, label, value),
+    Notice: ({ children, action }: { children: ReactNode; action?: ReactNode }) => ReactActual.createElement("aside", null, children, action),
+    ChoiceRow: ({ label, onPress }: { label: string; onPress?: () => void }) =>
+      ReactActual.createElement("button", { "data-label": label, onClick: onPress }, label),
+    SegmentedControl: ({ options, onChange }: { options: Array<{ value: string; label: string }>; onChange: (value: string) => void }) =>
+      ReactActual.createElement("div", null, options.map((option) =>
+        ReactActual.createElement("button", { key: option.value, "data-label": option.label, onClick: () => onChange(option.value) }, option.label))),
+    Screen: ({ children, variant, footer }: { children: ReactNode; variant?: string; footer?: ReactNode }) =>
+      ReactActual.createElement("main", { "data-variant": variant }, children, footer),
     errorText: () => "error",
     stateLabel: (state: string) => state,
     useUiStyles: () => ({
@@ -416,8 +426,9 @@ jest.mock("../src/ui", () => {
       error: {},
       card: {},
       input: {},
+      fieldLabel: {},
     }),
-  };
+  });
 });
 jest.mock("../src/ConfirmDialog", () => ({
   ConfirmDialog: (props: Record<string, unknown>) => {
@@ -495,7 +506,20 @@ import { computeUtf8Sha256HexSync } from "../src/consent";
 
 /** The rendered tree as JSON without the FlatList's own `data` prop, which repeats every row's fields. */
 const dump = (tree: ReturnType<typeof create>) =>
-  JSON.stringify(tree.toJSON(), (key, value) => (key === "data" && Array.isArray(value) ? undefined : value));
+  JSON.stringify(tree.toJSON(), (key, value) => ((key === "data" && Array.isArray(value)) || key === "refreshControl" || key === "ListHeaderComponent" ? undefined : value));
+/** The Interviews list's pull-to-refresh control (Refresh is a pull, not a button). */
+const refreshControl = (tree: ReturnType<typeof create>) =>
+  tree.root.findAll((n) => typeof n.props.refreshControl?.props?.onRefresh === "function")[0].props.refreshControl;
+const pullRefresh = (tree: ReturnType<typeof create>) => refreshControl(tree).props.onRefresh();
+/** Send now lives on Home (and the Sync sheet): open Home, press it, and come back to the Interviews list. */
+async function sendFromHome(tree: ReturnType<typeof create>) {
+  const interviews = mockParams;
+  mockParams = { ...interviews, view: undefined };
+  await act(async () => tree.update(<Worklist />));
+  await act(async () => tree.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
+  mockParams = interviews;
+  await act(async () => tree.update(<Worklist />));
+}
 const press = (tree: ReturnType<typeof create>, label: string) =>
   tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress();
 const pressStarting = (tree: ReturnType<typeof create>, prefix: string) =>
@@ -653,6 +677,30 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("shows skeletons on Home and Interviews until the cached reference data is read, never the no-project content", async () => {
+    for (const view of ["interviews", undefined]) {
+      mockParams = { userId: "u1", view };
+      let release!: () => void;
+      (getCachedReferenceData as jest.Mock).mockImplementationOnce(
+        () => new Promise((resolve) => { release = () => resolve(mockReference); }),
+      );
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<Worklist />); });
+      await settle();
+      // The store is open and read, the reference data not yet: loading, not an empty account.
+      expect(tree!.root.findAll((n) => typeof n.type === "string" && n.props.testID === "state-loading").length).toBeGreaterThan(0);
+      expect(dump(tree!)).not.toContain("stateEmptyTitle");
+      expect(dump(tree!)).not.toContain("stateEmptyHintRefresh");
+      expect(tree!.root.findAll((n) => n.props["data-label"] === "homeStartInterview")).toHaveLength(0);
+      await act(async () => { release(); });
+      await settle();
+      expect(tree!.root.findAll((n) => typeof n.type === "string" && n.props.testID === "state-loading")).toHaveLength(0);
+      if (view) expect(dump(tree!)).toContain("stateEmptyTitle");
+      else expect(tree!.root.findAll((n) => n.props["data-label"] === "homeStartInterview").length).toBeGreaterThan(0);
+      await act(async () => tree!.unmount());
+    }
+  });
+
   it("does not show the first-download modal once the phone has downloaded before", async () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<Worklist />); });
@@ -662,7 +710,7 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("shows a spinner on Refresh while it runs, then the refreshed content", async () => {
+  it("shows the pull-to-refresh spinner while Refresh runs, then the refreshed content", async () => {
     mockCachedReference = pack("both", "P1");
     mockReference = pack("both", "P1");
     let release!: () => void;
@@ -672,14 +720,13 @@ describe("native project-aware routes", () => {
     (refreshReferenceData as jest.Mock).mockImplementationOnce(
       () => new Promise((resolve) => { release = () => resolve(mockReference); }),
     );
-    const button = () => tree!.root.findAllByProps({ "data-label": "refresh" }).at(-1)!;
-    expect(button().props["data-loading"]).toBe(false);
+    expect(refreshControl(tree!).props.refreshing).toBe(false);
     let pending!: Promise<unknown>;
-    await act(async () => { pending = Promise.resolve(button().props.onClick()); });
-    expect(button().props["data-loading"]).toBe(true);
+    await act(async () => { pending = Promise.resolve(pullRefresh(tree!)); });
+    expect(refreshControl(tree!).props.refreshing).toBe(true);
     await act(async () => { release(); await pending; });
     await settle();
-    expect(button().props["data-loading"]).toBe(false);
+    expect(refreshControl(tree!).props.refreshing).toBe(false);
     await act(async () => tree!.unmount());
   });
 
@@ -713,8 +760,7 @@ describe("native project-aware routes", () => {
     expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
     expect(dump(tree!)).not.toContain("VA-REVOKED");
     mockReference = pack("both", "P2");
-    const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
-    await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
+    await act(async () => pullRefresh(tree!));
     await settle();
     await settle();
 
@@ -841,17 +887,50 @@ describe("native project-aware routes", () => {
     await settle();
     await settle();
 
-    expect(tree.root.findByProps({ testID: "native-interview-welcome-card" })).toBeDefined();
-    expect(dump(tree)).toContain("Before you begin: confirm the respondent has consented.");
+    // A dialog over the scrim; its body drops the "Before you begin:" its title already says (round-6 F1, F2).
+    const dialogs = () => tree.root.findAll((node) => node.type === "section" && node.props["data-confirm"] === true);
+    expect(dialogs()).toHaveLength(1);
+    expect(mockConfirmProps).toEqual(
+      expect.objectContaining({
+        title: "beforeYouBegin",
+        message: "Confirm the respondent has consented.",
+        confirmLabel: "startQuestionnaire",
+      }),
+    );
     expect(mockFormProps.instrument).toBeUndefined();
 
-    const startBtn = tree.root.findByProps({ "data-label": "startQuestionnaire" });
     await act(async () => {
-      startBtn.props.onClick();
+      (mockConfirmProps!.onConfirm as () => void)();
     });
 
-    expect(tree.root.findAllByProps({ testID: "native-interview-welcome-card" })).toHaveLength(0);
+    expect(dialogs()).toHaveLength(0);
     expect(mockFormProps.instrument).toEqual(mockServedInstrument);
+    await act(async () => tree.unmount());
+  });
+
+  it.each([
+    ["no colon after the lead", "Before you begin, confirm the respondent has consented."],
+    ["nothing after the colon", "Before you begin:"],
+    ["another opening", "Confirm the respondent has consented."],
+  ])("shows an intake note with %s as it is", async (_case, note) => {
+    const packData = pack() as ReturnType<typeof pack>;
+    const project = packData.projects[0].project as Record<string, unknown>;
+    project.form_options = { ...(project.form_options as Record<string, unknown>), enabled_extensions: ["intake_screen"], intake_note: note };
+    mockReference = packData;
+    mockCachedReference = packData;
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: "44444444-4444-4444-8444-444444444444" };
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) =>
+      key === "consentConfig"
+        ? { project_id: "P1", consent_required: false, notice_versions: [], fetched_at: "2026-10-20T00:00:00Z" }
+        : undefined,
+    );
+    let tree!: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Form />);
+    });
+    await settle();
+    await settle();
+    expect(mockConfirmProps).toEqual(expect.objectContaining({ title: "beforeYouBegin", message: note }));
     await act(async () => tree.unmount());
   });
 
@@ -1227,9 +1306,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () =>
-      tree!.root.findAllByProps({ "data-label": "refresh" })[0].props.onClick(),
-    );
+    await act(async () => pullRefresh(tree!));
     await settle();
     const rendered = dump(tree!);
     expect(rendered).toContain("otherDraftActive");
@@ -1262,7 +1339,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () => pressStarting(tree!, "Project P1 · Interviewer"));
+    await act(async () => pressStarting(tree!, "P1 · Project P1"));
     await act(async () => press(tree!, "Project P2"));
     mockParams = { userId: "u1" };
     await act(async () => tree!.update(<Worklist />));
@@ -1289,11 +1366,11 @@ describe("native project-aware routes", () => {
     await act(async () => { tree = create(<Worklist />); });
     await settle();
     const out = dump(tree!);
-    expect(out).toContain("homeDraftsOne");
+    expect(out).toContain("homeDraftsInProgress");
     expect(out).toContain('"1"'); // one unsent (the draft); one case needs a visit
     await act(async () => tree!.root.findByProps({ "data-label": "homeResumeDraft" }).props.onClick());
     expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/form", params: { userId: "u1", draftId: "draft-1", projectId: "P1" } });
-    await act(async () => tree!.root.findByProps({ "data-label": "homeView" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "1 homeNeedVisit. homeView" }).props.onClick());
     expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "todo" } });
     await act(async () => tree!.unmount());
   });
@@ -1432,7 +1509,7 @@ describe("native project-aware routes", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<Worklist />); });
     await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
+    await sendFromHome(tree!);
     await settle();
 
     const rendered = dump(tree!);
@@ -1462,17 +1539,16 @@ describe("native project-aware routes", () => {
     await act(async () => { tree = create(<Worklist />); });
     await settle();
     (refreshReferenceData as jest.Mock).mockRejectedValueOnce(new TypeError("Network request failed"));
-    await act(async () => tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
+    await sendFromHome(tree!);
     await settle();
     expect(dump(tree!)).toContain("readyForCode");
 
-    const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
-    await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
+    await act(async () => pullRefresh(tree!));
     await settle();
     expect(dump(tree!)).not.toContain("readyForCode");
 
     (syncInterviewer as jest.Mock).mockResolvedValueOnce({ sent: 0, failed: 0, remaining: 0, supersededUniqueIds: [] });
-    await act(async () => tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
+    await sendFromHome(tree!);
     await settle();
     expect(dump(tree!)).not.toContain("readyForCode");
     await act(async () => tree!.unmount());
@@ -1524,9 +1600,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () =>
-      tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick(),
-    );
+    await sendFromHome(tree!);
     const rendered = dump(tree!);
     expect(rendered).toContain(
       "Another interview of this case is with the coder; yours was saved as history.",
@@ -1552,9 +1626,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () =>
-      tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick(),
-    );
+    await sendFromHome(tree!);
     await settle();
     const rendered = dump(tree!);
     expect(rendered).toContain(
@@ -1581,9 +1653,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () =>
-      tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick(),
-    );
+    await sendFromHome(tree!);
     await settle();
     const rendered = dump(tree!);
     expect(rendered).toContain(
@@ -1674,9 +1744,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () =>
-      tree!.root.findAllByProps({ "data-label": "refresh" })[0].props.onClick(),
-    );
+    await act(async () => pullRefresh(tree!));
     await settle();
     expect(fetchCasePage).toHaveBeenCalledWith("u1", "P1", { limit: 50 });
     await act(async () => tree!.unmount());
@@ -1710,11 +1778,9 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    await act(async () =>
-      tree!.root.findAllByProps({ "data-label": "refresh" })[0].props.onClick(),
-    );
+    await act(async () => pullRefresh(tree!));
     await settle();
-    await act(async () => pressStarting(tree!, "Project P1 · Interviewer"));
+    await act(async () => pressStarting(tree!, "P1 · Project P1"));
     await act(async () => press(tree!, "Project P2"));
     resolvePage({
       cases: [

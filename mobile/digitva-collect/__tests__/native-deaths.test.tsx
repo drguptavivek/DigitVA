@@ -138,6 +138,13 @@ jest.mock("../src/ui", () => {
       R.createElement("main", null, children),
     errorText: (error: unknown) => String(error),
     stateLabel: (state: string) => state,
+    ChoiceRow: ({ label, onPress, disabled }: { label: string; onPress?: () => void; disabled?: boolean }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
+    Card: ({ children }: { children: React.ReactNode }) => (jest.requireActual("react") as typeof import("react")).createElement("div", null, children),
+    Separator: () => null,
+    // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
+    Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
+      (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
     useUiStyles: () => ({
       text: {},
       muted: {},
@@ -149,6 +156,7 @@ jest.mock("../src/ui", () => {
   };
 });
 jest.mock("../src/i18n", () => ({
+  uiLanguageTag: () => "en",
   t: (key: string, vars?: Record<string, unknown>) =>
     `${key}${vars?.date ? ` ${String(vars.date)}` : ""}`,
   uiLocale: () => "en",

@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { engineFiles, findSpike, stageEngine } = require("../modules/digitva-icd11/scripts/stage-engine");
+const { engineFiles, findSpike, stageEngine, stageEngineIos } = require("../modules/digitva-icd11/scripts/stage-engine");
 
 const STAGE = path.join(__dirname, "..", "modules", "digitva-icd11", "scripts", "stage-engine.js");
 const DATA = ["icd11_2026-01-17_release-icf-mms_en.pbf.gz", "ix_(2026-01-17)_foundation-icf-mms_en_v5.7.pbf.zip"];
@@ -90,6 +90,34 @@ describe("stage-engine source selection", () => {
     const archive = path.join(tmp, "empty.tar.gz");
     execFileSync("tar", ["-czf", archive, "-C", empty, "bundle_min"]);
     expect(() => stageEngine({ moduleDir: module, env: { DIGITVA_ICD11_ENGINE_ARCHIVE: archive } })).toThrow("does not contain the offline ICD-11 engine");
+  });
+
+  it("stages the iOS framework and the same data under plain names, leaving Android's list alone", () => {
+    const module = path.join(tmp, "module");
+    const spike = makeSpike(path.join(tmp, "spike"));
+    const framework = path.join(spike, "bridge-aot", "pub-ios", "DigitvaIcd11Engine.xcframework");
+    fs.mkdirSync(path.join(framework, "ios-arm64"), { recursive: true });
+    fs.writeFileSync(path.join(framework, "Info.plist"), "plist");
+    fs.writeFileSync(path.join(framework, "ios-arm64", "engine"), "ios-engine");
+    const before = engineFiles(spike);
+    expect(before.some((file) => file.includes("pub-ios"))).toBe(false);
+
+    stageEngineIos({ moduleDir: module, env: { DIGITVA_ICD11_SPIKE_DIR: spike } });
+    const engine = path.join(module, "ios", "Engine");
+    expect(fs.readFileSync(path.join(engine, "DigitvaIcd11Engine.xcframework", "ios-arm64", "engine"), "utf8")).toBe("ios-engine");
+    expect(fs.readFileSync(path.join(engine, "digitva-icd11", "bundle", "Config", "settings.txt"), "utf8")).toBe("config");
+    expect(fs.existsSync(path.join(engine, "digitva-icd11", "data", "DORIS_v2.1_1.2.0", "log.txt"))).toBe(false);
+    expect(fs.existsSync(path.join(engine, "digitva-icd11", "bridge-aot"))).toBe(false);
+
+    stageEngine({ moduleDir: module, env: { DIGITVA_ICD11_SPIKE_DIR: spike } });
+    const sidecar = (dir) => fs.readFileSync(path.join(dir, "who-files.json"), "utf8");
+    expect(sidecar(path.join(engine, "digitva-icd11"))).toBe(sidecar(path.join(module, "android", "src", "main", "assets", "digitva-icd11")));
+    expect(engineFiles(spike)).toEqual(before);
+  });
+
+  it("fails plainly when the iOS framework is missing", () => {
+    const spike = makeSpike(path.join(tmp, "spike"));
+    expect(() => stageEngineIos({ moduleDir: path.join(tmp, "module"), env: { DIGITVA_ICD11_SPIKE_DIR: spike } })).toThrow("build-ios.sh");
   });
 
   it("prints the file list from the --list CLI mode", () => {

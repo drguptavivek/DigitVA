@@ -16,11 +16,14 @@ import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPrefe
 import { t } from "../i18n";
 import { offlineSmartvaEngine } from "../smartva/nativeEngine";
 import { engineCheckAutoRun, runSmartVaEngineCheck, type SmartVaEngineCheckResult } from "../smartva/engineCheck";
+import { useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 
 export default function EngineCheck() {
   const router = useRouter();
   const styles = useUiStyles();
+  const { ui } = useTheme();
+  const verdict = (ok: boolean) => ({ color: ok ? ui.success : ui.destructiveText });
   const { run, smartva, userId } = useLocalSearchParams<{ run?: string; smartva?: string; userId?: string | string[] }>();
   const appState = useAppState();
   const requestedUserId = Array.isArray(userId) ? userId[0] : userId;
@@ -99,12 +102,10 @@ export default function EngineCheck() {
   if (!accountAllowed) return <Screen title="Offline engine check">
     <Text accessibilityRole="alert" style={styles.text}>This account does not have offline coding access.</Text>
     <Button label="Settings" onPress={() => router.push({ pathname: "/settings", params: { userId: account?.user_id ?? requestedUserId } })} />
-    <Button kind="secondary" label="Back" onPress={() => router.back()} />
   </Screen>;
   if (!preference.enabled) return <Screen title={t("icd11DorisDisabledTitle")}>
     <Text accessibilityRole="alert" style={styles.text}>{t("icd11DorisDisabledBody")}</Text>
     <Button label={t("icd11DorisOpenSettings")} onPress={() => router.push({ pathname: "/settings", params: { userId: account?.user_id ?? requestedUserId } })} />
-    <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={() => router.back()} />
   </Screen>;
   return (
     <Screen title="Offline engine check">
@@ -117,7 +118,7 @@ export default function EngineCheck() {
       {progress ? <Text style={styles.muted} testID="engine-progress">{`Starting the engine: ${progress}`}</Text> : null}
       {steps.map((step) => (
         <View key={step.name} style={styles.card} testID={`engine-step-${step.name}`}>
-          <Text accessibilityRole="header" style={styles.headline}>{`${step.name}: ${step.ok ? "ok" : "FAILED"}`}</Text>
+          <Text accessibilityRole="header" style={[styles.headline, verdict(step.ok)]}>{`${step.name}: ${step.ok ? "ok" : "FAILED"}`}</Text>
           <Text style={styles.text}>
             {`${step.ms.toFixed(1)} ms${step.nativeMs === undefined ? "" : ` (engine ${step.nativeMs.toFixed(1)} ms)`}`}
           </Text>
@@ -127,7 +128,7 @@ export default function EngineCheck() {
       {smartvaRunning && !smartvaResult ? <Text style={styles.muted}>Scoring synthetic adult, child, and neonate cases…</Text> : null}
       {smartvaResult ? (
         <View style={styles.card} testID="smartva-engine-check">
-          <Text accessibilityRole="header" style={styles.headline}>{`SmartVA check: ${smartvaResult.ok ? "passed" : "FAILED"}`}</Text>
+          <Text accessibilityRole="header" style={[styles.headline, verdict(smartvaResult.ok)]}>{`SmartVA check: ${smartvaResult.ok ? "passed" : "FAILED"}`}</Text>
           {smartvaResult.version ? <Text style={styles.muted}>{smartvaResult.version}</Text> : null}
           <Text style={styles.text}>{`Process init: ${smartvaResult.initMs.toFixed(0)} ms`}</Text>
           {smartvaResult.error ? <Text style={styles.muted}>{`Code: ${smartvaResult.error}`}</Text> : null}
@@ -139,7 +140,6 @@ export default function EngineCheck() {
           {smartvaResult.warmRepeat ? <Text style={styles.text}>{`adult warm repeat: ${smartvaResult.warmRepeat.ok && smartvaResult.warmRepeat.matched ? "ok" : "FAILED"} · ${smartvaResult.warmRepeat.ms.toFixed(0)} ms${smartvaResult.warmRepeat.nativeMs === undefined ? "" : ` (engine ${smartvaResult.warmRepeat.nativeMs.toFixed(0)} ms)`}`}</Text> : null}
         </View>
       ) : null}
-      <Button kind="secondary" label="Back" onPress={() => router.back()} />
     </Screen>
   );
 }

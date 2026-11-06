@@ -20,12 +20,32 @@ function predictionFrom(value: unknown): SmartVaEnginePrediction {
   return value as SmartVaEnginePrediction;
 }
 
-/** Remove the engine's raw PII-bearing prediction shape before anything is cached or displayed. */
+/** What the server keeps for a case the engine returned no row for (a failed "missing_row" run): no card, no causes. */
+function noResult(): SmartVaReference {
+  return {
+    no_result: true,
+    age: null,
+    gender: null,
+    key_symptoms: [null, null, null],
+    causes: ([1, 2, 3] as const).map((rank) => ({ rank, cause: null, icd10: null, icd11: null, icd11_label: null, likelihood: null })),
+    symptoms: [],
+    module: null,
+    cause34: null,
+    icd10: null,
+  };
+}
+
+/**
+ * Remove the engine's raw PII-bearing prediction shape before anything is cached or displayed.
+ * A reply with no prediction at all (total_vas 0) is a "no result" reference, not an error.
+ * gender stays the raw engine code (the engine-check golden compares it); SmartVaReference.tsx shows it with genderLabel.
+ */
 export function projectSmartVaResult(value: unknown): SmartVaReference {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("SmartVA result must be an object.");
   }
   const result = value as Partial<SmartVaEngineResult>;
+  if (result.total_vas === 0 && Array.isArray(result.predictions) && result.predictions.length === 0) return noResult();
   if (result.total_vas !== 1 || !Array.isArray(result.predictions) || result.predictions.length !== 1) {
     throw new TypeError("SmartVA result must contain exactly one prediction.");
   }

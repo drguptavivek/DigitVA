@@ -62,3 +62,11 @@ it("a real network failure is filed once per spell, again after a good response"
   recordError(failure);
   expect(pendingErrors()).toHaveLength(2);
 });
+
+it("an iOS transport failure (a plain Error from expo fetch) reaches callers as a network TypeError", async () => {
+  mockFetch.mockRejectedValueOnce(new Error("fetch failed: UnexpectedException: Could not connect to the server."));
+  const failure = requestJson("/api/v1/me/access", { token: "t" } as never);
+  await expect(failure).rejects.toBeInstanceOf(TypeError);
+  await expect(failure).rejects.toMatchObject({ name: "NetworkError" });
+  expect(mockFetch).toHaveBeenCalledTimes(1);
+});

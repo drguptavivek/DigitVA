@@ -1,7 +1,7 @@
 /** Interviewer sign-in on this device. */
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Linking, Text, TextInput, View } from "react-native";
+import { Linking, Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
@@ -15,7 +15,9 @@ import {
   NATIVE_AUTH_PATHS,
   normalizeMobileIdentifier
 } from "../nativeAuthLinks";
-import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
+import { Button, errorText, FieldLabel, Notice, PasswordInput, Screen, SegmentedControl, TextField, TextLink, useUiStyles } from "../ui";
+import { spacing } from "../theme";
+import { displayProjectName } from "../projectName";
 
 export default function SignIn() {
   const styles = useUiStyles();
@@ -75,34 +77,25 @@ export default function SignIn() {
 
   return (
     <Screen title={t("signInTitle")}>
+      {/* Which server project this signs into, under the title (design sheet 11). */}
+      {device?.project_id ? <Text style={styles.muted}>{[device.project_id, displayProjectName(device.project_name)].filter(Boolean).join(" · ")}</Text> : null}
       {returning ? <Text style={styles.text}>{t("signInAgainAs", { name: returning.name })}</Text> : null}
-      {demo ? null : <Text style={styles.muted}>{t("signInIdentifierType")}</Text>}
-      {demo ? null : <Row>
-        <Button
-          kind={mode === "email" ? "primary" : "secondary"}
-          label={t("email")}
-          accessibilityLabel={t("email")}
-          onPress={() => {
-            setMode("email");
+      {/* The segmented control names its own choice (Email | Mobile): no "Sign in with" label above it. */}
+      {demo ? null : (
+        <SegmentedControl
+          accessibilityLabel={t("signInIdentifierType")}
+          options={[{ value: "email", label: t("email") }, { value: "mobile", label: t("mobile") }]}
+          value={mode}
+          onChange={(next) => {
+            setMode(next);
             setIdentifier("");
             setError("");
           }}
         />
-        <Button
-          kind={mode === "mobile" ? "primary" : "secondary"}
-          label={t("mobile")}
-          accessibilityLabel={t("mobile")}
-          onPress={() => {
-            setMode("mobile");
-            setIdentifier("");
-            setError("");
-          }}
-        />
-      </Row>}
-      <Text style={styles.muted}>{demo ? t("demoSignInUsername") : mode === "mobile" ? t("mobile") : t("email")}</Text>
+      )}
+      <FieldLabel label={demo ? t("demoSignInUsername") : mode === "mobile" ? t("mobile") : t("email")} />
       {demo ? (
-        <TextInput
-          style={styles.input}
+        <TextField
           accessibilityLabel={t("demoSignInUsername")}
           autoCapitalize="none"
           autoCorrect={false}
@@ -115,8 +108,8 @@ export default function SignIn() {
           <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>
             +91
           </Text>
-          <TextInput
-            style={[styles.input, styles.phoneInput]}
+          <TextField
+            style={styles.phoneInput}
             accessibilityLabel={t("mobile")}
             autoCapitalize="none"
             autoComplete="tel"
@@ -126,9 +119,10 @@ export default function SignIn() {
           />
         </View>
       ) : (
-        <TextInput
-          style={styles.input}
+        <TextField
           accessibilityLabel={t("email")}
+          // The expected shape before entry (WCAG 3.3.2).
+          placeholder={t("emailPlaceholder")}
           autoCapitalize="none"
           autoComplete="username"
           keyboardType="default"
@@ -136,30 +130,23 @@ export default function SignIn() {
           onChangeText={setIdentifier}
         />
       )}
-      <Text style={styles.muted}>{t("password")}</Text>
-      <TextInput accessibilityLabel={t("password")} style={styles.input} secureTextEntry value={password} onChangeText={setPassword} />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <FieldLabel label={t("password")} />
+      <PasswordInput accessibilityLabel={t("password")} autoComplete="current-password" value={password} onChangeText={setPassword} />
+      {error ? <Notice tone="error">{error}</Notice> : null}
       <Button
         label={t("signIn")}
         loading={busy}
         disabled={busy || !identifier.trim() || !password || (!demo && mode === "mobile" && !normalizeMobileIdentifier(identifier))}
         onPress={() => void submit()}
       />
-      {demo ? null : <View style={styles.authLinks}>
-        <Button
-          kind="secondary"
-          label={t("redeemCode")}
-          disabled={busy}
-          onPress={() => void openServerPage(NATIVE_AUTH_PATHS.redeemCode)}
-        />
-        <Button
-          kind="secondary"
-          label={t("forgotPassword")}
-          disabled={busy}
-          onPress={() => void openServerPage(NATIVE_AUTH_PATHS.forgotPassword)}
-        />
-      </View>}
-      <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
+      {/* Secondary ways in are text links, so Sign in stays the one button on the screen. No Cancel: it only went
+          back, and Back (or the back swipe) returns to the screen this came from. */}
+      {demo ? null : (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: spacing.lg, marginTop: spacing.sm }}>
+          <TextLink label={t("redeemCode")} disabled={busy} onPress={() => void openServerPage(NATIVE_AUTH_PATHS.redeemCode)} />
+          <TextLink label={t("forgotPassword")} disabled={busy} onPress={() => void openServerPage(NATIVE_AUTH_PATHS.forgotPassword)} />
+        </View>
+      )}
     </Screen>
   );
 }

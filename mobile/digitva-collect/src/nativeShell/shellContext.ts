@@ -1,6 +1,7 @@
 /** The phone shell's shared state: which sheet is open, the sync status chip/sheet read, and which chrome is showing. */
 import { createContext, useContext } from "react";
 
+import { t, uiLanguageTag } from "../i18n";
 import type { WorkSummary } from "../unsentWork";
 
 export type ShellSheet = "account" | "help" | "sync" | null;
@@ -33,6 +34,15 @@ export interface Shell {
   /** Whether the header and the tabs are on screen, so Screen leaves their insets to them. */
   header: boolean;
   tabs: boolean;
+  /** The bar shows the back arrow and the screen title (navAdapter `showNativeBackTitle`); Screen then hides its own. */
+  titleInBar: boolean;
+  /** Title of the screen on top, published by Screen. */
+  screenTitle: string | undefined;
+  /**
+   * Screen publishes its title under its own key; `undefined` withdraws it. The newest key still mounted wins, so a
+   * pushed screen shows its title and popping it shows the one underneath again (the Stack keeps it mounted).
+   */
+  publishTitle(key: object, title: string | undefined): void;
 }
 
 const IDLE: Shell = {
@@ -46,6 +56,9 @@ const IDLE: Shell = {
   refreshNow: async () => undefined,
   header: false,
   tabs: false,
+  titleInBar: false,
+  screenTitle: undefined,
+  publishTitle: () => undefined,
 };
 
 export const ShellContext = createContext<Shell>(IDLE);
@@ -53,8 +66,20 @@ export const ShellContext = createContext<Shell>(IDLE);
 /** Safe without a provider (tests, web): sheets never open and no chrome is reported. */
 export const useShell = (): Shell => useContext(ShellContext);
 
-/** "HH:MM" in the phone's time zone. */
+/** "4:50 am" in the phone's time zone and the app language's conventions, like every other time on the phone. */
 export function clock(ms: number): string {
-  const d = new Date(ms);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return new Date(ms).toLocaleTimeString(uiLanguageTag(), { hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * When the phone last synced, in the app language's conventions: "Synced today, 1:19 pm" or "Synced 3 Nov, 10:20 am";
+ * "Not synced yet" when it has not.
+ */
+export function syncedText(lastAt: number | undefined, now: number = Date.now()): string {
+  if (!lastAt) return t("syncChipNever");
+  const locale = uiLanguageTag();
+  const at = new Date(lastAt);
+  const time = at.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+  if (at.toDateString() === new Date(now).toDateString()) return t("syncedToday", { time });
+  return t("syncedOn", { date: at.toLocaleDateString(locale, { day: "numeric", month: "short" }), time });
 }

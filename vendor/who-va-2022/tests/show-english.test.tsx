@@ -72,6 +72,9 @@ describe("show-english", () => {
     expect(english).toContain("Did she have a fever?");
     expect(english).toContain("Ask the respondent.");
     expect(english).toContain("Yes");
+    // The choice's translated part names its own language, so a screen reader reads each part in its voice.
+    const hindi = [...container.querySelectorAll('[lang="hi"]')].map((node) => node.textContent ?? "");
+    expect(hindi.some((text) => text.includes("हाँ"))).toBe(true);
     // Rendered through RichText: the markup is a styled span, not literal tags.
     expect(container.textContent).not.toContain("<b>");
     root.unmount();

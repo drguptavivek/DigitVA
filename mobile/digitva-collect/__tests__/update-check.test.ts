@@ -14,6 +14,7 @@ jest.mock("expo", () => ({
     name === "DigitvaDeviceInfo" && mockSupports64Bit !== undefined ? { supports64Bit: () => mockSupports64Bit } : null,
 }));
 
+import { Platform } from "react-native";
 import { checkForUpdate, checkForUpdateDaily, checkServerCompatibility, GITHUB_RELEASES_URL, versionCode } from "../src/updateCheck";
 
 const SERVER = "https://va.example.org/";
@@ -38,6 +39,7 @@ const fetchMock = jest.fn(async (url: string) => {
 });
 
 beforeEach(() => {
+  Platform.OS = "android";
   mockPlusVariant = false;
   mockSupports64Bit = undefined;
   for (const key of Object.keys(mockPrefs)) delete mockPrefs[key];
@@ -153,6 +155,17 @@ test("server compatibility validates contract and SHA but does not compare the S
   expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
   routes[COMPAT_URL] = new Error("offline");
   expect(await checkServerCompatibility(SERVER)).toEqual({ status: "unknown" });
+});
+
+test("iOS never fetches an APK update and reports nothing", async () => {
+  routes[SERVER_URL] = serverReply("0.3.10");
+  expect((await checkForUpdate(SERVER)).status).toBe("available"); // the subject: Android does offer it
+  fetchMock.mockClear();
+  Platform.OS = "ios";
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "unknown" });
+  expect(await checkForUpdateDaily(SERVER)).toBeUndefined();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(mockPrefs.update_check_at).toBeUndefined();
 });
 
 test("a 32-bit-only phone skips the server's arm64 APK and is offered the GitHub armeabi-v7a asset", async () => {

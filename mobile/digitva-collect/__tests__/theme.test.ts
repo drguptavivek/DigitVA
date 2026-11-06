@@ -8,7 +8,7 @@ describe("shared theme", () => {
   });
 
   it("provides distinct semantic light and dark palettes", () => {
-    expect(palette.light.accent).toBe("#1D4ED8");
+    expect(palette.light.accent).toBe("#1f4d60");
     expect(palette.dark.accent).not.toBe(palette.light.accent);
     expect(getTheme("dark").colors.background).toBe(palette.dark.background);
     expect(getTheme("light").controls.minTouchTarget).toBe(44);

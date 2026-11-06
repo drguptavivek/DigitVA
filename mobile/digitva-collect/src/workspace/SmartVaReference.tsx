@@ -1,5 +1,6 @@
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 
+import { genderLabel } from "../smartva/gender";
 import type { JsonObject, JsonValue } from "./contracts";
 import { Badge, Body, Card, CardTitle, Muted, gap } from "./doris/ui";
 
@@ -45,11 +46,19 @@ function groupSymptoms(symptoms: string[]) {
  */
 export function SmartVaReference({ value }: { value: JsonValue }) {
   const data = record(value);
+  if (data.no_result === true) {
+    return (
+      <Card>
+        <CardTitle>SmartVA Analysis</CardTitle>
+        <Muted>SmartVA produced no result for this case.</Muted>
+      </Card>
+    );
+  }
   const keySymptoms = Array.from(new Set((Array.isArray(data.key_symptoms) ? data.key_symptoms : []).map(servedText).filter(Boolean)));
   const causes = (Array.isArray(data.causes) ? data.causes : []).map(record).filter((cause) => servedText(cause.cause) !== "");
   const { previous, narrative, other } = groupSymptoms(Array.isArray(data.symptoms) ? data.symptoms.map(servedText).filter(Boolean) : []);
   const age = wholeNumberText(servedText(data.age));
-  const demographics = [age ? `${age} years` : "", servedText(data.gender)].filter(Boolean).join(" · ");
+  const demographics = [age ? `${age} years` : "", genderLabel(servedText(data.gender))].filter(Boolean).join(" · ");
   return (
     <Card>
       <CardTitle>SmartVA Analysis</CardTitle>
@@ -78,7 +87,7 @@ export function SmartVaReference({ value }: { value: JsonValue }) {
         <View style={{ gap: gap.xs }}>
           <Muted>Other symptoms</Muted>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: gap.xs }}>
-            {other.map((symptom, index) => <Badge key={`symptom-${index}`} variant="outline">{symptom}</Badge>)}
+            {other.map((symptom, index) => <Badge key={`symptom-${index}`} variant={Platform.OS === "web" ? "outline" : "secondary"}>{symptom}</Badge>)}
           </View>
         </View>
       ) : null}

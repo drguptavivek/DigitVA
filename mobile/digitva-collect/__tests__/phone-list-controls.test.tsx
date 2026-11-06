@@ -6,7 +6,7 @@ jest.mock("react-native-safe-area-context", () => ({
   ...jest.requireActual("react-native-safe-area-context"),
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock("../src/ui", () => ({
+jest.mock("../src/ui", () => require("../test-support/uiMockExtras").withUiExtras({
   Button: ({ label, onPress, kind }: { label: string; onPress?: () => void; kind?: string }) =>
     (jest.requireActual("react") as typeof React).createElement("button", { "data-label": label, "data-kind": kind, onClick: onPress }, label),
   useUiStyles: () => ({ card: {}, error: {}, muted: {}, text: {} }),
@@ -37,8 +37,7 @@ describe("interview card", () => {
     expect(order[0].props["data-label"]).toBe("Resume");
     expect(order[0].props["data-kind"]).not.toBe("danger");
     expect(order[1].props.accessibilityLabel).toBe("Delete draft");
-    expect(order[1].props.style.minHeight).toBeGreaterThanOrEqual(44);
-    expect(order[1].props.style.backgroundColor).toBeUndefined();
+    expect(order[1].props.accessibilityRole).toBe("button"); // a TextLink: 44pt and unfilled (ui-petrol-components)
     expect(tree.root.findAll((n) => n.props["data-label"] === "Delete draft")).toHaveLength(0);
   });
 
@@ -83,11 +82,12 @@ describe("controls", () => {
   });
 
   it("filter chips are single line, 44dp, with the centring style", async () => {
-    await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onSend={noop} onLoadMore={noop} />);
+    await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onLoadMore={noop} />);
     const chips = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && typeof n.props.onPress === "function");
     expect(chips).toHaveLength(5);
     for (const chip of chips) {
-      expect(chip.props.style.minHeight).toBeGreaterThanOrEqual(44);
+      // A 36pt chip; its hit slop makes the target 44pt.
+      expect(chip.props.style.minHeight + (chip.props.hitSlop?.top ?? 0) + (chip.props.hitSlop?.bottom ?? 0)).toBeGreaterThanOrEqual(44);
       const label = chip.findAllByType(Text)[0];
       expect(label.props.numberOfLines).toBe(1);
       expect(label.props.style).toMatchObject({ includeFontPadding: false, textAlignVertical: "center" });

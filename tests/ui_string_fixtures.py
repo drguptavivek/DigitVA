@@ -20,7 +20,13 @@ HI = {
 }
 
 
+#: The WHO form's labels (second namespace), as scripts/export-form-ui-strings.mjs writes them.
+FORM_EN = {"next": "Next", "required": "{label} is required"}
+FORM_HI = {"next": "आगे"}
+
+
 def write_export(root: Path, locales: dict[str, dict]) -> Path:
+    """Write ``<root>/ui-strings/<name>.json``; a name may be ``form-en`` or ``theme-hi``."""
     folder = root / "ui-strings"
     folder.mkdir(parents=True, exist_ok=True)
     for code, strings in locales.items():

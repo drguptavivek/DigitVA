@@ -57,7 +57,9 @@ import {
   targetsFrom,
 } from "../sync";
 import { useToast } from "../toast";
-import { Button, errorText, Screen } from "../ui";
+import { icons } from "../Icon";
+import { displayProjectName } from "../projectName";
+import { Button, Card, errorText, ListRow, Screen, Separator } from "../ui";
 import { CodingCaseChips } from "../ui/CodingCaseChips";
 import { buildInterviewItems, interviewCounts, listDraftNames, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
@@ -105,6 +107,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const [pausedProjects, setPausedProjects] = useState<PausedProject[]>([]);
   const [referenceData, setReferenceData] =
     useState<Awaited<ReturnType<typeof getCachedReferenceData>>>();
+  // The cached reference data has been read since the last unlock (it may be absent on a first sign-in). Until then
+  // the views show their skeletons: without it they would draw an account with no project and then jump.
+  const [referenceRead, setReferenceRead] = useState(false);
   const [picking, setPicking] = useState(false);
   const [choosingProject, setChoosingProject] = useState(false);
   const [recent, setRecent] = useState<RecentTarget>();
@@ -184,6 +189,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     referenceDataRef.current = undefined;
     setDb(undefined);
     setReferenceData(undefined);
+    setReferenceRead(false);
     setDrafts([]);
     setRevisions([]);
     setSubmittedRevisions([]);
@@ -409,6 +415,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           const cached = await getCachedReferenceData(handle);
           if (!active) return;
           setReference(cached);
+          setReferenceRead(true);
           // Nothing downloaded yet (first sign-in on this phone): block Home until it is.
           const isFirstDownload = !cached;
           if (isFirstDownload) setFirstDownload(true);
@@ -805,6 +812,14 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const canRegister = Boolean(selectedProject && registersDeaths(selectedProject.project) && account.registration_access);
   const loaded = Boolean(db && referenceData);
   const isOffline = Boolean(offline);
+  const goRows = [
+    canRegister ? <ListRow key="register" icon={icons.register} label={t("registerDeath")} onPress={openRegister} /> : null,
+    account.registered_deaths_access ? (
+      <ListRow key="mine" icon={icons.interviews} label={t("myRegisteredDeaths")} onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })} />
+    ) : null,
+  ].filter((row) => row !== null);
+  // Each row is followed by a separator when another row comes after it in the same card.
+  const homeRows = goRows.length ? goRows.flatMap((row, index) => (index < goRows.length - 1 || account.coding_access ? [row, <Separator key={`sep-${index}`} icon />] : [row])) : undefined;
   const codingChips = account.coding_access ? (
     <CodingCaseChips userId={account.user_id} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={isOffline} />
   ) : null;
@@ -920,10 +935,11 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     </>
   );
 
+  // "GUJ026 · Gujarat Health System": the project's code and display name (the account's name is on the avatar).
   const projectLine = (
     <ProjectLine
-      project={selectedProject?.project.project_name}
-      name={account.name}
+      project={selectedProject?.project.project_id}
+      name={displayProjectName(selectedProject?.project.project_name)}
       onPress={projects.length > 1 ? () => setChoosingProject(true) : undefined}
     />
   );
@@ -961,7 +977,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     return (
       <Screen title={t("tabInterviews")} scroll={false}>
         <InterviewsView
-          loaded={Boolean(db)}
+          loaded={Boolean(db && referenceRead)}
           offline={isOffline}
           items={items}
           initialFilter={filter}
@@ -978,10 +994,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           onDeleteDraft={(item) => setDeleting(item.deletable)}
           onRegister={openRegister}
           onRefresh={() => void refresh()}
-          onSend={() => void send()}
           onLoadMore={() => void loadOnlineMore()}
-          header={projectLine}
-          footer={<>{codingChips}{notices}</>}
+          header={<>{projectLine}{codingChips}</>}
+          footer={notices}
         />
         {sheets}
       </Screen>
@@ -991,28 +1006,23 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     <Screen title={t("home")}>
       {projectLine}
       <HomeView
-        loaded={Boolean(db)}
+        loaded={Boolean(db && referenceRead)}
         offline={isOffline}
         summary={summary}
         unsent={shell.sync.work?.unsent}
         unsentFiles={shell.sync.work?.unsentFiles}
         canStart={Boolean(db && referenceData && targets.length > 0)}
-        canRegister={canRegister}
         busy={busy}
         onResume={(item) => item.action && runAction(item.action)}
         onStart={() => setPicking(true)}
-        onRegister={openRegister}
         onSend={() => void send()}
         onViewTodo={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "todo" } })}
+        onViewDrafts={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "drafts" } })}
       >
-        {account.registered_deaths_access ? (
-          <Button
-            kind="secondary"
-            label={t("myRegisteredDeaths")}
-            onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })}
-          />
-        ) : null}
-        {codingChips}
+        {/* One card of "go somewhere" rows: Register a death and My registered deaths, then the coding case lists. */}
+        {account.coding_access ? (
+          <CodingCaseChips userId={account.user_id} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={isOffline} leading={homeRows} />
+        ) : homeRows ? <Card grouped testID="home-go-rows">{homeRows}</Card> : null}
         {notices}
       </HomeView>
       {sheets}

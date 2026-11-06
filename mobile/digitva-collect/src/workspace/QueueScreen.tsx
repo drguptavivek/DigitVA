@@ -4,8 +4,9 @@ import Svg, { Path } from "react-native-svg";
 
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
-import { Button, Screen, errorText, useUiStyles } from "../ui";
+import { Button, Card, Screen, SegmentedControl, TextField, errorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
+import { dateOnly } from "../ui/interviewRows";
 import { ProjectSelect } from "../ui/ProjectSelect";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
@@ -62,11 +63,13 @@ type QueueMessage = { scope: QueueScope; text: string; success?: boolean };
 
 function useQueueStyles() {
   const { colors, ui } = useTheme();
-  return useMemo(() => StyleSheet.create({
+  const phone = Platform.OS !== "web";
+  return useMemo(() => {
+    const base = StyleSheet.create({
     topLine: { flexDirection: "row", justifyContent: "flex-end" },
     titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     titleMain: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: spacing.xs },
-    iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, ...(phone ? {} : { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }) },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
     segmentedTrack: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, padding: spacing.xxs, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
     actionBtn: { flexGrow: 1, flexBasis: 132 },
@@ -95,15 +98,40 @@ function useQueueStyles() {
     metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs },
     metaChip: { paddingVertical: 2, paddingHorizontal: spacing.xs, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     metaChipText: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
-  }), [colors, ui]);
+    });
+    if (!phone) return base;
+    // Phone (round-6 Q3-Q7): chips, badges and tiles are filled, never ringed; the selected chip takes the
+    // primary tint; the case header stacks so the id never shares its line with a badge. The browser keeps `base`.
+    return {
+      ...base,
+      topLine: { gap: spacing.xxs },
+      statTile: { ...base.statTile, borderWidth: 0 },
+      filterBox: { gap: spacing.xs },
+      chip: { ...base.chip, borderWidth: 0, backgroundColor: ui.muted },
+      chipActive: { backgroundColor: ui.primaryTint },
+      chipTextActive: { color: ui.primary },
+      caseHeader: { gap: spacing.xs },
+      caseHeaderMain: { minWidth: 0, gap: 2 },
+      badge: { ...base.badge, borderWidth: 0 },
+      badgeAccent: { backgroundColor: ui.primaryTint },
+      badgeAccentText: { color: ui.primary },
+      metaChip: { ...base.metaChip, borderWidth: 0 },
+    };
+  }, [colors, ui, phone]);
 }
 
 function isInternalPlaceholderArea(name: string | null | undefined): boolean {
   return !name || /^sites_in_project_/i.test(name.trim());
 }
 
+function queueDate(raw: string | null | undefined): string | undefined {
+  return raw && Platform.OS !== "web" ? dateOnly(raw) ?? undefined : raw ?? undefined;
+}
+
 function formatQueueDate(raw: string | null | undefined): string {
   if (!raw) return "";
+  // The phone writes "21 Oct 2026" like the Interviews cards; the web keeps the ISO date.
+  if (Platform.OS !== "web") return dateOnly(raw.trim()) ?? "";
   const trimmed = raw.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   const match = /^(\d{4}-\d{2}-\d{2})T/.exec(trimmed);
@@ -228,6 +256,8 @@ export function QueueScreen({
   historyIdentity?: CodingHistoryIdentity;
 }) {
   const ActiveShell = Shell ?? Screen;
+  // Phone presentation only (round-6 Q1-Q8); the browser keeps its own look.
+  const phone = Platform.OS !== "web";
   const styles = useUiStyles();
   const q = useQueueStyles();
   const { colors, ui } = useTheme();
@@ -803,14 +833,18 @@ export function QueueScreen({
     if (activeItems.length === 0) return null;
     return (
       <View style={q.filterBox}>
-        <TextInput
-          accessibilityLabel="Filter cases"
-          placeholder="Filter by ID, area, collector, or form..."
-          placeholderTextColor={colors.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          style={q.searchInput}
-        />
+        {phone ? (
+          <TextField onCard accessibilityLabel="Filter cases" placeholder="Filter by ID, area, collector, or form..." value={searchQuery} onChangeText={setSearchQuery} />
+        ) : (
+          <TextInput
+            accessibilityLabel="Filter cases"
+            placeholder="Filter by ID, area, collector, or form..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={q.searchInput}
+          />
+        )}
         {(hasGenderData || hasRecodeableData) ? (
           <View style={q.chipRow}>
             {hasGenderData ? (
@@ -972,6 +1006,37 @@ export function QueueScreen({
     return "No cases to review right now.";
   }
 
+  /** Phone: the header, tiles, tabs and filter share one card and each case is its own card; the browser nests all in one. */
+  const headBlock = (kids: ReactNode) => (phone ? <Card>{kids}</Card> : <>{kids}</>);
+  const tabs = (history: string) => (phone ? (
+    <SegmentedControl
+      accessibilityLabel="Cases"
+      disabled={busy}
+      value={showHistory ? "history" : "available"}
+      options={[{ value: "available", label: "Available" }, { value: "history", label: history }]}
+      onChange={(next) => { clearMessage(); setShowHistory(next === "history"); setOffset(0); }}
+    />
+  ) : (
+    <View style={q.segmentedTrack}>
+      <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
+      <Button label={history} size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
+    </View>
+  ));
+  const historyBadges = (item: CoderHistoryCase) => (item.va_code_status || item.recodeable) ? (
+    <View style={q.badgeRow}>
+      {item.va_code_status ? (
+        <View style={[q.badge, q.badgeAccent]}>
+          <Text style={[q.badgeText, q.badgeAccentText]}>{item.va_code_status}</Text>
+        </View>
+      ) : null}
+      {item.recodeable ? (
+        <View style={[q.badge, q.badgeAccent]}>
+          <Text style={[q.badgeText, q.badgeAccentText]}>Recodeable</Text>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
   function refreshCases() {
     clearMessage();
     setShowHistory(false);
@@ -982,9 +1047,10 @@ export function QueueScreen({
   return (
     <ActiveShell
       title={mode === "coding" ? "Coding queue" : "Review queue"}
-      headerAction={onExit ? <Button label="Back" kind="secondary" size="sm" onPress={onExit} /> : undefined}
+      // Phone: the bar has the back arrow and the shell Help sheet has the guide, so no Back or Help pill here.
+      headerAction={onExit && !phone ? <Button label="Back" kind="secondary" size="sm" onPress={onExit} /> : undefined}
     >
-      <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />
+      {phone ? null : <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />}
       {projects?.project_options.length ? (
         <View style={q.topLine}>
           <ProjectSelect
@@ -992,6 +1058,7 @@ export function QueueScreen({
             value={projectId ? [projectId] : []}
             disabled={busy}
             onChange={(next) => { clearMessage(); setOffset(0); setProjectId(next[0]); }}
+            fieldRow={phone}
           />
         </View>
       ) : null}
@@ -1012,7 +1079,8 @@ export function QueueScreen({
 
 
       {mode === "coding" ? (
-        <View style={styles.card}>
+        <View style={phone ? { gap: controls.gap } : styles.card}>
+          {headBlock(<>
           <View style={q.titleRow}>
             <View style={q.titleMain}>
               <Text style={styles.headline}>{randomMode ? "Random allocation" : "Pick a case"}</Text>
@@ -1049,37 +1117,21 @@ export function QueueScreen({
             </View>
           ) : null}
           {randomMode && !currentData?.cachedHistoryAt ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
-          {pickMode ? (
-            <View style={q.segmentedTrack}>
-              <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
-              <Button label="My coded cases" size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
-            </View>
-          ) : <Text style={styles.muted}>My coded cases</Text>}
+          {pickMode ? tabs("My coded cases") : <Text style={styles.muted}>My coded cases</Text>}
           {currentData?.cachedHistoryAt ? <Text style={styles.muted} testID="cached-coding-history">Saved on this phone · last updated {formatDisplayTimestamp(currentData.cachedHistoryAt)} · read only</Text> : null}
           {renderFilterControls()}
+          </>)}
           {showHistory ? filteredCoderHistory.map((item) => (
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
                   <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
-                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
+                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
                 </View>
-                {(item.va_code_status || item.recodeable) ? (
-                  <View style={q.badgeRow}>
-                    {item.va_code_status ? (
-                      <View style={[q.badge, q.badgeAccent]}>
-                        <Text style={[q.badgeText, q.badgeAccentText]}>{item.va_code_status}</Text>
-                      </View>
-                    ) : null}
-                    {item.recodeable ? (
-                      <View style={[q.badge, q.badgeAccent]}>
-                        <Text style={[q.badgeText, q.badgeAccentText]}>Recodeable</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
+                {phone ? null : historyBadges(item)}
               </View>
               <CaseCardDetails item={item} />
+              {phone ? historyBadges(item) : null}
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               {recodeDeadlineText(item) ? <Text style={styles.muted} testID={`recode-deadline-${item.va_sid}`}>{recodeDeadlineText(item)}</Text> : null}
               {!currentData?.cachedHistoryAt ? <View style={q.actions}>
@@ -1093,7 +1145,7 @@ export function QueueScreen({
                 <View style={q.caseHeaderMain}>
                   {item.deceased_name ? <Text style={styles.headline}>{item.deceased_name}</Text> : null}
                   <Text style={item.deceased_name ? styles.muted : styles.headline}>{item.va_uniqueid_masked}</Text>
-                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
+                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
                 </View>
               </View>
               <CaseCardDetails item={item} />
@@ -1110,7 +1162,8 @@ export function QueueScreen({
           </View>
         </View>
       ) : (
-        <View style={styles.card}>
+        <View style={phone ? { gap: controls.gap } : styles.card}>
+          {headBlock(<>
           <View style={q.titleRow}>
             <View style={q.titleMain}>
               <Text style={styles.headline}>Reviewer queue</Text>
@@ -1138,17 +1191,15 @@ export function QueueScreen({
               ) : null}
             </View>
           ) : null}
-          <View style={q.segmentedTrack}>
-            <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
-            <Button label="My reviewed cases" size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
-          </View>
+          {tabs("My reviewed cases")}
           {renderFilterControls()}
+          </>)}
           {filteredReviewerRows.map((item) => (
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
                   <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
-                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
+                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
                 </View>
                 {item.va_narration_language ? (
                   <View style={q.badgeRow}>

@@ -9,6 +9,7 @@ jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
   default: () => ({ width: mockWidth, height: 800, scale: 1, fontScale: 1 }),
 }));
 jest.mock("../src/i18n", () => ({
+  uiLanguageTag: () => "en",
   t: (key: string, values: Record<string, string | number> = {}) => [key, ...Object.values(values)].join(":"),
 }));
 jest.mock("../src/ui", () => ({
@@ -163,3 +164,8 @@ test("Not recorded only where the server says so; a hidden name stays blank and 
   expect(JSON.stringify(tree.toJSON())).toContain("statsFactName:statsNameNotRecorded");
   await act(async () => tree.unmount());
 });
+
+// These are the browser's screens: the shared case card keeps its ISO timestamps there (the phone writes "6 Nov 2026, 4:50 am").
+const { Platform: webPlatform } = require("react-native");
+beforeAll(() => { webPlatform.OS = "web"; });
+afterAll(() => { webPlatform.OS = "ios"; });

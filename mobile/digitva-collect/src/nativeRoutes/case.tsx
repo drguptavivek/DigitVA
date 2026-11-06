@@ -12,7 +12,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { Fragment, useCallback, useRef, useState } from "react";
 import { Linking, Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -40,7 +40,7 @@ import {
 } from "../deathWorkflow";
 import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
-import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
+import { Button, Card, ChoiceRow, errorText, Notice, Row, Screen, Separator, stateLabel, useUiStyles } from "../ui";
 import { otherDraftWarning } from "../ui/CaseCard";
 
 function displayDate(value: string | null | undefined): string | undefined {
@@ -216,12 +216,7 @@ export default function Case() {
     return (
       <Screen title={t("deathDetails")}>
         <Text style={styles.text}>{t("deathNotFound")}</Text>
-        {message ? <Text style={styles.error}>{message}</Text> : null}
-        <Button
-          kind="secondary"
-          label={t("backToDeaths")}
-          onPress={() => router.back()}
-        />
+        {message ? <Notice tone="error">{message}</Notice> : null}
       </Screen>
     );
   }
@@ -436,11 +431,11 @@ export default function Case() {
               <Text style={styles.muted}>
                 {otherDraftWarning(found.other_draft_started_at, found.other_draft_started_by)}
               </Text>
-              <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
+              <Notice tone="warning">{t("otherDraftSyncNotice")}</Notice>
             </>
           ) : null}
           {found.other_complete_interview === true ? (
-            <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
+            <Notice tone="warning">{t("otherCompleteInterviewNotice")}</Notice>
           ) : null}
           {[
             detailLine(
@@ -601,10 +596,10 @@ export default function Case() {
               </Row>
             ))
           ) : (
-            <Text style={styles.muted}>{t("contactDetailsUnavailable")}</Text>
+            <Notice tone="info">{t("contactDetailsUnavailable")}</Notice>
           )}
           {!followUpAllowed ? (
-            <Text style={styles.muted}>{t("caseActionsUnavailable")}</Text>
+            <Notice tone="info">{t("caseActionsUnavailable")}</Notice>
           ) : null}
         </View>
       ) : null}
@@ -615,22 +610,24 @@ export default function Case() {
           onPress={startInterview}
         />
       ) : found ? (
-        <Text style={styles.muted}>{t("caseActionsUnavailable")}</Text>
+        <Notice tone="info">{t("caseActionsUnavailable")}</Notice>
       ) : null}
       {mode ? (
         <View style={{ gap: 8 }}>
           {mode === "attempt" ? (
-            <Row>
-              {CONTACT_OUTCOMES.map((value) => (
-                <Button
-                  key={value}
-                  kind={outcome === value ? "primary" : "secondary"}
-                  label={t(`outcome_${value}` as StringKey)}
-                  disabled={actionBusy}
-                  onPress={() => setOutcome(value)}
-                />
+            <Card grouped>
+              {CONTACT_OUTCOMES.map((value, index) => (
+                <Fragment key={value}>
+                  {index ? <Separator /> : null}
+                  <ChoiceRow
+                    label={t(`outcome_${value}` as StringKey)}
+                    selected={outcome === value}
+                    disabled={actionBusy}
+                    onPress={() => setOutcome(value)}
+                  />
+                </Fragment>
               ))}
-            </Row>
+            </Card>
           ) : null}
           {mode === "visit" || outcome !== "refused" ? (
             <>
@@ -709,11 +706,6 @@ export default function Case() {
           ) : null}
         </View>
       ))}
-      <Button
-        kind="secondary"
-        label={t("backToDeaths")}
-        onPress={() => router.back()}
-      />
     </Screen>
   );
 }

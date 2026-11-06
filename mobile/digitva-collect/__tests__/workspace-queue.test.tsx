@@ -1,3 +1,4 @@
+import { formatWhen } from "../src/ui/interviewRows";
 import React from "react";
 import { Alert, Modal, Platform } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
@@ -80,7 +81,9 @@ async function render(mode: "coding" | "reviewing", api = makeApi(), onOpen = je
 
 /** A button, or a row of the project menu (role radio). */
 function button(root: ReactTestInstance, label: string) {
-  return root.findAll((node) => (node.props.accessibilityRole === "button" || node.props.accessibilityRole === "radio") && node.props.accessibilityLabel === label)[0];
+  // The phone's segmented control names the history tab by its text; the browser's button says "History".
+  const labels = label === "History" ? ["History", "My coded cases", "My reviewed cases"] : [label];
+  return root.findAll((node) => (node.props.accessibilityRole === "button" || node.props.accessibilityRole === "radio") && labels.includes(node.props.accessibilityLabel))[0];
 }
 
 async function press(renderer: ReactTestRenderer, label: string) {
@@ -94,6 +97,8 @@ async function press(renderer: ReactTestRenderer, label: string) {
 }
 
 function tabKind(root: ReactTestInstance, label: string) {
+  const radio = root.findAll((node) => node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === label)[0];
+  if (radio) return radio.props.accessibilityState.checked ? "primary" : "secondary";
   return root.findAll((node) => node.props.label === label && node.props.kind !== undefined)[0]?.props.kind;
 }
 
@@ -997,7 +1002,7 @@ describe("queue layout", () => {
     text = JSON.stringify(screen.renderer.toJSON());
     expect(text).toContain("UID-HIST-1");
     expect(text).toContain("UID-HIST-2");
-    expect(text).toContain("Coded: 2026-10-09");
+    expect(text).toContain("Coded: 9 Oct 2026");
 
     await press(screen.renderer, "Filter recodeable only");
     text = JSON.stringify(screen.renderer.toJSON());
@@ -1073,9 +1078,7 @@ describe("coder recode deadline", () => {
     ...coderRow, va_sid, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: false, ...extra,
   });
   const local = (iso: string) => {
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return formatWhen(iso);
   };
 
   test("recodeDeadlineText shows the deadline in local time, the closed state, or nothing", () => {

@@ -25,14 +25,17 @@ from app.services.ui_string_service import (
     FILTERS,
     MACHINE_LOCALES,
     InvalidUiStringText,
+    NothingToPublish,
     UiStringError,
     accept,
     export,
     locales,
-    reviewable_locales,
     revert,
+    reviewable_locales,
     set_override,
+    set_ui_language,
     strings_for_admin,
+    ui_languages_for_admin,
 )
 
 log = logging.getLogger(__name__)
@@ -95,6 +98,7 @@ def admin_panel_ui_strings():
         mt_configured=azure.is_configured(),
         mt_running=machine_job.is_running(),
         mt_last=machine_job.last_run(),
+        ui_languages=ui_languages_for_admin(),
     )
 
 
@@ -135,6 +139,35 @@ def admin_ui_string_machine_translate():
     machine_translate_ui_strings.delay(chosen or None)
     log.info("ui string machine translation queued | by=%s | locales=%s", current_user.user_id, chosen or "all")
     return jsonify({"queued": True}), 202
+
+
+@admin.put("/api/ui-languages/<locale>")
+@role_required("admin")
+def admin_ui_language_put(locale):
+    """Add or change a UI language: native name, BCP 47 tag, direction, published.
+
+    No ``published`` in the body keeps the language's current state.
+    """
+    if err := _guard():
+        return err
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = set_ui_language(
+            locale,
+            payload.get("native_name"),
+            payload.get("bcp47_tag"),
+            payload.get("direction"),
+            payload.get("published"),
+            current_user.user_id,
+        )
+    except NothingToPublish as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc), "code": "nothing_to_publish"}), 422
+    except UiStringError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    return jsonify(result)
 
 
 @admin.post(f"{_API}/<locale>/accept")

@@ -12,9 +12,10 @@
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, Text, View } from "react-native";
+import { Alert, AppState, Pressable, Text, View } from "react-native";
 import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
 import {
+  FormThemeContext,
   resolveUiMessages,
   WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   type AnswerValue,
@@ -66,7 +67,8 @@ import { sendRefusal } from "../unsentWork";
 import { RespondentConsentPanel } from "../web/StationConsentPanel";
 import { RefusalPanel } from "../RefusalPanel";
 import { runInTransaction } from "../dbTransaction";
-import { t, uiLocale, type StringKey } from "../i18n";
+import { t, uiLocale, type StringKey, type ThemeStringKey } from "../i18n";
+import { formUiTranslations, useFormPackRevision } from "../uiPacks";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { platformServices } from "../platform";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
@@ -86,7 +88,12 @@ import {
   type ReferenceData,
   type Target,
 } from "../sync";
-import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
+import { Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
+import { radius, spacing, useTheme } from "../theme";
+import { useWhoFormTheme } from "../whoWebTheme";
+import { rowLabel } from "../ui/sitePicker";
+import { Icon, icons } from "../Icon";
+import { SitePickerSheet } from "./worklistParts";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { useLeaveGuard } from "../leaveGuard";
 import { MultilineInput } from "../MultilineInput";
@@ -145,20 +152,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Text fields in the web form's order, with their label. */
+/** Text fields in the web form's order, with their label and the helper line under the field (format, example). */
 const TEXT_FIELDS: Array<{
   name: Field;
   label: StringKey;
-  help?: StringKey;
+  help?: StringKey | ThemeStringKey;
+  required?: boolean;
 }> = [
-  { name: "deceased_name", label: "fieldDeceasedName" },
-  { name: "date_of_death", label: "fieldDateOfDeath" },
+  { name: "deceased_name", label: "fieldDeceasedName", required: true },
+  { name: "date_of_death", label: "fieldDateOfDeath", required: true },
   { name: "address", label: "fieldAddress" },
   { name: "informant_name", label: "fieldInformantName" },
   // Rendered with informant_phone_2 by PhoneNumbers.
   { name: "informant_phone", label: "fieldPhoneNumber" },
-  { name: "abha_number", label: "fieldAbhaNumber" },
-  { name: "abha_address", label: "fieldAbhaAddress" },
+  { name: "abha_number", label: "fieldAbhaNumber", help: "abhaNumberHint" },
+  { name: "abha_address", label: "fieldAbhaAddress", help: "abhaAddressHint" },
   { name: "place_of_death", label: "fieldPlaceOfDeath" },
   { name: "address_house_street", label: "fieldHouseStreet" },
   { name: "address_village_ward", label: "fieldVillageWard" },
@@ -167,6 +175,15 @@ const TEXT_FIELDS: Array<{
   { name: "mother_name", label: "fieldMotherName" },
   { name: "remarks", label: "fieldRemarks", help: "remarksHelp" },
 ];
+
+/**
+ * The form's groups under their section labels (design sheet 01): who died, where, the identifiers, then notes.
+ * Fields the consent notice covers are drawn in the Informant group instead, wherever they are listed here.
+ */
+const DECEASED_FIELDS: Field[] = ["father_name", "mother_name"];
+const PLACE_FIELDS: Field[] = ["place_of_death", "address", "address_house_street", "address_village_ward", "address_landmark"];
+const IDENTIFIER_FIELDS: Field[] = ["abha_number", "abha_address"];
+const NOTE_FIELDS: Field[] = ["remarks"];
 
 /** Restore the DOB choice without inventing precision for age-only records. */
 export function birthModeFor(fields: RegistrationFields): BirthMode {
@@ -243,6 +260,31 @@ function nativeQuestion(
   };
 }
 
+/**
+ * A single choice: a SegmentedControl for up to three short options, else a ChoiceRow per option, so a long label
+ * ("Undetermined") never wraps inside a segment. The rows sit inside the section card's padding, in line with the
+ * fields, as one rounded group (the selected tint and the hairlines stop where the fields do; no card inside a card).
+ */
+function ChoiceList<T extends string>({ options, value, onChange, disabled, accessibilityLabel }: {
+  options: ReadonlyArray<{ value: T; label: string }>;
+  value: T | undefined;
+  onChange: (value: T) => void;
+  disabled: boolean;
+  accessibilityLabel: string;
+}) {
+  if (options.length <= 3) return <SegmentedControl options={options} value={value} onChange={onChange} disabled={disabled} accessibilityLabel={accessibilityLabel} />;
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={{ borderRadius: radius.lg, overflow: "hidden" }}>
+      {options.map((option, index) => (
+        <View key={option.value}>
+          {index ? <Separator choice /> : null}
+          <ChoiceRow label={option.label} selected={option.value === value} disabled={disabled} onPress={() => onChange(option.value)} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function NativeRegistrationFieldControl({
   field,
   label,
@@ -259,9 +301,10 @@ export function NativeRegistrationFieldControl({
   onChange: (value: string) => void;
   issue?: StringKey;
   onIssue?: (issue?: StringKey) => void;
-  appearance?: "exact" | "month-year" | "year" | "multiline";
+  appearance?: "exact" | "month-year" | "year" | "multiline" | "numbers";
   disabled?: boolean;
 }) {
+  useFormPackRevision();
   const question = nativeQuestion(
     field,
     label,
@@ -291,7 +334,7 @@ export function NativeRegistrationFieldControl({
         : value || undefined) as AnswerValue | undefined,
     data: {},
     locale,
-    messages: resolveUiMessages(locale, WHO_VA_BUILT_IN_UI_TRANSLATIONS),
+    messages: resolveUiMessages(locale, formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS)),
     issues,
     onAnswer: (next: AnswerValue | undefined) => {
       if (
@@ -323,7 +366,7 @@ export function NativeRegistrationFieldControl({
   if (question.control === "integer")
     return <WhoVaQuestionControls.Integer {...controlProps} />;
   if (appearance === "multiline") {
-    return <MultilineInput label={label} value={value} disabled={disabled} onChange={(next) => { onChange(next); onIssue?.(); }} />;
+    return <MultilineInput edge label={label} value={value} disabled={disabled} onChange={(next) => { onChange(next); onIssue?.(); }} />;
   }
   return <WhoVaQuestionControls.Text {...controlProps} />;
 }
@@ -344,6 +387,7 @@ function registrationTargetsFromAccess(access: AccessSummary): Target[] {
       label: entry.site_name ?? entry.site_id,
       projectId: entry.project_id,
       siteId: entry.site_id,
+      siteName: entry.site_name ?? entry.site_id,
     }];
     return units.map((unit) => ({
       key: `${entry.project_id}:${entry.site_id}:${unit.org_unit_id}`,
@@ -351,6 +395,8 @@ function registrationTargetsFromAccess(access: AccessSummary): Target[] {
       projectId: entry.project_id,
       siteId: entry.site_id,
       orgUnitId: unit.org_unit_id,
+      siteName: entry.site_name ?? entry.site_id,
+      unitName: unit.unit_name ?? unit.org_unit_id,
     }));
   });
 }
@@ -422,6 +468,10 @@ export default function Register() {
   // An edit of a saved registration is not kept while typing: leaving with typed changes asks first.
   const dirty = useRef(false);
   const [discardAsk, setDiscardAsk] = useState<(() => void) | undefined>();
+  const [pickingSite, setPickingSite] = useState(false);
+  const { ui: tokens, typography } = useTheme();
+  // The WHO controls draw the registration fields in the app's theme, as in the questionnaire.
+  const whoTheme = useWhoFormTheme();
   const leaveGuard = useLeaveGuard(true);
   // A lock or sign-out redirect must never be held, so only an unlocked screen asks.
   leaveGuard.holds.current = () => dirty.current && !persistableRef.current && !!account && isUnlocked(account.user_id);
@@ -543,7 +593,8 @@ export default function Register() {
           setAllTargets([]);
           setTargets([]);
           setRegisterProjects([]);
-          setMessage(t("registerLoadFailed"));
+          // getDeathRegistrationAccess answers undefined only when the request never reached the server.
+          setMessage(t("registerNeedsConnection"));
           return;
         }
         const registerProjects = access
@@ -643,7 +694,7 @@ export default function Register() {
         }
       } catch (error) {
         if (active && loadGeneration === operationGeneration.current) {
-          setMessage(error instanceof ApiError && error.status === 404 ? t("registerLoadFailed") : t("registerLoadFailed"));
+          setMessage(error instanceof TypeError ? t("registerNeedsConnection") : t("registerLoadFailed"));
         }
       }
     })();
@@ -813,6 +864,7 @@ export default function Register() {
         informant_phone_2: errors.informant_phone_2 ? t(errors.informant_phone_2) : undefined,
       }}
       disabled={serverReadOnly}
+      edge
       onChange={(name, digits) => {
         set(name)(digits);
         setFieldIssue(name);
@@ -821,7 +873,7 @@ export default function Register() {
     />
   ) : (
     <View key={field.name} style={{ gap: 4 }}>
-      <Text style={styles.muted}>{t(field.label)}</Text>
+      <FieldLabel label={t(field.label)} required={field.required && !errors[field.name]} />
       <NativeRegistrationFieldControl
         field={field.name}
         label={t(field.label)}
@@ -833,10 +885,10 @@ export default function Register() {
         appearance={
           field.name === "remarks" || field.name === "address"
             ? "multiline"
-            : "exact"
+            : field.name === "abha_number" ? "numbers" : "exact"
         }
       />
-      {field.help ? <Text style={styles.muted}>{t(field.help)}</Text> : null}
+      {field.help ? <FieldHint>{t(field.help)}</FieldHint> : null}
       {errorFor(field.name)}
     </View>
   );
@@ -1055,161 +1107,242 @@ export default function Register() {
         router.back();
       } catch (error) { setMessage(errorText(error)); }
     };
-    return <Screen title={t("registerDeath")}><RefusalPanel locale={uiLocale()} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={changeConsent} onNew={() => router.back()} />{message ? <Text style={styles.error}>{message}</Text> : null}</Screen>;
+    return <Screen title={t("registerDeath")}><RefusalPanel locale={uiLocale()} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={changeConsent} onNew={() => router.back()} />{message ? <Notice tone="error">{message}</Notice> : null}</Screen>;
   }
 
+  const birthLabels: Record<BirthMode, StringKey> = {
+    exact: "dobExact",
+    "month-year": "dobMonthYear",
+    year: "dobYear",
+    unknown: "dobUnknown",
+  };
+  // The selected precision row names the date field under it, so the field shows no label of its own; screen
+  // readers still hear the precision in the field's accessibility label.
+  const birthFieldLabels: Record<Exclude<BirthMode, "unknown">, StringKey | ThemeStringKey> = {
+    exact: "dobExact",
+    "month-year": "dobMonthYear",
+    year: "dobYearField",
+  };
+  // Save is the footer's one control (with Save and start beside it where an interview can start). Cancel only went
+  // back (Back, the back arrow and the tabs do that); Discard sits at the end of the form once there is something to
+  // discard, so no red action waits in the thumb zone.
+  const footer = serverReadOnly ? undefined : (
+    <Row>
+      <Button
+        label={t("save")}
+        disabled={!db || !target || busy || ageConfirmationPending}
+        onPress={() => void save(false)}
+        style={{ flex: 1 }}
+      />
+      {!serverDeathId && canStartInterview ? (
+        <Button
+          kind="secondary"
+          label={t("registerSaveStart")}
+          disabled={!db || !target || busy || ageConfirmationPending}
+          onPress={() => void save(true)}
+          style={{ flex: 1 }}
+        />
+      ) : null}
+    </Row>
+  );
+  /** The fields of `names` that are not drawn in the Informant group, in TEXT_FIELDS order. */
+  const groupFields = (names: Field[]) => TEXT_FIELDS.filter((field) => names.includes(field.name) && !informantNames.has(field.name));
+  const informantFields = TEXT_FIELDS.slice(2).filter((field) => informantNames.has(field.name));
+  // Informant fields this project's notice does not cover (none by default) are open like any other field.
+  const grouped = [...DECEASED_FIELDS, ...PLACE_FIELDS, ...IDENTIFIER_FIELDS, ...NOTE_FIELDS];
+  const openInformantFields = TEXT_FIELDS.slice(2).filter((field) => !informantNames.has(field.name) && !grouped.includes(field.name));
+  const identifierFields = groupFields(IDENTIFIER_FIELDS);
+  const noteFields = groupFields(NOTE_FIELDS);
+  const consentNode = consent ? (
+    <Notice
+      tone="info"
+      action={!serverReadOnly ? <Row><Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={changeConsent} /></Row> : undefined}
+    >
+      <Text style={styles.text} testID="respondent-consent-recorded">{t(decision === "granted" ? "consentRecordedGranted" : "consentRecordedRefused")}</Text>
+    </Notice>
+  ) : consentGate.state === "ask" && !serverReadOnly && (!serverDeathId || needsConsent) ? (
+    <RespondentConsentPanel
+      config={consentGate.config}
+      language={uiLocale()}
+      clientDraftId={null}
+      busy={busy}
+      makeId={randomUUID}
+      onDecision={(envelope) => void recordConsent(envelope)}
+    />
+  ) : null;
+  // No consent notice on this phone: the informant fields are hidden, and one line says when they come.
+  const noNoticeLine = consentGate.state === "unavailable" && !serverDeathId && !informantOpen;
+  const closedNotice = !informantOpen && !consent && consentGate.state === "ask";
+  const showInformant = Boolean(consentNode) || noNoticeLine || closedNotice || openInformantFields.length > 0 || (informantOpen && informantFields.length > 0);
+  const canDiscard = persistable && db && hasContent(fields);
+
   return (
-    <Screen title={t("registerDeath")}>
+    <Screen title={t("registerDeath")} footer={footer}>
+      <FormThemeContext.Provider value={whoTheme}>
+      <View style={{ gap: spacing.md, paddingBottom: spacing.xs }}>
       {!serverDeathId && registerProjects.length > 1 ? (
-        <View style={{ gap: 8 }}>
-          <Text style={styles.text}>{t("chooseProject")}</Text>
-          {registerProjects.map((project) => (
-            <Button
-              key={project.project_id}
-              kind={project.project_id === projectId ? "primary" : "secondary"}
-              label={project.project_name}
-              onPress={() => chooseProject(project.project_id)}
-            />
+        <Card grouped label={t("chooseProject")}>
+          {registerProjects.map((project, index) => (
+            <View key={project.project_id}>
+              {index > 0 ? <Separator choice /> : null}
+              <ChoiceRow
+                label={project.project_name}
+                selected={project.project_id === projectId}
+                onPress={() => chooseProject(project.project_id)}
+              />
+            </View>
           ))}
+        </Card>
+      ) : null}
+      <Card label={t("registerSectionDeceased")} testID="register-deceased">
+        {renderTextField(TEXT_FIELDS[0])}
+        <View style={{ gap: spacing.xs }}>
+          <FieldLabel label={t("fieldSex")} required={!errors.deceased_sex} />
+          <ChoiceList
+            accessibilityLabel={t("fieldSex")}
+            options={SEX_VALUES.map((sex) => ({ value: sex, label: t(SEX_LABELS[sex]) }))}
+            value={fields.deceased_sex as (typeof SEX_VALUES)[number] | undefined}
+            disabled={serverReadOnly}
+            onChange={(sex) => set("deceased_sex")(sex)}
+          />
+          {errorFor("deceased_sex")}
         </View>
-      ) : null}
-      <Text style={styles.text}>{t("chooseSite")}</Text>
-      {targets.length === 0 && !target ? (
-        <Text style={styles.muted}>{t("noSites")}</Text>
-      ) : null}
-      <View style={{ gap: 8 }}>
-        {editing && target ? (
-          <Text style={styles.muted}>{target.label}</Text>
-        ) : (
-          targets.map((choice) => (
-            <Button
-              key={choice.key}
-              kind={choice.key === target?.key ? "primary" : "secondary"}
-              label={choice.label}
-              onPress={() => setTarget(choice)}
-            />
-          ))
-        )}
-      </View>
-      {renderTextField(TEXT_FIELDS[0])}
-      {renderTextField(TEXT_FIELDS[1])}
-      <Text style={styles.muted}>{t("fieldDateOfBirth")}</Text>
-      <Text style={styles.muted}>{t("dobPrecision")}</Text>
-      <Row>
-        {(["exact", "month-year", "year", "unknown"] as const).map((mode) => {
-          const labels: Record<BirthMode, StringKey> = {
-            exact: "dobExact",
-            "month-year": "dobMonthYear",
-            year: "dobYear",
-            unknown: "dobUnknown",
-          };
-          return (
-            <Button
-              key={mode}
-              kind={birthMode === mode ? "primary" : "secondary"}
-              label={t(labels[mode])}
+        {renderTextField(TEXT_FIELDS[1])}
+        {/* One question: its precision is chosen first, then the date (or the age) is entered under it, with no label
+            repeating the chosen precision; "Not known" asks for the age only. */}
+        <View style={{ gap: spacing.xs }}>
+          <FieldLabel label={t("fieldDateOfBirth")} required={birthMode !== "unknown" && !errors.date_of_birth && !errors.date_of_birth_partial} />
+          <ChoiceList
+            accessibilityLabel={`${t("fieldDateOfBirth")} ${t("dobPrecision")}`}
+            options={(["exact", "month-year", "year", "unknown"] as const).map((mode) => ({ value: mode, label: t(birthLabels[mode]) }))}
+            value={birthMode}
+            disabled={serverReadOnly}
+            onChange={chooseBirthMode}
+          />
+          {birthMode === "exact" ? (
+            <View style={{ gap: 4 }}>
+              <NativeRegistrationFieldControl
+                field="date_of_birth"
+                label={`${t("fieldDateOfBirth")}, ${t(birthFieldLabels.exact)}`}
+                value={fields.date_of_birth ?? ""}
+                disabled={serverReadOnly}
+                onChange={set("date_of_birth")}
+                issue={errors.date_of_birth}
+                onIssue={(issue) => setFieldIssue("date_of_birth", issue)}
+              />
+              {errorFor("date_of_birth")}
+            </View>
+          ) : null}
+          {birthMode === "month-year" || birthMode === "year" ? (
+            <View style={{ gap: 4 }}>
+              <NativeRegistrationFieldControl
+                field="date_of_birth_partial"
+                label={`${t("fieldDateOfBirth")}, ${t(birthFieldLabels[birthMode])}`}
+                value={fields.date_of_birth_partial ?? ""}
+                disabled={serverReadOnly}
+                onChange={set("date_of_birth_partial")}
+                issue={errors.date_of_birth_partial}
+                onIssue={(issue) => setFieldIssue("date_of_birth_partial", issue)}
+                appearance={birthMode}
+              />
+              {errorFor("date_of_birth_partial")}
+            </View>
+          ) : null}
+          {(() => {
+            const display = calculateRegistrationAge(fields);
+            return display ? (
+              <Text style={styles.muted}>{formatRegistrationAge(display)}</Text>
+            ) : null;
+          })()}
+        </View>
+        {birthMode !== "exact" ? (
+          <View style={{ gap: 4 }}>
+            <FieldLabel label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldAge")} required={birthMode === "unknown" && !errors.age_years} />
+            <NativeRegistrationFieldControl
+              field="age_years"
+              label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldAge")}
+              value={fields.age_years ?? ""}
               disabled={serverReadOnly}
-              onPress={() => chooseBirthMode(mode)}
+              onChange={set("age_years")}
+              issue={errors.age_years}
+              onIssue={(issue) => setFieldIssue("age_years", issue)}
             />
-          );
-        })}
-      </Row>
-      {birthMode === "exact" ? (
+            {errorFor("age_years")}
+          </View>
+        ) : null}
+        {groupFields(DECEASED_FIELDS).map(renderTextField)}
+      </Card>
+      <Card label={t("registerSectionPlace")} testID="register-place">
         <View style={{ gap: 4 }}>
-          <NativeRegistrationFieldControl
-            field="date_of_birth"
-            label={t("fieldDateOfBirth")}
-            value={fields.date_of_birth ?? ""}
-            disabled={serverReadOnly}
-            onChange={set("date_of_birth")}
-            issue={errors.date_of_birth}
-            onIssue={(issue) => setFieldIssue("date_of_birth", issue)}
-          />
-          {errorFor("date_of_birth")}
+          <FieldLabel label={t("chooseSite")} />
+          {targets.length === 0 && !target ? (
+            <Text style={styles.muted}>{t("noSites")}</Text>
+          ) : null}
+          {editing && target ? (
+            <Text style={styles.muted}>{target.label}</Text>
+          ) : (
+            targets.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t("chooseSite")}: ${target ? rowLabel(target) : t("siteUnitNotChosen")}`}
+                onPress={() => setPickingSite(true)}
+                // A field like the others in the card: the fill and its faint edge, a trailing chevron (opens a picker).
+                style={[styles.input, styles.inputHairline, { flexDirection: "row", alignItems: "center", gap: spacing.xs }]}
+              >
+                <Text numberOfLines={1} style={{ ...typography.body, flex: 1, color: target ? tokens.foreground : tokens.mutedForeground }}>{target ? rowLabel(target) : t("siteUnitNotChosen")}</Text>
+                <Icon name={icons.chevronRight} color={tokens.mutedForeground} size={16} />
+              </Pressable>
+            ) : null
+          )}
         </View>
+        {groupFields(PLACE_FIELDS).map(renderTextField)}
+      </Card>
+      <SitePickerSheet
+        visible={pickingSite}
+        targets={targets}
+        selectedKey={target?.key}
+        siteNote
+        onPick={(choice) => {
+          setTarget(choice);
+          setPickingSite(false);
+        }}
+        onClose={() => setPickingSite(false)}
+      />
+      {identifierFields.length || idShown ? (
+        <Card label={t("registerSectionIdentifiers")} testID="register-identifiers">
+          {identifierFields.map(renderTextField)}
+          {idShown ? (
+            <IdentifierFields
+              title={false}
+              edge
+              types={idTypes}
+              values={fields.identifiers ?? {}}
+              errors={idErrors}
+              disabled={serverReadOnly}
+              onChange={setIdentifier}
+            />
+          ) : null}
+        </Card>
       ) : null}
-      {birthMode === "month-year" || birthMode === "year" ? (
-        <View style={{ gap: 4 }}>
-          <NativeRegistrationFieldControl
-            field="date_of_birth_partial"
-            label={t("fieldDateOfBirth")}
-            value={fields.date_of_birth_partial ?? ""}
-            disabled={serverReadOnly}
-            onChange={set("date_of_birth_partial")}
-            issue={errors.date_of_birth_partial}
-            onIssue={(issue) => setFieldIssue("date_of_birth_partial", issue)}
-            appearance={birthMode}
-          />
-          {errorFor("date_of_birth_partial")}
+      {/* Only the "no notice yet" sentence: the section label and that line, no card around one sentence. */}
+      {showInformant && noNoticeLine && !consentNode && !closedNotice && openInformantFields.length === 0 ? (
+        <View testID="register-informant" style={{ gap: spacing.xs }}>
+          <SectionLabel>{t("registerSectionInformant")}</SectionLabel>
+          <View style={{ paddingHorizontal: spacing.md }}><FieldHint testID="informant-no-notice">{t("consentInformantNoNotice")}</FieldHint></View>
         </View>
+      ) : showInformant ? (
+        <Card label={t("registerSectionInformant")} testID="register-informant">
+          {consentNode}
+          {noNoticeLine ? <FieldHint testID="informant-no-notice">{t("consentInformantNoNotice")}</FieldHint> : null}
+          {closedNotice ? <Notice tone="info"><Text style={styles.text} testID="informant-closed">{t("consentInformantClosed")}</Text></Notice> : null}
+          {openInformantFields.map(renderTextField)}
+          {informantOpen ? informantFields.map(renderTextField) : null}
+        </Card>
       ) : null}
-      {(() => {
-        const display = calculateRegistrationAge(fields);
-        return display ? (
-          <Text style={styles.muted}>{formatRegistrationAge(display)}</Text>
-        ) : null;
-      })()}
-      {birthMode !== "exact" ? (
-        <View style={{ gap: 4 }}>
-          <Text style={styles.muted}>{t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldAge")}</Text>
-          <NativeRegistrationFieldControl
-            field="age_years"
-            label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldAge")}
-            value={fields.age_years ?? ""}
-            disabled={serverReadOnly}
-            onChange={set("age_years")}
-            issue={errors.age_years}
-            onIssue={(issue) => setFieldIssue("age_years", issue)}
-          />
-          {errorFor("age_years")}
-        </View>
-      ) : null}
-      <Text style={styles.muted}>{t("fieldSex")}</Text>
-      <Row>
-        {SEX_VALUES.map((sex) => (
-          <Button
-            key={sex}
-            kind={fields.deceased_sex === sex ? "primary" : "secondary"}
-            label={t(SEX_LABELS[sex])}
-            disabled={serverReadOnly}
-            onPress={() => set("deceased_sex")(sex)}
-          />
-        ))}
-      </Row>
-      {errorFor("deceased_sex")}
-      {TEXT_FIELDS.slice(2).filter((field) => !informantNames.has(field.name)).map(renderTextField)}
-      {consent ? (
-        <Row>
-          <Text style={styles.muted} testID="respondent-consent-recorded">{t(decision === "granted" ? "consentRecordedGranted" : "consentRecordedRefused")}</Text>
-          {!serverReadOnly ? <Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={changeConsent} /> : null}
-        </Row>
-      ) : consentGate.state === "ask" && !serverReadOnly && (!serverDeathId || needsConsent) ? (
-        <RespondentConsentPanel
-          config={consentGate.config}
-          language={uiLocale()}
-          clientDraftId={null}
-          busy={busy}
-          makeId={randomUUID}
-          onDecision={(envelope) => void recordConsent(envelope)}
-        />
-      ) : consentGate.state === "unavailable" && !serverDeathId ? (
-        <Text style={styles.muted} testID="informant-no-notice">{t("consentInformantNoNotice")}</Text>
-      ) : null}
-      {!informantOpen && !consent && consentGate.state === "ask" ? <Text style={styles.muted} testID="informant-closed">{t("consentInformantClosed")}</Text> : null}
-      {informantOpen ? TEXT_FIELDS.slice(2).filter((field) => informantNames.has(field.name)).map(renderTextField) : null}
-      {idShown ? (
-        <IdentifierFields
-          types={idTypes}
-          values={fields.identifiers ?? {}}
-          errors={idErrors}
-          disabled={serverReadOnly}
-          onChange={setIdentifier}
-        />
-      ) : null}
-      {message ? (
-        <Text style={styles.error} accessibilityRole="alert">
-          {message}
-        </Text>
+      {noteFields.length ? (
+        <Card label={t("registerSectionNotes")} testID="register-notes">
+          {noteFields.map(renderTextField)}
+        </Card>
       ) : null}
       {discardAsk ? (
         <ConfirmDialog
@@ -1222,61 +1355,47 @@ export default function Register() {
           onCancel={() => setDiscardAsk(undefined)}
         />
       ) : null}
+      {/* Messages sit at the end of the form, next to the actions they answer. */}
+      {message ? <Notice tone="error">{message}</Notice> : null}
       {ageConfirmationPending ? (
-        <View style={styles.card} accessibilityRole="alert">
-          <Text style={styles.text}>{t("ageReviewConfirm")}</Text>
-          <Row>
-            <Button
-              kind="secondary"
-              label={t("cancel")}
-              disabled={busy}
-              onPress={() => {
-                setAgeConfirmationPending(false);
-                setAgeConfirmationStartAfter(false);
-              }}
-            />
-            <Button
-              loading={busy}
-              disabled={busy}
-              label={t("ageReviewSave")}
-              onPress={() => void save(ageConfirmationStartAfter, true)}
-            />
-          </Row>
-        </View>
+        <Notice
+          tone="warning"
+          action={
+            <Row>
+              <Button
+                kind="secondary"
+                label={t("cancel")}
+                disabled={busy}
+                onPress={() => {
+                  setAgeConfirmationPending(false);
+                  setAgeConfirmationStartAfter(false);
+                }}
+              />
+              <Button
+                loading={busy}
+                disabled={busy}
+                label={t("ageReviewSave")}
+                onPress={() => void save(ageConfirmationStartAfter, true)}
+              />
+            </Row>
+          }
+        >
+          {t("ageReviewConfirm")}
+        </Notice>
       ) : null}
-      <Row>
-        {!serverReadOnly ? (
-        <Button
-          label={t("save")}
-          disabled={!db || !target || busy || ageConfirmationPending}
-          onPress={() => void save(false)}
-        />
-        ) : null}
-        {!serverDeathId && !serverReadOnly && canStartInterview ? (
-          <Button
-            label={t("registerSaveStart")}
-            disabled={!db || !target || busy || ageConfirmationPending}
-            onPress={() => void save(true)}
-          />
-        ) : null}
-        <Button
-          kind="secondary"
-          label={t("cancel")}
+      {canDiscard ? (
+        <TextLink
+          tone="destructive"
+          label={t("discard")}
           disabled={busy}
-          onPress={() => router.back()}
+          onPress={() => Alert.alert(t("discard"), t("registrationDiscardConfirm"), [
+            { text: t("cancel"), style: "cancel" },
+            { text: t("discard"), style: "destructive", onPress: () => void discard(db) },
+          ])}
         />
-        {persistable && db ? (
-          <Button
-            kind="danger"
-            label={t("discard")}
-            disabled={busy}
-            onPress={() => Alert.alert(t("discard"), t("registrationDiscardConfirm"), [
-              { text: t("cancel"), style: "cancel" },
-              { text: t("discard"), style: "destructive", onPress: () => void discard(db) },
-            ])}
-          />
-        ) : null}
-      </Row>
+      ) : null}
+      </View>
+      </FormThemeContext.Provider>
     </Screen>
   );
 }

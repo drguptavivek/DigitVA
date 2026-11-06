@@ -1,7 +1,7 @@
 -- De-identified analysis file for the DigitVA LDH manuscript (one row per submission).
 -- No identifiers, names, narratives or free text leave the database; the coder is a
 -- per-project pseudonym. Output stays in private/ (git-ignored).
--- Run: docker compose exec -T minerva_db_service psql -U minerva -d minerva -q -f - < scripts/stata/digitva_ldh_export.sql > private/ldh-analysis/digitva_ldh_cases.csv
+-- Run via scripts/stata/build_package.sh (writes private/digitva-ldh-data/data/).
 set statement_timeout = '300s';
 -- ICD-10 code to WHO 2022 VA cause bucket (field and its category), as the
 -- reporting layer resolves it: three-character code, legacy aliases applied.
@@ -19,7 +19,7 @@ insert into bm
   where not exists (select 1 from bm x where x.code = a.legacy_code);
 copy (
 with base as (
-  select s.va_sid, f.project_id, s.va_submission_date, s.va_narration_language lang,
+  select s.va_sid, f.project_id, f.site_id, s.va_submission_date, s.va_narration_language lang,
          s.va_deceased_age_normalized_years age_y, v.payload_data pd
   from va_submissions s
   join va_forms f on f.form_id = s.va_form_id
@@ -43,10 +43,12 @@ with base as (
 )
 select
   case b.project_id when 'UNSW01' then 1 else 2 end as version,
+  dense_rank() over (partition by b.project_id order by md5(b.site_id)) as site,
   (fa.va_sid is not null)::int as coded,
   to_char(b.va_submission_date, 'YYYY-MM') as sub_month,
   to_char(fa.va_finassess_createdat, 'YYYY-MM-DD') as coded_date,
   dense_rank() over (partition by b.project_id order by md5(fa.va_finassess_by::text)) * (fa.va_sid is not null)::int as coder,
+  dense_rank() over (order by md5(fa.va_finassess_by::text)) * (fa.va_sid is not null)::int as coder_all,
   case when b.pd->>'Id10012' ~ '^\d{4}-\d\d-\d\d' and b.pd->>'Id10023' ~ '^\d{4}-\d\d-\d\d'
        then left(b.pd->>'Id10012', 10)::date - left(b.pd->>'Id10023', 10)::date end as death_to_interview_d,
   round((extract(epoch from fa.va_finassess_createdat - b.va_submission_date) / 86400)::numeric, 3) as sub_to_final_d,
@@ -76,6 +78,13 @@ select
   (exists (select 1 from va_coder_review cr where cr.va_sid = b.va_sid))::int as flagged,
   (exists (select 1 from va_final_assessments d where d.va_sid = b.va_sid and d.va_finassess_status = 'deactive'
              and d.demo_expires_at is null and not coalesce(d.is_tester, false)))::int as recoded,
+  -- Among recoded deaths: the three-character ICD-10 code of the active final cause
+  -- differs from that of at least one replaced final assessment.
+  (exists (select 1 from va_final_assessments d where d.va_sid = b.va_sid and d.va_finassess_status = 'deactive'
+             and d.demo_expires_at is null and not coalesce(d.is_tester, false)
+             and upper(substring(d.va_conclusive_cod from '^([A-Za-z][0-9]{2})'))
+                 is distinct from upper(substring(fa.va_conclusive_cod from '^([A-Za-z][0-9]{2})'))))::int as recoded_code_chg,
+  (exists (select 1 from va_smartva_results r where r.va_sid = b.va_sid and r.va_smartva_outcome = 'failed'))::int as sv_failed_any,
   (select count(*) from va_submission_payload_versions p where p.va_sid = b.va_sid) as payload_versions,
   (select count(*) from va_submission_payload_versions p where p.va_sid = b.va_sid and p.version_status = 'rejected') as rejected_versions,
   (select count(*) from va_submission_attachments t where t.va_sid = b.va_sid) as attachments,
@@ -92,6 +101,7 @@ select
   (b1.cat <> b2.cat)::int as s12_cat_chg,
   (b1.bucket = bs.bucket)::int as s1_sv_agree,
   (b2.bucket = bs.bucket)::int as s2_sv_agree,
+  (sv.va_sid is not null)::int as sv_available,
   (sv.cs like 'R%')::int as sv_undetermined
 from base b left join fa on fa.va_sid = b.va_sid
 left join ia on ia.va_sid = fa.va_sid
@@ -112,6 +122,3 @@ left join lateral (
 ) ch on true
 order by 1, random()
 ) to stdout with csv header;
-
--- Synchronisation runs before the cut-off:
--- docker compose exec -T minerva_db_service psql -U minerva -d minerva -q -c "copy (select to_char(started_at,'YYYY-MM') as run_month, triggered_by, status from va_sync_runs where started_at < '2026-06-01') to stdout with csv header" > private/ldh-analysis/digitva_ldh_syncruns.csv

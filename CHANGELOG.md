@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **LDH manuscript analysis package and owner inputs** (no beads): the
+  de-identified data sheet, Stata do file and check reproduce all 143 table 2
+  and Results values (`scripts/stata/build_package.sh`, `pipeline.md`; the
+  package itself stays in git-ignored `private/digitva-ldh-data/`). Manuscript:
+  21 references, all live Zotero citations (Leitao, Tunga, Maqungo, Tripathi
+  added; physician-versus-algorithm and document-cost claims softened),
+  contributors, sustainability, invoiced hosting cost (US$416, March 2025 to
+  May 2026); main text 3499 words excluding citations.
 - **iOS top gap, WHO input centring, demo links removed** (`digitva-jupw`, `digitva-gs8l`):
   with a mode bar and no header, the screen below also padded the status bar,
   leaving an empty band on iOS forms and consent; only the mode bar owns it

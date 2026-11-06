@@ -8,8 +8,7 @@ on 0.3.19 or older. main now also carries the Collect Petrol redesign,
 accessibility settings and server UI languages (CHANGELOG 2026-11-06), with
 the iOS, SmartVA and standalone app work that shared its files. Never reset
 or stash; preserve the unrelated `scripts/loadtest/restore.sh`, manuscript
-decks, `.claude/launch.json`, the InterVA `.tasks` note, `store/play/` and the
-uncommitted backend work below. WHO notes, parity runs and phone measurements
+decks, `.claude/launch.json`, the InterVA `.tasks` note and `store/play/`. WHO notes, parity runs and phone measurements
 live in `private/` (git-ignored; also holds keys).
 
 Owner rule (bd memory `coding-parity-all-surfaces`): coding works the same on
@@ -20,13 +19,17 @@ contrast, Large text) and refrozen.
 
 ## Ranked next steps
 
-1. Uncommitted work from other sessions, still in the tree: project home KPIs
-   (migration `e4b7c2d9a6f1`, untracked, still on `d3c8e5a1f7b4`: re-chain it
-   onto `921a78710fbf` before committing; dev has both applied), public help
-   pages, AI search. Three backend tests fail in it:
-   `test_duplicate_exclusion_coverage` (`public_home_stats_service._compute`
-   lacks the duplicate predicate), `test_help_page_stays_closed_to_a_coder`
-   (help made public), `test_catalog_questions_are_found_by_data_managers_only`.
+1. Collection gate, app side (`digitva-dj29`, the iOS/Expo session): the
+   Expo start check against `/me/access` "Collection gate"
+   (`docs/current-state/device-collection-api.md`); the server side is on main
+   (`87fff09cd`, `digitva-jeyy`). Before a staging deploy: run migrations
+   `e4b7c2d9a6f1`..`c3f9a2d6e8b4` and audit old APKs (the access fields are
+   additive; `collection_closed` is web-only). Project clock stage 2, dashboard
+   and report days on the project timezone (`digitva-apee`). Help chatbot build
+   (`digitva-wawz`, policy `docs/policy/help-chatbot.md`, decisions recorded;
+   the PII redaction step is not built). Manuscript owner inputs: ethics,
+   funders, authors, hosting and costs, literature screening counts, five
+   references not in Zotero (`docs/manuscript/LDH-manuscript-review-2026-11-06.md`).
 2. Collect redesign follow-ups: TalkBack and VoiceOver on a real phone
    (`digitva-eizq`), Hindi review of the new theme strings (`digitva-jt1w`),
    Play screenshots in the new theme (`digitva-fthd`), offline engine

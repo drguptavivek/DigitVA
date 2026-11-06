@@ -5,6 +5,24 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **Project clock, data-collection gate, coder daily cap, repeated recodes**
+  (`87fff09cd`; `digitva-apee`, `digitva-jeyy`, `digitva-fkec`,
+  `digitva-g7xq`): projects have a timezone and every project "today" (gate
+  dates, daily limits, the coder cap) follows it. A collection gate per site
+  and unit (on/off, inclusive dates, per-interviewer daily limit) refuses
+  only a brand-new web start; uploads, phone pushes, edits, a registered
+  death's interview and refusals are never refused, and `/me/access` carries
+  the gate additively without touching the interview or register_death
+  actions. Coders get 200 new cases per project per day (recode, demo and
+  tester allocations excluded; `va_allocations.va_allocation_kind`); the
+  one-recode rule is withdrawn, the window running from the first final of
+  the current coding round. Also: all help pages public, AI-question
+  suggestions on the AI page, public home slides and KPIs (opted-in projects,
+  duplicates excluded), the target completion date field, tooltip and help
+  fixes, the How-Do-I corpus and chatbot policy, and the LDH manuscript.
+  Migrations `e4b7c2d9a6f1`, `a7d3f9c2e5b1`, `b8e4c1d7f3a2`, `c3f9a2d6e8b4`.
+  Policy: `docs/policy/project-clock-and-gates.md`. Full backend suite on the
+  combined tree: 7,357 passed; the 4 real failures fixed, 1 flaky.
 - **Collect Petrol redesign, accessibility and server UI languages**
   (`digitva-3qah`, `digitva-khxv`, `digitva-s028`, `digitva-dt1e`,
   `digitva-22i1`, `digitva-esw2`): every Collect screen reachable on the

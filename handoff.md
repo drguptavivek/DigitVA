@@ -30,7 +30,8 @@ attachment intact, narrative audio record/pause/stop/delete, document photos
 with scanner, blur prompt and full-screen viewer), reopen a ready interview,
 sync, update, resend, and every in-app coding workflow (online and offline,
 standalone View/Revise). Write a repeatable e2e script where feasible (Maestro
-or Detox; propose first) and record every finding with screenshots in
+or Detox; propose first). Run it as two Sonnet agents, one driving Android, one
+driving iOS, each with its own test DB if it writes tests, and record every finding with screenshots in
 docs/current-state/collect-e2e-run-<date>.md, one bead per failure."
 Uncommitted in the tree for that session to verify first, then commit:
 `digitva-lq5m` photo tools (vendor question-controls, sharpness, viewer,

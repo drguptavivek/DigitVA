@@ -23,13 +23,16 @@ contrast, Large text) and refrozen.
    Expo start check against `/me/access` "Collection gate"
    (`docs/current-state/device-collection-api.md`); the server side is on main
    (`87fff09cd`, `digitva-jeyy`). Before a staging deploy: run migrations
-   `e4b7c2d9a6f1`..`c3f9a2d6e8b4` and audit old APKs (the access fields are
-   additive; `collection_closed` is web-only). Project clock stage 2, dashboard
-   and report days on the project timezone (`digitva-apee`). Help chatbot build
-   (`digitva-wawz`, policy `docs/policy/help-chatbot.md`, decisions recorded;
-   the PII redaction step is not built). Manuscript owner inputs: ethics,
-   funders, authors, hosting and costs, literature screening counts, five
-   references not in Zotero (`docs/manuscript/LDH-manuscript-review-2026-11-06.md`).
+   `e4b7c2d9a6f1`..`d8a4c6e2f1b3` and audit old APKs (the access fields are
+   additive; `collection_closed` is web-only); `d8a4c6e2f1b3` drops and
+   rebuilds the core analytics MV with CASCADE, so check `pg_depend` on
+   staging first. Owner decision: area dashboard windows on the project clock
+   (`digitva-at68`). Help chatbot build (`digitva-wawz`, policy
+   `docs/policy/help-chatbot.md`; the PII redaction step is not built).
+   Manuscript placeholders: ethics numbers (owner adds), two surnames,
+   affiliations, grant numbers, CRediT, screening counts and Embase,
+   post-grant maintenance, release DOI, five references not in Zotero
+   (`docs/manuscript/LDH-manuscript-review-2026-11-06.md`).
 2. Collect redesign follow-ups: TalkBack and VoiceOver on a real phone
    (`digitva-eizq`), Hindi review of the new theme strings (`digitva-jt1w`),
    Play screenshots in the new theme (`digitva-fthd`), offline engine

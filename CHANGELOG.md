@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **Dashboard days on the project clock, gate form fixes, manuscript version
+  dates** (`397d3a7af`; `digitva-apee`, follow-up `digitva-at68`):
+  dashboards, KPIs, reports, AI questions and the coded-COD export take an
+  event's day, "today" and "last N days" on its own project's timezone, each
+  project on its own clock in one query; the core analytics view stores the
+  project-local day (migration `d8a4c6e2f1b3`, drops and rebuilds the view:
+  check staging dependents first). Area dashboard windows stay UTC pending
+  `digitva-at68`. Timezone and site gate editors no longer overflow on phone
+  or tablet widths. Manuscript: both versions described as coding on DigitVA
+  (collection in ODK), authors, funders (CDC Foundation, ICMR), states,
+  hosting and costs filled in; 3500 words. Policy:
+  `docs/policy/project-clock-and-gates.md`, `docs/policy/kpis.md`.
 - **Plain Collect asks no coding question** (`digitva-qfji`): offline coding
   is Collect Plus only, so plain Collect skips the first-launch "Enable
   ICD-11 / DORIS coding" question and online coding defaults on (server

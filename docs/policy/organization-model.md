@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Organization Model Policy
@@ -1010,8 +1010,10 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
 
 ## Not yet implemented (later phases of the plan)
 
-- unit dimensions in dashboards and analytics (the submission CSV export's
-  unit columns are implemented — see
+- unit dimensions in dashboards and analytics beyond those built (the
+  submission CSV export's unit columns, the analytics MV's unit columns, the
+  data manager's Org unit filter and the per-unit breakdowns of the DM KPI
+  outcome and critical-path panels are implemented — see
   [Implementation Report](../current-state/health-system-organization-model.md#open-questions))
 
 ## Worker account entry and multi-unit coding/supervision scope

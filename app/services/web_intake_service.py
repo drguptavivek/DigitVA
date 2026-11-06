@@ -55,6 +55,7 @@ from app.models.va_web_intake import (
 from app.services import case_transition_service as cases
 from app.services import death_identifier_service as death_identifiers
 from app.services import (
+    collection_gate,
     notification_service,
     org_grant_service,
     public_demo_service,
@@ -846,17 +847,23 @@ def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset
 
 def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None,
                    client_death_id: uuid.UUID | None = None, identifiers: dict | None = None,
-                   warnings: list | None = None, **fields) -> VaDeathRegister:
+                   warnings: list | None = None, enforce_collection_gate: bool = False,
+                   **fields) -> VaDeathRegister:
     """Register a death. *identifiers* (``{type code: text}``) are validated
     and stored with it (``death_identifier_service.set_identifiers``), always
     checked for the project's ``required_at_report`` types; any
-    ``identifier_in_use`` warnings are appended to *warnings*."""
+    ``identifier_in_use`` warnings are appended to *warnings*.
+    *enforce_collection_gate*: a live new start (the browser's register), so a
+    closed collection gate refuses it (``collection_gate.require_open``); an
+    upload of a registration made offline never passes it."""
     mode = get_web_intake_mode(project_id)
     if not _mode_allows(mode, death_register=True):
         raise WebIntakeError("This project does not use the death register.", 403)
     org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
     # An interviewer or a death_reporter (register_death_context's predicate).
     _require_scope(user, project_id, site_id, org_unit_id, DEATH_REGISTERING_ROLES)
+    if enforce_collection_gate:
+        collection_gate.require_open(user, project_id, site_id, org_unit_id)
     public_demo_service.check_new_registration(user, project_id)
     cleaned = _clean_death_fields(fields)
     _require_age_info(cleaned)
@@ -1694,7 +1701,7 @@ def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
         cases.transition(death, "in_progress", actor=user, action=action)
 
 
-def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, entries: list[dict] | None = None, locked_death: VaDeathRegister | None = None, unrouted_ok: bool = False) -> VaWebIntakeDraft:
+def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, entries: list[dict] | None = None, locked_death: VaDeathRegister | None = None, unrouted_ok: bool = False, enforce_collection_gate: bool = False) -> VaWebIntakeDraft:
     """Open (or return the caller's own) draft for a case, or start directly.
 
     *entries* and *locked_death* are plumbing for a caller that already built
@@ -1702,6 +1709,9 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
     ``lock_case`` on this case in this transaction (``submit_device_interview``):
     reused instead of rebuilt, re-read and re-locked. Every check still runs.
     *unrouted_ok* as ``_require_scope`` (a standalone push only).
+    *enforce_collection_gate*: a live direct start (the browser's), refused
+    by a closed collection gate; it never applies to a case already
+    registered, which is continuing work (project-clock-and-gates.md).
 
     A direct start creates its case at once (``source = direct``,
     ``draft_identity``); the draft's answers fill the identity in.
@@ -1744,6 +1754,8 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
     else:
         org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
     _require_scope(user, project_id, site_id, org_unit_id, entries=entries, unrouted_ok=unrouted_ok)
+    if enforce_collection_gate and death is None:
+        collection_gate.require_open(user, project_id, site_id, org_unit_id)
     # Only a new draft counts against the public demo's open-draft limit.
     public_demo_service.check_new_draft(user, project_id)
     form = ensure_web_runtime_form(project_id, site_id)

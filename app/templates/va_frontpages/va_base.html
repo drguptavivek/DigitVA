@@ -292,12 +292,13 @@
     {% endwith %}
     <footer class="py-2">
       <div class="container text-center">
-        <p class="mb-0">&copy; {{ current_year }} DigitVA - All Rights Reserved</p>
+        <p class="mb-0">&copy; {{ current_year }} DigitVA. Source code open under the MIT licence; verbal autopsy data and content: all rights reserved.</p>
         <a class="text-light" href="{{ url_for('expo_client.expo_index') }}">Open Expo web app</a>
         <span class="text-light mx-2" aria-hidden="true">·</span><a class="text-light" href="{{ url_for('help.page', slug='mobile-app') }}">Get the Android app</a>
         <span class="text-light mx-2" aria-hidden="true">·</span><a class="text-light" href="{{ url_for('public_pages.privacy') }}">Privacy policy</a>
         <span class="text-light mx-2" aria-hidden="true">·</span><a class="text-light" href="{{ url_for('public_pages.data_requests') }}">Consent and data requests</a>
         <span class="text-light mx-2" aria-hidden="true">·</span><a class="text-light" href="{{ url_for('public_pages.contact') }}">Contact us</a>
+        <span class="text-light mx-2" aria-hidden="true">·</span><a class="text-light" href="https://github.com/drguptavivek/DigitVA" target="_blank" rel="noopener noreferrer"><i class="fab fa-github me-1" aria-hidden="true"></i>Source code on GitHub</a>
       </div>
     </footer>
     

@@ -36,9 +36,10 @@ class AiSearchFallbackTests(BaseTestCase):
         hit = next(r for r in results if r["title"] == "Password Reset")
         self.assertEqual((hit["kind"], hit["url"]), ("help", "/help/password-reset"))
 
-    def test_admin_only_page_is_hidden_from_a_coder(self):
+    def test_admin_help_page_is_found_by_a_coder(self):
+        # Every help page is public since 2026-11-06.
         self.assertIn("Admin Panel Overview", titles(svc.search(self.base_admin_user, "admin panel overview")))
-        self.assertNotIn("Admin Panel Overview", titles(svc.search(self.base_coder_user, "admin panel overview")))
+        self.assertIn("Admin Panel Overview", titles(svc.search(self.base_coder_user, "admin panel overview")))
 
     def test_va_definition_found_by_typo_of_its_title(self):
         db.session.add(MasVaCauseDefinition(

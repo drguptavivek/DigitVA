@@ -3,7 +3,7 @@ title: Mentor View Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-11-06
 ---
 
 # Mentor View Policy
@@ -11,6 +11,10 @@ last_updated: 2026-10-24
 Bead `digitva-oux5` (native client: `digitva-3vj8`). Owner decisions of
 2026-10-24, confirmed. Nothing here is built yet. Design notes:
 `.tasks/2026-10-24-expo-dashboards-dm-mentor-district.md`, "Mentor view".
+The existing Mentoring Institution screen (`/app/mentoring`,
+`mobile/digitva-collect/src/web/MentoringScreen.tsx`) is a different feature:
+institute membership, supported districts and the staff roster, with no
+per-coder progress.
 
 ## Purpose
 
@@ -158,7 +162,7 @@ coder COD, never the initial COD or a draft recode
   accept/reject overlay).
 - **Recode**: a `va_coding_episodes` row with `episode_type = 'recode'` and
   `started_by` the coder (`app/models/va_coding_episodes.py:12-50`), started in
-  the period. Only the original coder may recode, once, within the project's
+  the period. Only the original coder may recode, any number of times, within the project's
   recode window (`docs/policy/coding-workflow-state-machine.md:885-905`).
   Abandoned episodes count as recodes started. Open question 4.
 - **Not codeable** by a data manager (`not_codeable_by_data_manager`) is not a

@@ -7,7 +7,7 @@ import uuid
 import secrets
 from dataclasses import dataclass
 from urllib.parse import urlparse
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
 from types import SimpleNamespace
@@ -22,6 +22,7 @@ from flask_wtf.csrf import generate_csrf
 
 from app import db, limiter
 from app.decorators import role_required
+from app.services import collection_gate
 from app.services.odk_case_service import ODK_SYNC_USER_ID
 from app.services.project_country_service import parse_project_country, project_country
 from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries as _SMARTVA_COUNTRIES
@@ -106,6 +107,12 @@ from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 
 
 admin = Blueprint("admin", __name__)
+
+
+def _is_training_or_demo(project_id, demo_training_enabled, synthetic_demo_reset_enabled):
+    """Training and demo projects never count on the public home page."""
+    training_id = current_app.config.get("DIGITVA_TRAINING_PROJECT_ID") or None
+    return bool(demo_training_enabled or synthetic_demo_reset_enabled or project_id == training_id)
 
 
 def _json_error(message, status_code):
@@ -428,7 +435,12 @@ def _serialize_project(project, form_type_codes=None):
         "above_scope_coding_mode": project.above_scope_coding_mode,
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
+        "home_kpis_included": project.home_kpis_included,
         "recode_window_minutes": project.recode_window_minutes,
+        "timezone": project.timezone,
+        "project_target_completion_date": project.project_target_completion_date.isoformat()
+        if project.project_target_completion_date
+        else None,
         "project_country_iso3": project.project_country_iso3,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
         "web_intake_mode": project.web_intake_mode,
@@ -1139,6 +1151,7 @@ def _serialize_project_site(row):
         "coding_start_date": row.coding_start_date.isoformat() if row.coding_start_date else None,
         "coding_end_date": row.coding_end_date.isoformat() if row.coding_end_date else None,
         "daily_coder_limit": row.daily_coder_limit,
+        **collection_gate.serialize_settings(row),
     }
 
 
@@ -1471,6 +1484,35 @@ def _parse_recode_window_minutes(value) -> tuple[int | None, str | None]:
     return minutes, None
 
 
+def _parse_project_timezone(value) -> tuple[str | None, str | None]:
+    """The project clock's IANA zone, or an error message.
+
+    Policy: docs/policy/project-clock-and-gates.md ("Project clock").
+    """
+    from app.services.project_clock import is_valid_timezone
+
+    if not is_valid_timezone(value):
+        return None, "timezone must be an IANA timezone name such as Asia/Kolkata."
+    return value, None
+
+
+def _parse_target_completion_date(value) -> tuple[date | None, str | None]:
+    """An ISO date (YYYY-MM-DD), or None for empty to clear it; else an error.
+
+    Policy: docs/policy/kpis.md ("App-Level Settings").
+    """
+    if value is None or value == "":
+        return None, None
+    error = "project_target_completion_date must be a date (YYYY-MM-DD) or empty."
+    # fromisoformat alone also takes "20261231" and week dates.
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return None, error
+    try:
+        return date.fromisoformat(value), None
+    except ValueError:
+        return None, error
+
+
 @admin.post("/api/projects")
 @role_required("admin")
 def admin_create_project():
@@ -1495,7 +1537,21 @@ def admin_create_project():
     if error:
         return _json_error(error, 400)
 
+    from app.services.project_clock import DEFAULT_PROJECT_TIMEZONE
+
+    project_timezone, error = _parse_project_timezone(
+        payload.get("timezone", DEFAULT_PROJECT_TIMEZONE)
+    )
+    if error:
+        return _json_error(error, 400)
+
     project_country_iso3, error = parse_project_country(payload.get("project_country_iso3"))
+    if error:
+        return _json_error(error, 400)
+
+    target_completion_date, error = _parse_target_completion_date(
+        payload.get("project_target_completion_date")
+    )
     if error:
         return _json_error(error, 400)
 
@@ -1552,6 +1608,12 @@ def admin_create_project():
     ):
         return _json_error(error, 400)
 
+    home_kpis_included = bool(payload.get("home_kpis_included", False))
+    if home_kpis_included and _is_training_or_demo(
+        project_id, bool(payload.get("demo_training_enabled", False)), False
+    ):
+        return _json_error("A training or demo project cannot be included in the home page KPIs.", 400)
+
     # Validated before the row is built so a rejected payload adds nothing.
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:
@@ -1578,8 +1640,11 @@ def admin_create_project():
         web_intake_mode=web_intake_mode,
         self_coding_enabled=self_coding_enabled,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
+        home_kpis_included=home_kpis_included,
         demo_retention_minutes=demo_retention_minutes,
         recode_window_minutes=recode_window_minutes,
+        timezone=project_timezone,
+        project_target_completion_date=target_completion_date,
         project_country_iso3=project_country_iso3,
         # Only the keys the payload supplied, so the column defaults stand.
         **form_option_updates,
@@ -1777,6 +1842,15 @@ def admin_update_project(project_id):
     if "demo_training_enabled" in payload:
         updates["demo_training_enabled"] = bool(payload["demo_training_enabled"])
 
+    if "home_kpis_included" in payload:
+        updates["home_kpis_included"] = bool(payload["home_kpis_included"])
+    if updates.get("home_kpis_included", project.home_kpis_included) and _is_training_or_demo(
+        project.project_id,
+        updates.get("demo_training_enabled", project.demo_training_enabled),
+        project.synthetic_demo_reset_enabled,
+    ):
+        return _json_error("A training or demo project cannot be included in the home page KPIs.", 400)
+
     web_intake_mode = None
     if "web_intake_mode" in payload:
         from app.models.va_web_intake import WEB_INTAKE_MODES
@@ -1816,6 +1890,20 @@ def admin_update_project(project_id):
         if error:
             return _json_error(error, 400)
         updates["recode_window_minutes"] = recode_window_minutes
+
+    if "timezone" in payload:
+        project_timezone, error = _parse_project_timezone(payload["timezone"])
+        if error:
+            return _json_error(error, 400)
+        updates["timezone"] = project_timezone
+
+    if "project_target_completion_date" in payload:
+        target_completion_date, error = _parse_target_completion_date(
+            payload["project_target_completion_date"]
+        )
+        if error:
+            return _json_error(error, 400)
+        updates["project_target_completion_date"] = target_completion_date
 
     # Existing submissions keep the country they were stamped with.
     if "project_country_iso3" in payload:
@@ -2043,6 +2131,10 @@ def admin_project_sites():
             VaProjectSites.coding_start_date,
             VaProjectSites.coding_end_date,
             VaProjectSites.daily_coder_limit,
+            VaProjectSites.collection_enabled,
+            VaProjectSites.collection_start_date,
+            VaProjectSites.collection_end_date,
+            VaProjectSites.daily_interviewer_limit,
             VaProjectMaster.project_name,
             VaSiteMaster.site_name,
         )
@@ -2118,6 +2210,10 @@ def admin_create_project_site():
             VaProjectSites.coding_start_date,
             VaProjectSites.coding_end_date,
             VaProjectSites.daily_coder_limit,
+            VaProjectSites.collection_enabled,
+            VaProjectSites.collection_start_date,
+            VaProjectSites.collection_end_date,
+            VaProjectSites.daily_interviewer_limit,
             VaProjectMaster.project_name,
             VaSiteMaster.site_name,
         )
@@ -2211,6 +2307,31 @@ def admin_update_project_site_coding_settings(project_id, site_id):
         "coding_start_date": ps.coding_start_date.isoformat() if ps.coding_start_date else None,
         "coding_end_date": ps.coding_end_date.isoformat() if ps.coding_end_date else None,
         "daily_coder_limit": ps.daily_coder_limit,
+    })
+
+
+@admin.put("/api/project-sites/<project_id>/<site_id>/collection-settings")
+@role_required("admin")
+def admin_update_project_site_collection_settings(project_id, site_id):
+    """Update the data-collection gate of a project-site pair (same role as
+    the coding settings; docs/policy/project-clock-and-gates.md)."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    try:
+        values = collection_gate.clean_settings(request.get_json(silent=True) or {})
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    ps = _get_active_project_site(project_id.upper(), site_id.upper())
+    if not ps:
+        return _json_error("Active project-site mapping not found.", 404)
+    for name, value in values.items():
+        setattr(ps, name, value)
+    db.session.commit()
+    return jsonify({
+        "project_site_id": str(ps.project_site_id),
+        "project_id": ps.project_id,
+        "site_id": ps.site_id,
+        **collection_gate.serialize_settings(ps),
     })
 
 

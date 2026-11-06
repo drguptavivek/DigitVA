@@ -164,9 +164,10 @@ class KpiHelpAndSearchTests(BaseTestCase):
         self.assertIn("Coder Utilization Rate", html)
         self.assertIn('href="#C-21"', html)  # a merged id links to its survivor
 
-    def test_help_page_stays_closed_to_a_coder(self):
+    def test_help_page_is_open_to_a_coder(self):
+        # Every help page is public since 2026-11-06 (docs/policy/auth-decorator-rbac.md).
         self._login(str(self.base_coder_id))
-        self.assertEqual(self.client.get("/help/kpis").status_code, 403)
+        self.assertEqual(self.client.get("/help/kpis").status_code, 200)
 
     def test_kpi_documents_cover_the_registry(self):
         docs = search._kpi_docs()

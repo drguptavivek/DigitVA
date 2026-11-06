@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from flask import Blueprint, abort, current_app, redirect, render_template, send_from_directory, url_for
+from flask import Blueprint, abort, current_app, make_response, redirect, render_template, send_from_directory, session, url_for
 from flask_login import current_user
 
 va_main = Blueprint("va_main", __name__)
@@ -87,10 +87,22 @@ def va_index():
 
     if current_user.is_authenticated and export_ready():
         return redirect(current_user.landing_url())
-    return render_template(
+    from app.services.public_home_stats_service import CACHE_SECONDS, public_home_stats
+
+    has_flashes = bool(session.get("_flashes"))
+    response = make_response(render_template(
         "va_frontpages/va_index.html",
         who_va_related_documents=_who_va_related_documents(),
-    )
+        home_stats=public_home_stats(),
+    ))
+    # Logged-out visitors may reuse the page for an hour, like the KPIs in
+    # Redis. Vary: Cookie makes a browser refetch once it signs in (then the
+    # server redirects to the app); a page carrying a flash is never kept.
+    if not current_user.is_authenticated and not has_flashes:
+        response.cache_control.private = True
+        response.cache_control.max_age = CACHE_SECONDS
+        response.vary.add("Cookie")
+    return response
 
 
 @va_main.route("/who-va-documents/<path:document_slug>")

@@ -1,10 +1,16 @@
 <h2>What Is the Recode Window?</h2>
 
 <p>
-  The recode window is a <strong>24-hour period</strong> after a coder finalizes
-  a Cause of Death (COD) determination. During this window, the coder may reopen
-  the case and submit a replacement COD. After 24 hours, the window closes and
-  the coder can no longer recode the submission.
+  The recode window is a period after a coder finalizes a Cause of Death (COD)
+  determination. During this window, the coder may reopen the case and submit a
+  replacement COD. When the window closes, the coder can no longer recode the
+  submission.</p>
+
+<p>
+  Each project sets its own window length in minutes, from 1 minute to 7 days
+  (10080 minutes). The default is <strong>24 hours</strong> (1440 minutes). An
+  admin changes it with <strong>Recode window (min)</strong> in the
+  Projects panel.
 </p>
 
 <h2>How It Works</h2>
@@ -12,15 +18,17 @@
 <ol>
   <li>
     <strong>Coder submits final COD.</strong> The submission enters
-    <code>coder_finalized</code> state. The 24-hour recode timer starts.
+    <code>coder_finalized</code> state. The recode timer starts.
   </li>
   <li>
-    <strong>During the 24-hour window</strong>, the coder can reopen the case
-    from their coding history table and submit a new COD. The existing finalized
-    COD remains authoritative until the replacement is successfully saved.
+    <strong>During the recode window</strong>, the coder can reopen the case
+    from their coding history table and submit a new COD, as many times as
+    needed. The existing finalized COD remains authoritative until the
+    replacement is successfully saved. The window is counted from the coder's
+    first final COD for the case; a recode does not extend it.
   </li>
   <li>
-    <strong>After 24 hours</strong>, the submission automatically transitions to
+    <strong>When the window closes</strong>, the submission automatically transitions to
     <code>reviewer_eligible</code>. The coder can no longer recode the case.
   </li>
 </ol>
@@ -99,7 +107,7 @@
 <h2>After the Recode Window</h2>
 
 <p>
-  Once the 24-hour recode window closes:
+  Once the recode window closes:
 </p>
 
 <ol>
@@ -141,9 +149,9 @@
     </tr>
     <tr>
       <td>Recode window</td>
-      <td>24 hours</td>
-      <td>After finalization, the coder has 24 hours to change the COD. After
-          that, the case is locked for the coder.</td>
+      <td>Set per project (24 hours by default)</td>
+      <td>After finalization, the coder has the project's recode window to
+          change the COD. After that, the case is locked for the coder.</td>
     </tr>
     <tr>
       <td>Recode session timeout</td>

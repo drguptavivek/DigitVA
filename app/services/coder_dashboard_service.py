@@ -423,25 +423,33 @@ def get_coder_history_page(
         )
         for item in real_rows:
             item["recodeable"] = item["va_sid"] in recodeable
-        set_recode_until(real_rows)
+        set_recode_until(real_rows, user.user_id)
     for row in rows:
         row["recode_until"] = None
     rows.extend(real_rows)
     return rows[:limit], len(rows) > limit
 
 
-def set_recode_until(rows: list[dict]) -> None:
-    """Set ``recode_until`` on history rows: when the coder's recode window ends.
+def set_recode_until(rows: list[dict], user_id) -> None:
+    """Set ``recode_until`` on *user_id*'s history rows: when their recode window ends.
 
-    A final coding's time plus its project's ``recode_window_minutes``, as
-    tz-aware UTC ISO; None on not-codeable and tester rows, which are never
+    The user's first final or review of the case in the current coding round
+    (``first_coding_times``) plus
+    its project's ``recode_window_minutes``, as tz-aware UTC ISO, so a recode
+    never moves it; None on not-codeable and tester rows, which are never
     recoded. Set whether or not the row is still ``recodeable`` so a client can
-    say the window has closed. One query for the rows' projects; done outside
-    the cached history so a changed window shows at once.
+    say the window has closed. One query for the rows' projects and one for
+    the window starts; done outside the cached history so a changed window
+    shows at once.
     """
-    from app.services.recode_window import recode_windows_by_project
+    from app.services.recode_window import first_coding_times, recode_windows_by_project
 
     windows = recode_windows_by_project(row["project_id"] for row in rows)
+    starts = first_coding_times(
+        (row["va_sid"], user_id)
+        for row in rows
+        if not row.get("is_tester") and row.get("va_code_status") == "VA Coding Completed"
+    )
     for row in rows:
         row["recode_until"] = None
         window = windows.get(row["project_id"])
@@ -452,7 +460,9 @@ def set_recode_until(rows: list[dict]) -> None:
             or not row.get("va_coding_date")
         ):
             continue
-        coded_at = datetime.fromisoformat(row["va_coding_date"])
+        coded_at = starts.get((row["va_sid"], user_id)) or datetime.fromisoformat(
+            row["va_coding_date"]
+        )
         if coded_at.tzinfo is None:
             # Stored as naive UTC.
             coded_at = coded_at.replace(tzinfo=timezone.utc)
@@ -484,10 +494,11 @@ def get_coder_recodeable_sids(
 
     The same rule ``recode_limit_error`` applies when the recode starts
     (digitva-h67s), in SQL so the list stays one query: the user's own
-    active final within the project's recode window
-    (``recode_window_minutes``), and at most one final or coder review of
-    theirs (any status) on the submission in that window, so a case
-    already re-coded once is not offered again. And the same scope:
+    active final, inside the project's recode window
+    (``recode_window_minutes``) counted from the user's first final or
+    review of the submission in the current coding round
+    (``first_coding_at_expr``), so recoding never
+    extends it and may repeat inside it. And the same scope:
     only submissions *user* may RECODE (authz), so a case rerouted out of
     their unit is not offered on a form they still hold.
 
@@ -500,35 +511,12 @@ def get_coder_recodeable_sids(
         return []
     user_id = user.user_id
 
-    from app.services.recode_window import recode_window_interval
+    from app.services.recode_window import first_coding_at_expr, recode_window_interval
 
     # Each submission's own project window; the outer query joins the project.
-    recent_window = recode_window_interval()
-    # Aliased: the outer query joins both tables for the active rows.
-    window_final = sa.orm.aliased(VaFinalAssessments, name="window_final")
-    window_review = sa.orm.aliased(VaCoderReview, name="window_review")
-    finals_in_window = (
-        sa.select(sa.func.count())
-        .where(
-            window_final.va_sid == VaSubmissions.va_sid,
-            window_final.va_finassess_by == user_id,
-            # Tester output is never a coding of the case (digitva-ggc3).
-            window_final.is_tester.is_(False),
-            window_final.va_finassess_createdat + recent_window > sa.func.now(),
-        )
-        .correlate(VaSubmissions, VaProjectMaster)
-        .scalar_subquery()
-    )
-    reviews_in_window = (
-        sa.select(sa.func.count())
-        .where(
-            window_review.va_sid == VaSubmissions.va_sid,
-            window_review.va_creview_by == user_id,
-            window_review.is_tester.is_(False),
-            window_review.va_creview_createdat + recent_window > sa.func.now(),
-        )
-        .correlate(VaSubmissions, VaProjectMaster)
-        .scalar_subquery()
+    window_open = (
+        first_coding_at_expr(VaSubmissions.va_sid, user_id) + recode_window_interval()
+        > sa.func.now()
     )
     stmt = (
         sa.select(VaSubmissions.va_sid)
@@ -561,11 +549,8 @@ def get_coder_recodeable_sids(
             not_confirmed_duplicate_condition(VaSubmissions.va_sid),
             VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED,
             VaFinalAssessments.va_finassess_id.is_not(None),
-            VaFinalAssessments.va_finassess_createdat + recent_window
-            > sa.func.now(),
             VaCoderReview.va_creview_id.is_(None),
-            # recode_limit_error: "already re-coded once in the last <window>".
-            finals_in_window + reviews_in_window <= 1,
+            window_open,
         )
     )
     if sids is not None:

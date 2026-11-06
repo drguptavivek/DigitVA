@@ -84,9 +84,10 @@ class VaDefinitionsRoutesTests(BaseTestCase):
         self.assertIn('class="va-def-root"', body)
         self.assertIn("js/va_definitions.js", body)
 
-    def test_help_page_is_forbidden_without_a_coding_role(self):
+    def test_help_page_is_open_without_a_coding_role(self):
+        # Owner 2026-11-06: every help page is public (docs/policy/auth-decorator-rbac.md).
         self._login(str(self.base_project_pi_id))
-        self.assertEqual(self.client.get("/help/va-definitions").status_code, 403)
+        self.assertEqual(self.client.get("/help/va-definitions").status_code, 200)
 
     # ── admin panel and API ──────────────────────────────────────────────
     def test_shell_links_the_panel_and_panel_renders_for_admin(self):

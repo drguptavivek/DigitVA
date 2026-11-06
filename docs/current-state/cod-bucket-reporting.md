@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-06
 ---
 
 # COD Bucket Reporting
@@ -110,7 +110,8 @@ ICD-11 codes, client-side search. `/help/cod-bucket-schemes/<code>.json` and
 (`app/services/cod_bucket_mapping_service.py`), a public-fields-only
 projection of `export_cod_bucket_scheme_json` (a fixed number of queries per
 scheme, no cache). Policy: `docs/policy/icd10-to-icd11-transition.md` section 8.
-The `cod-buckets` help page stays restricted to data managers and admins.
+The `cod-buckets` help page is public too (owner 2026-11-06: every help page
+except `organization-demo` is public; `HELP_PAGES` in `app/routes/help.py`).
 
 ## Public mapping list
 

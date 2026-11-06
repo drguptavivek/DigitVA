@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Web Intake Policy
@@ -876,8 +876,9 @@ newer version is offered, and kept answers are dropped, so refused answers
 are never restored. Phones and older clients see the same status codes and
 reply shapes; the new fields are additive.
 
-Not built (`digitva-xz83`): the Android app's side of the sync (`mobile/`),
-and a browser answer the interviewer *clears* after a phone win comes back
+The Android app's side of the sync is built
+(`mobile/digitva-collect/src/draftSync.ts`). Not built (`digitva-xz83`): a
+browser answer the interviewer *clears* after a phone win comes back
 from the phone's copy on reload (cleared answers are absent from a browser
 section, so the phone's old value is not removed).
 
@@ -1731,8 +1732,10 @@ its name and date of death.
   interviewer grant of theirs reaches that case; otherwise it is the
   reporter's registration-only shape (no prefill, no interview links, no
   other interviewers' draft hints).
-- **Not built.** No browser page for reporters: the surface is the Android
-  collection app. A death_reporter has no `/intake/` page.
+- **Browser page.** Reporters have one web page, "Report a death"
+  (`GET /intake/deaths/new`, navbar link; owner, 2026-10-14), and the Expo web
+  client opens its death-registration screen for them. They have no other
+  `/intake/` page.
 
 ### Open design items (questions for the owner)
 

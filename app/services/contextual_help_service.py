@@ -197,7 +197,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
         "bullets": [
             "Stage 3 (Coding): Read the family's narrative and symptom checklist, complete narrative quality assessment (if enabled), and select the ICD cause of death.",
             "Pick vs Random: Choose 'Start next random case' for automatic assignment or pick a specific case from your queue.",
-            "Recode window: After submitting your final cause of death, you can reopen and correct your determination once, within the project's recode window (24 hours unless the project sets otherwise; 'Recode').",
+            "Recode window: After submitting your final cause of death, you can reopen and correct your determination as often as you need within the project's recode window (24 hours unless the project sets otherwise; 'Recode'). The window runs from your first final cause of death; a recode does not extend it.",
             "Within Area: You only code deaths belonging to your assigned health facility, block, or district (or designated cross-facility roster).",
         ],
         "sections": [

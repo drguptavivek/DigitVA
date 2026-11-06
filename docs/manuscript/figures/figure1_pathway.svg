@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180mm" height="105.56mm" viewBox="0 0 510.24 299.22" font-family="Helvetica, Arial, sans-serif">
+<title>The verbal autopsy pathway in DigitVA version 3</title>
+<rect width="510.24" height="299.22" fill="white"/>
+<text x="4.0" y="11.0" font-size="7.0" font-weight="bold" fill="#0072B2">Notify and collect</text>
+<line x1="4.0" y1="13.0" x2="219.2" y2="13.0" stroke="#0072B2" stroke-width="0.8"/>
+<text x="226.2" y="11.0" font-size="7.0" font-weight="bold" fill="#009E73">Decision support, coding and review</text>
+<line x1="226.2" y1="13.0" x2="423.0" y2="13.0" stroke="#009E73" stroke-width="0.8"/>
+<text x="430.0" y="11.0" font-size="7.0" font-weight="bold" fill="#E69F00">Report</text>
+<line x1="430.0" y1="13.0" x2="506.2" y2="13.0" stroke="#E69F00" stroke-width="0.8"/>
+<rect x="4.0" y="16.0" width="61.0" height="155.6" rx="2" fill="#DCEBF6" stroke="#0072B2" stroke-width="0.8"/>
+<rect x="4.0" y="16.0" width="61.0" height="23.2" rx="2" fill="#0072B2"/>
+<rect x="4.0" y="37.2" width="61.0" height="2" fill="#0072B2"/>
+<circle cx="10.7" cy="27.6" r="3.7" fill="white"/>
+<text x="10.7" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#0072B2">1</text>
+<text x="16.0" y="27.0" font-size="8.0" font-weight="bold" fill="white">Death</text>
+<text x="16.0" y="36.6" font-size="8.0" font-weight="bold" fill="white">notification</text>
+<text x="7.5" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="12.5" y="49.2" font-size="7.0" fill="#000">Death register</text>
+<text x="12.5" y="57.8" font-size="7.0" fill="#000">by health unit</text>
+<text x="7.5" y="69.4" font-size="7.0" fill="#000">•</text>
+<text x="12.5" y="69.4" font-size="7.0" fill="#000">Possible-</text>
+<text x="12.5" y="78.0" font-size="7.0" fill="#000">duplicate check</text>
+<text x="7.5" y="89.6" font-size="7.0" fill="#000">•</text>
+<text x="12.5" y="89.6" font-size="7.0" fill="#000">Interviewer</text>
+<text x="12.5" y="98.2" font-size="7.0" fill="#000">assigned</text>
+<line x1="65.8" y1="27.6" x2="69.2" y2="27.6" stroke="#000" stroke-width="0.8"/>
+<polygon points="71.2,27.6 68.6,25.8 68.6,29.4" fill="#000"/>
+<rect x="72.0" y="16.0" width="79.2" height="155.6" rx="2" fill="#DCEBF6" stroke="#0072B2" stroke-width="0.8"/>
+<rect x="72.0" y="16.0" width="79.2" height="23.2" rx="2" fill="#0072B2"/>
+<rect x="72.0" y="37.2" width="79.2" height="2" fill="#0072B2"/>
+<circle cx="78.7" cy="27.6" r="3.7" fill="white"/>
+<text x="78.7" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#0072B2">2</text>
+<text x="84.0" y="27.0" font-size="8.0" font-weight="bold" fill="white">Interview</text>
+<text x="75.5" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="80.5" y="49.2" font-size="7.0" fill="#000">ODK Collect, web</text>
+<text x="80.5" y="57.8" font-size="7.0" fill="#000">browser, or DigitVA</text>
+<text x="80.5" y="66.4" font-size="7.0" fill="#000">Collect Android app</text>
+<text x="80.5" y="75.0" font-size="7.0" fill="#000">(works offline)</text>
+<text x="75.5" y="86.6" font-size="7.0" fill="#000">•</text>
+<text x="80.5" y="86.6" font-size="7.0" fill="#000">WHO 2022</text>
+<text x="80.5" y="95.2" font-size="7.0" fill="#000">questionnaire with</text>
+<text x="80.5" y="103.8" font-size="7.0" fill="#000">DigitVA layers</text>
+<text x="80.5" y="112.4" font-size="7.0" fill="#000">switched on per</text>
+<text x="80.5" y="121.0" font-size="7.0" fill="#000">project</text>
+<text x="75.5" y="132.6" font-size="7.0" fill="#000">•</text>
+<text x="80.5" y="132.6" font-size="7.0" fill="#000">Narrative text,</text>
+<text x="80.5" y="141.2" font-size="7.0" fill="#000">photographs, audio,</text>
+<text x="80.5" y="149.8" font-size="7.0" fill="#000">medical documents</text>
+<line x1="152.0" y1="27.6" x2="155.4" y2="27.6" stroke="#000" stroke-width="0.8"/>
+<polygon points="157.4,27.6 154.8,25.8 154.8,29.4" fill="#000"/>
+<rect x="158.2" y="16.0" width="61.0" height="155.6" rx="2" fill="#DCEBF6" stroke="#0072B2" stroke-width="0.8"/>
+<rect x="158.2" y="16.0" width="61.0" height="23.2" rx="2" fill="#0072B2"/>
+<rect x="158.2" y="37.2" width="61.0" height="2" fill="#0072B2"/>
+<circle cx="164.9" cy="27.6" r="3.7" fill="white"/>
+<text x="164.9" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#0072B2">3</text>
+<text x="170.2" y="27.0" font-size="8.0" font-weight="bold" fill="white">Transfer</text>
+<text x="161.7" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="166.7" y="49.2" font-size="7.0" fill="#000">ODK</text>
+<text x="166.7" y="57.8" font-size="7.0" fill="#000">synchronisation</text>
+<text x="166.7" y="66.4" font-size="7.0" fill="#000">to the server</text>
+<text x="161.7" y="78.0" font-size="7.0" fill="#000">•</text>
+<text x="166.7" y="78.0" font-size="7.0" fill="#000">Unsent</text>
+<text x="166.7" y="86.6" font-size="7.0" fill="#000">interviews kept</text>
+<text x="166.7" y="95.2" font-size="7.0" fill="#000">in an encrypted</text>
+<text x="166.7" y="103.8" font-size="7.0" fill="#000">store on the</text>
+<text x="166.7" y="112.4" font-size="7.0" fill="#000">phone</text>
+<text x="161.7" y="124.0" font-size="7.0" fill="#000">•</text>
+<text x="166.7" y="124.0" font-size="7.0" fill="#000">Signed,</text>
+<text x="166.7" y="132.6" font-size="7.0" fill="#000">encrypted</text>
+<text x="166.7" y="141.2" font-size="7.0" fill="#000">transfer files</text>
+<text x="166.7" y="149.8" font-size="7.0" fill="#000">from sites</text>
+<text x="166.7" y="158.4" font-size="7.0" fill="#000">without a</text>
+<text x="166.7" y="167.0" font-size="7.0" fill="#000">network</text>
+<line x1="220.0" y1="27.6" x2="223.4" y2="27.6" stroke="#000" stroke-width="0.8"/>
+<polygon points="225.4,27.6 222.8,25.8 222.8,29.4" fill="#000"/>
+<rect x="226.2" y="16.0" width="45.7" height="155.6" rx="2" fill="#D5F0E7" stroke="#009E73" stroke-width="0.8"/>
+<rect x="226.2" y="16.0" width="45.7" height="23.2" rx="2" fill="#009E73"/>
+<rect x="226.2" y="37.2" width="45.7" height="2" fill="#009E73"/>
+<circle cx="232.9" cy="27.6" r="3.7" fill="white"/>
+<text x="232.9" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#009E73">4</text>
+<text x="238.2" y="27.0" font-size="8.0" font-weight="bold" fill="white">SmartVA</text>
+<text x="229.7" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="234.7" y="49.2" font-size="7.0" fill="#000">Run on</text>
+<text x="234.7" y="57.8" font-size="7.0" fill="#000">every</text>
+<text x="234.7" y="66.4" font-size="7.0" fill="#000">interview</text>
+<text x="229.7" y="78.0" font-size="7.0" fill="#000">•</text>
+<text x="234.7" y="78.0" font-size="7.0" fill="#000">On the</text>
+<text x="234.7" y="86.6" font-size="7.0" fill="#000">server and</text>
+<text x="234.7" y="95.2" font-size="7.0" fill="#000">on the</text>
+<text x="234.7" y="103.8" font-size="7.0" fill="#000">phone</text>
+<line x1="272.7" y1="27.6" x2="276.1" y2="27.6" stroke="#000" stroke-width="0.8"/>
+<polygon points="278.1,27.6 275.5,25.8 275.5,29.4" fill="#000"/>
+<rect x="278.9" y="16.0" width="76.2" height="155.6" rx="2" fill="#D5F0E7" stroke="#009E73" stroke-width="0.8"/>
+<rect x="278.9" y="16.0" width="76.2" height="23.2" rx="2" fill="#009E73"/>
+<rect x="278.9" y="37.2" width="76.2" height="2" fill="#009E73"/>
+<circle cx="285.6" cy="27.6" r="3.7" fill="white"/>
+<text x="285.6" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#009E73">5</text>
+<text x="290.9" y="27.0" font-size="8.0" font-weight="bold" fill="white">Physician</text>
+<text x="290.9" y="36.6" font-size="8.0" font-weight="bold" fill="white">coding</text>
+<text x="282.4" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="287.4" y="49.2" font-size="7.0" fill="#000">Masked step 1, then</text>
+<text x="287.4" y="57.8" font-size="7.0" fill="#000">step 2 with SmartVA</text>
+<text x="287.4" y="66.4" font-size="7.0" fill="#000">shown; or one step</text>
+<text x="287.4" y="75.0" font-size="7.0" fill="#000">with SmartVA shown</text>
+<text x="287.4" y="83.6" font-size="7.0" fill="#000">(set per project)</text>
+<text x="282.4" y="95.2" font-size="7.0" fill="#000">•</text>
+<text x="287.4" y="95.2" font-size="7.0" fill="#000">ICD-10 or ICD-11</text>
+<text x="287.4" y="103.8" font-size="7.0" fill="#000">with the WHO</text>
+<text x="287.4" y="112.4" font-size="7.0" fill="#000">mortality rules</text>
+<text x="282.4" y="124.0" font-size="7.0" fill="#000">•</text>
+<text x="287.4" y="124.0" font-size="7.0" fill="#000">Same screens on</text>
+<text x="287.4" y="132.6" font-size="7.0" fill="#000">web and phone,</text>
+<text x="287.4" y="141.2" font-size="7.0" fill="#000">offline</text>
+<line x1="355.9" y1="27.6" x2="359.3" y2="27.6" stroke="#000" stroke-width="0.8"/>
+<polygon points="361.3,27.6 358.7,25.8 358.7,29.4" fill="#000"/>
+<rect x="362.1" y="16.0" width="61.0" height="155.6" rx="2" fill="#D5F0E7" stroke="#009E73" stroke-width="0.8"/>
+<rect x="362.1" y="16.0" width="61.0" height="23.2" rx="2" fill="#009E73"/>
+<rect x="362.1" y="37.2" width="61.0" height="2" fill="#009E73"/>
+<circle cx="368.8" cy="27.6" r="3.7" fill="white"/>
+<text x="368.8" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#009E73">6</text>
+<text x="374.1" y="27.0" font-size="8.0" font-weight="bold" fill="white">Review and</text>
+<text x="374.1" y="36.6" font-size="8.0" font-weight="bold" fill="white">recoding</text>
+<text x="365.6" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="370.6" y="49.2" font-size="7.0" fill="#000">Reviewer</text>
+<text x="370.6" y="57.8" font-size="7.0" fill="#000">allocated for</text>
+<text x="370.6" y="66.4" font-size="7.0" fill="#000">quality</text>
+<text x="370.6" y="75.0" font-size="7.0" fill="#000">assurance</text>
+<text x="365.6" y="86.6" font-size="7.0" fill="#000">•</text>
+<text x="370.6" y="86.6" font-size="7.0" fill="#000">Recoding</text>
+<text x="370.6" y="95.2" font-size="7.0" fill="#000">window for</text>
+<text x="370.6" y="103.8" font-size="7.0" fill="#000">correction</text>
+<line x1="423.8" y1="27.6" x2="427.2" y2="27.6" stroke="#000" stroke-width="0.8"/>
+<polygon points="429.2,27.6 426.6,25.8 426.6,29.4" fill="#000"/>
+<rect x="430.0" y="16.0" width="76.2" height="155.6" rx="2" fill="#FCEBCB" stroke="#E69F00" stroke-width="0.8"/>
+<rect x="430.0" y="16.0" width="76.2" height="23.2" rx="2" fill="#E69F00"/>
+<rect x="430.0" y="37.2" width="76.2" height="2" fill="#E69F00"/>
+<circle cx="436.7" cy="27.6" r="3.7" fill="white"/>
+<text x="436.7" y="30.1" font-size="7" font-weight="bold" text-anchor="middle" fill="#E69F00">7</text>
+<text x="442.0" y="27.0" font-size="8.0" font-weight="bold" fill="black">Reporting</text>
+<text x="433.5" y="49.2" font-size="7.0" fill="#000">•</text>
+<text x="438.5" y="49.2" font-size="7.0" fill="#000">Cause groups:</text>
+<text x="438.5" y="57.8" font-size="7.0" fill="#000">WHO 2022 VA,</text>
+<text x="438.5" y="66.4" font-size="7.0" fill="#000">SRS, CMEA10</text>
+<text x="433.5" y="78.0" font-size="7.0" fill="#000">•</text>
+<text x="438.5" y="78.0" font-size="7.0" fill="#000">Dashboards by</text>
+<text x="438.5" y="86.6" font-size="7.0" fill="#000">health unit; flags for</text>
+<text x="438.5" y="95.2" font-size="7.0" fill="#000">no interview within</text>
+<text x="438.5" y="103.8" font-size="7.0" fill="#000">60 days or no</text>
+<text x="438.5" y="112.4" font-size="7.0" fill="#000">coding within 15</text>
+<text x="438.5" y="121.0" font-size="7.0" fill="#000">days</text>
+<text x="433.5" y="132.6" font-size="7.0" fill="#000">•</text>
+<text x="438.5" y="132.6" font-size="7.0" fill="#000">Plain-language</text>
+<text x="438.5" y="141.2" font-size="7.0" fill="#000">questions on</text>
+<text x="438.5" y="149.8" font-size="7.0" fill="#000">aggregate counts</text>
+<path d="M392.6,171.6 V182.6 H111.6 V174.6" stroke="#000" stroke-width="0.7" stroke-dasharray="2.2,1.4" fill="none"/>
+<path d="M317.0,171.6 V182.6" stroke="#000" stroke-width="0.7" stroke-dasharray="2.2,1.4" fill="none"/>
+<polygon points="111.6,172.1 109.8,174.9 113.4,174.9" fill="#000"/>
+<text x="214.3" y="180.8" font-size="7.0" text-anchor="middle" fill="#000">Incomplete interview sent back to the interviewer for revision</text>
+<line x1="4.0" y1="189.6" x2="506.2" y2="189.6" stroke="#000" stroke-width="1.2"/>
+<line x1="4.0" y1="187.6" x2="4.0" y2="191.6" stroke="#000" stroke-width="1.2"/>
+<line x1="506.2" y1="187.6" x2="506.2" y2="191.6" stroke="#000" stroke-width="1.2"/>
+<text x="7.0" y="198.8" font-size="7.0" fill="#000">Version 3: every step</text>
+<line x1="72.0" y1="205.6" x2="506.2" y2="205.6" stroke="#000" stroke-width="1.2"/>
+<line x1="72.0" y1="203.6" x2="72.0" y2="207.6" stroke="#000" stroke-width="1.2"/>
+<line x1="506.2" y1="203.6" x2="506.2" y2="207.6" stroke="#000" stroke-width="1.2"/>
+<text x="75.0" y="214.8" font-size="7.0" fill="#000">Versions 1 and 2: ODK Collect interview onward; reviewer and recoding from version 2</text>
+<text x="4.0" y="224.6" font-size="7.0" font-weight="bold" fill="#6E6E6E">Across all steps</text>
+<line x1="4.0" y1="226.6" x2="506.2" y2="226.6" stroke="#6E6E6E" stroke-width="0.8"/>
+<rect x="4.0" y="229.6" width="96.4" height="65.6" rx="2" fill="#F0F0F0" stroke="#6E6E6E" stroke-width="0.8"/>
+<text x="7.5" y="239.1" font-size="7.0" font-weight="bold" fill="#000">Access</text>
+<text x="7.5" y="247.7" font-size="7.0" fill="#000">Relationship-based access</text>
+<text x="7.5" y="256.3" font-size="7.0" fill="#000">along the health-system</text>
+<text x="7.5" y="264.9" font-size="7.0" fill="#000">hierarchy</text>
+<rect x="105.4" y="229.6" width="96.4" height="65.6" rx="2" fill="#F0F0F0" stroke="#6E6E6E" stroke-width="0.8"/>
+<text x="108.9" y="239.1" font-size="7.0" font-weight="bold" fill="#000">Personal data</text>
+<text x="108.9" y="247.7" font-size="7.0" fill="#000">Identifiers held by project,</text>
+<text x="108.9" y="256.3" font-size="7.0" fill="#000">shown only to health-system</text>
+<text x="108.9" y="264.9" font-size="7.0" fill="#000">staff with a grant, encrypted</text>
+<text x="108.9" y="273.5" font-size="7.0" fill="#000">at rest</text>
+<rect x="206.9" y="229.6" width="96.4" height="65.6" rx="2" fill="#F0F0F0" stroke="#6E6E6E" stroke-width="0.8"/>
+<text x="210.4" y="239.1" font-size="7.0" font-weight="bold" fill="#000">Configuration</text>
+<text x="210.4" y="247.7" font-size="7.0" fill="#000">Per project: questionnaire</text>
+<text x="210.4" y="256.3" font-size="7.0" fill="#000">layers, consent notice,</text>
+<text x="210.4" y="264.9" font-size="7.0" fill="#000">coding workflow, cause-</text>
+<text x="210.4" y="273.5" font-size="7.0" fill="#000">group scheme</text>
+<rect x="308.3" y="229.6" width="96.4" height="65.6" rx="2" fill="#F0F0F0" stroke="#6E6E6E" stroke-width="0.8"/>
+<text x="311.8" y="239.1" font-size="7.0" font-weight="bold" fill="#000">Training</text>
+<text x="311.8" y="247.7" font-size="7.0" fill="#000">Training project with</text>
+<text x="311.8" y="256.3" font-size="7.0" fill="#000">pseudonymised cases,</text>
+<text x="311.8" y="264.9" font-size="7.0" fill="#000">weekly synthetic</text>
+<text x="311.8" y="273.5" font-size="7.0" fill="#000">demonstration, public</text>
+<text x="311.8" y="282.1" font-size="7.0" fill="#000">demonstration site,</text>
+<text x="311.8" y="290.7" font-size="7.0" fill="#000">standalone phone mode</text>
+<rect x="409.8" y="229.6" width="96.4" height="65.6" rx="2" fill="#F0F0F0" stroke="#6E6E6E" stroke-width="0.8"/>
+<text x="413.3" y="239.1" font-size="7.0" font-weight="bold" fill="#000">Open</text>
+<text x="413.3" y="247.7" font-size="7.0" fill="#000">Public help pages, cause-</text>
+<text x="413.3" y="256.3" font-size="7.0" fill="#000">group schemes and code-</text>
+<text x="413.3" y="264.9" font-size="7.0" fill="#000">to-cause mapping; open-</text>
+<text x="413.3" y="273.5" font-size="7.0" fill="#000">source code</text>
+</svg>

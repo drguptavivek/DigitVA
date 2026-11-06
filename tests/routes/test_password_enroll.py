@@ -83,7 +83,9 @@ class PasswordEnrolTests(BaseTestCase):
         db.session.commit()
         return user
 
-    def test_success_combines_enrolment_and_session_and_stores_install_uuid(self):
+    # server_time in the access body is the instant of each response.
+    @mock.patch("app.services.project_clock._now", return_value=datetime(2026, 11, 6, 6, 0, tzinfo=UTC))
+    def test_success_combines_enrolment_and_session_and_stores_install_uuid(self, _now):
         client_uuid = uuid.uuid4()
         response = self._enrol(client_device_uuid=str(client_uuid).upper())
         self.assertEqual(response.status_code, 201, response.get_json())

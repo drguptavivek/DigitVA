@@ -857,7 +857,9 @@ class DeviceApiTests(BaseTestCase):
 
     # ── access in the sign-in reply ────────────────────────────────────────
 
-    def test_sign_in_and_refresh_carry_the_me_access_body(self):
+    # server_time in the access body is the instant of each response.
+    @mock.patch("app.services.project_clock._now", return_value=datetime(2026, 11, 6, 6, 0, tzinfo=UTC))
+    def test_sign_in_and_refresh_carry_the_me_access_body(self, _now):
         device, tokens = self._session()
         access = self.client.get(ME_ACCESS, headers=self._bearer(tokens)).get_json()
         self.assertEqual(access["user"]["user_id"], str(self.interviewer.user_id))
@@ -867,7 +869,9 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(refreshed.status_code, 200)
         self.assertEqual(refreshed.get_json()["access"], access)
 
-    def test_me_access_sets_the_csrf_header_for_a_cookie_and_never_a_bearer(self):
+    # server_time in the access body is the instant of each response.
+    @mock.patch("app.services.project_clock._now", return_value=datetime(2026, 11, 6, 6, 0, tzinfo=UTC))
+    def test_me_access_sets_the_csrf_header_for_a_cookie_and_never_a_bearer(self, _now):
         _device, tokens = self._session()
         bearer = self.client.get(ME_ACCESS, headers=self._bearer(tokens))
         self.assertEqual(bearer.status_code, 200)
@@ -891,7 +895,9 @@ class DeviceApiTests(BaseTestCase):
         self.assertTrue(body["terms_required"])
         self.assertEqual([p["project_id"] for p in body["access"]["projects"]], [self.PROJECT_ID])
 
-    def test_native_session_refresh_and_me_access_are_credential_scoped(self):
+    # server_time in the access body is the instant of each response.
+    @mock.patch("app.services.project_clock._now", return_value=datetime(2026, 11, 6, 6, 0, tzinfo=UTC))
+    def test_native_session_refresh_and_me_access_are_credential_scoped(self, _now):
         """A mixed account receives only the roles a device can exercise."""
         user, _ = self._worker(
             "device.native.mixed.summary@test.local", VaAccessRoles.coder)

@@ -735,7 +735,8 @@ def history():
     """Return the coder's completed coding history with recodeable flags.
 
     Each row carries ``recode_until`` (tz-aware ISO, or null): when the
-    coder's recode window on a final coding ends (``set_recode_until``).
+    coder's recode window on a final coding ends, counted from their first
+    final of the case (``set_recode_until``).
 
     Without ``limit``: the whole list, ``{history, count}`` (the web
     dashboard). With ``limit`` (1..200) and optional ``offset`` (>= 0): one
@@ -765,7 +766,7 @@ def history():
     recodeable_sids = set(get_coder_recodeable_sids(current_user, va_form_access))
     for row in rows:
         row["recodeable"] = row["va_sid"] in recodeable_sids
-    set_recode_until(rows)
+    set_recode_until(rows, current_user.user_id)
     demo_rows = get_coder_demo_history(current_user.user_id, va_user_timezone_name(current_user))
     for row in demo_rows:
         row["recodeable"] = False

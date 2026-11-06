@@ -67,7 +67,7 @@
       <li>
         Once the correction window closes, the case becomes eligible for secondary quality review.
         A <strong>Senior Medical Officer</strong> or <strong>Medical College Reviewer</strong> independently evaluates
-        a sample of cases without seeing the first coder's decision, ensuring objective clinical quality control.
+        a sample of cases and records their own cause of death. The first coder's decision is shown to the reviewer as read-only reference.
       </li>
     </ul>
 
@@ -246,11 +246,11 @@
   alongside the final COD for audit purposes.
 </p>
 
-<h2>Step 5: Recode Window (24 Hours)</h2>
+<h2>Step 5: Recode Window</h2>
 
 <p>
-  After coder finalization, there is a <strong>24-hour recode window</strong>
-  during which the coder may reopen the case and change their COD determination.
+  After coder finalization, there is a <strong>recode window</strong> (set per
+  project, 24 hours by default) during which the coder may reopen the case and change their COD determination.
 </p>
 
 <ul>
@@ -261,7 +261,7 @@
 </ul>
 
 <p>
-  After 24 hours, the submission transitions to
+  When the window closes, the submission transitions to
   <code>reviewer_eligible</code> and the coder can no longer recode.
 </p>
 
@@ -274,7 +274,7 @@
 
 <ol>
   <li>
-    <strong>Reviewer eligible</strong> &mdash; after the 24-hour recode window
+    <strong>Reviewer eligible</strong> &mdash; after the recode window
     closes, the state becomes <code>reviewer_eligible</code>.
   </li>
   <li>

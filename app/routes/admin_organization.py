@@ -351,6 +351,47 @@ def admin_org_clear_unit_coding_gate(project_id, org_unit_id):
     return jsonify({"cleared": cleared})
 
 
+@admin.get(f"{_API}/units/<org_unit_id>/collection-gate")
+@role_required("admin", "project_pi")
+def admin_org_get_unit_collection_gate(project_id, org_unit_id):
+    """This unit's own data-collection gate (docs/policy/project-clock-and-gates.md)."""
+    if err := _guard(project_id):
+        return err
+    try:
+        gate = org.get_unit_collection_gate(project_id, org_unit_id)
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 400)
+    return jsonify({"collection_gate": org.serialize_unit_collection_gate(gate)})
+
+
+@admin.put(f"{_API}/units/<org_unit_id>/collection-gate")
+@role_required("admin", "project_pi")
+def admin_org_set_unit_collection_gate(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        gate = org.set_unit_collection_gate(project_id, org_unit_id, _payload())
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("unit-collection-gate-set", project_id, f"unit={org_unit_id}")
+    return jsonify({"collection_gate": org.serialize_unit_collection_gate(gate)})
+
+
+@admin.delete(f"{_API}/units/<org_unit_id>/collection-gate")
+@role_required("admin", "project_pi")
+def admin_org_clear_unit_collection_gate(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        cleared = org.clear_unit_collection_gate(project_id, org_unit_id)
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("unit-collection-gate-clear", project_id, f"unit={org_unit_id} cleared={cleared}")
+    return jsonify({"cleared": cleared})
+
+
 # ---------------------------------------------------------------------------
 # Per-unit VA question presets (Id10002/Id10003)
 #

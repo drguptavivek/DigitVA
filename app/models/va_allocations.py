@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from app.models.va_selectives import VaAllocation, VaStatuses
 
 ACTIVE_ALLOCATION_INDEX = "uq_va_allocations_active_to_for"
+ALLOCATION_KIND_RECODE = "recode"
+ALLOCATION_KIND_DEMO = "demo"
 
 
 class VaAllocations(db.Model):
@@ -36,6 +38,10 @@ class VaAllocations(db.Model):
     va_allocation_training: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
     )
+    # Why a coding allocation is not a new case: ALLOCATION_KIND_RECODE or
+    # ALLOCATION_KIND_DEMO; NULL is a new case. Only new cases count toward the
+    # coder daily allocation cap (docs/policy/coding-workflow-state-machine.md).
+    va_allocation_kind: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     va_allocation_createdat: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),

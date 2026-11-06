@@ -10,7 +10,7 @@
 
     <h6><strong>Stage 1: Adding a Death to the Register</strong></h6>
     <p>
-      When you learn of a death in your community, open <strong>Report a Death</strong> on the mobile app or web:
+      When you learn of a death in your community, open <strong>Register</strong> in the DigitVA app, or <strong>Report a death</strong> in the web top menu:
     </p>
     <ul>
       <li>
@@ -42,17 +42,20 @@
       </li>
     </ul>
 
-    <h6><strong>What "Within Area" and "All" mean on Worklist Filter Chips</strong></h6>
+    <h6><strong>What the Area choices mean in the worklist filters</strong></h6>
     <p>
-      At the top of your worklist, you will see filter chips that organize your cases:
+      When your cases span more than one area, the worklist filters offer an <strong>Area</strong> choice:
     </p>
     <ul>
       <li>
-        <strong>Within Area:</strong> Filters cases to your own assigned health facility (your PHC, CHC, or Sub-centre).
+        <strong>All areas:</strong> Shows all cases your permissions allow you to see.
+      </li>
+      <li>
+        <strong>My field areas:</strong> Shows cases in the units of your own field grants (your PHC, CHC, or Sub-centre) and the units below them.
         This is your primary day-to-day worklist.
       </li>
       <li>
-        <strong>All:</strong> Shows all cases across the wider project or district that your permissions allow you to see.
+        <strong>One unit:</strong> Shows cases in one unit you pick, and the units below it.
       </li>
     </ul>
   </div>
@@ -86,7 +89,7 @@
     <tr>
       <td>Register a death only</td>
       <td><code>death_reporter</code>; organization unit only</td>
-      <td>Register deaths through the registration API/mobile path and correct their own registration details until an interview is completed. This role cannot start or resume a questionnaire. On the web it has one page, <strong>Report a death</strong> in the top menu; the VA Interview page is interviewer-only.</td>
+      <td>Register deaths through the registration API/mobile path and correct their own registration details until an interview is completed. This role cannot start or resume a questionnaire. On the web it has one page, <strong>Report a death</strong> in the top menu; the VA Interview page is interviewer-only. In the DigitVA app (phone or browser) it opens the death-registration screen.</td>
     </tr>
     <tr>
       <td>Supervise intake</td>
@@ -104,6 +107,10 @@
 
 <div class="help-warning">
   <strong>Scope matters:</strong> the role gate only opens the collection area. The selected project, site or organization unit is checked separately for every draft, registration and submission. Never share an account to work around a missing grant.
+</div>
+
+<div class="help-info">
+  <strong>Collection dates and daily limits:</strong> an admin can pause data collection for a site or organisation unit, set the dates it runs (inclusive, on the project's clock), or cap the new interviews each interviewer starts per day. When the gate is closed you cannot register a new death or start an interview without a registration there, and the app or page says why. You can always interview a death already registered, finish and upload work already started, including work done offline, and edit or revise your interviews.
 </div>
 
 <h2 id="interviewer-steps">Practical interviewer steps</h2>

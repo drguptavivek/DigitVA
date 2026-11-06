@@ -65,6 +65,8 @@ class VaDeathRegister(db.Model):
         sa.Index("ix_va_death_register_updated", "updated_at", "death_id"),
         # A death reporter's own list: registered_by = me, newest activity first.
         sa.Index("ix_va_death_register_registered_by", "registered_by", "updated_at", "death_id"),
+        # The collection gate's daily count: my new starts since project midnight.
+        sa.Index("ix_va_death_register_registered_by_created", "registered_by", "created_at"),
         # The worklist sorts by next visit, then last activity.
         sa.Index("ix_va_death_register_next_visit", "next_visit_at", "updated_at", "death_id"),
         # The worklist's "Recent" chip: newest registration first.

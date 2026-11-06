@@ -79,7 +79,8 @@
 
 <p>
   The sync schedule can be changed from the admin sync dashboard without
-  restarting services. Supported range is 1 to 168 hours.
+  restarting services. The dashboard offers 1, 2, 4, 6, 12, 24 or 48 hours;
+  the API accepts any whole number from 1 to 168 hours.
 </p>
 
 <h3>Delta Check</h3>
@@ -139,7 +140,7 @@
     </tr>
     <tr>
       <td><strong>Schedule Configurator</strong></td>
-      <td>Change the sync interval (1 to 168 hours) without restarting services.</td>
+      <td>Change the sync interval (1, 2, 4, 6, 12, 24 or 48 hours) without restarting services.</td>
     </tr>
     <tr>
       <td><strong>Coverage Table</strong></td>
@@ -415,12 +416,12 @@
     </tr>
     <tr>
       <td>Data manager single-form sync</td>
-      <td><code>POST /vadashboard/data-manager/api/forms/&lt;form_id&gt;/sync</code></td>
+      <td><code>POST /api/v1/data-management/forms/&lt;form_id&gt;/sync</code></td>
       <td>Data Manager (scoped)</td>
     </tr>
     <tr>
       <td>Data manager single-submission refresh</td>
-      <td><code>POST /vadashboard/data-manager/api/submissions/&lt;va_sid&gt;/sync</code></td>
+      <td><code>POST /api/v1/data-management/submissions/&lt;va_sid&gt;/sync</code></td>
       <td>Data Manager (scoped)</td>
     </tr>
   </tbody>

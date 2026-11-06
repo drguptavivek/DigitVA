@@ -247,11 +247,11 @@ that would collect an interviewer's password.
   enrolment, then opens the enrol screen for the new server's QR. Profiles of
   the old server are then hidden but kept on the phone.
 
-## 8. Sign-in QR (owner decision 2026-10-23; server and phone scan built, Users-page screens pending)
+## 8. Sign-in QR (owner decision 2026-10-23; server, phone scan and Users-page controls built)
 
 **Approved by the owner 2026-10-23; server built** (digitva-3g19: tables,
-issue, redeem, revoke, status and audit; the phone scan screen and the Users
-page controls follow). Sections 1 to 7 stay authoritative.
+issue, redeem, revoke, status and audit). The phone scan screen and the Users
+page controls (issue, email or show once, revoke) are built. Sections 1 to 7 stay authoritative.
 
 Today a new data collector needs two things: the enrolment QR (a device
 credential, section 6) and then their own password. This proposal lets one

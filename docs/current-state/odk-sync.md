@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-11-06
 ---
 
 # ODK Sync And Attachments
@@ -748,11 +748,10 @@ Current upstream-review behavior:
   the prior SmartVA interpretation by rebinding the preserved SmartVA
   projection to the newly active payload instead of regenerating it
 
-Current implementation gap:
-
-- explicit SmartVA-failure recording is not yet implemented
-- so the failure-handled path from `smartva_pending` to `ready_for_coding`
-  remains incomplete
+SmartVA failures are recorded explicitly (`_save_smartva_failure` and
+`_record_smartva_failures` in `app/services/smartva_service.py`), and a
+recorded failure moves the case from `smartva_pending` to `ready_for_coding`
+through the `smartva_failed_recorded` transition.
 
 ## Sync Scheduling
 
@@ -786,8 +785,8 @@ Manual triggers:
 
 - `POST /admin/api/sync/trigger` — dispatches `run_odk_sync.delay()`; returns 409 if a run is already in progress
 - `POST /admin/api/sync/form/<form_id>` — dispatches `run_single_form_sync.delay(form_id)`
-- `POST /vadashboard/data-manager/api/forms/<form_id>/sync` — dispatches scoped single-form sync for a data manager
-- `POST /vadashboard/data-manager/api/submissions/<va_sid>/sync` — dispatches scoped single-submission refresh for a data manager
+- `POST /api/v1/data-management/forms/<form_id>/sync` — dispatches scoped single-form sync for a data manager
+- `POST /api/v1/data-management/submissions/<va_sid>/sync` — dispatches scoped single-submission refresh for a data manager
 
 ## Sync Run History
 

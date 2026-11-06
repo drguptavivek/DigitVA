@@ -1,0 +1,156 @@
+{# Two-minute DigitVA overview on the public home page: 8 slides x 15 s.
+   Features only, no study results (those belong to the manuscript first).
+   Auto-advance stops on hover/focus, on the pause button, and never starts
+   for prefers-reduced-motion (WCAG 2.2.2). #}
+{% set overview_slides = [
+  {"icon": "fa-route", "title": "DigitVA in two minutes",
+   "lead": "One open-source platform for verbal autopsy, from the death to the district report.",
+   "points": ["Report the death", "Interview the family", "Physician codes the cause", "Review and correct", "Report by health unit"],
+   "flow": true},
+  {"icon": "fa-file-circle-plus", "title": "Report and assign every death",
+   "lead": "A health worker enters the death in a death register.",
+   "points": ["The death is assigned to an interviewer in the responsible health unit",
+              "Deaths not interviewed within 60 days are flagged",
+              "Duplicates and cancelled deaths are marked, not deleted"]},
+  {"icon": "fa-mobile-screen-button", "title": "Interview anywhere, even offline",
+   "lead": "The WHO 2022 verbal autopsy interview, in the language of the family.",
+   "points": ["ODK Collect, a web browser or the DigitVA Collect Android app",
+              "Works without a network; unsent interviews stay encrypted on the phone",
+              "Narrative as text, photograph or audio; photographs of medical documents"]},
+  {"icon": "fa-user-doctor", "title": "Physician coding with decision support",
+   "lead": "A physician assigns the cause of death, on the web or on the phone.",
+   "points": ["SmartVA runs on every interview, on the server and on the phone",
+              "Masked coding: the physician records a cause before seeing SmartVA, if the project chooses",
+              "ICD-10 or ICD-11, with the WHO mortality rules (DORIS) and CoDEdit checks"]},
+  {"icon": "fa-sliders", "title": "Configured for each programme",
+   "lead": "Projects are set up through settings, not new code.",
+   "points": ["Questionnaire extensions, languages, consent notice and coding workflow",
+              "ICD-10 and ICD-11 code lists with rules by sex and age group",
+              "Cause groups of the WHO verbal autopsy list, SRS India or CMEA10"]},
+  {"icon": "fa-clipboard-check", "title": "Quality you can check",
+   "lead": "Every step is recorded, so delays and corrections are visible.",
+   "points": ["Reviewer allocation, narrative quality assessment and a recoding window",
+              "Changes made in ODK after coding wait for a data manager's decision",
+              "Interviews not coded within 15 days are flagged"]},
+  {"icon": "fa-chart-column", "title": "See progress, ask questions",
+   "lead": "Dashboards show deaths, interviews and coding by health unit.",
+   "points": ["Cause-of-death reports by cause group, age and sex",
+              "Ask a question in plain language: AI writes the query",
+              "The AI sees aggregate counts only, never a person's record"]},
+  {"icon": "fa-shield-halved", "title": "Open, and careful with personal data",
+   "lead": "Access follows each person's place in the health system.",
+   "points": ["Personal identifiers only for health-system staff with a grant in that project",
+              "Open source under the MIT licence",
+              "Help pages, code lists and cause-group mappings are open to everyone"],
+   "links": true},
+] %}
+<section class="py-4" aria-labelledby="overview-heading">
+  <div class="container">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <h2 id="overview-heading" class="fw-bold text-primary mb-0">
+        <i class="fas fa-circle-play me-2" aria-hidden="true"></i>DigitVA overview
+      </h2>
+      <button type="button" class="btn btn-sm btn-outline-primary" id="overview-toggle"
+              aria-controls="digitva-overview" aria-pressed="false">
+        <i class="fas fa-pause me-1" aria-hidden="true"></i><span>Pause</span>
+      </button>
+    </div>
+    <div id="digitva-overview" class="carousel slide card border-0 shadow-sm overview-carousel"
+         data-bs-interval="15000" data-bs-pause="hover" data-bs-touch="true"
+         aria-roledescription="carousel" aria-label="DigitVA overview, {{ overview_slides|length }} slides">
+      <div class="carousel-inner">
+        {% for s in overview_slides %}
+        <div class="carousel-item{% if loop.first %} active{% endif %}" data-bs-interval="15000"
+             role="group" aria-roledescription="slide" aria-label="{{ loop.index }} of {{ overview_slides|length }}">
+          <div class="card-body p-4 p-md-5 overview-slide">
+            <div class="small text-muted fw-semibold mb-2">{{ loop.index }} / {{ overview_slides|length }}</div>
+            <div class="d-flex align-items-center mb-3">
+              <div class="icon-container bg-primary text-white rounded-circle p-3 me-3 flex-shrink-0">
+                <i class="fas {{ s.icon }} fa-2x" aria-hidden="true"></i>
+              </div>
+              <h3 class="fw-bold text-primary mb-0">{{ s.title }}</h3>
+            </div>
+            <p class="lead mb-3">{{ s.lead }}</p>
+            {% if s.flow %}
+            <ol class="overview-flow list-unstyled d-flex flex-wrap gap-2 mb-0">
+              {% for p in s.points %}
+              <li class="badge rounded-pill text-bg-light border border-primary-subtle text-primary fs-6 fw-semibold px-3 py-2">
+                {{ loop.index }}. {{ p }}
+              </li>
+              {% endfor %}
+            </ol>
+            {% else %}
+            <ul class="mb-0">
+              {% for p in s.points %}<li class="mb-1">{{ p }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+            {% if s.links %}
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <a class="btn btn-sm btn-primary" href="{{ url_for('help.index') }}"><i class="fas fa-circle-question me-1" aria-hidden="true"></i>Browse help</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('help.page', slug='mobile-app') }}"><i class="fas fa-mobile-screen-button me-1" aria-hidden="true"></i>Get the mobile app</a>
+              <a class="btn btn-sm btn-outline-primary" href="https://github.com/drguptavivek/DigitVA" target="_blank" rel="noopener noreferrer"><i class="fab fa-github me-1" aria-hidden="true"></i>Source code</a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex align-items-center justify-content-between px-3 pb-3 gap-2">
+        <button class="btn btn-sm btn-light border" type="button" data-bs-target="#digitva-overview" data-bs-slide="prev">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i><span class="visually-hidden">Previous slide</span>
+        </button>
+        <div class="carousel-indicators position-static m-0">
+          {% for s in overview_slides %}
+          <button type="button" data-bs-target="#digitva-overview" data-bs-slide-to="{{ loop.index0 }}"
+                  class="bg-primary{% if loop.first %} active{% endif %}"{% if loop.first %} aria-current="true"{% endif %}
+                  aria-label="Slide {{ loop.index }}: {{ s.title }}"></button>
+          {% endfor %}
+        </div>
+        <button class="btn btn-sm btn-light border" type="button" data-bs-target="#digitva-overview" data-bs-slide="next">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i><span class="visually-hidden">Next slide</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+<style>
+  .overview-carousel .overview-slide { min-height: 21rem; }
+  @media (max-width: 575.98px) { .overview-carousel .overview-slide { min-height: 27rem; } }
+  .overview-carousel .carousel-indicators [data-bs-target] { width: 1.5rem; height: .35rem; border-radius: .2rem; }
+</style>
+<script>
+  (function () {
+    var el = document.getElementById('digitva-overview');
+    var btn = document.getElementById('overview-toggle');
+    if (!el || !btn || !window.bootstrap) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var carousel = bootstrap.Carousel.getOrCreateInstance(el, { interval: 15000, ride: false, pause: 'hover' });
+    var playing = false;
+    function set(play) {
+      playing = play;
+      if (play) { carousel.cycle(); } else { carousel.pause(); }
+      btn.setAttribute('aria-pressed', play ? 'false' : 'true');
+      btn.querySelector('i').className = 'fas ' + (play ? 'fa-pause' : 'fa-play') + ' me-1';
+      btn.querySelector('span').textContent = play ? 'Pause' : 'Play';
+    }
+    // Give every slide the tallest slide's height so the page does not jump.
+    var slides = el.querySelectorAll('.overview-slide');
+    function equalise() {
+      var tallest = 0;
+      slides.forEach(function (s) { s.style.minHeight = ''; });
+      el.querySelectorAll('.carousel-item').forEach(function (item) {
+        var shown = item.classList.contains('active');
+        if (!shown) { item.style.display = 'block'; item.style.position = 'absolute'; item.style.visibility = 'hidden'; }
+        tallest = Math.max(tallest, item.querySelector('.overview-slide').offsetHeight);
+        if (!shown) { item.style.display = item.style.position = item.style.visibility = ''; }
+      });
+      slides.forEach(function (s) { s.style.minHeight = tallest + 'px'; });
+    }
+    equalise();
+    window.addEventListener('resize', equalise);
+    btn.addEventListener('click', function () { set(!playing); });
+    // Keyboard or screen-reader focus inside the slides stops the rotation.
+    el.addEventListener('focusin', function () { if (playing) set(false); });
+    set(!reduce);
+  })();
+</script>

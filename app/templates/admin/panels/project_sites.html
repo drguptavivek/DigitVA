@@ -176,6 +176,9 @@
         ? (codingEnabled
             ? '<span class="badge text-bg-success ms-2">Coding On</span>'
             : '<span class="badge text-bg-secondary ms-2">Coding Off</span>')
+          + (m.collection_enabled === false
+            ? '<span class="badge text-bg-secondary ms-2">Collection Off</span>'
+            : '<span class="badge text-bg-success ms-2">Collection On</span>')
         : '';
       var codingMeta = '';
       if (isActive) {
@@ -185,6 +188,12 @@
         }
         if (m.daily_coder_limit != null) {
           metaParts.push('limit ' + m.daily_coder_limit + '/day');
+        }
+        if (m.collection_start_date || m.collection_end_date) {
+          metaParts.push('collection ' + (m.collection_start_date || '∞') + ' → ' + (m.collection_end_date || '∞'));
+        }
+        if (m.daily_interviewer_limit != null) {
+          metaParts.push('interviewer limit ' + m.daily_interviewer_limit + '/day');
         }
         if (metaParts.length) {
           codingMeta = '<div class="text-muted" style="font-size:0.72rem;line-height:1.3;">' + esc(metaParts.join(' · ')) + '</div>';
@@ -204,7 +213,7 @@
       var cfgOpen = _expandedSite === m.site_id;
       var configRow = isActive
         ? '<tr id="ps-cfg-' + esc(m.site_id) + '" class="' + (cfgOpen ? 'bg-light' : 'd-none bg-light') + '">'
-          + '<td colspan="5" class="py-3 px-3">' + renderCodingForm(m) + '</td></tr>'
+          + '<td colspan="5" class="py-3 px-3">' + renderCodingForm(m) + renderCollectionForm(m) + '</td></tr>'
         : '';
       return mainRow + configRow;
     }).join('');
@@ -231,6 +240,66 @@
     wrap.querySelectorAll('.ps-coding-close-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { closeCodingRow(this.dataset.sid); });
     });
+    wrap.querySelectorAll('.ps-collection-save-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { saveCollectionSettings(this.dataset.pid, this.dataset.sid); });
+    });
+  }
+
+  // The data-collection gate: new registrations and new interviews without
+  // one (docs/policy/project-clock-and-gates.md). Empty limit = no limit.
+  function renderCollectionForm(m) {
+    var enabled = m.collection_enabled !== false;
+    var sid = esc(m.site_id);
+    return '<div class="d-flex flex-column gap-2 mt-3">'
+      + '<div class="small fw-semibold text-muted">Data Collection — ' + sid + '</div>'
+      + '<div class="row g-2 align-items-end">'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted" for="ps-collection-enabled-' + sid + '">Collection</label>'
+      + '<select class="form-select form-select-sm" id="ps-collection-enabled-' + sid + '">'
+      + '<option value="true"' + (enabled ? ' selected' : '') + '>Enabled</option>'
+      + '<option value="false"' + (!enabled ? ' selected' : '') + '>Paused</option>'
+      + '</select>'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted" for="ps-collection-start-' + sid + '">Start Date</label>'
+      + '<input type="date" class="form-control form-control-sm" id="ps-collection-start-' + sid + '" value="' + esc(m.collection_start_date || '') + '">'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted" for="ps-collection-end-' + sid + '">End Date</label>'
+      + '<input type="date" class="form-control form-control-sm" id="ps-collection-end-' + sid + '" value="' + esc(m.collection_end_date || '') + '">'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted" for="ps-collection-limit-' + sid + '">Daily Interviewer Limit</label>'
+      + '<input type="number" min="1" class="form-control form-control-sm" id="ps-collection-limit-' + sid + '" value="' + esc(m.daily_interviewer_limit != null ? m.daily_interviewer_limit : '') + '" placeholder="No limit">'
+      + '</div>'
+      + '<div class="col-md-auto d-flex gap-2">'
+      + '<button class="btn btn-sm btn-success ps-collection-save-btn" data-sid="' + sid + '" data-pid="' + esc(m.project_id) + '">'
+      + '<i class="fa-solid fa-floppy-disk me-1"></i>Save</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function saveCollectionSettings(pid, sid) {
+    var limitRaw = (document.getElementById('ps-collection-limit-' + sid) || {}).value || '';
+    var body = {
+      collection_enabled: (document.getElementById('ps-collection-enabled-' + sid) || {}).value === 'true',
+      collection_start_date: (document.getElementById('ps-collection-start-' + sid) || {}).value || null,
+      collection_end_date: (document.getElementById('ps-collection-end-' + sid) || {}).value || null,
+      daily_interviewer_limit: limitRaw ? parseInt(limitRaw, 10) : null,
+    };
+    apiJson(
+      '/admin/api/project-sites/' + encodeURIComponent(pid) + '/' + encodeURIComponent(sid) + '/collection-settings',
+      'PUT',
+      body
+    ).then(function (res) {
+      if (!res.ok) { showError(res.data.error || 'Failed to save collection settings.'); return; }
+      _mappings = _mappings.map(function (m) {
+        return m.site_id === sid ? Object.assign({}, m, body) : m;
+      });
+      _expandedSite = sid;
+      renderTable(document.getElementById('ps-show-inactive').checked);
+    }).catch(function () { showError('Network error.'); });
   }
 
   function renderCodingForm(m) {

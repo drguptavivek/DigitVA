@@ -25,6 +25,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MapOrgUnitCodingGate,
+    MapOrgUnitCollectionGate,
     MapOrgUnitVaPresets,
     MasCadre,
     MasOrgLevel,
@@ -331,6 +332,19 @@ def resolve_unit_coding_gates(
     neither its own nor an inherited one -- and callers must treat that as
     "not gated", never as closed.
     """
+    return _resolve_unit_gates(MapOrgUnitCodingGate, unit_ids)
+
+
+def resolve_unit_collection_gates(
+    unit_ids: Iterable[uuid.UUID],
+) -> dict[uuid.UUID, MapOrgUnitCollectionGate]:
+    """``resolve_unit_coding_gates`` for ``map_org_unit_collection_gate``:
+    the same nearest-gated-ancestor rule and the same single query."""
+    return _resolve_unit_gates(MapOrgUnitCollectionGate, unit_ids)
+
+
+def _resolve_unit_gates(gate_model, unit_ids: Iterable[uuid.UUID]) -> dict:
+    """Nearest *gate_model* row on an ancestor-or-self of each of *unit_ids*."""
     unit_id_set = set(unit_ids)
     if not unit_id_set:
         return {}
@@ -338,7 +352,7 @@ def resolve_unit_coding_gates(
     target = sa.orm.aliased(MasOrgUnit, name="gate_target_unit")
     ancestor = sa.orm.aliased(MasOrgUnit, name="gate_ancestor_unit")
     rows = db.session.execute(
-        sa.select(target.org_unit_id, MapOrgUnitCodingGate)
+        sa.select(target.org_unit_id, gate_model)
         .select_from(target)
         .join(
             ancestor,
@@ -347,12 +361,12 @@ def resolve_unit_coding_gates(
                 sa.text("gate_target_unit.path <@ gate_ancestor_unit.path"),
             ),
         )
-        .join(MapOrgUnitCodingGate, MapOrgUnitCodingGate.org_unit_id == ancestor.org_unit_id)
+        .join(gate_model, gate_model.org_unit_id == ancestor.org_unit_id)
         .where(target.org_unit_id.in_(unit_id_set))
         .order_by(target.org_unit_id, sa.func.nlevel(ancestor.path).desc())
     ).all()
 
-    resolved: dict[uuid.UUID, MapOrgUnitCodingGate] = {}
+    resolved: dict = {}
     for target_unit_id, gate in rows:
         # Rows are grouped by target and ordered deepest-ancestor-first within
         # each group, so the first row seen per target is its nearest gate.

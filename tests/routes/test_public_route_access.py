@@ -58,8 +58,15 @@ class PublicByDesignRoutesTests(BaseTestCase):
 
     def test_anonymous_get_role_restricted_help_page_is_forbidden(self):
         """The other half of `help.page` being public: its in-body role filter
-        is the guard, and dropping it would open every admin help page."""
-        response = self.client.get("/help/admin-overview")
+        is the guard for any page given roles. Every page is public since
+        2026-11-06, so give one roles for this test."""
+        from unittest import mock
+
+        from app.routes import help as help_routes
+
+        entry = help_routes._PAGES_BY_SLUG["admin-overview"]
+        with mock.patch.dict(help_routes._PAGES_BY_SLUG, {"admin-overview": (*entry[:4], ["admin"])}):
+            response = self.client.get("/help/admin-overview")
 
         self.assertEqual(response.status_code, 403)
 

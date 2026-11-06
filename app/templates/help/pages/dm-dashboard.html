@@ -57,8 +57,8 @@
   </thead>
   <tbody>
     <tr>
-      <td><strong>Submissions</strong></td>
-      <td>Total submissions in scope matching current filters</td>
+      <td><strong>Total</strong></td>
+      <td>Total submissions in scope matching current filters (submissions missing in ODK are counted separately)</td>
     </tr>
     <tr>
       <td><strong>Pending Coding</strong></td>
@@ -73,24 +73,41 @@
       <td>Submissions with a finalized coding outcome</td>
     </tr>
     <tr>
-      <td><strong>Flagged Not Codeable</strong></td>
-      <td>Submissions marked as not codeable (by coder or data manager)</td>
+      <td><strong>Upstream Changed</strong></td>
+      <td>Coded submissions whose ODK data changed afterwards; they wait for a data-manager decision to accept (recode) or reject the change</td>
     </tr>
     <tr>
-      <td><strong>ODK - Has Issues</strong></td>
+      <td><strong>Needs Field Attention</strong></td>
       <td>Submissions with ODK Central review state set to <code>hasIssues</code></td>
+    </tr>
+    <tr>
+      <td><strong>Not Codeable (DM)</strong></td>
+      <td>Submissions a data manager marked as not codeable</td>
+    </tr>
+    <tr>
+      <td><strong>Not analysable</strong></td>
+      <td>Interviews that cannot be analysed or coded, split by reason: refused, respondent unavailable, or partially completed</td>
+    </tr>
+    <tr>
+      <td><strong>Missing in ODK</strong></td>
+      <td>Submissions no longer present in ODK Central; kept with their history but left out of the other counts</td>
     </tr>
     <tr>
       <td><strong>SmartVA Missing</strong></td>
       <td>Submissions with no active SmartVA output (includes consent-refused rows when filtered)</td>
     </tr>
+    <tr>
+      <td><strong>SmartVA Failed</strong></td>
+      <td>Submissions where SmartVA ran but returned no cause of death</td>
+    </tr>
   </tbody>
 </table>
 
 <div class="help-info">
-  <strong>Pending Coding</strong> does not include pre-coding pipeline states
-  such as <code>screening_pending</code>, <code>attachment_sync_pending</code>,
-  or <code>smartva_pending</code>. These are separate operational queues.
+  <strong>Pending Coding</strong> includes the pre-coding pipeline states
+  <code>screening_pending</code>, <code>attachment_sync_pending</code> and
+  <code>smartva_pending</code>. <strong>SmartVA Queue</strong> shows the
+  <code>smartva_pending</code> part on its own.
 </div>
 
 <p>Clicking certain cards applies the corresponding filter directly to the submission table.</p>
@@ -154,10 +171,13 @@
 <ul>
   <li>Project</li>
   <li>Site</li>
-  <li>Language</li>
-  <li>Submitted from / to (date range)</li>
+  <li>Org unit</li>
+  <li>Submission date from / to</li>
+  <li>Date of death from / to</li>
   <li>ODK status</li>
   <li>SmartVA status</li>
+  <li>Age group</li>
+  <li>Gender</li>
   <li>ODK sync status</li>
   <li>Workflow state</li>
   <li>Free-text search</li>

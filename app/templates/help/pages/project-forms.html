@@ -9,9 +9,10 @@
 <h3>Per-Site ODK Form Mapping</h3>
 
 <p>
-  Each project-site pair can be linked to at most one ODK form. This mapping tells
-  DigitVA which ODK Central project and form to sync submissions from for that
-  site. The mapping is stored in the <code>map_project_site_odk</code> table.
+  Each project-site pair can be linked to one or more ODK forms; one ODK form
+  belongs to only one project-site. Each mapping tells DigitVA which ODK Central
+  project and form to sync submissions from for that site. Mappings are stored
+  in the <code>map_project_site_odk</code> table.
 </p>
 
 <h3>Configuring a Form Mapping</h3>
@@ -21,6 +22,13 @@
   <strong>Configure</strong>. The site table renders immediately from local
   database state, but the ODK project and form dropdowns are populated lazily
   from ODK Central only when you open a row for configuration.
+</p>
+
+<p>
+  When a site already has a mapping, the <strong>Editing form</strong> selector
+  picks which mapping to edit. Choose <strong>＋ Add another form…</strong> to map
+  an additional form, or <strong>Remove this form</strong> to delete the selected
+  mapping.
 </p>
 
 <table class="table">

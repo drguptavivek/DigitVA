@@ -3,7 +3,7 @@ title: Admin API Access Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-11-06
 ---
 
 # Admin API Access Policy
@@ -22,9 +22,9 @@ Administrative JSON routes live under:
 
 These routes are separate from workflow routes under:
 
-- `/vaapi/...`
-- `/vacta/...`
-- `/vadashboard/...`
+- `/api/v1/...`
+- `/coding/...`, `/reviewing/...`, `/data-management/...`, `/intake/...`
+- `/vaform/...`
 
 ## CSRF Baseline
 

@@ -119,6 +119,10 @@
           <label class="form-check-label small" for="project-demo-training-enabled-input">Demo / Training</label>
         </div>
         <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="project-home-kpis-included-input" role="switch">
+          <label class="form-check-label small" for="project-home-kpis-included-input">Included in homepage KPIs (not for training or demo projects)</label>
+        </div>
+        <div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" id="project-self-coding-enabled-input" role="switch">
           <label class="form-check-label small" for="project-self-coding-enabled-input">Self-coding (coders also interview; needs web intake on)</label>
         </div>
@@ -138,6 +142,18 @@
         <div class="d-flex align-items-center gap-2">
           <label class="small text-nowrap mb-0" for="project-recode-window-minutes-input" title="How long a coder may recode their final COD; the case then becomes reviewer-eligible. 1440 = 24 hours.">Recode window (min)</label>
           <input type="number" min="1" max="10080" step="1" class="form-control form-control-sm" id="project-recode-window-minutes-input" value="1440" style="width:6rem;">
+        </div>
+        {# docs/policy/project-clock-and-gates.md ("Project clock") #}
+        <div class="d-flex align-items-center gap-2">
+          <label class="small text-nowrap mb-0" for="project-timezone-input" title="The project clock: its midnight starts the day for coding gate dates, daily limits and the coder daily cap.">Timezone</label>
+          <select class="form-select form-select-sm" id="project-timezone-input" style="width:auto;">
+            <option value="Asia/Kolkata">Asia/Kolkata</option>
+          </select>
+        </div>
+        {# docs/policy/kpis.md ("App-Level Settings"): the burndown's target; empty clears it #}
+        <div class="d-flex align-items-center gap-2">
+          <label class="small text-nowrap mb-0" for="project-target-completion-date-input" title="The burndown chart's target. Leave empty to remove it.">Target completion</label>
+          <input type="date" class="form-control form-control-sm" id="project-target-completion-date-input" style="width:auto;">
         </div>
       </div>
 
@@ -648,10 +664,36 @@
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
+  var homeKpisIncludedInput = document.getElementById('project-home-kpis-included-input');
   var selfCodingEnabledInput = document.getElementById('project-self-coding-enabled-input');
   var demoRetentionMinutesInput = document.getElementById('project-demo-retention-minutes-input');
   var recodeWindowMinutesInput = document.getElementById('project-recode-window-minutes-input');
   var countryInput = document.getElementById('project-country-input');
+  var timezoneInput = document.getElementById('project-timezone-input');
+  var targetCompletionDateInput = document.getElementById('project-target-completion-date-input');
+  // The browser's IANA list; the server validates whatever is sent.
+  (function () {
+    var zones = [];
+    try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { zones = []; }
+    zones.forEach(function (zone) {
+      if (zone === 'Asia/Kolkata') return;
+      var opt = document.createElement('option');
+      opt.value = zone;
+      opt.textContent = zone;
+      timezoneInput.appendChild(opt);
+    });
+  })();
+  function setTimezone(zone) {
+    zone = zone || 'Asia/Kolkata';
+    // A saved zone the browser does not list still shows and round-trips.
+    if (!Array.prototype.some.call(timezoneInput.options, function (o) { return o.value === zone; })) {
+      var opt = document.createElement('option');
+      opt.value = zone;
+      opt.textContent = zone;
+      timezoneInput.appendChild(opt);
+    }
+    timezoneInput.value = zone;
+  }
   var allLocalesInput = document.getElementById('project-web-intake-all-locales-input');
   var availableLocalesList = document.getElementById('project-web-intake-available-locales-list');
   var narrationLanguagesList = document.getElementById('project-web-intake-narration-languages-list');
@@ -1058,9 +1100,12 @@
     socialAutopsyEnabledInput.checked = true;
     reviewerSocialAutopsyEnabledInput.checked = true;
     demoTrainingEnabledInput.checked = false;
+    homeKpisIncludedInput.checked = false;
     selfCodingEnabledInput.checked = false;
     demoRetentionMinutesInput.value = '10';
     recodeWindowMinutesInput.value = '1440';
+    setTimezone('Asia/Kolkata');
+    targetCompletionDateInput.value = '';
     countryInput.value = '';
     resetWebIntakeInputs();
     // A project that does not exist yet has nothing to be ready for.
@@ -1101,9 +1146,12 @@
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
+    homeKpisIncludedInput.checked = !!project.home_kpis_included;
     selfCodingEnabledInput.checked = !!project.self_coding_enabled;
     demoRetentionMinutesInput.value = project.demo_retention_minutes || 10;
     recodeWindowMinutesInput.value = project.recode_window_minutes || 1440;
+    setTimezone(project.timezone);
+    targetCompletionDateInput.value = project.project_target_completion_date || '';
     countryInput.value = project.project_country_iso3 || '';
     fillWebIntakeInputs(project);
     loadReadiness(projectId);
@@ -1142,9 +1190,12 @@
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,
       reviewer_social_autopsy_enabled: reviewerSocialAutopsyEnabledInput.checked,
       demo_training_enabled: demoTrainingEnabledInput.checked,
+      home_kpis_included: homeKpisIncludedInput.checked,
       self_coding_enabled: selfCodingEnabledInput.checked,
       demo_retention_minutes: parseInt(demoRetentionMinutesInput.value || '10', 10),
       recode_window_minutes: Number(recodeWindowMinutesInput.value || '1440'),
+      timezone: timezoneInput.value,
+      project_target_completion_date: targetCompletionDateInput.value || null,
       project_country_iso3: countryInput.value || null
     };
     

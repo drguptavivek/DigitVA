@@ -206,8 +206,10 @@ class RequestQueryCountTests(BaseTestCase):
         self.assertFalse(any("DISTINCT" in s and "org_unit_id" in s for s in sql))
         # 14 + the page's one batched name lookup (case_list_service.coding_names)
         # + the memoised mentor-membership read behind the per-project
-        # va_data_collector redaction (digitva-ssg7.11).
-        self.assertLessEqual(len(sql), 16)
+        # va_data_collector redaction (digitva-ssg7.11)
+        # + the projects' timezones and the one grouped daily-cap count
+        # (docs/policy/project-clock-and-gates.md).
+        self.assertLessEqual(len(sql), 18)
         response, _, writes = self._measure("available_warm", "get", "/api/v1/coding/available")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(writes, 0)  # unchanged session inside the refresh window

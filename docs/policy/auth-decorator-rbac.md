@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-11-06
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -161,11 +161,13 @@ every account-access flow to obtain a session at all; `va_main.va_index`, the
 home page; `va_main.who_va_document`,
 which streams published WHO reference material from a fixed on-disk registry;
 and the four `help` routes (`index`, `page`, `docs_index`, `doc_page`). The help
-surface is the sign-in and account instructions a logged-out user needs.
-`help.page` is public *and* role-filtered in its body: `_user_has_role` aborts
-403 for a page whose registry entry names roles, so only the `roles=None` pages
-render for an anonymous visitor. That in-body filtering is the guard for the
-role-restricted help pages and must stay.
+surface is the sign-in and account instructions a logged-out user needs, and
+(owner, 2026-11-06) all of the help: every `HELP_PAGES` entry is `roles=None`,
+and the navbar shows Help to logged-out visitors. Two exceptions stay signed in:
+`organization-demo` (`login_required`; it lists sign-in links for the synthetic
+demo accounts) and `/help/icd-codes/search-demo`, which keeps the roles of the
+search API it drives (`_SEARCH_DEMO_ROLES`). `help.page` keeps its in-body
+`_user_has_role` check, so a page given roles later is still guarded.
 
 **The landing page is public.** `va_main.va_index` (`/`, `/index`,
 `/vaindex`) is the home page an anonymous visitor lands on; the system has a

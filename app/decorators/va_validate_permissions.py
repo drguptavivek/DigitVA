@@ -101,14 +101,13 @@ def _validate_vacode(actiontype, sid, partial):
     # oversees its subtree), so ``vaview`` asks VIEW, not CODE.
     # Policy: docs/policy/organization-model.md.
     _require_coding_scope(actiontype, sid)
+    # The coder daily cap is not checked here: it is the allocators'
+    # (allocate_pick_form, allocate_random_form), which know the case's site
+    # and unit and so a site- or unit-level coding_tester's waiver.
     if actiontype == "vastartcoding":
         if not _has_coding_role():
             va_permission_abortwithflash(
                 "You lack the VA Coder role required to start coding.", 403
-            )
-        if current_user.vacode_formcount >= 200:
-            va_permission_abortwithflash(
-                "You have reached your yearly limit of 200 coded VA forms.", 403
             )
         if partial:
             va_permission_ensureallocation(sid, "coding")
@@ -127,10 +126,6 @@ def _validate_vacode(actiontype, sid, partial):
         else:
             va_permission_ensureallocation(sid, "coding")
     elif actiontype == "vapickcoding":
-        if current_user.vacode_formcount >= 200:
-            va_permission_abortwithflash(
-                "You have reached your yearly limit of 200 coded VA forms.", 403
-            )
         if partial:
             va_permission_ensureallocation(sid, "coding")
             return

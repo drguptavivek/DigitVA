@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Device Collection API (Path B server side)
@@ -475,6 +475,106 @@ behaviour.
   phone) ends the device; a worker with no active project left gets
   `session_revoked` and the app wipes.
 
+## Collection gate (`digitva-jeyy`)
+
+Policy: [Project Clock and Gates](../policy/project-clock-and-gates.md)
+("Data-collection gate"). Code: `app/services/collection_gate.py`.
+
+- **Where:** `va_project_sites.collection_enabled` / `collection_start_date` /
+  `collection_end_date` / `daily_interviewer_limit`, and one optional
+  `map_org_unit_collection_gate` row per unit (nearest gated ancestor wins,
+  `org_grant_service.resolve_unit_collection_gates`). Site and unit both
+  apply; the first closed one decides, site first. Dates are inclusive and
+  "today" is the project clock (`va_project_master.timezone`).
+- **A new start** is a new `va_death_register` row with `source` `register`
+  or `direct` (a registration, or an interview with no registration).
+  `today_count` counts the caller's such rows since project midnight, for the
+  site, or anywhere in the gated unit's subtree, however they arrived (device
+  uploads count, though they are never refused). A recorded refusal
+  (`POST /intake/refusals`) also creates a `direct` row but is not counted:
+  the gate excludes rows whose draft carries `meta.registration_refusal_sha256`.
+- **Refused (403 `collection_closed`) only at a new start with no client
+  id**, whichever client sends it (in practice the browser):
+  `POST /intake/deaths` without `client_death_id`, and `POST /intake/drafts`
+  with neither `death_id` nor `client_draft_id`. The check runs after the
+  scope check, so a caller without access gets the usual 403 and learns
+  nothing about the gate.
+- **Never refused:** anything carrying a client id (a phone pushing work it
+  already made, maybe offline: `POST /deaths` with `client_death_id`,
+  `POST /submissions`, `POST /drafts/sync`, the attachment draft of
+  `POST /drafts` with `client_draft_id`, `POST /intake/refusals`, bundles),
+  the interview of a registered death (`POST /drafts` with `death_id`), edits
+  (`PATCH /deaths/<id>`, identifiers) and revisions. The server cannot tell a
+  phone's online start from a later push of offline work, so the phone
+  enforces the gate itself from `/me/access`. ODK Collect sync is not gated.
+- **Refusal body** (the usual `{"error", "code"}` plus the gate):
+
+```json
+{
+  "error": "Data collection for Yelahanka PHC ended on November 5, 2026.",
+  "code": "collection_closed",
+  "reason": "collection_ended",
+  "display_name": "Yelahanka PHC",
+  "date": "2026-11-05",
+  "daily_interviewer_limit": null
+}
+```
+
+  `reason`: `collection_paused` (switched off), `collection_not_started`
+  (`date` is the start date), `collection_ended` (`date` is the end date),
+  `collection_daily_limit` (`daily_interviewer_limit` is the limit reached).
+  `date` is null for paused and the daily limit.
+
+- **`GET /me/access`, per project (additive):** `timezone` (IANA),
+  `project_today` (`YYYY-MM-DD` on the project clock when the response was
+  built), `server_time` (ISO UTC with `Z`), and `collection_gate` with
+  `sites` (one entry per site of `actions.interview` or
+  `actions.register_death`: the site gate alone) and `units` (tree projects:
+  one entry per such site and per selectable unit an interviewer or
+  death_reporter reaches there, within that site's action units: site and
+  unit resolved together). The keys are the `site_id` and `org_unit_id` the
+  app sends on `POST /deaths` and `POST /drafts` / `/submissions`. A closed
+  gate never removes `actions.interview` or `actions.register_death`: the
+  app (and older APKs) purge a project that loses them.
+
+```json
+{
+  "project_id": "UNSW01",
+  "timezone": "Asia/Kolkata",
+  "project_today": "2026-11-06",
+  "server_time": "2026-11-06T09:12:30.512000Z",
+  "collection_gate": {
+    "sites": [
+      {"site_id": "KA01", "open": true, "enabled": true,
+       "start_date": "2026-11-01", "end_date": null,
+       "daily_interviewer_limit": null, "today_count": 2,
+       "display_name": "Bengaluru Rural",
+       "reason": null, "date": null, "message": null}
+    ],
+    "units": [
+      {"site_id": "KA01", "org_unit_id": "6f0d…", "open": false, "enabled": true,
+       "start_date": "2026-11-01", "end_date": "2026-11-30",
+       "daily_interviewer_limit": 5, "today_count": 5,
+       "display_name": "Yelahanka PHC",
+       "reason": "collection_daily_limit", "date": null,
+       "message": "You have reached today's limit of 5 new interviews for Yelahanka PHC."}
+    ]
+  }
+}
+```
+
+  Per entry: `enabled` (site and unit both on), `start_date` / `end_date`
+  (the narrowest window of the two, inclusive), `daily_interviewer_limit` /
+  `today_count` (the binding pair: the gate with the fewest starts left;
+  `today_count` is the caller's at response time; when neither gate has a
+  limit, the most specific gate's count: the unit subtree's, else the
+  site's), `open`, and while closed `reason`, `date`,
+  `message` (English, for older clients; the app localises from `reason`).
+  `display_name` is the deciding gate's name when closed, else the unit
+  gate's (if one applies) or the site's. The app adds its own starts since
+  the response to `today_count`. At most six queries for all projects together
+  (`collection_gate.resolve`), however many units.
+
 ## Draft sync (`digitva-xz83` part B)
 
 Policy: [Web Intake](../policy/web-intake.md) "Parallel interviews". No
@@ -752,8 +852,8 @@ section 17 (wire names, codes). `POST /api/v1/intake/submissions` with a
   [Phone Attachments](../policy/phone-attachments.md) decides; a direct start (no case) attaches through the attachment draft ("Direct start with attachments", above); the phone makes step 1 with its interview id.
 - The admin Devices card shows the unsent count only, not the registration
   ids (they are in the JSON).
-- The Android app's draft sync client (`mobile/`), and a supervisor view of
-  `replaced` copies.
+- A supervisor view of `replaced` copies. (The phone's draft sync client is
+  built: `mobile/digitva-collect/src/draftSync.ts`.)
 - A supervisor view of superseded copies and telling the interviewer in the
   web list.
 

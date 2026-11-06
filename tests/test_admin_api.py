@@ -1,6 +1,6 @@
 import uuid
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -654,6 +654,38 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertEqual(toggle_resp.get_json()["status"], "active")
 
+    def test_home_kpis_included_saves_and_is_refused_for_training_projects(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        create = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "KPI001", "project_name": "KPI", "project_nickname": "K",
+                  "home_kpis_included": True},
+            headers=headers,
+        )
+        self.assertEqual(create.status_code, 201)
+        self.assertTrue(create.get_json()["project"]["home_kpis_included"])
+
+        refused = self.client.put(
+            "/admin/api/projects/KPI001", json={"demo_training_enabled": True}, headers=headers
+        )
+        self.assertEqual(refused.status_code, 400)
+        off = self.client.put(
+            "/admin/api/projects/KPI001",
+            json={"home_kpis_included": False, "demo_training_enabled": True},
+            headers=headers,
+        )
+        self.assertEqual(off.status_code, 200)
+        self.assertFalse(off.get_json()["project"]["home_kpis_included"])
+
+        training = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "KPI002", "project_name": "Train", "project_nickname": "T",
+                  "demo_training_enabled": True, "home_kpis_included": True},
+            headers=headers,
+        )
+        self.assertEqual(training.status_code, 400)
+
     def test_project_country_validates_saves_and_never_restamps(self):
         """rou1: SmartVA's ISO3 list; Unknown clears."""
         self._login(self.admin_user_id)
@@ -725,6 +757,88 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(bad_create.status_code, 400)
         self.assertIsNone(db.session.get(VaProjectMaster, "PRJRW2"))
+
+    def test_project_timezone_defaults_saves_and_validates(self):
+        """digitva-apee: the project clock is an IANA zone, Asia/Kolkata by default."""
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        create_resp = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJTZ1", "project_name": "Clock", "project_nickname": "C"},
+            headers=headers,
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        self.assertEqual(create_resp.get_json()["project"]["timezone"], "Asia/Kolkata")
+
+        edit_resp = self.client.put(
+            "/admin/api/projects/PRJTZ1", json={"timezone": "Africa/Nairobi"}, headers=headers
+        )
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertEqual(edit_resp.get_json()["project"]["timezone"], "Africa/Nairobi")
+        for bad in ("Mars/Olympus", "", " UTC", "../etc/passwd", None, 5, ["UTC"]):
+            resp = self.client.put(
+                "/admin/api/projects/PRJTZ1", json={"timezone": bad}, headers=headers
+            )
+            self.assertEqual(resp.status_code, 400, bad)
+            self.assertIn("timezone", resp.get_json()["error"])
+        self.assertEqual(db.session.get(VaProjectMaster, "PRJTZ1").timezone, "Africa/Nairobi")
+
+        bad_create = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJTZ2", "project_name": "Bad", "project_nickname": "B",
+                  "timezone": "Nowhere/City"},
+            headers=headers,
+        )
+        self.assertEqual(bad_create.status_code, 400)
+        self.assertIsNone(db.session.get(VaProjectMaster, "PRJTZ2"))
+
+    def test_project_target_completion_date_saves_clears_and_validates(self):
+        """docs/policy/kpis.md "App-Level Settings": an admin sets it on Basics;
+        empty clears it; anything but YYYY-MM-DD is refused."""
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        create_resp = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJTD1", "project_name": "Target", "project_nickname": "T",
+                  "project_target_completion_date": "2027-03-31"},
+            headers=headers,
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        self.assertEqual(
+            create_resp.get_json()["project"]["project_target_completion_date"], "2027-03-31"
+        )
+
+        edit_resp = self.client.put(
+            "/admin/api/projects/PRJTD1",
+            json={"project_target_completion_date": "2027-06-30"}, headers=headers,
+        )
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertEqual(
+            db.session.get(VaProjectMaster, "PRJTD1").project_target_completion_date,
+            date(2027, 6, 30),
+        )
+        for bad in ("2027-02-30", "31/03/2027", "20270331", "2027-W13-1", 5, ["2027-03-31"]):
+            resp = self.client.put(
+                "/admin/api/projects/PRJTD1",
+                json={"project_target_completion_date": bad}, headers=headers,
+            )
+            self.assertEqual(resp.status_code, 400, bad)
+            self.assertIn("project_target_completion_date", resp.get_json()["error"])
+        db.session.expire_all()
+        self.assertEqual(
+            db.session.get(VaProjectMaster, "PRJTD1").project_target_completion_date,
+            date(2027, 6, 30),
+        )
+
+        for empty in ("", None):
+            resp = self.client.put(
+                "/admin/api/projects/PRJTD1",
+                json={"project_target_completion_date": empty}, headers=headers,
+            )
+            self.assertEqual(resp.status_code, 200, empty)
+            self.assertIsNone(resp.get_json()["project"]["project_target_completion_date"])
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(VaProjectMaster, "PRJTD1").project_target_completion_date)
 
     def test_admin_can_create_and_edit_site_master(self):
         self._login(self.admin_user_id)

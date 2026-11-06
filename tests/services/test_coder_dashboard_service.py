@@ -457,46 +457,144 @@ class TestCoderDashboardService(BaseTestCase):
             get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]),
         )
 
-    def test_recodeable_sids_follow_the_once_in_24_hours_rule(self):
-        """digitva-h67s: the Recode button shows only when a recode would start.
-
-        A case the coder finalized, re-coded and finalized again within 24
-        hours is refused by ``recode_limit_error``; the list must not offer it.
-        """
-        once = "uuid:coderdash-recode-once"
-        twice = "uuid:coderdash-recode-twice"
-        for sid in (once, twice):
-            self._add_submission(sid)
-        superseded = VaFinalAssessments(
-            va_sid=twice,
-            va_finassess_by=self.dashboard_user.user_id,
-            va_conclusive_cod="R99",
-            va_finassess_status=VaStatuses.deactive,
-        )
-        db.session.add_all([
-            VaFinalAssessments(
+    def _add_finals(self, sid, minutes_ago):
+        """The coder's finals on *sid*, one per age; the youngest stays active."""
+        finals = []
+        for age in sorted(minutes_ago, reverse=True):
+            final = VaFinalAssessments(
                 va_sid=sid,
                 va_finassess_by=self.dashboard_user.user_id,
                 va_conclusive_cod="R99",
-                va_finassess_status=VaStatuses.active,
+                va_finassess_status=VaStatuses.deactive,
             )
-            for sid in (once, twice)
-        ] + [superseded])
+            db.session.add(final)
+            db.session.flush()
+            final.va_finassess_createdat = (
+                datetime.now(timezone.utc) - timedelta(minutes=age)
+            ).replace(tzinfo=None)
+            finals.append(final)
+        finals[-1].va_finassess_status = VaStatuses.active
         db.session.commit()
-        for sid in (once, twice):
-            set_submission_workflow_state(
-                sid,
-                WORKFLOW_CODER_FINALIZED,
-                by_user_id=self.dashboard_user.user_id,
-                by_role="vacoder",
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            by_user_id=self.dashboard_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.commit()
+        return finals
+
+    def test_recode_any_number_of_times_inside_the_window(self):
+        """digitva-g7xq: the once-only rule is withdrawn; recodes repeat in the window."""
+        sid = "uuid:coderdash-recode-many"
+        self._add_submission(sid)
+        self._add_finals(sid, [120, 90, 60, 30])
+
+        self.assertIsNone(recode_limit_error(self.dashboard_user, sid))
+        self.assertIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
+
+    def test_a_late_recode_does_not_extend_the_window(self):
+        """The window runs from the first final; a recode 1 minute ago does not reopen it."""
+        sid = "uuid:coderdash-recode-late"
+        self._add_submission(sid)
+        self._add_finals(sid, [1441, 1])
+
+        self.assertEqual(
+            recode_limit_error(self.dashboard_user, sid),
+            "Re-coding is only allowed within 24 hours of VA form finalisation.",
+        )
+        self.assertNotIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
+        row = {
+            "va_sid": sid,
+            "project_id": self.BASE_PROJECT_ID,
+            "va_coding_date": "2099-01-01T00:00:00",
+            "va_code_status": "VA Coding Completed",
+            "is_tester": False,
+        }
+        set_recode_until([row], self.dashboard_user.user_id)
+        self.assertLess(
+            datetime.fromisoformat(row["recode_until"]), datetime.now(timezone.utc)
+        )
+
+    def _round_boundary(self, sid, minutes_ago, transition="admin_override_to_recode"):
+        """A workflow event of *transition* on *sid*, *minutes_ago* old; the case
+        is left coder_finalized as after the new round's final."""
+        from app.models import VaSubmissionWorkflowEvent
+        from app.services.workflow.transitions import admin_actor, mark_admin_override_to_recode
+
+        if transition == "admin_override_to_recode":
+            mark_admin_override_to_recode(sid, actor=admin_actor(self.dashboard_user.user_id))
+        else:
+            from app.services.workflow.events import record_workflow_event
+
+            record_workflow_event(
+                sid, transition_id=transition, previous_state=WORKFLOW_CODER_FINALIZED,
+                current_state=WORKFLOW_CODER_FINALIZED, actor_kind="coder",
+                actor_role="vacoder", actor_user_id=self.dashboard_user.user_id, reason="test",
             )
+        db.session.flush()
+        event = db.session.scalars(
+            db.select(VaSubmissionWorkflowEvent).where(
+                VaSubmissionWorkflowEvent.va_sid == sid,
+                VaSubmissionWorkflowEvent.transition_id == transition,
+            )
+        ).one()
+        event.event_created_at = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
+        set_submission_workflow_state(
+            sid, WORKFLOW_CODER_FINALIZED,
+            by_user_id=self.dashboard_user.user_id, by_role="vacoder",
+        )
         db.session.commit()
 
-        self.assertIsNone(recode_limit_error(self.dashboard_user, once))
-        self.assertIn("once in the last 24 hours", recode_limit_error(self.dashboard_user, twice))
-        recodeable = get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID])
-        self.assertIn(once, recodeable)
-        self.assertNotIn(twice, recodeable)
+    def test_a_new_coding_round_opens_a_fresh_window(self):
+        """An admin reopen between the finals: the window runs from the new round's
+        first final (30 minutes ago), not the earlier round's (2000 minutes ago)."""
+        sid = "uuid:coderdash-recode-new-round"
+        self._add_submission(sid)
+        self._add_finals(sid, [2000, 30])
+        self.assertIsNotNone(recode_limit_error(self.dashboard_user, sid))
+
+        self._round_boundary(sid, 1000)
+
+        self.assertIsNone(recode_limit_error(self.dashboard_user, sid))
+        self.assertIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
+        row = {
+            "va_sid": sid,
+            "project_id": self.BASE_PROJECT_ID,
+            "va_coding_date": "2000-01-01T00:00:00",
+            "va_code_status": "VA Coding Completed",
+            "is_tester": False,
+        }
+        set_recode_until([row], self.dashboard_user.user_id)
+        self.assertGreater(
+            datetime.fromisoformat(row["recode_until"]),
+            datetime.now(timezone.utc) + timedelta(hours=23),
+        )
+
+    def test_a_self_recode_does_not_open_a_new_round(self):
+        """The coder's own recode_started between the finals is no round boundary."""
+        sid = "uuid:coderdash-recode-self-round"
+        self._add_submission(sid)
+        self._add_finals(sid, [2000, 30])
+
+        self._round_boundary(sid, 1000, transition="recode_started")
+
+        self.assertEqual(
+            recode_limit_error(self.dashboard_user, sid),
+            "Re-coding is only allowed within 24 hours of VA form finalisation.",
+        )
+        self.assertNotIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
+
+    def test_tester_final_does_not_start_the_window(self):
+        """Tester output is never a coding of the case (digitva-ggc3)."""
+        sid = "uuid:coderdash-recode-tester-first"
+        self._add_submission(sid)
+        tester_final, _ = self._add_finals(sid, [2000, 30])
+        tester_final.is_tester = True
+        db.session.commit()
+
+        self.assertIsNone(recode_limit_error(self.dashboard_user, sid))
+        self.assertIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
 
     def test_recodeable_sids_follow_the_project_recode_window(self):
         """digitva-yeg3.2: the offer follows the project's window, not 24 hours."""
@@ -540,20 +638,24 @@ class TestCoderDashboardService(BaseTestCase):
     def test_set_recode_until_adds_the_project_window_to_final_codings(self):
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         self.addCleanup(self._set_recode_window, project.recode_window_minutes)
-        base = {"project_id": self.BASE_PROJECT_ID, "va_coding_date": "2026-10-22T10:00:00"}
+        base = {
+            "va_sid": "no-such-sid",
+            "project_id": self.BASE_PROJECT_ID,
+            "va_coding_date": "2026-10-22T10:00:00",
+        }
         rows = [
             {**base, "va_code_status": "VA Coding Completed", "is_tester": False},
             {**base, "va_code_status": "Not Codeable", "is_tester": False},
             {**base, "va_code_status": "VA Coding Completed", "is_tester": True},
             {**base, "project_id": "NOPE01", "va_code_status": "VA Coding Completed"},
         ]
-        set_recode_until(rows)
+        set_recode_until(rows, self.dashboard_user.user_id)
         self.assertEqual(
             [row["recode_until"] for row in rows],
             ["2026-10-23T10:00:00+00:00", None, None, None],
         )
 
         self._set_recode_window(60)
-        set_recode_until(rows)
+        set_recode_until(rows, self.dashboard_user.user_id)
         self.assertEqual(rows[0]["recode_until"], "2026-10-22T11:00:00+00:00")
-        set_recode_until([])
+        set_recode_until([], self.dashboard_user.user_id)

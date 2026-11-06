@@ -899,10 +899,22 @@
         + '<td style="width:155px;"><input type="date" class="form-control form-control-sm sg-end" value="' + esc(s.coding_end_date || '') + '"></td>'
         + '<td style="width:130px;"><input type="number" min="1" class="form-control form-control-sm sg-limit" value="' + (s.daily_coder_limit != null ? esc(s.daily_coder_limit) : '') + '" placeholder="No cap"></td>'
         + '<td class="text-end" style="width:100px;"><button type="button" class="btn btn-sm btn-outline-success py-0 px-2 sg-save-btn" data-site-id="' + sid + '"><i class="fa-solid fa-check me-1"></i>Save</button></td>'
+        + '</tr>'
+        + '<tr data-site-collection-row="' + sid + '">'
+        + '<td class="text-muted small">Data Collection &mdash; <code>' + sid + '</code></td>'
+        + '<td style="width:130px;"><label class="visually-hidden">Collection</label><select class="form-select form-select-sm sc-enabled">'
+        + '<option value="true"' + (s.collection_enabled !== false ? ' selected' : '') + '>Enabled</option>'
+        + '<option value="false"' + (s.collection_enabled === false ? ' selected' : '') + '>Paused</option>'
+        + '</select></td>'
+        + '<td style="width:155px;"><input type="date" aria-label="Start Date" class="form-control form-control-sm sc-start" value="' + esc(s.collection_start_date || '') + '"></td>'
+        + '<td style="width:155px;"><input type="date" aria-label="End Date" class="form-control form-control-sm sc-end" value="' + esc(s.collection_end_date || '') + '"></td>'
+        + '<td style="width:130px;"><input type="number" min="1" aria-label="Daily Interviewer Limit" class="form-control form-control-sm sc-limit" value="' + (s.daily_interviewer_limit != null ? esc(s.daily_interviewer_limit) : '') + '" placeholder="No limit"></td>'
+        + '<td class="text-end" style="width:100px;"><button type="button" class="btn btn-sm btn-outline-success py-0 px-2 sc-save-btn" data-site-id="' + sid + '"><i class="fa-solid fa-check me-1"></i>Save</button></td>'
         + '</tr>';
     }).join('');
     wrap.innerHTML = '<table class="table table-sm table-bordered align-middle mb-0">'
-      + '<thead class="table-light"><tr><th>Project Site</th><th>Coding Gate</th><th>Start Date</th><th>End Date</th><th>Daily Limit / Coder</th><th></th></tr></thead>'
+      + '<thead class="table-light"><tr><th>Project Site</th><th>Coding Gate</th><th>Start Date</th><th>End Date</th><th>Daily Limit / Coder</th><th></th></tr>'
+      + '<tr class="table-light small text-muted"><th>Data Collection</th><th>Collection</th><th>Start Date</th><th>End Date</th><th>Daily Interviewer Limit</th><th></th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table>';
 
     wrap.querySelectorAll('.sg-save-btn').forEach(function (btn) {
@@ -935,6 +947,39 @@
           .catch(function () {
             msg.className = 'small mb-2 text-danger';
             msg.textContent = 'Network error saving coding gate.';
+          });
+      });
+    });
+    wrap.querySelectorAll('.sc-save-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var siteId = btn.getAttribute('data-site-id');
+        var tr = wrap.querySelector('tr[data-site-collection-row="' + CSS.escape(siteId) + '"]');
+        var msg = document.getElementById('setup-site-gates-msg');
+        var limRaw = tr.querySelector('.sc-limit').value.trim();
+        var payload = {
+          collection_enabled: tr.querySelector('.sc-enabled').value === 'true',
+          collection_start_date: tr.querySelector('.sc-start').value || null,
+          collection_end_date: tr.querySelector('.sc-end').value || null,
+          daily_interviewer_limit: limRaw ? parseInt(limRaw, 10) : null
+        };
+        fetch('/admin/api/project-sites/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(siteId) + '/collection-settings', {
+          method: 'PUT',
+          headers: csrfHeaders(),
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              msg.className = 'small mb-2 text-danger';
+              msg.textContent = (res.data && res.data.error) || 'Failed to save collection settings.';
+              return;
+            }
+            msg.className = 'small mb-2 text-success';
+            msg.textContent = 'Saved collection settings for site ' + siteId + '.';
+          })
+          .catch(function () {
+            msg.className = 'small mb-2 text-danger';
+            msg.textContent = 'Network error saving collection settings.';
           });
       });
     });

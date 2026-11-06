@@ -3,7 +3,7 @@ title: AI Analytics Questions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-11-06
 ---
 
 # AI Analytics Questions
@@ -32,7 +32,7 @@ it again. Search suggestion links use these. An htmx request over a limit
 gets a 429 alert partial (`app/routes/va_errors.py`), not a redirect.
 
 Layout: result area and the conversation's question history (held in the
-page only); a side column with suggestions search (`/help/search`),
+page only); a side column with suggestions search (`/data-management/ai-questions/suggestions`),
 built-in reports, catalog questions and saved queries; a command bar pinned
 to the bottom with the question box, the provider choice (enabled providers
 only), the personal-data warning and follow-up chips (up to 3 from the
@@ -129,7 +129,7 @@ state. Chart.js is the vendored `app/static/vendor/chartjs`.
 
 ## Suggestions search and Typesense
 
-`app/services/ai_search_service.py` serves `GET /help/search`. It indexes
+`app/services/ai_search_service.py` serves `GET /data-management/ai-questions/suggestions` (data managers and admin; moved out of the public `/help` area on 2026-11-06). It indexes
 help pages, active WHO VA cause definitions, catalog questions and saved
 query titles and descriptions (owner-only). Saved queries are indexed on
 save and removed on delete (best effort; skipped while Typesense is not

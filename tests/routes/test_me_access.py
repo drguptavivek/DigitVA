@@ -3,6 +3,9 @@
 Users and the AZTA01 tree (D1 > C1 > P1 > SC1, C1 > P2, D2) come from the
 authz fixture; the device-token helpers from tests/routes/test_device_api.py.
 """
+from datetime import UTC, datetime
+from unittest.mock import patch
+
 import sqlalchemy as sa
 
 from app import db, limiter
@@ -174,7 +177,9 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.get_json(), {"error": "Authentication required.", "code": "unauthorized"})
 
-    def test_bearer_and_cookie_get_the_same_body(self):
+    # server_time in the access body is the instant of each response.
+    @patch("app.services.project_clock._now", return_value=datetime(2026, 11, 6, 6, 0, tzinfo=UTC))
+    def test_bearer_and_cookie_get_the_same_body(self, _now):
         tokens = self._tokens()
         bearer = device_tests._FreshGClient(self.app, self.app.response_class, use_cookies=True).get(
             ACCESS, headers=self._bearer(tokens))

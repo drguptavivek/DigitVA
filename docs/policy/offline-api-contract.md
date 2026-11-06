@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Offline API Contract v1
@@ -112,6 +112,46 @@ not list.
 | Limits | enrol 10/min per IP; sign-in 10/min per IP, 10/min per device, 20/hour per account; refresh 30/min per IP (`app/routes/api/auth.py:109-148`) |
 | Status | `implemented today` |
 | Addition | optional `signing_public_key` (b64url, 32 bytes) on `POST /auth/enroll`, and `POST /auth/devices/current/signing-key` (device bearer, set once): `implemented today` (digitva-gb8w.5, `app/routes/api/auth.py` `enroll` and `set_device_signing_key`, `app/services/device_signing_service.py`); a bad key is 400 `invalid_request` with `fields: ["signing_public_key"]`; bundle spec 3.2 |
+
+### 3.1a Collection gate in `GET /me/access` (`digitva-jeyy`)
+
+Additive fields per `projects[]` entry; nothing is renamed or removed. A
+closed gate **never** removes `actions.interview` or `actions.register_death`
+(a client treats a project without them as unauthorised and purges it).
+
+| Field | Value |
+| --- | --- |
+| `timezone` | the project's IANA zone (`va_project_master.timezone`) |
+| `project_today` | `YYYY-MM-DD`, today on the project clock when the response was built |
+| `server_time` | ISO 8601 UTC (`...Z`) when the response was built |
+| `collection_gate.sites[]` | per `site_id` of the project's `interview` / `register_death` actions: the site gate |
+| `collection_gate.units[]` | tree projects: per (`site_id`, `org_unit_id`) the app's pickers offer, site and nearest-gated-ancestor unit resolved together (the stricter wins) |
+
+Each gate entry: `open`, `enabled`, `start_date`, `end_date` (inclusive,
+the narrowest of site and unit, or null), `daily_interviewer_limit` (or null)
+and `today_count` (the binding pair: the caller's new starts since project
+midnight against the gate with the fewest left), `display_name`, and while
+closed `reason`, `date`, `message` (English), else null. Example and rules:
+[device-collection-api.md](../current-state/device-collection-api.md)
+"Collection gate".
+
+```json
+{"site_id": "KA01", "org_unit_id": "6f0d…", "open": false, "enabled": true,
+ "start_date": "2026-11-01", "end_date": "2026-11-05",
+ "daily_interviewer_limit": null, "today_count": 0,
+ "display_name": "Yelahanka PHC", "reason": "collection_ended", "date": "2026-11-05",
+ "message": "Data collection for Yelahanka PHC ended on November 5, 2026."}
+```
+
+Client rules: before a new registration or a new interview with no
+registration, evaluate the downloaded entry for the chosen site and unit
+against `project_today` advanced by the device clock, adding the starts made
+since the response to `today_count`; localise from `reason`. Interviews of
+registered deaths, uploads, edits and revisions are never gated. The server
+refuses only a new start sent with no client id (in practice the browser's;
+403 `collection_closed`, section 8) and
+accepts every upload, including work started offline after the gate closed
+or over the limit. `implemented today` (server; app pending).
 
 ### 3.2 Reference data
 
@@ -783,7 +823,7 @@ HTTP shape: `{"error", "code"}` (+ `fields`). Codes a device can receive:
 | --- | --- |
 | 400 | `invalid_request` (malformed; on `PUT .../identifiers` also a rule refusal with `fields`) |
 | 401 | `unauthorized`, `device_invalid`, `invalid_credentials`, `refresh_reused`, `session_revoked`, `session_ended`, `session_expired`, `refresh_invalid` |
-| 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `device_mismatch` (standalone push, 17) |
+| 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `device_mismatch` (standalone push, 17), `collection_closed` (a new start with no client id only, never an upload; body adds `reason`, `display_name`, `date`, `daily_interviewer_limit`, 3.1a) |
 | 404 | `not_found` |
 | 409 | `conflict` (client id of another user, consent id reuse), `case_closed`, `death_stale`, `case_completed`, `details_pending`, `refresh_retry_race`, `revision_locked`, `case_already_submitted`, `case_state_conflict`; station only: `policy_locked`, `station_coding_not_enabled` (4.3) |
 | 411 / 413 | `length_required`, `payload_too_large` |
@@ -1237,6 +1277,9 @@ included), attachments by the existing per-file `PUT`, resumable with backoff.
 ## Change log
 
 - 2026-10-21: v1 proposed.
+- 2026-11-06: data-collection gate (`digitva-jeyy`): 3.1a `/me/access`
+  additions and 403 `collection_closed` (section 8) for a new start with no
+  client id.
 - 2026-10-21: owner decisions 1-7 applied (section 12): onboarding and
   custodian, onboarded-only ingest, no provisional MCCD PDF, station consent
   at registration, purge via the station config on HTTPS, station supervisor

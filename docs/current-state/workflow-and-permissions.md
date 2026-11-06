@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Workflow And Permissions
@@ -51,7 +51,61 @@ Current coding tester gate rule:
   - `coding_start_date`
   - `coding_end_date`
   - `daily_coder_limit`
-- coding gate date checks use UTC date boundaries
+  and the coder daily cap: allocations at a pair or unit where the user holds
+  a `coding_tester` grant are not counted toward it (read from current
+  grants: allocation rows carry no tester flag); a PI waiver does not lift
+  the cap
+- coding gate dates and daily limits use the project clock
+  (`va_project_master.timezone`, `app/services/project_clock.py`): "today" is
+  the project's date and the daily counts start at the project's midnight
+
+Data-collection gate (`digitva-jeyy`, `app/services/collection_gate.py`):
+
+- per project-site (`va_project_sites.collection_*`,
+  `daily_interviewer_limit`) and optionally per unit
+  (`map_org_unit_collection_gate`, nearest gated ancestor); both apply, the
+  first closed decides; dates inclusive on the project clock; no role waiver
+- stops only a new start with no client id (in practice the browser's):
+  `POST /intake/deaths` without
+  `client_death_id` and `POST /intake/drafts` with neither `death_id` nor
+  `client_draft_id`, 403 `collection_closed` with `reason`
+  (`collection_paused`, `collection_not_started`, `collection_ended`,
+  `collection_daily_limit`), `display_name`, `date`,
+  `daily_interviewer_limit`; checked after the scope check
+- never stops the interview of a registered death, device pushes (anything
+  with a client id, bundles), edits or revisions; ODK Collect sync is not
+  gated; the phone enforces the gate offline from `GET /me/access`
+  (`collection_gate`), which never drops the `interview` or `register_death`
+  actions for it
+- the daily limit counts the user's `va_death_register` rows with `source`
+  `register` or `direct` created since project midnight (site, or the gated
+  unit's subtree)
+- edited by an admin on the Project Sites panel (`PUT
+  /admin/api/project-sites/<p>/<s>/collection-settings`) and by an admin or
+  project PI on the organisation units panel (`GET`/`PUT`/`DELETE
+  /admin/api/organization/<p>/units/<u>/collection-gate`), as the coding gate
+
+Coder daily allocation cap (`digitva-fkec`):
+
+- a coder takes at most 200 coding allocations per project per project-clock
+  day, counted from `va_allocations` (`va_allocation_for = coding`) created
+  since the project's midnight, one grouped query served by
+  `ix_va_allocations_to_for_createdat`; nothing is stored per day
+- only new cases count: recode allocations (`start_recode_allocation`) and
+  demo allocations (`start_demo_allocation`, a coder's demo session) carry
+  `va_allocation_kind` (`recode`, `demo`) and practice allocations (the
+  training project) carry `va_allocation_training`; neither is counted
+  (`_capped_project_ids`). A case reopened for a full new coding (upstream
+  change accepted, admin reopen) and taken from the pool counts as new
+- checked before a new allocation only (random pool and pick list drop a
+  capped project's forms; pick, "Code this case now" and the offline import
+  refuse with "You have reached today's limit of 200 coding allocations in
+  this project."); the allocators check it with the case's site and unit, so
+  a site- or unit-level `coding_tester` keeps picking at their tester scope;
+  the `vapickcoding` URL validator does not check it; resuming a held case is
+  not capped
+- `va_users.vacode_formcount` (the old never-reset "yearly limit") is no
+  longer read or written; the column stays
 
 Current coding tester output rule (`digitva-ggc3`, security review 10 #12):
 
@@ -70,9 +124,9 @@ Current coding tester output rule (`digitva-ggc3`, security review 10 #12):
 - because the row is deactive and the transition is not `coder_finalized` /
   `recode_finalized`, tester output is absent from the coder dashboard KPIs,
   DM coder output, burndown, daily KPI aggregates, analytics MVs, exports
-  and the 24-hour reviewer-eligibility sweep; DM coder utilization counts
-  only allocations held by coder-grant holders; the 24-hour recode-limit
-  counts ignore `is_tester` rows
+  and the reviewer-eligibility sweep; DM coder utilization counts
+  only allocations held by coder-grant holders; the recode window start
+  ignores `is_tester` rows
 - the tester's own coder history still lists their test codings, badged
   "Test · not counted"
 
@@ -415,8 +469,9 @@ Timeout cleanup:
 - demo/training project saved artifacts use the project retention window and
   default to 10 minutes
 - that hourly maintenance path now moves
-  `coder_finalized -> reviewer_eligible` once the authoritative final COD is
-  older than the 24-hour recode window and there is no active recode episode
+  `coder_finalized -> reviewer_eligible` once the project's recode window,
+  counted from the authoritative coder's first final COD or review of the
+  case in the current coding round, has passed and there is no active recode episode
 - when demo-retention cleanup deactivates an authoritative demo final COD, it
   also clears or repoints `va_final_cod_authority` and restores canonical
   workflow state based on the remaining active records
@@ -556,8 +611,18 @@ Recode:
     window
   - successful replacement final COD supersedes the prior authoritative final
     COD and completes the recode episode
-- the recode start window is currently twenty-four hours from the authoritative
-  final COD timestamp
+- the recode window is the project's `recode_window_minutes` counted from the
+  coder's first non-tester final COD or review of the case (any status) in
+  the current coding round, so a recode never extends it. A round starts at
+  the case's latest `upstream_change_accepted` (data manager accept,
+  interviewer revision, supervisor's interview choice) or
+  `admin_override_to_recode` workflow event; `recode_started` is not a
+  boundary (`app/services/recode_window.py`, `ROUND_BOUNDARY_TRANSITIONS`,
+  read in the same single query by `first_coding_at_expr` and
+  `first_coding_times`); inside it the coder who finalized may recode any
+  number of times (`recode_limit_error`, `get_coder_recodeable_sids`,
+  `recode_until` on `GET /api/v1/coding/history`, the reviewer-eligibility
+  sweep)
 - stale allocation timeout abandons the active recode episode without deleting
   the previously authoritative final COD
 - sync updates that invalidate an existing finalized COD also abandon any active

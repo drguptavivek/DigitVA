@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # API v1 Reference
@@ -518,7 +518,8 @@ Same rows, same keys and the same authorization as the unpaged body.
   coding date first, ties broken by submission date, status (completed
   before not-codeable), `va_sid` and row id, so pages never gap or repeat.
 - Every `/history` row (paged or not) carries `recode_until`: on a final
-  coding, its time plus the project's `recode_window_minutes`, tz-aware ISO
+  coding, the coder's first final or review of the case (so a recode never
+  moves it) plus the project's `recode_window_minutes`, tz-aware ISO
   (UTC offset); null on not-codeable, tester and demo rows. It is set whether
   or not the row is still `recodeable`, so a client can say the window has
   closed ([Coding Workflow State Machine](../policy/coding-workflow-state-machine.md),
@@ -1439,6 +1440,11 @@ Built by `app/services/access_summary_service.py` from `resolve_grants`
 project (names, sites, granted-unit names, one tree load). No query per grant,
 site or unit.
 
+- per project, `timezone`, `project_today`, `server_time` and
+  `collection_gate` (`{sites: [...], units: [...]}`): the project clock and
+  the resolved data-collection gate, additive; a closed gate never removes
+  `actions.interview` or `actions.register_death`. Shape and example:
+  [device-collection-api.md](device-collection-api.md) "Collection gate".
 - `user`: id, name, `landing_page` (`VaUsers.landing_page`) and
   `coding_languages` (`VaUsers.vacode_language`, a list of language codes).
   No email or mobile.

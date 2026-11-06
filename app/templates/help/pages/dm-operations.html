@@ -56,7 +56,9 @@
 <p>
   A targeted refresh for one submission updates the local payload, attachments,
   SmartVA result, and local sync-issue status for the parent form. This action
-  is available through the API and from the submission detail view.
+  is available through the API only
+  (<code>POST /api/v1/data-management/submissions/&lt;va_sid&gt;/sync</code>);
+  no dashboard button calls it.
 </p>
 
 <h2>Marking a Submission as Not Codeable</h2>

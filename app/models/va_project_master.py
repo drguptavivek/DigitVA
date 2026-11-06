@@ -137,6 +137,11 @@ class VaProjectMaster(db.Model):
     demo_training_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"
     )
+    # Counted on the public home page (docs/policy/public-home-stats.md).
+    # Never for the training project or a demo/training project.
+    home_kpis_included: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
     demo_retention_minutes: so.Mapped[int] = so.mapped_column(
         sa.Integer(),
         nullable=False,
@@ -149,6 +154,12 @@ class VaProjectMaster(db.Model):
     # Policy: docs/policy/coding-workflow-state-machine.md ("Recode Window").
     recode_window_minutes: so.Mapped[int] = so.mapped_column(
         sa.Integer(), nullable=False, default=1440, server_default="1440"
+    )
+    # The project clock: IANA zone whose midnight starts the project's day for
+    # the coding gate and the coder daily cap (app/services/project_clock.py).
+    # Policy: docs/policy/project-clock-and-gates.md ("Project clock").
+    timezone: so.Mapped[str] = so.mapped_column(
+        sa.String(64), nullable=False, default="Asia/Kolkata", server_default="Asia/Kolkata"
     )
     # ISO 3166-1 alpha-3 from SmartVA's country list; null = Unknown. Stamped
     # onto each new submission (va_submissions.va_country_iso3) and used by

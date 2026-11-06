@@ -48,17 +48,17 @@
 
 <p>If you exceed these limits, you will be temporarily unable to submit login attempts. Wait a few minutes and try again.</p>
 
-<h2>Remember Me</h2>
+<h2>Session Length</h2>
 
-<p>The login page includes a <strong>"Remember Me"</strong> checkbox. By default, your session lasts 30 minutes. If you check "Remember Me," a persistent login cookie is set that keeps you logged in for 30 days, even across browser restarts.</p>
+<p>There is no "Remember Me" option. You are signed out after <strong>30 minutes</strong> without activity, and in any case <strong>12 hours</strong> after you signed in, whatever your activity. Sign in again to continue.</p>
 
 <div class="help-tip">
-  <strong>Tip:</strong> On shared or public computers, do not check "Remember Me." Always log out explicitly using the logout option when you are finished.
+  <strong>Tip:</strong> On shared or public computers, always log out explicitly using the logout option when you are finished.
 </div>
 
 <h2>Automatic Redirect After Login</h2>
 
-<p>After a successful login, DigitVA automatically redirects you to the dashboard appropriate for your role:</p>
+<p>After a successful login, DigitVA takes you to the app home (<code>/app/</code>), where your role's work is listed. Only a deployment without the app home redirects you to the dashboard appropriate for your role:</p>
 
 <ul>
   <li><strong>Admin</strong> &rarr; Admin Dashboard (<code>/admin</code>)</li>

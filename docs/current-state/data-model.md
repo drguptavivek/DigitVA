@@ -65,7 +65,14 @@ Key fields:
 - `demo_retention_minutes`
 - `recode_window_minutes` (1..10080, default 1440; TRN01 60): the coder
   recode / reviewer-eligibility window, migration `c8e4a2f6b1d3`
-  (docs/policy/coding-workflow-state-machine.md, "Recode Window")
+  (docs/policy/coding-workflow-state-machine.md, "Recode Window"); measured
+  from the coder's first non-tester final COD or review of the case, so a
+  recode never extends it (`app/services/recode_window.py`)
+- `timezone` (String(64), not null, default `Asia/Kolkata`, an IANA name
+  checked on the admin save): the project clock, migration `a7d3f9c2e5b1`.
+  Its midnight starts the day for the coding gate dates and daily limits and
+  the coder daily cap (`app/services/project_clock.py`;
+  docs/policy/project-clock-and-gates.md). Dashboards still bucket as before.
 - `project_country_iso3` (nullable, SmartVA's list): stamped on each new
   `va_submissions.va_country_iso3` and used by SmartVA ahead of
   `va_forms.form_smartvacountry`, migration `c3f9a1d7e2b4`
@@ -299,6 +306,21 @@ rows here keep the Project > Site > Form model.
   `org_unit_id`, `cadre_id`, `phone`, optional `user_id` (`va_users`), `remarks`,
   `is_active`
 - name and phone are personal data
+
+### Data-collection gate (`digitva-jeyy`, migration `c3f9a2d6e8b4`)
+
+- `va_project_sites.collection_enabled` (not null, default true),
+  `collection_start_date`, `collection_end_date` (inclusive, null = open),
+  `daily_interviewer_limit` (null = no limit): the site gate, beside the
+  coding gate columns
+- `map_org_unit_collection_gate`: at most one row per unit (primary key
+  `org_unit_id`), same four columns plus `created_at` / `updated_at`; no row
+  is not gated, the nearest gated ancestor wins, the stricter of site and
+  unit applies (shape of `map_org_unit_coding_gate`)
+- `ix_va_death_register_registered_by_created` (`registered_by`,
+  `created_at`) serves the gate's daily count of a user's new starts
+- rules: [Project Clock and Gates](../policy/project-clock-and-gates.md),
+  [Device Collection API](device-collection-api.md) "Collection gate"
 
 ### Mentoring institutes
 
@@ -1234,6 +1256,9 @@ Key fields:
 - `va_allocation_status`
 - `va_allocation_training` (boolean, NOT NULL, default false; true for an
   allocation inside the training project, `DIGITVA_TRAINING_PROJECT_ID`)
+- `va_allocation_kind` (String(16), nullable; `recode` or `demo`, NULL for a
+  new case; migration `b8e4c1d7f3a2`, not backfilled). Only NULL,
+  non-training coding allocations count toward the coder daily allocation cap
 - timestamps
 
 Indexes: `ix_va_allocations_to_for_createdat` on (`va_allocated_to`,
@@ -1898,8 +1923,10 @@ Other important tables:
   prefills (unlocked) `Id10010a` from `year_of_birth` when the resulting age is
   18-89 (owner decision 2026-10-20; `docs/policy/web-intake.md`).
 - `va_project_master` — also carries `project_target_completion_date` (DATE, nullable), the
-  admin-set target the DM burndown KPI projects against
-  (`app/routes/api/dm_kpi/dm_kpi_burndown.py`), and the four web intake form
+  target the DM burndown KPI projects against
+  (`app/routes/api/dm_kpi/dm_kpi_burndown.py`; set or cleared by an admin on
+  Project Setup, Basics, through `POST`/`PUT /admin/api/projects` as an ISO
+  date or empty), and the four web intake form
   options served by `GET /api/v1/organization/<project_id>/form-options`
   (migration `f2a9c4d7e1b3`): `web_intake_default_locale` (String(16), NOT
   NULL, default `'en'`), `web_intake_available_locales` (JSONB, nullable —

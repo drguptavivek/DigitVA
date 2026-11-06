@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-06
 ---
 
 # Data Manager KPI Framework
@@ -116,13 +116,16 @@ burndown from project start misses its budget at production size.
 
 | Setting | Type | Default | Purpose |
 |---------|------|---------|---------|
-| `project_target_completion_date` | DATE (per project) | NULL | Target date for completing all coding. Enables predicted-vs-achieved charts. |
+| `project_target_completion_date` | DATE (per project) | NULL | Target date for completing all coding. Enables predicted-vs-achieved charts. Set by an admin on Project Setup, Basics (owner 2026-11-06); cleared to remove it. |
 
 The `daily_kpi_aggregation_timezone` and `daily_kpi_aggregation_time` settings
 are removed (owner decision 2026-10-27, `digitva-0hul`): they were never implemented and there is no snapshot task to
 time. **Days follow the viewer's timezone** (`user.timezone`, default
-`Asia/Kolkata`), applied at query time. Coding gates, allocation windows and
-recode windows stay on UTC. Do not use `va_local_date` on `event_created_at`.
+`Asia/Kolkata`), applied at query time, until the project clock's second stage
+moves dashboard days to the project timezone
+([Project Clock and Gates](project-clock-and-gates.md), owner 2026-11-06).
+Coding and collection gates and the coder daily cap use the project clock;
+recode windows are durations and need no clock. Do not use `va_local_date` on `event_created_at`.
 
 ### Demo exclusion (owner decision 2026-10-27, `digitva-0hul`)
 

@@ -135,13 +135,13 @@ def _definition_docs() -> list[dict]:
             MasVaCauseDefinition.definition_html,
         ).where(MasVaCauseDefinition.is_active.is_(True))
     ).all()
-    # The page that lists definitions is role-gated; the documents follow it.
+    # The page that lists definitions is public (2026-11-06); the documents follow it.
     return [
         {
             "id": f"va_definition:{code}", "kind": "va_definition",
             "title": f"{code} {title}", "body": _plain(definition_html or ""),
             "keywords": code, "url": VA_DEFINITIONS_URL,
-            "roles": ["coder", "coding_tester", "reviewer", "admin"],
+            "roles": [PUBLIC],
         }
         for code, title, definition_html in rows
     ]
@@ -311,7 +311,8 @@ def _user_roles(user) -> list[str]:
     from app.routes.help import HELP_PAGES, _user_has_role
 
     tokens = {r for page in HELP_PAGES for r in (page[4] or []) if r != "authenticated"}
-    tokens |= {"coder", "coding_tester", "reviewer", "admin"}
+    # Help pages are all public (2026-11-06), so the gated kinds name their roles here.
+    tokens |= {"coder", "coding_tester", "reviewer", "admin", *AI_PAGE_ROLES, *KPI_ROLES}
     held = {r for r in tokens if _user_has_role(user, [r])}
     held.add(PUBLIC)
     if getattr(user, "is_authenticated", False):

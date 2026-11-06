@@ -16,15 +16,16 @@ does not run it again.
 import json
 import logging
 
-from flask import render_template, request
+from flask import jsonify, render_template, request
 from flask_login import current_user
 
-from app import limiter
+from app import cache, limiter
 from app.decorators import role_required
 from app.routes.data_management import data_management
 from app.services import ai_analytics_catalog as catalog
 from app.services import ai_analytics_planner as planner
 from app.services import ai_analytics_providers as providers
+from app.services import ai_search_service
 from app.services.ai_analytics_render import render
 from app.services.ai_analytics_sandbox import DRILL_BY
 from app.services.data_management_service import dm_grant_scope
@@ -99,6 +100,24 @@ def _initial_run():
     if entry is not None:
         return {"kind": "catalog", "key": entry["key"]}
     return None
+
+
+@data_management.get("/ai-questions/suggestions")
+@role_required("data_manager", "admin")
+@limiter.limit("60 per minute")
+def ai_questions_suggestions():
+    """Typo-tolerant suggestions for the AI questions page (help pages, VA
+    definitions, catalog questions, the caller's own saved queries), filtered
+    by the caller's roles. Kept out of the public /help area (owner 2026-11-06)."""
+    query = (request.args.get("q") or "").strip()[:100]
+    if len(query) < 2:
+        return jsonify({"results": []})
+    key = f"ai-suggest:{current_user.user_id}:{query.lower()}"
+    results = cache.get(key)
+    if results is None:
+        results = ai_search_service.search(current_user, query)
+        cache.set(key, results, timeout=30)  # short: roles and saved queries change
+    return jsonify({"results": results})
 
 
 @data_management.get("/ai-questions")

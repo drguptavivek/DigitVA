@@ -22,12 +22,20 @@
   </thead>
   <tbody>
     <tr>
-      <td><strong>Name</strong></td>
-      <td>The project name (for example, "UNSW01" or "ICMR01").</td>
+      <td><strong>Project ID</strong></td>
+      <td>Up to six characters, stored in upper case (for example, "UNSW01" or "ICMR01").</td>
     </tr>
     <tr>
-      <td><strong>Description</strong></td>
-      <td>An optional description of the project's purpose or scope.</td>
+      <td><strong>Code</strong></td>
+      <td>Optional short code, up to six characters.</td>
+    </tr>
+    <tr>
+      <td><strong>Name</strong></td>
+      <td>The project's full name.</td>
+    </tr>
+    <tr>
+      <td><strong>Nickname</strong></td>
+      <td>A short display name.</td>
     </tr>
   </tbody>
 </table>
@@ -80,7 +88,8 @@
 <h3>Narrative Quality Assessment (NQA)</h3>
 
 <p>
-  When <strong>NQA enabled</strong> is turned on, coders are presented with a
+  When the <strong>NQA</strong> button in the project row shows
+  <strong>NQA On</strong>, coders are presented with a
   Narrative Quality Assessment form as part of the coding workflow. NQA allows
   coders to evaluate the quality of the verbal autopsy narrative. When disabled,
   the NQA step is skipped entirely for all forms in the project.
@@ -89,11 +98,22 @@
 <h3>Social Autopsy</h3>
 
 <p>
-  When <strong>Social Autopsy enabled</strong> is turned on, coders can complete
+  When <strong>Coder Social Autopsy</strong> is turned on, coders can complete
   a social autopsy delay analysis as part of the coding workflow. Social autopsy
   examines contributing social and health-system factors. When disabled, this
   section is not shown to coders for forms in the project.
+  <strong>Reviewer Social Autopsy</strong> is a separate switch for reviewers.
 </p>
+
+<h3>Other Project Settings</h3>
+
+<ul>
+  <li><strong>ICD Classification</strong> &mdash; ICD-10 or ICD-11, the catalogue coders use for the project's deaths. Changing it affects new coding only. <strong>COD Entry</strong> follows from it: ICD-11 projects use DORIS entry, ICD-10 projects simple entry.</li>
+  <li><strong>Require masked COD workflow</strong> &mdash; on: coders enter the cause of death in two steps (Step 1, then Step 2); off: one final step.</li>
+  <li><strong>Recode window (min)</strong> &mdash; how long a coder may recode a final COD, 1 to 10080 minutes (default 1440, 24 hours). See <a href="/help/recode-window">Recode Window</a>.</li>
+  <li><strong>Included in homepage KPIs</strong> &mdash; whether the project's figures count in the public home-page KPIs. Not allowed for training or demo projects.</li>
+  <li><strong>Web Intake</strong> &mdash; whether interviews can be captured in the browser or the Collect app: Off (ODK only), direct questionnaire entry, death register first, or both routes, with the questionnaire and its optional sections. See <a href="/help/data-collection">Data Collection</a>.</li>
+</ul>
 
 <h3>Demo / Training Settings</h3>
 

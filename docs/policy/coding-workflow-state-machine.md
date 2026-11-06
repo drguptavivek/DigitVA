@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-06
 ---
 
 # Coding Workflow State Machine Policy
@@ -909,6 +909,23 @@ endpoints as before. See [Web Intake Policy](web-intake.md), "Self-coding
 projects", and [Access Control Model](access-control-model.md),
 "`collaborator_pii`".
 
+## Coder daily allocation limit
+
+Owner decisions 2026-11-06 (`digitva-fkec`). A coder may take at most 200
+coding allocations per project per day, the day taken on the project clock
+([Project Clock and Gates](project-clock-and-gates.md)). The count is the
+coder's coding allocations in that project created since the project's
+midnight, read from the allocation records; it resets by itself and nothing
+is stored per day. Resuming a case the coder already holds is not a new
+allocation. Only new cases count: recode allocations, demo and practice
+allocations, and tester allocations are not counted (owner 2026-11-06).
+The refusal reads "You have
+reached today's limit of 200 coding allocations in this project." This cap
+sits beside the per-site and per-unit `daily_coder_limit` of the coding
+gate; both apply. The old never-reset counter `va_users.vacode_formcount`
+(the "yearly limit") is no longer read or written; the column stays for
+backward compatibility.
+
 ## Recode Window
 
 Only coder-finalized cases may be recoded.
@@ -917,11 +934,18 @@ The recode window is a per-project setting,
 `va_project_master.recode_window_minutes` (owner decision 2026-10-20): 1 to
 10080 minutes (7 days), default 1440 (24 hours), edited on the admin project
 form (Setup, Basics). The training project TRN01 uses 60 minutes (owner
-2026-10-22). The window is measured from the coder's authoritative final COD
-and is the same window everywhere it applies:
+2026-10-22). The window is measured from the coder's first final COD in the
+current coding round of the case, not from a later recode's final (owner
+2026-11-06). A new round starts when the case is reopened for a full new
+coding (an upstream data change accepted for recode, or an admin reopen), so
+a new round opens a fresh window; the coder's own recodes never do. The
+window is the same everywhere it applies:
 
 - reopening for recode (`start_recode_allocation`) and the recode limits
-  (`recode_limit_error`: only the coder who finalized, once, within the window);
+  (`recode_limit_error`: only the coder who finalized, within the window);
+  inside the window the coder may recode any number of times (owner
+  2026-11-06; the earlier one-recode limit is withdrawn). Recoding never
+  extends the window;
   the refusal names the project's window ("within 60 minutes", "within 24
   hours");
 - which of a coder's cases are offered for recode, and the deadline shown to

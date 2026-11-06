@@ -42,7 +42,7 @@ from app.routes.api.request_helpers import (
     request_project_id,
     require_project,
 )
-from app.services import attachment_service, register_pii_accessor, training_scope
+from app.services import attachment_service, collection_gate, register_pii_accessor, training_scope
 from app.services import case_transition_service as case_svc
 from app.services import consent_service as consent_svc
 from app.services import death_identifier_service as identifiers_svc
@@ -220,6 +220,8 @@ def _project_or_client_error(exc):
 def _intake_error(exc):
     _note_raise_site(exc)
     db.session.rollback()
+    if isinstance(exc, collection_gate.CollectionClosed):
+        return error(str(exc), exc.code, exc.status_code, **exc.gate)
     if exc.code == "refusal_stale" and getattr(exc, "draft_id", None):
         return error(str(exc), exc.code, exc.status_code, draft_id=exc.draft_id)
     return intake_error(exc)
@@ -653,6 +655,9 @@ def register_death():
                 client_death_id=client_death_id,
                 identifiers=_identifiers_arg(p),
                 warnings=warnings,
+                # A client id is the phone pushing a registration it already
+                # made (maybe offline): never refused by the collection gate.
+                enforce_collection_gate=client_death_id is None,
                 **{k: p.get(k) for k in _REGISTER_FIELDS},
             )
         db.session.flush()
@@ -789,8 +794,11 @@ def start_draft():
                 client_draft_id=client_draft_id,
             )
         return jsonify({"draft": intake_svc.serialize_draft(draft)}), 201 if created else 200
+    # The browser's start (no client id): a direct start is a new start and
+    # meets the collection gate; a registered case's interview never does.
     draft = intake_svc.start_draft(
         current_user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id, death_id=death_id,
+        enforce_collection_gate=True,
     )
     db.session.commit()
     return jsonify({"draft": intake_svc.serialize_draft(draft)}), 201

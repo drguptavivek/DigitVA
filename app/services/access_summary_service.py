@@ -22,6 +22,7 @@ Policy: docs/policy/api-v1.md; shape: docs/current-state/api-v1.md.
 from __future__ import annotations
 
 import dataclasses
+import uuid
 
 import sqlalchemy as sa
 
@@ -94,6 +95,7 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
                     VaProjectMaster.masked_cod_required,
                     VaProjectMaster.cod_entry_mode,
                     VaProjectMaster.icd_classification,
+                    VaProjectMaster.timezone,
                 ).where(VaProjectMaster.project_id.in_(project_ids))
             ).all()
         }
@@ -147,6 +149,7 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
     for project_id, project in built.items():
         project["smartva_targets"] = [smartva_targets[key] for key in target_keys_by_project[project_id]
                                       if key in smartva_targets]
+    _add_collection_gates(user, built, project_rows)
     projects = [entry for project_id, entry in built.items() if project_id != training_pid]
     real_grants = dataclasses.replace(
         resolved, grants=tuple(g for g in resolved.grants if g.project_id != training_pid))
@@ -183,6 +186,69 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
         "demo_coding": {"available": bool(demo_projects), "project_ids": demo_projects},
         "training": _training(user, built.get(training_pid)),
     }
+
+
+def _collection_targets(project: dict) -> tuple[list, list]:
+    """``(site_ids, [(site_id, org_unit_id)])`` a new start can name in *project*.
+
+    The sites of ``actions.interview`` and ``actions.register_death``; in a
+    tree project, per such site, every selectable unit of ``units`` an
+    interviewer or death_reporter reaches, within that site's action units
+    when the actions name any (the units the app's Register and interview
+    pickers offer).
+    """
+    entries = project["actions"]["interview"] + project["actions"]["register_death"]
+    site_ids = sorted({e["site_id"] for e in entries})
+    if not project["has_tree"]:
+        return site_ids, []
+    collecting = [
+        u for u in project.get("units", [])
+        if u["selectable"] and {"interviewer", "death_reporter"} & set(u["roles"])
+    ]
+    pairs = []
+    for site_id in site_ids:
+        site_entries = [e for e in entries if e["site_id"] == site_id]
+        roots = None if any(not e["org_units"] for e in site_entries) else {
+            u["path"] for e in site_entries for u in e["org_units"]}
+        # ponytail: sites x units entries; fine for one or a few sites per tree project.
+        pairs.extend(
+            (site_id, u["org_unit_id"]) for u in collecting
+            if roots is None or any(u["path"] == r or u["path"].startswith(f"{r}.") for r in roots)
+        )
+    return site_ids, pairs
+
+
+def _add_collection_gates(user, built: dict, project_rows: dict) -> None:
+    """Add the project clock and the resolved data-collection gate to each
+    project of *built* (docs/current-state/device-collection-api.md,
+    "Collection gate"). Additive: the actions stay as they are whatever the
+    gate says, since the app purges a project that loses them."""
+    from app.services import collection_gate, project_clock
+
+    now = project_clock._now()
+    targets = {}
+    for project_id, project in built.items():
+        site_ids, pairs = _collection_targets(project)
+        targets[project_id] = (site_ids, pairs)
+    gates = collection_gate.resolve(user, [
+        key
+        for project_id, (site_ids, pairs) in targets.items()
+        for key in [(project_id, s, None) for s in site_ids] + [(project_id, s, u) for s, u in pairs]
+    ], now)
+    for project_id, project in built.items():
+        row = project_rows.get(project_id)
+        tz = (row.timezone if row is not None else None) or project_clock.DEFAULT_PROJECT_TIMEZONE
+        site_ids, pairs = targets[project_id]
+        project["timezone"] = tz
+        project["project_today"] = project_clock.project_day(tz, now).today.isoformat()
+        project["server_time"] = now.isoformat().replace("+00:00", "Z")
+        project["collection_gate"] = {
+            "sites": [{"site_id": s, **gates[(project_id, s, None)]} for s in site_ids],
+            "units": [
+                {"site_id": s, "org_unit_id": u, **gates[(project_id, s, uuid.UUID(u))]}
+                for s, u in pairs
+            ],
+        }
 
 
 def _training(user, project: dict | None) -> dict | None:

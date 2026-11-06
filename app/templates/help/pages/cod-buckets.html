@@ -16,11 +16,19 @@
 <h3>What Are COD Buckets?</h3>
 
 <p>
-  A COD bucket is a grouped category that maps one or more ICD-10 codes to a broader
+  A COD bucket is a grouped category that maps one or more ICD codes to a broader
   cause-of-death label for public health reporting. For example, individual ICD codes for
   different types of heart disease can be grouped into a single "Cardiovascular Diseases"
   bucket. Each mapping connects an ICD code (and optionally an age scope) to a leaf-level
   bucket node in a scheme hierarchy.
+</p>
+
+<p>
+  Each death is bucketed through the rows of its own classification: an ICD-10
+  cause through the scheme's ICD-10 rows, an ICD-11 cause through its ICD-11 rows
+  (the exact code, else its nearest parent code that has a row). There is no
+  ICD-10 to ICD-11 crosswalk. Only <strong>WHO 2022 VA (2026 revision)</strong>
+  has ICD-11 rows; in the other schemes every ICD-11 death is unmapped.
 </p>
 
 <h3>Available Schemes</h3>
@@ -49,11 +57,17 @@
       <td>Flat all-ages scope</td>
       <td>WHO VA Section &rarr; WHO VA Cause Bucket</td>
     </tr>
+    <tr>
+      <td><strong>WHO 2022 VA (2026 revision)</strong></td>
+      <td>Flat all-ages scope</td>
+      <td>WHO VA Section &rarr; WHO VA Cause Bucket; ICD-10 and ICD-11 rows</td>
+    </tr>
   </tbody>
 </table>
 
 <p>
-  The page defaults to the <strong>WHO 2022 VA</strong> scheme when it is available.
+  The page defaults to the <strong>WHO 2022 VA (2026 revision)</strong> scheme when
+  it is active.
 </p>
 
 <h3>Filters</h3>

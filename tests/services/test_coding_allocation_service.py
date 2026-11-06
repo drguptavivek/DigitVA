@@ -1427,6 +1427,74 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(self._state(old_sid), WORKFLOW_REVIEWER_ELIGIBLE)
         self.assertEqual(self._state(new_sid), WORKFLOW_CODER_FINALIZED)
 
+    def test_sweep_counts_from_the_first_final_not_a_recode(self):
+        """digitva-g7xq: a recode 5 minutes ago does not hold back a case first finalized 61 ago."""
+        sid = "uuid:window-recoded"
+        self._finalized_minutes_ago(sid, self.base_coder_user, 61)
+        first = db.session.scalar(sa.select(VaFinalAssessments).where(VaFinalAssessments.va_sid == sid))
+        first.va_finassess_status = VaStatuses.deactive
+        recode = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R98",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(recode)
+        db.session.flush()
+        recode.va_finassess_createdat = datetime.now(timezone.utc) - timedelta(minutes=5)
+        upsert_final_cod_authority(
+            sid, recode, reason="test_authority", source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        db.session.commit()
+        self._use_recode_window(60)
+
+        self.assertEqual(mark_reviewer_eligible_after_recode_window_submissions(), 1)
+        self.assertEqual(self._state(sid), WORKFLOW_REVIEWER_ELIGIBLE)
+
+    def test_sweep_counts_from_the_current_coding_round(self):
+        """An upstream change accepted 100 minutes ago opened a new round; its
+        final 30 minutes ago starts a fresh 60-minute window, so the case stays."""
+        from app.services.workflow.events import record_workflow_event
+
+        sid = "uuid:window-new-round"
+        self._finalized_minutes_ago(sid, self.base_coder_user, 2000)
+        record_workflow_event(
+            sid, transition_id="upstream_change_accepted",
+            previous_state="finalized_upstream_changed", current_state="smartva_pending",
+            actor_kind="data_manager", actor_role="data_manager", actor_user_id=None,
+            reason="test",
+        )
+        db.session.flush()
+        event = db.session.scalars(
+            sa.select(VaSubmissionWorkflowEvent).where(
+                VaSubmissionWorkflowEvent.va_sid == sid,
+                VaSubmissionWorkflowEvent.transition_id == "upstream_change_accepted",
+            )
+        ).one()
+        event.event_created_at = datetime.now(timezone.utc) - timedelta(minutes=100)
+        db.session.scalar(
+            sa.select(VaFinalAssessments).where(VaFinalAssessments.va_sid == sid)
+        ).va_finassess_status = VaStatuses.deactive
+        new_round = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R98",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(new_round)
+        db.session.flush()
+        new_round.va_finassess_createdat = datetime.now(timezone.utc) - timedelta(minutes=30)
+        upsert_final_cod_authority(
+            sid, new_round, reason="test_authority", source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        db.session.commit()
+        self._use_recode_window(60)
+
+        self.assertEqual(mark_reviewer_eligible_after_recode_window_submissions(), 0)
+        self.assertEqual(self._state(sid), WORKFLOW_CODER_FINALIZED)
+
     def test_recode_follows_the_project_recode_window(self):
         """60-minute project: recode starts at 59 minutes and is refused at 61."""
         user = self._make_user("recode.window@test.local", "RecodeWindow123")
@@ -1450,6 +1518,16 @@ class TestCodingAllocationService(BaseTestCase):
         result = start_recode_allocation(user, "uuid:recode-window-59")
         self.assertEqual(result.va_sid, "uuid:recode-window-59")
         self.assertEqual(result.actiontype, "varesumecoding")
+        # A recode is not a new case: the coder daily cap does not count it.
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(VaAllocations.va_allocation_kind).where(
+                    VaAllocations.va_sid == "uuid:recode-window-59",
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            ),
+            "recode",
+        )
 
     def test_no_commit_path_when_nothing_is_stale(self):
         fresh_sid = "uuid:no_stale"

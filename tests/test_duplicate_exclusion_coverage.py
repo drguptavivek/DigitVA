@@ -83,6 +83,14 @@ _NO_REGISTER_ROW = (
 )
 
 EXEMPT = {
+    "services/recode_window.py::_round_started_at": (
+        "finds when a case's current coding round began, for that case's own recode "
+        "window; the lists that offer recodes apply the predicate themselves"
+    ),
+    "services/recode_window.py::first_coding_times": (
+        "reads given cases' first coding time for their own recode window; never lists "
+        "or counts coding work, and its callers already filtered the cases"
+    ),
     "services/public_demo_report_service.py::own_reports": (
         "lists the public-demo caller's own submissions with their state, a confirmed "
         "duplicate included, so the submitter sees what happened to each; never lists "

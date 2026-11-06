@@ -54,6 +54,15 @@
   roles through this interface. Those require admin panel access.
 </div>
 
+<div class="help-info">
+  The three-role list and the scope rules below apply to site projects. In a
+  project organised as an organization tree (district projects), a data
+  manager may also assign <code>interviewer</code>, <code>death_reporter</code>,
+  <code>reviewer</code>, <code>collaborator</code> and
+  <code>collaborator_pii</code> anywhere in their own subtree, and
+  <code>data_manager</code> only below their own level.
+</div>
+
 <h2>Scope Rules</h2>
 
 <p>The grants you can assign depend on your own grant scope:</p>
@@ -113,17 +122,18 @@
 <h3>Viewing Grants</h3>
 
 <p>
-  The <strong>Grants</strong> tab shows all coder, coding-tester, and
+  The <strong>Access Grants</strong> tab shows all coder, coding-tester, and
   data-manager grants within your scope. You can filter by user email to
-  find a specific user's grants. Grants for other roles (admin, project PI,
-  site PI, reviewer, collaborator) are never shown in this view, even if
-  they exist within your scope.
+  find a specific user's grants. In a site project, grants for other roles
+  (admin, project PI, site PI, reviewer, collaborator) are never shown in this
+  view, even if they exist within your scope; in a district project the view
+  also shows the extra roles you may assign there.
 </p>
 
 <h3>Creating a Grant</h3>
 
 <ol>
-  <li>Go to the <strong>Grants</strong> tab</li>
+  <li>Go to the <strong>Access Grants</strong> tab</li>
   <li>In the new-grant form, select a user (or type an email to search)</li>
   <li>Select the project (must be within your manageable scope)</li>
   <li>Optionally select a site (required for site-scoped data managers; optional for project-scoped)</li>
@@ -144,7 +154,7 @@
 </p>
 
 <ul>
-  <li>The grant role is <code>coder</code>, <code>coding_tester</code>, or <code>data_manager</code></li>
+  <li>The grant role is one you may assign: <code>coder</code>, <code>coding_tester</code>, or <code>data_manager</code> in a site project, or a role listed above for a district project</li>
   <li>The grant falls within your scope</li>
   <li>The grant is not your own data-manager grant</li>
 </ul>
@@ -214,7 +224,7 @@
   <li>Resend verification action (for unverified users)</li>
   <li>Email update action (only for users you created)</li>
   <li>Language update action</li>
-  <li><strong>Manage Grants</strong> shortcut &mdash; switches to the Grants tab with this user's email pre-filled in the search filter and the user preselected in the new-grant form</li>
+  <li><strong>Manage Grants</strong> shortcut &mdash; switches to the Access Grants tab with this user's email pre-filled in the search filter and the user preselected in the new-grant form</li>
 </ul>
 
 <h2>Scope Validation</h2>

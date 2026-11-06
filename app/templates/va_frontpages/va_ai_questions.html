@@ -10,7 +10,7 @@
      data-run-saved-url="{{ url_for('data_management.ai_questions_run_saved', saved_id=0) }}"
      data-run-catalog-url="{{ url_for('data_management.ai_questions_run_catalog', key='__key__') }}"
      data-breakdown-url="{{ url_for('data_management.ai_questions_breakdown') }}"
-     data-search-url="{{ url_for('help.suggestions') }}">
+     data-search-url="{{ url_for('data_management.ai_questions_suggestions') }}">
   <div class="content-section mb-3">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
       <div>
@@ -259,7 +259,7 @@
     });
   }
 
-  // Suggestions from /help/search. Saved and catalog results run in place;
+  // Suggestions from /data-management/ai-questions/suggestions. Saved and catalog results run in place;
   // help and definition results are links to their own page.
   var search = document.getElementById("ai-search");
   var results = document.getElementById("ai-search-results");

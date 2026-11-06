@@ -20,8 +20,7 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app import cache, limiter, talisman
-from app.services import ai_search_service
+from app import limiter, talisman
 from app.services.authz import effective_roles
 from app.services.icd11_licence import ICD11_CITATION
 from app.services.cod_bucket_mapping_service import (
@@ -87,11 +86,13 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 # ---------------------------------------------------------------------------
 # (slug, title, icon, category, roles)
 # roles = None means visible to everyone (including unauthenticated)
+# Owner 2026-11-06: every help page is public. organization-demo stays
+# signed-in only: it lists sign-in links for the synthetic demo accounts.
 HELP_PAGES = [
     # ── Getting Started ──────────────────────────────────────────────
     ("getting-started",       "Getting Started",              "fa-rocket",               "Getting Started",  None),
     ("organization-demo",     "Synthetic Organization Demo",  "fa-building-circle-check", "Getting Started", ["authenticated"]),
-    ("training-demo",         "Training & Demo Project",      "fa-graduation-cap",       "Getting Started", ["authenticated"]),
+    ("training-demo",         "Training & Demo Project",      "fa-graduation-cap",       "Getting Started",  None),
     ("mobile-app",            "Get the Mobile App",           "fa-mobile-screen-button", "Getting Started", None),
     # ── User Onboarding ──────────────────────────────────────────────
     ("authentication",        "Logging In & Authentication",  "fa-right-to-bracket",     "User Onboarding",  None),
@@ -103,34 +104,34 @@ HELP_PAGES = [
     # ── Data Collection ──────────────────────────────────────────────
     ("data-collection",       "Data Collection",              "fa-clipboard-question",   "Data Collection",  None),
     # ── Coding Workflow ──────────────────────────────────────────────
-    ("demo-coding",           "Demo / Training Coding",       "fa-graduation-cap",       "Coding Workflow",  ["coder", "coding_tester", "admin"]),
-    ("coding-tester",         "Coding Tester Workflow",       "fa-vial",                 "Coding Workflow",  ["coding_tester", "admin"]),
-    ("coding-workflow",       "Coding Workflow (Step 1 & 2)", "fa-code",                 "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
-    ("icd-codes",             "ICD Codes, VA Causes & Search", "fa-book-medical",        "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("demo-coding",           "Demo / Training Coding",       "fa-graduation-cap",       "Coding Workflow",  None),
+    ("coding-tester",         "Coding Tester Workflow",       "fa-vial",                 "Coding Workflow",  None),
+    ("coding-workflow",       "Coding Workflow (Step 1 & 2)", "fa-code",                 "Coding Workflow",  None),
+    ("icd-codes",             "ICD Codes, VA Causes & Search", "fa-book-medical",        "Coding Workflow",  None),
     ("icd10-codes",           "ICD-10 Code Browser",           "fa-book-medical",        "Coding Workflow",  None),
     ("icd11-codes",           "ICD-11 Code Browser",           "fa-book-medical",        "Coding Workflow",  None),
-    ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  None),
     ("va-code-mappings",      "ICD to VA Cause Mappings",     "fa-table-list",           "Coding Workflow",  None),
     ("cod-bucket-schemes",    "COD Bucket Schemes",           "fa-sitemap",              "Coding Workflow",  None),
-    ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
-    ("viewing-history",       "Viewing Coding History",       "fa-clock-rotate-left",    "Coding Workflow",  ["coder", "coding_tester", "reviewer", "admin"]),
+    ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  None),
+    ("viewing-history",       "Viewing Coding History",       "fa-clock-rotate-left",    "Coding Workflow",  None),
     # ── Data Manager ─────────────────────────────────────────────────
-    ("dm-dashboard",          "Data Manager Dashboard",       "fa-folder-open",          "Data Manager",     ["data_manager", "admin"]),
-    ("dm-operations",         "Data Manager Operations",      "fa-list-check",           "Data Manager",     ["data_manager", "admin"]),
-    ("dm-grants",             "Managing User Grants (DM)",    "fa-user-shield",          "Data Manager",     ["data_manager", "admin"]),
+    ("dm-dashboard",          "Data Manager Dashboard",       "fa-folder-open",          "Data Manager",  None),
+    ("dm-operations",         "Data Manager Operations",      "fa-list-check",           "Data Manager",  None),
+    ("dm-grants",             "Managing User Grants (DM)",    "fa-user-shield",          "Data Manager",  None),
     # ── COD Buckets & Reporting ──────────────────────────────────────
-    ("cod-buckets",           "COD Buckets & Reports",        "fa-chart-pie",            "Reporting",        ["data_manager", "admin"]),
-    ("kpis",                  "KPI Dashboard",                "fa-gauge-high",           "Reporting",        ["data_manager", "admin"]),
+    ("cod-buckets",           "COD Buckets & Reports",        "fa-chart-pie",            "Reporting",  None),
+    ("kpis",                  "KPI Dashboard",                "fa-gauge-high",           "Reporting",  None),
     # ── Profile ──────────────────────────────────────────────────────
     ("profile",               "My Profile",                   "fa-user",                 "Account",          None),
     # ── Administration ───────────────────────────────────────────────
-    ("admin-overview",        "Admin Panel Overview",         "fa-gear",                 "Administration",   ["admin"]),
-    ("odk-connections",       "ODK Connections",              "fa-plug",                 "Administration",   ["admin"]),
-    ("projects",              "Projects",                     "fa-diagram-project",      "Administration",   ["admin"]),
-    ("sites",                 "Sites",                        "fa-location-dot",         "Administration",   ["admin"]),
-    ("project-sites",         "Project-Site Settings",        "fa-link",                 "Administration",   ["admin", "project_pi"]),
-    ("project-forms",         "Project-Form Settings",        "fa-file-lines",           "Administration",   ["admin"]),
-    ("sync-behavior",         "Sync Behavior & Dashboard",    "fa-arrows-rotate",        "Administration",   ["admin"]),
+    ("admin-overview",        "Admin Panel Overview",         "fa-gear",                 "Administration",  None),
+    ("odk-connections",       "ODK Connections",              "fa-plug",                 "Administration",  None),
+    ("projects",              "Projects",                     "fa-diagram-project",      "Administration",  None),
+    ("sites",                 "Sites",                        "fa-location-dot",         "Administration",  None),
+    ("project-sites",         "Project-Site Settings",        "fa-link",                 "Administration",  None),
+    ("project-forms",         "Project-Form Settings",        "fa-file-lines",           "Administration",  None),
+    ("sync-behavior",         "Sync Behavior & Dashboard",    "fa-arrows-rotate",        "Administration",  None),
 ]
 
 # The dedicated public ingress overwrites this request header before proxying
@@ -371,24 +372,6 @@ def index():
     return render_template("help/help_base.html", **_base_ctx())
 
 
-@help_bp.get("/help/search")
-@login_required
-@limiter.limit("60 per minute")
-def suggestions():
-    """Typo-tolerant suggestions for the signed-in user's roles (help pages,
-    VA definitions, catalog questions, their own saved queries)."""
-    effective_roles(current_user)  # records the authenticated decision for the consulted guard
-    query = (request.args.get("q") or "").strip()[:_MAX_QUERY_LEN]
-    if len(query) < 2:
-        return jsonify({"results": []})
-    key = f"help-search:{current_user.user_id}:{query.lower()}"
-    results = cache.get(key)
-    if results is None:
-        results = ai_search_service.search(current_user, query)
-        cache.set(key, results, timeout=30)  # short: roles and saved queries change
-    return jsonify({"results": results})
-
-
 @help_bp.route("/help/organization-demo")
 @login_required
 def organization_demo():
@@ -491,6 +474,9 @@ def download_android_plus():
                      as_attachment=True, download_name=name, max_age=300)
 
 
+_SEARCH_DEMO_ROLES = ["coder", "coding_tester", "reviewer", "admin"]  # as api/coding_search_demo.py
+
+
 @help_bp.route("/help/icd-codes/search-demo")
 @talisman(content_security_policy={
     "default-src": "'self'",
@@ -504,7 +490,8 @@ def download_android_plus():
 def icd_codes_search_demo():
     """Live coding-search demo: try the real search without opening a death."""
     page_info = _PAGES_BY_SLUG["icd-codes"]
-    if not _user_has_role(current_user, page_info[4]):
+    # The page drives the role-gated search API, so it keeps that API's roles.
+    if not _user_has_role(current_user, _SEARCH_DEMO_ROLES):
         abort(403)
     return render_template(
         "help/help_base.html",

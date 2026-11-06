@@ -27,6 +27,7 @@ from app.models import (
     MapMentorInstituteUser,
     MapOrgLevelCadre,
     MapOrgUnitCodingGate,
+    MapOrgUnitCollectionGate,
     MapOrgUnitVaPresets,
     MasCadre,
     MasMentorInstitute,
@@ -1442,6 +1443,52 @@ def clear_unit_coding_gate(project_id: str, org_unit_id: object) -> bool:
     """
     unit = _get_unit(project_id, org_unit_id)
     gate = db.session.get(MapOrgUnitCodingGate, unit.org_unit_id)
+    if gate is None:
+        return False
+    db.session.delete(gate)
+    db.session.flush()
+    return True
+
+
+def get_unit_collection_gate(project_id: str, org_unit_id: object) -> MapOrgUnitCollectionGate | None:
+    """This unit's own collection gate row, or None (not gated); the resolved
+    gate is ``org_grant_service.resolve_unit_collection_gates``."""
+    unit = _get_unit(project_id, org_unit_id)
+    return db.session.get(MapOrgUnitCollectionGate, unit.org_unit_id)
+
+
+def serialize_unit_collection_gate(gate: MapOrgUnitCollectionGate | None) -> dict | None:
+    from app.services.collection_gate import serialize_settings
+
+    if gate is None:
+        return None
+    return {"org_unit_id": str(gate.org_unit_id), **serialize_settings(gate)}
+
+
+def set_unit_collection_gate(project_id: str, org_unit_id: object, data: dict) -> MapOrgUnitCollectionGate:
+    """Create or update this unit's own collection gate row from *data*
+    (validated by ``collection_gate.clean_settings``; no limit when empty)."""
+    from app.services.collection_gate import clean_settings
+
+    unit = _get_unit(project_id, org_unit_id)
+    try:
+        values = clean_settings(data)
+    except ValueError as exc:
+        raise OrganizationError(str(exc)) from None
+    gate = db.session.get(MapOrgUnitCollectionGate, unit.org_unit_id)
+    if gate is None:
+        gate = MapOrgUnitCollectionGate(org_unit_id=unit.org_unit_id)
+        db.session.add(gate)
+    for name, value in values.items():
+        setattr(gate, name, value)
+    db.session.flush()
+    return gate
+
+
+def clear_unit_collection_gate(project_id: str, org_unit_id: object) -> bool:
+    """Delete this unit's own collection gate row, if any; it then inherits."""
+    unit = _get_unit(project_id, org_unit_id)
+    gate = db.session.get(MapOrgUnitCollectionGate, unit.org_unit_id)
     if gate is None:
         return False
     db.session.delete(gate)
@@ -3913,6 +3960,10 @@ def get_project_users_grid(project_id: str) -> dict:
             "coding_start_date": ps.coding_start_date.isoformat() if ps.coding_start_date else None,
             "coding_end_date": ps.coding_end_date.isoformat() if ps.coding_end_date else None,
             "daily_coder_limit": ps.daily_coder_limit,
+            "collection_enabled": bool(ps.collection_enabled),
+            "collection_start_date": ps.collection_start_date.isoformat() if ps.collection_start_date else None,
+            "collection_end_date": ps.collection_end_date.isoformat() if ps.collection_end_date else None,
+            "daily_interviewer_limit": ps.daily_interviewer_limit,
         }
         for ps, sm in ps_rows
     ]

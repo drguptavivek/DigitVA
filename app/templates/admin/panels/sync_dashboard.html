@@ -605,7 +605,7 @@
         } else if (m.missing != null && m.missing > 0) {
           missingBadge = '<span class="badge text-bg-warning">' + m.missing + ' missing</span>';
           statusTip = m.missing + ' submission(s) exist in ODK but not locally.'
-            + ' Common reasons: consent refused (Id10013=no or null), or a previous sync was interrupted.'
+            + ' Usually a previous sync was interrupted.'
             + ' Run a normal "Sync" — gap detection will auto-fetch only the missing records safely without affecting existing codings.';
         } else if (m.missing != null && m.missing < 0) {
           var extra = Math.abs(m.missing);
@@ -650,7 +650,7 @@
         + '<th class="small">Site</th>'
         + '<th class="small text-center">ODK</th>'
         + '<th class="small text-center">Local</th>'
-        + '<th class="small text-center">Status <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="ODK counts all submissions. Local only stores consent-granted (Id10013 ≠ no/null). Small gaps are normal."></i></th>'
+        + '<th class="small text-center">Status <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="All ODK submissions are stored locally, including consent-refused ones, which are marked and not coded. Small gaps during a sync are normal."></i></th>'
         + '<th class="small text-center">Last synced</th>'
         + '<th class="small text-center">Force-resync <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="Force-resync re-downloads ALL submissions. Finalized submissions edited in ODK are flagged as Revoked — Data Changed instead of being reset, preserving existing codings until a data manager accepts or rejects the change. Prefer normal Sync for routine use."></i></th>'
         + '</tr></thead>'

@@ -1,0 +1,103 @@
+---
+title: Project Clock and Collection and Coding Gates
+doc_type: policy
+status: active
+owner: engineering
+last_updated: 2026-11-06
+---
+
+# Project Clock and Collection and Coding Gates
+
+Owner decisions, 2026-11-06 (beads `digitva-fkec`, `digitva-g7xq` and the
+beads named below). The project clock (stage 1), the coding gate on the project
+clock and the server side of the data-collection gate are built; dashboard
+bucketing (stage 2) and the app's start check are not. Payload and error
+shapes: `docs/current-state/device-collection-api.md`, "Collection gate".
+
+## Project clock
+
+- Each project has a timezone, `va_project_master.timezone` (IANA name,
+  default `Asia/Kolkata`, so existing projects keep today's behaviour),
+  edited by an admin on the project form (Project Setup, Basics).
+- Every "today" and calendar date that belongs to the project is taken on the
+  project clock, not UTC and not the viewer's timezone:
+  - the coding gate and collection gate start and end dates and their daily
+    limits (below);
+  - the coder daily allocation cap
+    ([Coding Workflow State Machine](coding-workflow-state-machine.md),
+    "Coder daily allocation limit");
+  - date bucketing in the project's dashboards, KPIs and reports (a second
+    stage; until it lands those keep their current bucketing).
+- Instants stay instants. A deadline such as the recode `recode_until`, or a
+  sync time, is stored in UTC and shown in the viewer's own timezone
+  (`{{ dt | user_timezone }}`); the project clock does not change it.
+- A user's own timezone (`va_users.timezone`) still governs how times are
+  displayed to that user.
+
+## Coding gate
+
+Unchanged in shape: per project-site (`va_project_sites`: `coding_enabled`,
+`coding_start_date`, `coding_end_date`, `daily_coder_limit`), optionally
+narrowed per organisation unit (`map_org_unit_coding_gate`), stricter wins,
+waived for `coding_tester`, project PI and site PI
+([Organization Model](organization-model.md), "Per-unit coding gates").
+Change: its "today" is the project clock instead of UTC.
+
+## Data-collection gate
+
+A second gate, built the same way as the coding gate.
+
+- **Where:** per project-site (`va_project_sites`: `collection_enabled`,
+  `collection_start_date`, `collection_end_date`,
+  `daily_interviewer_limit`), optionally narrowed per organisation unit
+  (a `map_org_unit_collection_gate` row, at most one per unit; no row means no
+  gate). Nearest gated ancestor wins; unit and site gates both apply and the
+  stricter wins, as for coding.
+- **Defaults:** enabled, no dates, no daily limit (`daily_interviewer_limit`
+  nullable), so existing projects collect exactly as today.
+- **What it stops:** starting a new registration, or a new interview with no
+  registration, (web intake, the Collect app) for a site or unit whose gate
+  is closed: switched off, before its start date, after its end date (start
+  and end dates are inclusive), or the interviewer's daily limit reached.
+  Starting the interview for a death already registered is continuing work
+  and is not gated (owner 2026-11-06). The refusal names the site or unit and the reason
+  ("Data collection for <unit> ended on <date>.").
+- **What it never stops:** finishing and uploading an interview or
+  registration already started, including work done offline on a phone.
+  The server accepts it whatever the gate says, so no work is lost. Editing
+  and revisions of existing interviews are not gated.
+- **Daily limit:** new interviews started by that interviewer for that site
+  (or unit) since midnight on the project clock. The limit is 1 to 100000, and is
+  soft: two starts arriving at the same moment can pass it by one. A recorded refusal (the family
+  declined the interview) does not count and is never refused (owner
+  2026-11-06). On a phone that is offline
+  the app enforces the limit from the gate it last downloaded and its own
+  count; the server does not refuse an upload that went over it.
+- **Waivers:** none by role; a data manager or admin opens the gate.
+- **The app's copy (shape agreed with the app work, 2026-11-06):** the gate travels in
+  `GET /api/v1/me/access`, additive fields only. A closed gate never removes
+  the project's `interview` or `register_death` actions: the app (and older
+  APKs) treat a project without them as unauthorised and purge its local
+  data. Per project: the IANA timezone, `project_today` and `server_time`.
+  Per site and per organisation unit (the ids the app sends when it
+  registers a death or starts an interview), resolved on the server
+  (nearest gated ancestor, stricter of site and unit): enabled, start and
+  end date, daily limit, the caller's `today_count` at response time, a
+  reason code with the unit's display name and the relevant date, and an
+  English message for older clients. The app localises from the reason
+  code and adds its own starts since the response to `today_count`.
+- **Server refusals of a new start** use one error code with structured
+  fields, HTTP 403 and the existing error body shape, and never apply to
+  uploads of work already started.
+- **ODK Collect:** interviews collected in ODK Collect and synced from ODK
+  Central are outside DigitVA's control and are not gated; ODK stays the
+  source of truth for that content.
+- **Who edits:** the same people and panels that edit the coding gate
+  (Project Sites panel; organisation units panel for unit gates).
+
+## Rollout
+
+Additive migration: the project timezone column with its default, the four
+site columns with their defaults, and the new unit table. Old phone app
+versions do not know the gate; the server still accepts their uploads, and
+they can start interviews offline as today until updated.

@@ -150,7 +150,7 @@
               <span>Help</span>
             </button>
           </li>
-        {% elif current_user.is_authenticated %}
+        {% else %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('help.index') }}">
               <i class="fa-solid fa-circle-question me-1"></i>

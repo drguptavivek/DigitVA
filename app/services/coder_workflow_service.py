@@ -27,6 +27,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaWebIntakeDraft,
 )
+from app.models.va_allocations import ALLOCATION_KIND_DEMO, ALLOCATION_KIND_RECODE
 from app.services import training_scope
 from app.services.viewer_pii_service import pii_scope
 from app.services.authz import (
@@ -63,6 +64,7 @@ from app.services.odk_retirement_service import (
     is_submission_retired,
     submission_is_in_odk,
 )
+from app.services.project_clock import project_days
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
@@ -233,6 +235,81 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
     return filters
 
 
+#: Coding allocations a coder may take per project per project-clock day
+#: (docs/policy/coding-workflow-state-machine.md, "Coder daily allocation limit").
+CODER_DAILY_ALLOCATION_CAP = 200
+CODER_DAILY_CAP_MESSAGE = (
+    "You have reached today's limit of 200 coding allocations in this project."
+)
+
+
+def _since_project_midnight(created_col, project_col, days: dict) -> sa.ColumnElement:
+    """*created_col* falls on or after the midnight of *project_col*'s project.
+
+    *days* is ``project_clock.project_days`` for the projects in play, so rows
+    of several projects are each cut at their own project's midnight in one query.
+    """
+    return sa.or_(*[
+        sa.and_(project_col == project_id, created_col >= day.midnight)
+        for project_id, day in days.items()
+    ])
+
+
+def _capped_project_ids(user, days: dict, waivers) -> set[str]:
+    """Projects in *days* where *user* has taken today's coding allocation cap.
+
+    One grouped count of the user's coding allocations since each project's
+    midnight (served by ix_va_allocations_to_for_createdat). Only new cases
+    count: recode and demo allocations (``va_allocation_kind`` set) and
+    practice allocations (the training project, ``va_allocation_training``)
+    are not counted. Allocations at a pair or unit where the user holds a
+    coding_tester grant are tester allocations and are not counted either.
+    Allocation rows carry no tester flag, so this reads the user's current
+    grants, not those held when allocated.
+    """
+    if not days:
+        return set()
+    rows = db.session.execute(
+        sa.select(
+            VaForms.project_id,
+            VaForms.site_id,
+            VaSubmissions.org_unit_id,
+            sa.func.count().label("cnt"),
+        )
+        .select_from(VaAllocations)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_kind.is_(None),
+            VaAllocations.va_allocation_training.is_(False),
+            VaAllocations.va_allocation_createdat >= min(d.midnight for d in days.values()),
+            _since_project_midnight(
+                VaAllocations.va_allocation_createdat, VaForms.project_id, days
+            ),
+        )
+        .group_by(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id)
+    ).all()
+    counts: dict[str, int] = {}
+    for r in rows:
+        if waivers.is_tester(r.project_id, r.site_id, r.org_unit_id):
+            continue
+        counts[r.project_id] = counts.get(r.project_id, 0) + r.cnt
+    return {pid for pid, cnt in counts.items() if cnt >= CODER_DAILY_ALLOCATION_CAP}
+
+
+def coder_daily_cap_error(user, project_id: str, site_id=None, org_unit_id=None) -> str | None:
+    """The cap refusal when a new coding allocation for *user* in *project_id*
+    would pass today's cap, else None. A tester allocation is not capped."""
+    waivers = coding_gate_waivers(user)
+    if waivers.is_tester(project_id, site_id, org_unit_id):
+        return None
+    if project_id in _capped_project_ids(user, project_days([project_id]), waivers):
+        return CODER_DAILY_CAP_MESSAGE
+    return None
+
+
 def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set:
     """Return (project_id, site_id) pairs ineligible for new coding allocations.
 
@@ -245,10 +322,13 @@ def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set
       - today is before coding_start_date
       - today is after coding_end_date
       - the user has already met the daily_coder_limit for that site today
+      - the user has taken today's coder cap of coding allocations in the
+        project (``CODER_DAILY_ALLOCATION_CAP``)
 
+    "Today" is the project clock (``project_clock``), per pair's project.
     PI and coding_tester waivers (``authz.coding_gate_waivers``; pass
-    *waivers* when the caller already resolved them) exempt a pair from all
-    four gates. A unit tester's waiver is per submission, not per site, so it
+    *waivers* when the caller already resolved them) exempt a pair from the
+    first four gates; only a tester waiver exempts it from the cap. A unit tester's waiver is per submission, not per site, so it
     does not exempt the site here; ``allocate_random_form`` lets the tester's
     own units through a closed site instead.
 
@@ -259,8 +339,6 @@ def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set
     if not form_ids:
         return set()
 
-    today = datetime.utcnow().date()
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     user_id = user.user_id
 
     waivers = waivers or coding_gate_waivers(user)
@@ -271,6 +349,8 @@ def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set
     ).all()
     if not pairs:
         return set()
+    days = project_days(p.project_id for p in pairs)
+    capped = _capped_project_ids(user, days, waivers)
 
     ps_rows = db.session.scalars(
         sa.select(VaProjectSites).where(
@@ -293,7 +373,9 @@ def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set
             .where(
                 VaAllocations.va_allocated_to == user_id,
                 VaAllocations.va_allocation_for == VaAllocation.coding,
-                VaAllocations.va_allocation_createdat >= today_start,
+                _since_project_midnight(
+                    VaAllocations.va_allocation_createdat, VaForms.project_id, days
+                ),
                 sa.tuple_(VaForms.project_id, VaForms.site_id).in_(
                     sorted((p.project_id, p.site_id) for p in pairs)
                 ),
@@ -305,9 +387,13 @@ def _get_excluded_sites_for_coding(form_ids: list, user, *, waivers=None) -> set
     excluded = set()
     for p in pairs:
         pair = (p.project_id, p.site_id)
+        if p.project_id in capped and not waivers.is_tester(*pair):
+            excluded.add(pair)
+            continue
         ps = ps_by_pair.get(pair)
         if not ps:
             continue
+        today = days[p.project_id].today
         # coding_enabled + date-window + daily limit checks are waived for PI
         # and coding_tester users.
         if waivers.waives(p.project_id, p.site_id):
@@ -366,8 +452,6 @@ def _get_excluded_org_units_for_coding(form_ids: list, user, *, waivers=None) ->
     if not has_gate:
         return set()
 
-    today = datetime.utcnow().date()
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     user_id = user.user_id
 
     rows = db.session.execute(
@@ -389,6 +473,7 @@ def _get_excluded_org_units_for_coding(form_ids: list, user, *, waivers=None) ->
 
     waivers = waivers or coding_gate_waivers(user)
 
+    days = project_days(project_id for project_id, _ in site_by_unit.values())
     gate_unit_ids = {gate.org_unit_id for gate in gates.values()}
     submission_unit = sa.orm.aliased(MasOrgUnit, name="submission_unit")
     gate_unit = sa.orm.aliased(MasOrgUnit, name="gate_unit")
@@ -412,7 +497,9 @@ def _get_excluded_org_units_for_coding(form_ids: list, user, *, waivers=None) ->
             .where(
                 VaAllocations.va_allocated_to == user_id,
                 VaAllocations.va_allocation_for == VaAllocation.coding,
-                VaAllocations.va_allocation_createdat >= today_start,
+                _since_project_midnight(
+                    VaAllocations.va_allocation_createdat, gate_unit.project_id, days
+                ),
                 gate_unit.org_unit_id.in_(gate_unit_ids),
             )
             .group_by(gate_unit.org_unit_id)
@@ -426,6 +513,7 @@ def _get_excluded_org_units_for_coding(form_ids: list, user, *, waivers=None) ->
             continue
         if waivers.waives(project_id, site_id, target_unit_id):
             continue
+        today = days[project_id].today
         if not gate.coding_enabled:
             excluded_units.add(target_unit_id)
             continue
@@ -489,10 +577,12 @@ def _get_site_coding_error(
     """
     from app.models.va_project_sites import VaProjectSites
 
-    today = datetime.utcnow().date()
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today, today_start = project_days([project_id])[project_id]
     user_id = user.user_id
 
+    cap_error = coder_daily_cap_error(user, project_id, site_id, org_unit_id)
+    if cap_error:
+        return cap_error
     waived = coding_gate_waivers(user).waives(project_id, site_id, org_unit_id)
 
     ps = db.session.scalar(
@@ -625,7 +715,7 @@ def _create_coding_allocation(
     *,
     demo_session: bool = False,
 ):
-    """Create allocation row, bump formcount, write audit, advance workflow state.
+    """Create allocation row, write audit, advance workflow state.
 
     Raises ActiveAllocationHeld, having written nothing, when *user* already
     holds an active coding allocation (a concurrent request inserted first).
@@ -643,8 +733,8 @@ def _create_coding_allocation(
             va_allocated_to=user.user_id,
             va_allocation_for=VaAllocation.coding,
             va_allocation_training=training_scope.is_training_sid(va_sid),
+            va_allocation_kind=ALLOCATION_KIND_DEMO if demo_session else None,
         ))
-    user.vacode_formcount += 1
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
         va_audit_byrole=by_role,
@@ -802,6 +892,8 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         .with_for_update(skip_locked=True, of=VaSubmissions)
     )
     if not va_new_sid:
+        if _random_pool_capped(user, random_form_ids, project_id):
+            raise AllocationError(CODER_DAILY_CAP_MESSAGE)
         msg = (
             f"No forms are available to you for VA coding in project {project_id}."
             if project_id
@@ -833,6 +925,20 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
     return AllocationResult(va_sid=va_new_sid, actiontype=actiontype)
 
 
+def _random_pool_capped(user, form_ids, project_id: str | None) -> bool:
+    """An empty random pool is down to the daily cap: *project_id* (or, with
+    none, one of the user's random projects) has reached it."""
+    project_ids = (
+        [project_id]
+        if project_id
+        else db.session.scalars(
+            sa.select(VaForms.project_id).distinct().where(VaForms.form_id.in_(form_ids))
+        ).all()
+    )
+    waivers = coding_gate_waivers(user)
+    return bool(_capped_project_ids(user, project_days(project_ids), waivers))
+
+
 #: States a case passes through on its way to the pool: "Code this case now"
 #: is refused with ``not_ready`` and the client retries.
 _NOT_YET_READY_STATES = frozenset({WORKFLOW_ATTACHMENT_SYNC_PENDING, WORKFLOW_SMARTVA_PENDING})
@@ -860,9 +966,6 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
     Raises AllocationError if the form is ineligible.
     """
     _release_stale_coding_allocations_throttled()
-
-    if user.vacode_formcount >= 200:
-        raise AllocationError("You have reached your yearly limit of 200 coded VA forms.")
 
     existing_sid = get_active_coding_allocation(user.user_id)
     if existing_sid:
@@ -1029,8 +1132,9 @@ def release_own_coding_allocation(user) -> str:
 def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     """Start a recode episode and create an allocation.
 
-    Only the coder whose final COD is authoritative may recode, once, within
-    the project's recode window (``app/services/recode_window.py``), while
+    Only the coder whose final COD is authoritative may recode, any number of
+    times within the project's recode window from their first final
+    (``recode_limit_error``, ``app/services/recode_window.py``), while
     they still hold coder access to the form and the
     submission is inside their coding scope. An existing live allocation on the
     same submission resumes after the scope check alone (RECODE): the recode
@@ -1038,8 +1142,6 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
 
     Raises AllocationError when any of those fails.
     """
-    from app.services.recode_window import recode_window_for_submission
-
     if lock_coding_submission(va_sid) is None:
         raise AllocationError("Submission not found.", 404)
     existing_sid = get_active_coding_allocation(user.user_id)
@@ -1085,12 +1187,6 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     limit_error = recode_limit_error(user, va_sid)
     if limit_error:
         raise AllocationError(limit_error)
-    cutoff = (
-        datetime.now(authoritative_final.va_finassess_createdat.tzinfo)
-        - recode_window_for_submission(va_sid)
-    )
-    if authoritative_final.va_finassess_createdat <= cutoff:
-        raise AllocationError("This submission is outside the recode window.")
 
     gen_uuid = uuid.uuid4()
     try:
@@ -1105,6 +1201,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
                 va_allocated_to=user.user_id,
                 va_allocation_for=VaAllocation.coding,
                 va_allocation_training=training_scope.is_training_sid(va_sid),
+                va_allocation_kind=ALLOCATION_KIND_RECODE,
             ))
     except ActiveAllocationHeld:
         raise _allocation_exists() from None
@@ -1187,10 +1284,15 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     """Transition coder-finalized submissions to reviewer_eligible after the recode window.
 
     The window is the submission's project's ``recode_window_minutes``,
-    counted from the authoritative final COD. One query reads each candidate with its project's window (joined, not
-    looked up per project).
+    counted from the first final COD or review of the authoritative final's
+    coder in the current coding round (``recode_window.first_coding_at_expr``),
+    so a recode never extends
+    it. One query reads each candidate with its project's window (joined, not
+    looked up per project); one more reads the window starts of all of them.
     """
     from datetime import timedelta
+
+    from app.services.recode_window import first_coding_times
 
     now = now or datetime.now(UTC)
     finalized = db.session.execute(
@@ -1206,20 +1308,26 @@ def mark_reviewer_eligible_after_recode_window_submissions(
         )
     ).all()
 
-    transitioned = 0
     # ponytail: per-candidate episode/final lookups (pre-existing); move them
     # into the select if the coder_finalized backlog grows large.
+    candidates = []
     for va_sid, window_minutes in finalized:
-        cutoff = now - timedelta(minutes=window_minutes)
         if get_active_recode_episode(va_sid):
             continue
         authoritative_final = get_authoritative_final_assessment(va_sid)
         if authoritative_final is None:
             continue
-        final_created_at = authoritative_final.va_finassess_createdat
-        if final_created_at.tzinfo is None:
-            final_created_at = final_created_at.replace(tzinfo=UTC)
-        if final_created_at > cutoff:
+        candidates.append((va_sid, authoritative_final, window_minutes))
+    starts = first_coding_times(
+        (va_sid, final.va_finassess_by) for va_sid, final, _ in candidates
+    )
+
+    transitioned = 0
+    for va_sid, final, window_minutes in candidates:
+        started_at = starts.get((va_sid, final.va_finassess_by), final.va_finassess_createdat)
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=UTC)
+        if started_at > now - timedelta(minutes=window_minutes):
             continue
         mark_reviewer_eligible_after_recode_window(
             va_sid,
@@ -1311,6 +1419,7 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
                 va_allocated_to=user.user_id,
                 va_allocation_for=VaAllocation.coding,
                 va_allocation_training=training_scope.is_training_sid(va_new_sid),
+                va_allocation_kind=ALLOCATION_KIND_DEMO,
             ))
     except ActiveAllocationHeld:
         # A concurrent demo start inserted first; drop this one's release too.

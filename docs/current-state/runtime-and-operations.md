@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Runtime And Operations
@@ -539,7 +539,11 @@ the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
   batches, idempotent, logs counts and row ids only; the data ciphertext is not
   touched; covers the identifier, payload side, death register and audit rows). When it reports zero failures and no rows on the old key id, drop the
   old private key after the backup retention. Rotating `PII_BLIND_INDEX_KEY`
-  is a separate job that recomputes every index with writes paused (not built).
+  is a separate job that recomputes every index with writes paused. Payload
+  and death-register indexes have it (`flask pii split-payloads
+  --recompute-digests`, `flask pii seal-register --recompute-digests`,
+  `app/commands/pii.py`); the registration numbers'
+  `map_death_identifier.value_blind_index` has no recompute (not built).
 - **Register seal CLI**: `flask pii seal-register` (app container) seals the
   death register's personal columns and the audit rows' sealed values, with
   `--apply`, `--verify`, `--strip` (after the 30-day hold), `--restore` and

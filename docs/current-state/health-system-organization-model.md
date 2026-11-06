@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -267,10 +267,10 @@ Web-intake submissions route by the same rules: the web questionnaire carries
 the same fields and the project-site's mapping supplies the same fallback.
 
 **Web submissions route identically to ODK ones.** The web draft's
-`_unit_context` (`web_intake_service.py:292-308`) resolves the interviewer's
+`_unit_context` (`app/services/web_intake_service.py`) resolves the interviewer's
 unit the same way ODK submissions do, filling `org_<level_code>_code` from it
-rather than through a separate path; an end-to-end test of the routing lands
-as WP3 (`tests/routes/test_intake_org_routing_e2e.py`).
+rather than through a separate path; an end-to-end test of the routing is
+`tests/routes/test_intake_org_routing_e2e.py`.
 
 ### When routing fails
 
@@ -383,8 +383,9 @@ implemented.
    tracked separately below.
 2. **Units are never deleted.** Deactivation only, and a submission already
    attributed to a unit keeps that attribution. This is what is built:
-   deactivation cascades to the subtree, nothing is removed, and coded deaths
-   stay where they were counted. Reporting over a closed unit therefore stays
+   deactivating a unit with active children needs an explicit choice to move
+   them or cascade to the subtree (see "The tree"), nothing is removed, and
+   coded deaths stay where they were counted. Reporting over a closed unit therefore stays
    correct.
 3. **`view_only` means the person sees the cause of death and the submission
    data, but codes nothing.** Both halves are now implemented: the viewable
@@ -404,9 +405,12 @@ implemented.
    The worker registry therefore needs no ODK submitter or device columns.
 6. **Coding gates are wanted per unit**, not only per project-site: a coding
    window, an enabled flag and a daily limit for one PHC rather than for the
-   whole site. Not built; the design questions — inheritance down the subtree,
-   and precedence against the existing site gate — are in
-   `.tasks/org-per-unit-coding-gates.md`.
+   whole site. Built: `map_org_unit_coding_gate`, resolved by
+   `org_grant_service.resolve_unit_coding_gates` (nearest gated ancestor wins)
+   and applied in `coder_workflow_service` on top of the site gate (the
+   stricter wins). Rules:
+   [Per-unit coding gates](../policy/organization-model.md#per-unit-coding-gates);
+   design notes in `.tasks/org-per-unit-coding-gates.md`.
 7. **The ODK form check runs during sync.** Implemented: each mapped form is
    checked once per sync run against the project's expected
    `org_<level_code>_code` fields, and missing ones are logged and written to
@@ -439,8 +443,12 @@ implemented.
      so a large export never walks the tree per row. Inactive units still
      resolve their code and name.
    - **Unit path in the analytics MV, unit as a grouping dimension in the DM
-     KPIs — not started.** Listed under
-     [Not yet implemented](../policy/organization-model.md#not-yet-implemented-later-phases-of-the-plan).
+     KPIs — built.** The core analytics MV carries `org_unit_id`,
+     `org_unit_code` and `org_unit_path` (migration `2e1da5fbaa0a`); the data
+     manager dashboard filters by org unit, and the DM KPI outcome and
+     critical-path panels break their figures down by unit
+     (`app/routes/api/dm_kpi/dm_kpi_outcomes.py`,
+     `app/routes/api/dm_kpi/dm_kpi_critical_path.py`).
 
 ## Verification
 
@@ -487,8 +495,8 @@ additive, reversible):
 
 They are read and written by the project settings serializer and
 `PUT /admin/api/projects/<project_id>`, which validates every code against the
-active language list. The admin projects panel UI is unchanged — the panel is
-JS-driven and these need more than a plain input each.
+active language list. The admin Projects panel edits them in its Web Intake
+section (Language choice, Guidance, Available languages, Narration languages).
 
 `app/templates/va_frontpages/va_intake_form.html` fetches the endpoint after
 bootstrap and uses it for the `locale` attribute, the `show-guidance`

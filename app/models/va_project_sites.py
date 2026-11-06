@@ -56,6 +56,15 @@ class VaProjectSites(db.Model):
     daily_coder_limit: so.Mapped[int] = so.mapped_column(
         sa.Integer, default=100, nullable=False
     )
+    # Data-collection gate (docs/policy/project-clock-and-gates.md): gates only
+    # new registrations and new interviews without one; dates inclusive on the
+    # project clock; no limit when null.
+    collection_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, default=True, server_default=sa.true(), nullable=False
+    )
+    collection_start_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    collection_end_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    daily_interviewer_limit: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
 
     def __repr__(self) -> str:
         return f"VA Project Site -> {self.project_id}/{self.site_id} ({self.project_site_status})"

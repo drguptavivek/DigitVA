@@ -100,6 +100,34 @@
   <li><strong>Project PI</strong> users can manage associations only for their own assigned project.</li>
 </ul>
 
+<p>
+  Saving a pair's coding settings (coding enabled, coding start and end dates,
+  daily coder limit) is admin-only; a project PI's save is refused.
+</p>
+
+<h3 id="collection-gate">Data Collection Gate</h3>
+
+<p>
+  Next to the coding settings, each pair has data-collection settings: collection
+  enabled or paused, a start and an end date (both inclusive, on the project's own
+  clock), and an optional daily interviewer limit (empty means no limit). Saving
+  them is admin-only, like the coding settings. An organisation unit can narrow
+  them for its subtree from the organisation units panel; the stricter of the
+  site and unit gates applies.
+</p>
+
+<ul>
+  <li>A closed gate stops only <strong>new</strong> work: registering a new death,
+    or starting an interview with no registration. The interviewer sees why, for
+    example "Data collection for Yelahanka PHC ended on November 5, 2026."</li>
+  <li>It never stops interviewing a death already registered, finishing or
+    uploading work already started (including work done offline on a phone),
+    or editing and revising existing interviews.</li>
+  <li>The daily limit counts the new registrations and new interviews an
+    interviewer started at that site (or unit) since midnight on the project clock.</li>
+  <li>Interviews collected in ODK Collect are not gated.</li>
+</ul>
+
 <h3>Effect on the Sync Pipeline</h3>
 
 <p>

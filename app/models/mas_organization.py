@@ -202,6 +202,42 @@ class MapOrgUnitCodingGate(db.Model):
         return f"<MapOrgUnitCodingGate unit={self.org_unit_id} enabled={self.coding_enabled}>"
 
 
+class MapOrgUnitCollectionGate(db.Model):
+    """Per-unit data-collection gate, the collection twin of ``MapOrgUnitCodingGate``.
+
+    Same rules: no row is not gated, nearest gated ancestor wins
+    (``org_grant_service.resolve_unit_collection_gates``), and the stricter of
+    this and the site gate (``VaProjectSites.collection_*``) applies. Gates
+    only new registrations and new interviews without one
+    (docs/policy/project-clock-and-gates.md, "Data-collection gate").
+    """
+
+    __tablename__ = "map_org_unit_collection_gate"
+
+    org_unit_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_org_unit.org_unit_id"),
+        primary_key=True,
+    )
+    collection_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=True, server_default=sa.true()
+    )
+    collection_start_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    collection_end_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    daily_interviewer_limit: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    updated_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    unit: so.Mapped["MasOrgUnit"] = so.relationship("MasOrgUnit")
+
+    def __repr__(self) -> str:
+        return f"<MapOrgUnitCollectionGate unit={self.org_unit_id} enabled={self.collection_enabled}>"
+
+
 class MapOrgUnitVaPresets(db.Model):
     """Area presets for Id10002 (HIV/AIDS mortality) and Id10003 (malaria
     mortality), fixed for a district rather than asked per interview.

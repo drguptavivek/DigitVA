@@ -1,5 +1,7 @@
 import { ApiError, maskApiPath, requestJson } from "../src/api";
 import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError } from "../src/authErrors";
+import en from "../src/strings/en.json";
+import hi from "../src/strings/hi.json";
 import { errorReference, errorText } from "../src/ui";
 
 describe("maskApiPath", () => {
@@ -8,6 +10,15 @@ describe("maskApiPath", () => {
     expect(maskApiPath("/api/v1/drafts/3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e/submit")).toBe("/api/v1/drafts/:id/submit");
     expect(maskApiPath("/api/v1/x/deadbeef01")).toBe("/api/v1/x/:id");
     expect(maskApiPath("/api/v1/me/access")).toBe("/api/v1/me/access");
+  });
+});
+
+describe("errorText sign-in refusals", () => {
+  it("names a project with collection switched off, and an unknown 403 stays generic", () => {
+    expect(errorText(new ApiError(403, "project_intake_off"))).toBe(en.errProjectIntakeOff);
+    expect(errorText(new ApiError(403, "no_interviewer_grant"))).toBe(en.errNoGrant);
+    expect(errorText(new ApiError(403, "some_future_code"))).toContain(en.errGeneric);
+    expect(hi.errProjectIntakeOff).toBeTruthy();
   });
 });
 

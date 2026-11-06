@@ -762,7 +762,7 @@ describe("the offline coding workspace's local API", () => {
     const calls: Array<() => Promise<unknown>> = [
       () => api.getCodingStats(), () => api.getCodingAvailable(), () => api.allocateCoding(), () => api.releaseCoding(),
       () => api.searchIcd("draft-7", "icd11", "fever"), () => api.saveFinal("draft-7", {}), () => api.saveNotCodeable("draft-7", {}),
-      () => api.saveNarrativeQuality("draft-7", {}), () => api.saveSocialAutopsy("draft-7", {}), () => api.getWorkflowEvents("draft-7"),
+      () => api.saveNarrativeQuality("draft-7", {}), () => api.saveSocialAutopsy("draft-7", {}),
       () => api.runSmartva("draft-7"),
     ];
     for (const call of calls) await expect(Promise.resolve().then(call)).rejects.toThrow("offline_server_unavailable");
@@ -882,5 +882,77 @@ describe("the offline profile screen", () => {
     expect(mockSetUpStandaloneAccount).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(root.root.find((node) => node.props.accessibilityRole === "alert").props.children).toBe("standaloneSetupFailed");
+  });
+});
+
+describe("direct coding and the coded-case summary (digitva-9cll.23, .24)", () => {
+  const CERT = { ICDVersion: "ICD11", Part1: [{ Conditions: [{ Text: "AMI", Code: "BA41.Z" }] }] };
+  const codedRow = {
+    client_draft_id: "draft-7", certificate: JSON.stringify(CERT), status: "coded", ucod_code: "BA41.Z", updated_at: "2026-10-27T10:00:00.000+05:30",
+    result: JSON.stringify({ status: "completed", result: { code: "BA41.Z" } }),
+    codedit_result: JSON.stringify({ status: "completed", result: { report: "ok" } }),
+    provenance: null,
+  };
+  const open = async (standalone: boolean, coding: unknown) => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    mockAccounts.splice(0, mockAccounts.length, standalone
+      ? { user_id: "coder-1", name: "Coder", standalone: true }
+      : { user_id: "coder-1", name: "Coder", coding_access: true, offline_coding_access: ["SELF"] });
+    (require("../src/drafts").getOfflineCoding as jest.Mock).mockResolvedValue(coding);
+    mockRealScreen = false;
+    return render(<OfflineCoding />);
+  };
+
+  it("standalone: a coded case opens the read-only summary with the saved final cause and Revise", async () => {
+    const root = await open(true, codedRow);
+    expect(mockScreenProps!.identity.mode).toBe("view");
+    expect(mockScreenProps!.viewAction).toBeDefined();
+    const workspace = await mockScreenProps!.api.getWorkspace("draft-7", "view");
+    expect(workspace.step).toBe("view");
+    expect(workspace.doris).toBeNull();
+    expect(workspace.assessments.final).toMatchObject({ conclusive_cod: "BA41.Z", doris_status: "coded" });
+    await act(async () => root.unmount());
+  });
+
+  it("Revise reopens coding pre-filled from the saved certificate and results, with the one-step label flag", async () => {
+    const root = await open(true, codedRow);
+    await act(async () => { mockScreenProps!.viewAction.props.onPress(); });
+    expect(mockScreenProps!.identity.mode).toBe("coding");
+    expect(mockScreenProps!.viewAction).toBeUndefined();
+    const workspace = await mockScreenProps!.api.getWorkspace("draft-7", "coding");
+    expect(workspace.step).toBe("initial");
+    expect(workspace.doris.initial_certificate).toEqual(CERT);
+    expect(workspace.doris.saved_processing).toEqual({
+      doris: { status: "completed", result: { code: "BA41.Z" } },
+      codedit: { status: "completed", result: { report: "ok" } },
+    });
+    expect(mockPanelProps!.direct).toBe(true);
+    await act(async () => root.unmount());
+  });
+
+  it("a revision saves through the same upsert, so the case keeps one coding record", async () => {
+    const root = await open(true, codedRow);
+    await act(async () => { mockScreenProps!.viewAction.props.onPress(); });
+    mockEditorSave.mockResolvedValue({ updated_at: "2026-10-27T11:00:00.000+05:30" } as never);
+    await mockPanelProps!.api.saveInitial("draft-7", {});
+    await mockPanelProps!.api.saveInitial("draft-7", {});
+    expect(mockEditorSave).toHaveBeenCalledTimes(2);
+    for (const [call] of mockEditorSave.mock.calls as unknown as Array<[{ clientDraftId: string }]>) expect(call.clientDraftId).toBe("draft-7");
+    await act(async () => root.unmount());
+  });
+
+  it("standalone with no coding yet is the direct form; an enrolled coded case keeps its steps and no summary", async () => {
+    let root = await open(true, null);
+    expect(mockScreenProps!.identity.mode).toBe("coding");
+    expect(mockPanelProps!.direct).toBe(true);
+    await act(async () => root.unmount());
+    mockPanelProps = undefined;
+    root = await open(false, codedRow);
+    expect(mockScreenProps!.identity.mode).toBe("coding");
+    expect(mockScreenProps!.viewAction).toBeUndefined();
+    expect(mockPanelProps!.direct).toBe(false);
+    await act(async () => root.unmount());
   });
 });

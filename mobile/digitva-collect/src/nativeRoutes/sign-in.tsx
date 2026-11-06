@@ -22,8 +22,8 @@ import { displayProjectName } from "../projectName";
 export default function SignIn() {
   const styles = useUiStyles();
   const router = useRouter();
-  // "Sign in again" names the account it came from; signIn never wipes a store.
-  const { userId } = useLocalSearchParams<{ userId?: string }>();
+  // "Sign in again" names the account it came from; signIn never wipes a store. `resetPin` comes from "Forgot PIN?".
+  const { userId, resetPin } = useLocalSearchParams<{ userId?: string; resetPin?: string }>();
   const { reload, accounts, device, lockNow } = useAppState();
   // The public demo signs in by username and has no code or password-reset links.
   const demo = isDemoServer(device?.server, __DEV__, process.env.EXPO_PUBLIC_DEMO_SERVER);
@@ -58,8 +58,13 @@ export default function SignIn() {
     let slot: Slot | undefined;
     try {
       slot = await loadActiveSlot();
-      const account = await signIn(submittedIdentifier, password, slot);
+      const account = await signIn(submittedIdentifier, password, slot, { forPinReset: resetPin === "1" && !!userId });
       await reload();
+      // Forgot PIN: a new PIN only for the account that just signed in (interviewerDb.resetInterviewerPin checks it too).
+      if (resetPin === "1" && account.user_id === userId) {
+        router.replace({ pathname: "/pin-setup", params: { userId: account.user_id, reset: "1", refresh: "1" } });
+        return;
+      }
       // Unlock sends an interviewer without a PIN yet to PIN setup.
       router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {

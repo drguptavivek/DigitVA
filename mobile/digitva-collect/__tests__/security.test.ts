@@ -1,8 +1,9 @@
 /**
  * Phase 2b store security: the passphrase and PIN rules, the failed-PIN
- * counter (warn at 3, wipe at 5, only that interviewer), locking, PIN setup
- * over a phase-2a plaintext file, the auto-lock timers, and the wipe matrix
- * (sign-out, session_revoked, five wrong PINs wipe; other refusals keep).
+ * counter and timed lockout (never a wipe; digitva-kfi), the move of a
+ * pre-digitva-kfi store to wrapped keys, PIN reset after a password sign-in,
+ * locking, PIN setup over a phase-2a plaintext file, the auto-lock timers,
+ * and the wipe matrix (only session_revoked with nothing unsent wipes).
  *
  * expo-sqlite is faked as a keyed file table: a file remembers the key it was
  * created with (null = plaintext) and refuses any other key on first read,
@@ -56,7 +57,7 @@ jest.mock("expo-sqlite", () => ({
   }
 }));
 
-import { classifyAuthError, loadAccounts, signOut, unlockInterviewer } from "../src/auth";
+import { classifyAuthError, loadAccounts, signIn, signOut, unlockInterviewer } from "../src/auth";
 import { ApiError } from "../src/api";
 import { BACKGROUND_LOCK_MS, createAutoLock, IDLE_LOCK_MS, LOCK_WARNING_MS } from "../src/autoLock";
 import {
@@ -65,10 +66,12 @@ import {
   isUnlocked,
   lockAll,
   openInterviewerDb,
+  resetInterviewerPin,
   StoreLockedError,
   unlockInterviewerDb
 } from "../src/interviewerDb";
-import { buildPassphrase, failedAttempts, pinProblem, storeHash } from "../src/vault";
+import { allowPinReset, PIN_RESET_WINDOW_MS } from "../src/pinResetGrant";
+import { buildPassphrase, failedAttempts, pinLockMs, pinProblem, storeHash, unwrapDataKey, wrapDataKey } from "../src/vault";
 
 const SERVER = "http://10.0.2.2:8051";
 const A = "11111111-1111-4111-8111-111111111111";
@@ -112,6 +115,8 @@ async function setUpBoth() {
   mockSecure.set(`pin_bio_on_${hashOf(B)}`, "1");
   await lockAll();
 }
+
+afterEach(() => jest.spyOn(Date, "now").mockRestore());
 
 beforeEach(async () => {
   mockCloseFailures.clear();
@@ -164,7 +169,10 @@ describe("store setup, unlock and lock", () => {
     seedAccounts();
     await createInterviewerDb(A, PIN);
     expect(isUnlocked(A)).toBe(true);
-    expect(mockFiles.get(fileOf(A))).toMatch(/^[0-9a-f]{64}:246810$/);
+    // A random data key, not derived from the PIN; both copies saved beside the secret.
+    expect(mockFiles.get(fileOf(A))).toMatch(/^[0-9a-f]{64}$/);
+    expect(mockSecure.get(`store_key_reset_${hashOf(A)}`)).toBe(mockFiles.get(fileOf(A)));
+    expect(mockSecure.get(`store_key_pin_${hashOf(A)}`)).toMatch(/^[0-9a-f]{32}\.[0-9a-f]+$/);
 
     await lockAll();
     expect(isUnlocked(A)).toBe(false);
@@ -243,25 +251,249 @@ describe("failed PINs", () => {
     expect(footprint(A)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
   });
 
-  it("wipes only that interviewer on the fifth wrong PIN in a row", async () => {
+  it("serializes overlapping wrong PINs so both are counted", async () => {
     await setUpBoth();
+    await Promise.all([unlockInterviewer(A, "000000"), unlockInterviewer(A, "111111")]);
+    expect(await failedAttempts(A)).toBe(2);
+  });
+
+  it("locks after the fifth wrong PIN in a row, refuses even the right PIN untried until the wait ends, and erases nothing", async () => {
+    await setUpBoth();
+    let clock = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => clock);
     await unlockInterviewer(B, "000000");
     for (let n = 1; n <= 4; n += 1) await unlockInterviewer(A, "000000");
-    expect(footprint(A).file).toBe(true);
 
-    expect(await unlockInterviewer(A, "000000")).toEqual({ ok: false, failures: 5, wipe: true });
+    expect(await unlockInterviewer(A, "000000")).toEqual({ ok: false, failures: 5, wipe: false, lockedMs: 60_000 });
+    clock += 59_000;
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: false, failures: 5, wipe: false, lockedMs: 1_000 });
+    expect(await failedAttempts(A)).toBe(5);
+    expect(isUnlocked(A)).toBe(false);
 
-    expect(footprint(A)).toEqual({ file: false, secret: false, tokens: false, biometric: false });
-    expect(mockSecure.has(`pin_failures_${hashOf(A)}`)).toBe(false);
-    expect((await loadAccounts()).map((a) => a.user_id)).toEqual([B]);
+    clock += 1_000;
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    expect(await failedAttempts(A)).toBe(0);
+    expect(mockSecure.has(`pin_failed_at_${hashOf(A)}`)).toBe(false);
+    expect(footprint(A)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
     expect(footprint(B)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
     expect(await failedAttempts(B)).toBe(1);
-    expect(await unlockInterviewer(B, "135790")).toEqual({ ok: true });
+  });
+
+  it("grows the wait 1, 5, 15, 60 minutes, then hourly, and never wipes after many wrong PINs", async () => {
+    expect([1, 4, 5, 6, 7, 8, 9, 30].map(pinLockMs)).toEqual(
+      [0, 0, 60_000, 300_000, 900_000, 3_600_000, 3_600_000, 3_600_000]
+    );
+    await setUpBoth();
+    let clock = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => clock);
+    for (let n = 1; n <= 20; n += 1) {
+      const result = await unlockInterviewer(A, "000000");
+      expect(result).toMatchObject({ ok: false, failures: n, wipe: false });
+      clock += pinLockMs(n);
+    }
+    expect(footprint(A)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
+    expect((await loadAccounts()).map((a) => a.user_id)).toEqual([A, B]);
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+  });
+
+  it("keeps the lockout across an app restart", async () => {
+    await setUpBoth();
+    let clock = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => clock);
+    for (let n = 1; n <= 6; n += 1) {
+      await unlockInterviewer(A, "000000");
+      if (n < 6) clock += pinLockMs(n);
+    }
+    await lockAll();
+    // A fresh copy of every module, as after the app is killed: only SecureStore and the files remain.
+    let fresh: typeof import("../src/auth") | undefined;
+    jest.isolateModules(() => {
+      fresh = require("../src/auth");
+    });
+    expect(await fresh!.unlockInterviewer(A, PIN)).toEqual({ ok: false, failures: 6, wipe: false, lockedMs: 300_000 });
+  });
+
+  it("restarts the full wait when the clock is set back, never shortening it", async () => {
+    await setUpBoth();
+    let clock = 10_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => clock);
+    for (let n = 1; n <= 5; n += 1) await unlockInterviewer(A, "000000");
+    clock -= 3_600_000;
+    expect(await unlockInterviewer(A, PIN)).toMatchObject({ ok: false, lockedMs: 60_000 });
+    clock += 60_000;
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
   });
 
   it("counts a malformed PIN as a wrong one", async () => {
     await setUpBoth();
     expect(await unlockInterviewer(A, "12'--")).toEqual({ ok: false, failures: 1, wipe: false });
+  });
+});
+
+describe("wrapped keys: move of an existing store and PIN reset", () => {
+  const OLD_SECRET = "cd".repeat(32);
+  const LEGACY_KEY = `${OLD_SECRET}:${PIN}`;
+
+  /** A store made before digitva-kfi: keyed `secret:PIN`, no key copies. */
+  function seedLegacyStore() {
+    seedAccounts();
+    mockSecure.set(`store_secret_${hashOf(A)}`, OLD_SECRET);
+    mockFiles.set(fileOf(A), LEGACY_KEY);
+  }
+
+  it("opens a pre-digitva-kfi store with its PIN, keeps its key, writes both copies, and opens again with the PIN", async () => {
+    seedLegacyStore();
+    mockExecLog.length = 0;
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    expect(mockFiles.get(fileOf(A))).toBe(LEGACY_KEY);
+    expect(mockExecLog.some((sql) => /rekey/i.test(sql))).toBe(false);
+    expect(mockSecure.get(`store_key_reset_${hashOf(A)}`)).toBe(LEGACY_KEY);
+    const wrap = mockSecure.get(`store_key_pin_${hashOf(A)}`)!;
+    expect(await unwrapDataKey(OLD_SECRET, PIN, wrap)).toBe(LEGACY_KEY);
+    expect(await unwrapDataKey(OLD_SECRET, "000000", wrap)).toBeNull();
+
+    await lockAll();
+    expect(await unlockInterviewer(A, "000000")).toEqual({ ok: false, failures: 1, wipe: false });
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    expect(mockSecure.get(`store_secret_${hashOf(A)}`)).toBe(OLD_SECRET);
+  });
+
+  it("leaves the old path working when writing the PIN wrap fails, and finishes on a later unlock", async () => {
+    seedLegacyStore();
+    const SecureStore = jest.requireMock("expo-secure-store") as { setItemAsync: jest.Mock };
+    const save = SecureStore.setItemAsync.getMockImplementation()!;
+    SecureStore.setItemAsync.mockImplementation(async (key: string, value: string) => {
+      if (key.startsWith("store_key_pin_")) throw new Error("keystore busy");
+      return save(key, value);
+    });
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    SecureStore.setItemAsync.mockImplementation(save);
+    expect(mockSecure.has(`store_key_pin_${hashOf(A)}`)).toBe(false);
+    expect(mockFiles.get(fileOf(A))).toBe(LEGACY_KEY);
+
+    await lockAll();
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    expect(await unwrapDataKey(OLD_SECRET, PIN, mockSecure.get(`store_key_pin_${hashOf(A)}`)!)).toBe(LEGACY_KEY);
+  });
+
+  it("after a password sign-in for that account, sets a new PIN on the same store; the old PIN no longer opens it", async () => {
+    seedLegacyStore();
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    await lockAll();
+    let clock = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => clock);
+    for (let n = 1; n <= 7; n += 1) {
+      await unlockInterviewer(A, "000000");
+      clock += pinLockMs(n);
+    }
+    mockSecure.set(`pin_bio_${hashOf(A)}`, PIN);
+    mockSecure.set(`pin_bio_on_${hashOf(A)}`, "1");
+
+    allowPinReset(A);
+    await resetInterviewerPin(A, "975310");
+    expect(isUnlocked(A)).toBe(true);
+    expect(mockFiles.get(fileOf(A))).toBe(LEGACY_KEY);
+    expect(await failedAttempts(A)).toBe(0);
+    expect(footprint(A).biometric).toBe(false);
+    expect(mockSecure.get(`pin_len_${hashOf(A)}`)).toBe("6");
+
+    await lockAll();
+    // The old PIN is inside the legacy key, but the closed `secret:PIN` path never tries it.
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: false, failures: 1, wipe: false });
+    expect(await unlockInterviewer(A, "975310")).toEqual({ ok: true });
+  });
+
+  it("refuses a reset without a password sign-in, after the window, or a second time", async () => {
+    await setUpBoth();
+    await expect(resetInterviewerPin(A, "975310")).rejects.toThrow("pin_reset_not_allowed");
+
+    let clock = 1_000_000;
+    jest.spyOn(Date, "now").mockImplementation(() => clock);
+    allowPinReset(A);
+    clock += PIN_RESET_WINDOW_MS + 1;
+    await expect(resetInterviewerPin(A, "975310")).rejects.toThrow("pin_reset_not_allowed");
+
+    allowPinReset(A);
+    await resetInterviewerPin(A, "975310");
+    await lockAll();
+    await expect(resetInterviewerPin(A, "864200")).rejects.toThrow("pin_reset_not_allowed");
+    expect(await unlockInterviewer(A, "975310")).toEqual({ ok: true });
+  });
+
+  it("a reset that fails its checks keeps the grant; the successful one uses it up", async () => {
+    await setUpBoth();
+    allowPinReset(A);
+    await expect(resetInterviewerPin(A, "12")).rejects.toThrow("bad_pin");
+    await resetInterviewerPin(A, "975310");
+    await lockAll();
+    await expect(resetInterviewerPin(A, "864200")).rejects.toThrow("pin_reset_not_allowed");
+  });
+
+  it("a password sign-in as another account cannot reset this one", async () => {
+    await setUpBoth();
+    globalThis.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 201,
+      headers: { get: (name: string) => (name.toLowerCase() === "content-type" ? "application/json" : null) },
+      json: async () => ({
+        access_token: "a", access_expires_at: "", refresh_token: "r", refresh_expires_at: "",
+        user: { user_id: B, name: "B" },
+        access: { user: { user_id: B, name: "B" }, is_admin: false, roles: [], demo_coding: { available: false, project_ids: [] }, projects: [] }
+      })
+    })) as unknown as typeof fetch;
+    expect((await signIn("b@example.org", "pw", undefined, { forPinReset: true })).user_id).toBe(B);
+
+    await expect(resetInterviewerPin(A, "975310")).rejects.toThrow("pin_reset_not_allowed");
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    await lockAll();
+    // B's own grant works for B (the lock cleared the earlier one).
+    allowPinReset(B);
+    await resetInterviewerPin(B, "975310");
+    await lockAll();
+    expect(await unlockInterviewer(B, "975310")).toEqual({ ok: true });
+  });
+
+  it("a normal sign-in grants no reset; a Forgot PIN sign-in does; an unlock clears the grant", async () => {
+    await setUpBoth();
+    const reply = (id: string) => ({
+      ok: true,
+      status: 201,
+      headers: { get: (name: string) => (name.toLowerCase() === "content-type" ? "application/json" : null) },
+      json: async () => ({
+        access_token: "a", access_expires_at: "", refresh_token: "r", refresh_expires_at: "",
+        user: { user_id: id, name: "A" },
+        access: { user: { user_id: id, name: "A" }, is_admin: false, roles: [], demo_coding: { available: false, project_ids: [] }, projects: [] }
+      })
+    });
+    globalThis.fetch = jest.fn(async () => reply(A)) as unknown as typeof fetch;
+    await signIn("a@example.org", "pw");
+    await expect(resetInterviewerPin(A, "975310")).rejects.toThrow("pin_reset_not_allowed");
+
+    await signIn("a@example.org", "pw", undefined, { forPinReset: true });
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    await lockAll();
+    await expect(resetInterviewerPin(A, "975310")).rejects.toThrow("pin_reset_not_allowed");
+
+    await signIn("a@example.org", "pw", undefined, { forPinReset: true });
+    await resetInterviewerPin(A, "975310");
+  });
+
+  it("cannot reset a store that never unlocked on this version, and changes nothing", async () => {
+    seedLegacyStore();
+    allowPinReset(A);
+    await expect(resetInterviewerPin(A, "975310")).rejects.toThrow("pin_reset_unavailable");
+    expect(mockFiles.get(fileOf(A))).toBe(LEGACY_KEY);
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+  });
+
+  it("wraps under a fresh salt each time and refuses a malformed key", async () => {
+    const key = "ef".repeat(32);
+    const one = await wrapDataKey(OLD_SECRET, PIN, key);
+    const two = await wrapDataKey(OLD_SECRET, PIN, key);
+    expect(one).not.toBe(two);
+    expect(await unwrapDataKey(OLD_SECRET, PIN, two)).toBe(key);
+    await expect(wrapDataKey(OLD_SECRET, PIN, "x'; --")).rejects.toThrow("bad_data_key");
+    expect(await unwrapDataKey(OLD_SECRET, PIN, "garbage")).toBeNull();
   });
 });
 

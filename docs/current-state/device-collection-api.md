@@ -124,7 +124,7 @@ values). The device secret is compared with `hmac.compare_digest`.
   device, 20/hour per account (keyed on the canonical number for a mobile). Every refused
   sign-in is audited as `device_session_failed` with the device id and the
   reason only (`invalid_credentials`, `email_unverified`, `maintenance`,
-  `no_interviewer_grant`).
+  `no_interviewer_grant`, `project_intake_off`).
   Other security events: `device_enrolment_code_created`, `device_enrolled`,
   `device_session_opened`, `device_session_revoked`, `device_revoked`
   (detail `compromised`), `device_signing_key_set` (detail `signing_key_id`,

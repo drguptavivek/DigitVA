@@ -157,7 +157,7 @@ describe("project-less interview", () => {
   it("starts from the bundled instrument with no server project", () => {
     const resolved = standaloneDefinition([]);
     expect(resolved.provenance).toBe("bundled-original");
-    expect(resolved.pin).toBeNull();
+    expect(resolved.pin).toMatchObject({ definitionExtensions: [] });
     expect(resolved.instrument.sections.length).toBeGreaterThan(0);
     const project = standaloneProject(standaloneProjectId(userId));
     expect(project.form_options.enabled_extensions).toEqual(["medical_records", "death_summary"]);

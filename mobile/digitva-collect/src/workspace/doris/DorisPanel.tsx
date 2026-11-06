@@ -236,6 +236,7 @@ export function DorisPanel({
   onSaved,
   onDone,
   demo = false,
+  direct = false,
 }: {
   workspace: WorkspacePayload;
   identity: WorkspaceIdentity;
@@ -245,6 +246,8 @@ export function DorisPanel({
   onDone: () => void;
   /** The Collect Plus "Try DORIS" demo: nothing is saved or reported, administrative data is always editable, and Reset restores the loaded example. */
   demo?: boolean;
+  /** Standalone Collect Plus: coding is one direct step (the saved record is the final cause), so no "Step 1" wording. */
+  direct?: boolean;
 }) {
   const owner = { api, request, vaSid: identity.vaSid, mode: identity.mode, step: workspace.step, projectMode: workspace.case.project_mode, fingerprint: workspace.case.doris_draft_context, recoveryGeneration: browserDraftGeneration() };
   const [stored, setStored] = useState<CertificateState>(() => initialState(owner, workspace));
@@ -598,7 +601,7 @@ export function DorisPanel({
   const loseAllocation = () => { setPickerTarget(null); clearAllocation(); };
 
   const pickerInit = (target: PickerTarget, finalQuery: string): PickerInit => {
-    if (target.kind === "final") return { title: isInitial ? "Confirm Step 1 underlying cause" : "Final underlying cause", accent: ui.light.primary, allowUncoded: false, query: target.query || finalQuery, finalMode: true, theme: colorMode };
+    if (target.kind === "final") return { title: direct ? tr("dorisDirectConfirmCause") : isInitial ? "Confirm Step 1 underlying cause" : "Final underlying cause", accent: ui.light.primary, allowUncoded: false, query: target.query || finalQuery, finalMode: true, theme: colorMode };
     const index = target.kind === "part1" ? target.index : 0;
     return { title: lineTitle(index, target.kind === "part2"), accent: lineShade(colorMode, index, target.kind === "part2").bar, allowUncoded: true, query: target.query, theme: colorMode };
   };
@@ -696,7 +699,7 @@ export function DorisPanel({
   return (
     <IntervalErrorContext.Provider value={reportIntervalError}>
     <Card style={[layout.panel, pageCard]}>
-      <EditorHeading title="DORIS certificate" subtitle={isInitial ? "Step 1" : "Final cause"} />
+      <EditorHeading title="DORIS certificate" subtitle={direct ? undefined : isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
       {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} api={api} vaSid={identity.vaSid} /> : null}
       {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} onAgeTyped={setAgeTyped} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
@@ -718,7 +721,7 @@ export function DorisPanel({
       <CertificateDetails certificate={certificate} provenance={provenance} shown={shown} warns={warns} onChange={setField} />
       {processing ? <ProcessingSummary processing={processing} api={api} vaSid={identity.vaSid} /> : null}
       {processing || state.selectedCause ? (
-        <FinalCausePicker api={api} label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
+        <FinalCausePicker api={api} label={direct ? tr("dorisDirectConfirmCause") : isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
           quick={processing ? dorisQuickChoices(processing, dorisTitle) : []} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
       ) : null}
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
@@ -726,7 +729,7 @@ export function DorisPanel({
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
       <Button label={demo ? tr("dorisDemoReset") : "Reset DORIS from interview"} variant="secondary" disabled={state.busy} onPress={resetCertificate} />
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
-      {demo ? null : <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />}
+      {demo ? null : <Button label={direct ? tr("dorisSaveCauseOfDeath") : isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />}
       {ageDialog}
       <Separator testID="doris-actions-separator" />
       {identity.mode === "coding" && !demo ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}

@@ -969,13 +969,16 @@ the device while unenrolled.
   counts (digitva-31ci): In progress (drafts), Pending coding (completed, not coded; the default when it has
   records) and Coded. Each row is titled with the deceased's name, age and sex (read from the draft answers by
   `listStandaloneRecords` in one query; the UUID titles a nameless record and sits under the name otherwise). Coded
-  rows offer Revise coding only. Enrol this phone sits in Settings > Account;
+  rows offer View, which opens the case in view mode with the saved cause-of-death summary. Standalone coding is one
+  step: the DORIS button reads "Save cause of death" (`DorisPanel` `direct` prop) with no propose/confirm, because no
+  second reviewer exists on the phone. The summary's Revise reopens coding pre-filled from the saved certificate and
+  engine results, and the case's workflow events are served from the local store. Enrol this phone sits in Settings > Account;
   an unlocked standalone account's Settings > "Export and backup" holds Export my records, Back up this phone and
   Restore from a backup (`src/standalone/DataActions.tsx`). The home re-reads the last backup time on every focus,
   so a backup made in Settings clears the reminder.
 - **Offline coding** (route `/offline-coding`, `src/nativeRoutes/offlineCoding.native.tsx`;
   reached from the "Local cases" row of the coding case lists, `src/ui/CodingCaseChips.tsx`,
-  shown on the Collect Plus home and worklist, or from a standalone record's "Code" or "Revise"
+  shown on the Collect Plus home and worklist, or from a standalone record's "Code" or "View"
   button, `src/nativeRoutes/standalone.tsx`): lists completed-unsent
   interviews (metadata only, no PII in the list), opens a case in the shared
   `CaseWorkspaceScreen` (as online coding) over a local `WorkspaceApi`
@@ -999,6 +1002,23 @@ the device while unenrolled.
   after adoption (device-collection-api.md "Standalone push"). Engine error payloads never surface
   or log (status `unavailable`). Screens are platform-split (`​.native`/`.web`
   twins) so the web export never pulls expo-sqlite.
+- **PIN lockout and reset (digitva-kfi, 2026-11-06).** Native store keys
+  (`src/vault.ts`, `src/interviewerDb.ts`): each store's SQLCipher passphrase
+  is a data key kept as a PIN-wrapped copy (`store_key_pin_<hash>`, SHA-256
+  counter-mode stream over store secret, salt and PIN) and a reset copy
+  (`store_key_reset_<hash>`) in SecureStore. A pre-digitva-kfi store keeps
+  `secret:PIN` as its data key; the first correct PIN writes both copies (no
+  rekey). Wrong PINs never wipe: `pinLockMs` waits 1, 5, 15, 60 minutes from
+  the fifth in a row, counted from `pin_failed_at_<hash>`; the unlock screen
+  shows the wait and "Forgot PIN? Sign in with password" when a reset copy
+  exists. `signIn` grants a one-use, 5-minute reset for the user id the
+  server returns (`src/pinResetGrant.ts`); `/pin-setup?reset=1` calls
+  `resetInterviewerPin`, which re-wraps the data key under the new PIN and
+  drops the fingerprint and screen-lock entries. A standalone account has no
+  reset: after five wrong PINs the unlock screen offers "Forgot PIN?", a typed
+  confirmation that runs `wipeInterviewer` and returns to `/standalone-setup`.
+  Policy:
+  [field data collection](../policy/field-data-collection.md), "Wrong PINs and PIN reset".
 - **Try DORIS demo (WP6, 2026-10-30).** Collect Plus on Android only
   (`canTryDorisDemo()` in `src/dorisDemoAccess.ts`; plain Collect and the web
   never show it): Help > "Try DORIS (offline demo)" opens route `/doris-demo`

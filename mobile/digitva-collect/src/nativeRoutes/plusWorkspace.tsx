@@ -153,7 +153,7 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
         onSaved={onSaved}
         onDone={onDone}
       />}
-      renderMedia={(attachmentPath) => <AttachmentMedia identity={identity} attachmentPath={attachmentPath} />}
+      renderMedia={(attachmentPath) => <AttachmentMedia identity={identity} attachmentPath={attachmentPath} userId={userId} />}
     />;
   }
   if (mode === "view") return <Redirect href="/" />;

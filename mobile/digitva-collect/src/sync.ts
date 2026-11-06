@@ -525,6 +525,10 @@ export async function uploadQueuedWork(
     const releaseUpload = acquireDraftUpload(userId, item.id);
     if (!releaseUpload) continue;
     try {
+      // The interviewer may have reopened it since the list was read; send only what is still completed now.
+      const current = await completedDraft(db, item.id);
+      if (!current) continue draftLoop;
+      item = current;
       const consents = await loadConsents(db);
       const decision = consentFor(consents, item)?.record.envelope.decision;
       if (isRefused(item.draft.data, decision)) {
@@ -555,7 +559,11 @@ export async function uploadQueuedWork(
     const refusedInterview = isRefused(item.draft.data, applied?.record.envelope.decision);
     const resumeRefused = !refusedInterview && !!item.base_updated_at && await getMeta<boolean>(db, `consent:resume-who:${item.id}`) === true;
     if (applied?.record.envelope.decision === "refused") await deleteCoveredAttachments(db, item.id, applied.record.covered_fields);
-    const sentDraft = sentData === item.draft.data ? item.draft : { ...item.draft, data: sentData };
+    const { reopenedAtV1: _localOnly, ...draftBody } = item.draft;
+    // A standalone draft's pin names the bundled questionnaire, which the server cannot serve back: it stays on the phone.
+    const { definitionSha256: _bundledSha, definitionExtensions: _bundledExtensions, ...unpinned } = draftBody as typeof draftBody & { definitionSha256?: unknown; definitionExtensions?: unknown };
+    const wireDraft = standalone ? unpinned : draftBody;
+    const sentDraft = sentData === item.draft.data ? wireDraft : { ...wireDraft, data: sentData };
     // A standalone interview goes to the adopted project and site; the server routes it by the org code claim.
     const target = standalone ? { ...item, project_id: standalone.projectId, site_id: standalone.siteId, org_unit_id: null } : item;
     let standaloneFields: Record<string, unknown> = {};

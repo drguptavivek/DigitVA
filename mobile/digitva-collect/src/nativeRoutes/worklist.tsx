@@ -30,7 +30,7 @@ import {
   type Registration,
 } from "../cases";
 import { sendRefusals, type SendRefusal } from "../unsentWork";
-import { deleteUnsentDraft, listDrafts, retryHeldDraft, type Db, type DraftRow } from "../drafts";
+import { deleteUnsentDraft, listDrafts, reopenCompletedDraft, retryHeldDraft, type Db, type DraftRow } from "../drafts";
 import { codingNotices, dismissCodingNotices, type CodingNotice } from "../codingUploadNotices";
 import { codingNoticeText } from "../standalone/adopt";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -131,6 +131,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const [draftConflict, setDraftConflict] = useState(false);
   const [codingUploadNotices, setCodingUploadNotices] = useState<CodingNotice[]>([]);
   const [deleting, setDeleting] = useState<DraftRow | undefined>();
+  const [reopening, setReopening] = useState<DraftRow | undefined>();
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
   const onlineRequestGenerationRef = useRef(0);
@@ -849,6 +850,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         pathname: "/form",
         params: { userId: account!.user_id, draftId: action.draft.id, ...(action.draft.project_id ? { projectId: action.draft.project_id } : {}) },
       });
+    } else if (action.type === "reopen") {
+      setReopening(action.draft);
     } else if (action.type === "case") {
       router.push({ pathname: "/case", params: { userId: account!.user_id, projectId: action.projectId, deathId: action.deathId } });
     } else if (action.type === "registration") {
@@ -876,6 +879,27 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       setMessage(t("deleteDraftFailed"));
     }
     await loadLocal(handle);
+  }
+
+  /** Reopen a ready interview after the dialog; refused (nothing changed) once a send has started, then open the form. */
+  async function confirmReopen() {
+    const draft = reopening;
+    const handle = dbRef.current;
+    setReopening(undefined);
+    if (!draft || !handle) return;
+    try {
+      const outcome = await reopenCompletedDraft(handle, account!.user_id, draft.id);
+      if (outcome !== "reopened") {
+        setMessage(t(outcome === "busy" ? "reopenBusy" : "reopenRefused"));
+        await loadLocal(handle);
+        return;
+      }
+    } catch {
+      setMessage(t("reopenRefused"));
+      await loadLocal(handle);
+      return;
+    }
+    runAction({ type: "resume", draft, label: t("actionResume") });
   }
 
   async function dismissCodingUploadNotices() {
@@ -954,6 +978,15 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           confirmLabel={t("deleteDraft")}
           onConfirm={() => void confirmDeleteDraft()}
           onCancel={() => setDeleting(undefined)}
+        />
+      ) : null}
+      {reopening ? (
+        <ConfirmDialog
+          title={t("reopenTitle")}
+          message={t("reopenMessage")}
+          confirmLabel={t("actionReopen")}
+          onConfirm={() => void confirmReopen()}
+          onCancel={() => setReopening(undefined)}
         />
       ) : null}
       <SitePickerSheet visible={picking} targets={targets} recent={recent} onPick={startInterview} onClose={() => setPicking(false)} />

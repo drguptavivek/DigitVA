@@ -1,5 +1,6 @@
 import { usePathname } from "expo-router";
 import { Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
@@ -44,6 +45,7 @@ export function resolveModeBanner({ pathname, userId, accounts, slot, standalone
 export function ModeBanner() {
   const pathname = usePathname();
   const shell = useShell();
+  const insets = useSafeAreaInsets();
   // Browser AppState deliberately has no native accounts/slot; defaults keep the shared root web-safe.
   const { accounts = [], slot, standaloneAvailable = false, device } = useAppState();
   const mode = resolveModeBanner({ pathname, userId: shell.userId, accounts, slot, standaloneAvailable, enrolled: Boolean(device) });
@@ -54,7 +56,8 @@ export function ModeBanner() {
   return (
     <View
       accessibilityRole="header"
-      style={{ backgroundColor: standalone ? ui.warning : ui.accent, borderBottomWidth: 1, borderBottomColor: standalone ? ui.warningBorder : ui.border, paddingHorizontal: 12, paddingVertical: 6 }}
+      // Without the phone header (the forms) the banner clears the status bar itself, as LockWarning does.
+      style={{ backgroundColor: standalone ? ui.warning : ui.accent, borderBottomWidth: 1, borderBottomColor: standalone ? ui.warningBorder : ui.border, paddingHorizontal: 12, paddingTop: (shell.header ? 0 : insets.top) + 6, paddingBottom: 6 }}
     >
       <Text style={{ ...typography.subhead, fontWeight: "700", color: standalone ? ui.warningForeground : ui.accentForeground }}>
         {t(standalone ? "modeStandalone" : "modeDemo")}

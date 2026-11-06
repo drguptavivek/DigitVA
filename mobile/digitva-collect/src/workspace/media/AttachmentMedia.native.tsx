@@ -1,22 +1,66 @@
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { File } from "expo-file-system";
 import { useEffect, useRef, useState } from "react";
 import { AppState, Image, Pressable, Text, View } from "react-native";
 
 import { getAuthenticatedAttachmentSource } from "../../auth";
+import { removeFile } from "../../mediaFiles";
+import { cacheFile, shareAndDelete } from "../../standalone/shareFile";
 import type { WorkspaceIdentity } from "../contracts";
-import { attachmentMediaKind } from "./path";
+import { attachmentMediaExtension, attachmentMediaKind } from "./path";
 
-/** Load authenticated media from the API and release sources when its identity is no longer active. */
-export function AttachmentMedia({
-  identity,
-  attachmentPath,
-  userId,
-}: {
+type AttachmentMediaProps = {
   identity: WorkspaceIdentity;
   attachmentPath: string;
   userId?: string;
   bearerSource?: { server: string; token: string };
-}) {
+};
+
+/** Load authenticated media from the API. A PDF is not shown inline: it opens from the share sheet. */
+export function AttachmentMedia(props: AttachmentMediaProps) {
+  if (attachmentMediaExtension(props.attachmentPath) === "pdf") {
+    return <AttachmentDocument userId={props.userId} attachmentPath={props.attachmentPath} />;
+  }
+  return <AttachmentPlayback {...props} />;
+}
+
+/**
+ * Downloads the PDF to a private cache file and hands it to the share sheet, which opens it in a PDF viewer.
+ * shareAndDelete removes the copy afterwards, as the case export does with its file.
+ */
+function AttachmentDocument({ userId, attachmentPath }: { userId?: string; attachmentPath: string }) {
+  const [opening, setOpening] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (!userId) return <Text accessibilityRole="alert">Attachment unavailable.</Text>;
+
+  async function open(id: string) {
+    setOpening(true);
+    setFailed(false);
+    const name = decodeURIComponent(attachmentPath.split("/").at(-1) ?? "attachment.pdf");
+    const file = cacheFile(`attachment-${Date.now()}-${name}`);
+    try {
+      const source = await getAuthenticatedAttachmentSource(id, attachmentPath);
+      await File.downloadFileAsync(source.uri, file, { headers: source.headers });
+      await shareAndDelete(file, "application/pdf");
+    } catch {
+      setFailed(true);
+    } finally {
+      removeFile(file.uri);
+      setOpening(false);
+    }
+  }
+
+  return (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open attached PDF" disabled={opening} onPress={() => void open(userId)}>
+        <Text>{opening ? "Opening PDF…" : "Open PDF"}</Text>
+      </Pressable>
+      {failed ? <Text accessibilityRole="alert">Attachment unavailable.</Text> : null}
+    </View>
+  );
+}
+
+function AttachmentPlayback({ identity, attachmentPath, userId }: AttachmentMediaProps) {
   const kind = attachmentMediaKind(attachmentPath);
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);

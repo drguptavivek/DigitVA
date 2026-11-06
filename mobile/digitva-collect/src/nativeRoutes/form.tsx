@@ -38,7 +38,7 @@ import { getOfflineProfile, standaloneProfileMissing, standalonePrefill } from "
 import { standaloneProfileMissingText } from "../offlineProfileForm";
 import { standaloneConsentConfigWithSavedNotice } from "../standalone/noticeSettings";
 import { STANDALONE_DEFAULT_EXTENSIONS } from "../standalone/config";
-import { STANDALONE_SITE_ID, standaloneDefinition, standaloneProject, standaloneProjectId } from "../standalone/project";
+import { STANDALONE_SITE_ID, standaloneDefinition, standaloneDraftMismatch, standaloneProject, standaloneProjectId } from "../standalone/project";
 import { standaloneTranslationsForDraft, standaloneTranslationVersion } from "../standalone/translations";
 import { saveStandaloneConsent } from "../standaloneConsentStore";
 import { useStableAccount } from "../useStableAccount";
@@ -147,6 +147,11 @@ interface Loaded extends DraftHost {
   accountName?: string;
   /** Path C: no server project; the bundled form, the bundled consent notice, local translations only. */
   standalone?: boolean;
+  /**
+   * Standalone draft made on a different questionnaire than the bundled one (digitva-5bzf.12): its stored answers,
+   * shown read-only. The form never mounts, so nothing is edited, completed or saved over them.
+   */
+  readOnlyData?: Record<string, unknown>;
 }
 
 interface DraftConfig {
@@ -496,8 +501,18 @@ export default function Form() {
           if (row) {
             const stored = await db.getFirstAsync<{ envelope: string; prefill?: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [draftId]);
             if (!stored) throw new Error("draft_missing");
-            config = withEnvelopeLocale(config, JSON.parse(stored.envelope));
+            const envelope = JSON.parse(stored.envelope) as { data?: Record<string, unknown> };
+            config = withEnvelopeLocale(config, envelope);
             prefill = stored.prefill ? (JSON.parse(stored.prefill) as Prefill) : undefined;
+            if (standaloneDraftMismatch(envelope, definition)) {
+              if (!active || generation !== loadGeneration.current) return;
+              setLoaded({
+                db, project: standaloneProject(projectId), config, definition, accessVersion: lockVersion,
+                hasStartedSection: true, recall, accountName: account.name, standalone: true, projectId,
+                siteId: STANDALONE_SITE_ID, binding: { projectId }, readOnlyData: envelope.data ?? {},
+              });
+              return;
+            }
           }
           if (!row || needsSmartVaSnapshot) await setMeta(db, draftConfigKey(draftId), config);
           if (!active || generation !== loadGeneration.current) return;
@@ -1087,6 +1102,18 @@ export default function Form() {
           label={t("cancel")}
           onPress={() => router.back()}
         />
+      </Screen>
+    );
+  }
+  if (loaded?.readOnlyData) {
+    const labels = new Map(loaded.definition.instrument.questions.map((question) => [question.name, question.label.en]));
+    return (
+      <Screen title={t("standaloneDraftReadOnlyTitle")}>
+        <Text style={styles.error} accessibilityRole="alert" testID="standalone-draft-read-only">{t("standaloneDraftReadOnly")}</Text>
+        {Object.entries(loaded.readOnlyData).map(([name, value]) => (
+          <Text key={name} style={styles.muted}>{`${labels.get(name) ?? name}: ${Array.isArray(value) ? value.join(", ") : typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "")}`}</Text>
+        ))}
+        <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
       </Screen>
     );
   }

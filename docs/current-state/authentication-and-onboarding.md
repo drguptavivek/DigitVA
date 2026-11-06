@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-11-06
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -838,6 +838,7 @@ per hour per identifier (canonical mobile for a number). Checks, in order:
 | not `sign_in_verified` | 403 `email_unverified` |
 | non-admin after the maintenance cutoff | 403 `maintenance` |
 | no device access (`has_device_access`: `interviewer_context` non-empty, which skips projects with web intake off, or an explicit coder, coding_tester or reviewer grant whose gate is open) | 403 `no_interviewer_grant`, "You have no access in any project." |
+| no device access, but an active `interviewer` grant on an active project whose web intake is `off` (no other grant) | 403 `project_intake_off`, "Data collection is switched off for your project. Ask your project administrator." |
 
 Every refusal after the device check is audited as `device_session_failed`
 with the device id and reason only. Success records
@@ -1237,7 +1238,7 @@ JSON:
 | 503 `{"error": ...}` | profile password generate | breach check or email unavailable |
 | 429 | anywhere | rate limit |
 | 403 + `Retry-After` | anywhere | temporary IP ban |
-| sign-in codes | `/api/v1/auth/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `terms_required`, `maintenance`, `no_interviewer_grant`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
+| sign-in codes | `/api/v1/auth/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `terms_required`, `maintenance`, `no_interviewer_grant`, `project_intake_off`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
 | gate codes | every `/api/v1` route, `GET /api/v1/me/access` included | 401 `unauthorized`, 403 `terms_required` (+ `redirect_url` for a cookie), `maintenance` |
 
 ## 10. Things clients must never do

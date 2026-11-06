@@ -107,7 +107,7 @@ not list.
 | Endpoints | `POST /auth/enroll`, `POST /auth/sessions`, `POST /auth/sessions/refresh`, `DELETE /auth/sessions/current`, `GET /me/access`, `POST /me/terms` |
 | Device caller | the station (enrol), each roster user (sign in with their own account) |
 | Request / response | as [api-v1.md](../current-state/api-v1.md) "Auth" rows (`api-v1.md:121-124`) and [device-collection-api.md](../current-state/device-collection-api.md) "Authentication" |
-| Errors | `device_invalid`, `invalid_credentials`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `refresh_reused`, `refresh_retry_race`, `session_revoked` (the only code the app wipes on), `session_ended` (keeps data), `session_expired`, `refresh_invalid`, `terms_required` |
+| Errors | `device_invalid`, `invalid_credentials`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `project_intake_off`, `refresh_reused`, `refresh_retry_race`, `session_revoked` (the only code the app wipes on), `session_ended` (keeps data), `session_expired`, `refresh_invalid`, `terms_required` |
 | Idempotency | none; refresh rotates both tokens |
 | Limits | enrol 10/min per IP; sign-in 10/min per IP, 10/min per device, 20/hour per account; refresh 30/min per IP (`app/routes/api/auth.py:109-148`) |
 | Status | `implemented today` |
@@ -823,7 +823,7 @@ HTTP shape: `{"error", "code"}` (+ `fields`). Codes a device can receive:
 | --- | --- |
 | 400 | `invalid_request` (malformed; on `PUT .../identifiers` also a rule refusal with `fields`) |
 | 401 | `unauthorized`, `device_invalid`, `invalid_credentials`, `refresh_reused`, `session_revoked`, `session_ended`, `session_expired`, `refresh_invalid` |
-| 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `device_mismatch` (standalone push, 17), `collection_closed` (a new start with no client id only, never an upload; body adds `reason`, `display_name`, `date`, `daily_interviewer_limit`, 3.1a) |
+| 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `project_intake_off`, `device_mismatch` (standalone push, 17), `collection_closed` (a new start with no client id only, never an upload; body adds `reason`, `display_name`, `date`, `daily_interviewer_limit`, 3.1a) |
 | 404 | `not_found` |
 | 409 | `conflict` (client id of another user, consent id reuse), `case_closed`, `death_stale`, `case_completed`, `details_pending`, `refresh_retry_race`, `revision_locked`, `case_already_submitted`, `case_state_conflict`; station only: `policy_locked`, `station_coding_not_enabled` (4.3) |
 | 411 / 413 | `length_required`, `payload_too_large` |
@@ -945,7 +945,8 @@ Accepted as the app's own backend. It MUST:
   existing review process with its logging.
 - **Device store**: SQLCipher (rusqlite `bundled-sqlcipher`) keyed from an OS
   keystore secret joined with the user's PIN (6-16 digits); one store per
-  user; auto-lock after inactivity; 5 wrong PINs wipe that user's store only
+  user; auto-lock after inactivity; wrong PINs lock that user out for a growing
+  wait and a password sign-in resets the PIN without losing data
   (field-data-collection "Path B — native app with encrypted storage" and
   "Path B design", as the Expo app does).
 - **Delete on receipt**: a record is deleted when acknowledged (section 2);

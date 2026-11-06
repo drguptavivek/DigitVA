@@ -1,8 +1,9 @@
 import React, { type ReactNode } from "react";
 import { act, create } from "react-test-renderer";
 
-const mockAccount = { user_id: "u1", name: "Interviewer" };
-const mockRouter = { replace: jest.fn(), back: jest.fn() };
+const mockAccount: { user_id: string; name: string; standalone?: boolean } = { user_id: "u1", name: "Interviewer" };
+const mockWipeInterviewer = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
+const mockRouter = { replace: jest.fn(), back: jest.fn(), push: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
 const mockLockNow = jest.fn(async () => true);
 const mockUnlocked = jest.fn();
@@ -12,6 +13,8 @@ const mockCreateInterviewerDb = jest.fn(async () => undefined);
 const mockHasInterviewerStore = jest.fn(async () => true);
 const mockIsUnlocked = jest.fn(() => false);
 const mockFailedAttempts = jest.fn(async () => 0);
+const mockPinUnlockState = jest.fn(async () => ({ failures: await mockFailedAttempts(), lockedMs: 0, canReset: false }));
+const mockResetInterviewerPin = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
 const mockBiometricEnabled = jest.fn(async () => false);
 const mockReadBiometricPin = jest.fn(async () => null);
 const mockEnableBiometric = jest.fn(async () => undefined);
@@ -27,7 +30,7 @@ const mockOrder: string[] = [];
 const mockForgetDevice = jest.fn(async (..._args: unknown[]) => void mockOrder.push("forget"));
 const mockStoredPinLength = jest.fn<Promise<number | null>, []>(async () => null);
 const mockRecordPinLength = jest.fn(async (..._args: unknown[]) => undefined);
-let mockParams: { userId?: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string } = { userId: "u1", refresh: "1" };
+let mockParams: { userId?: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string; resetPin?: string; reset?: string } = { userId: "u1", refresh: "1" };
 let mockSignedOut = false;
 const mockRedirect = jest.fn();
 
@@ -50,6 +53,7 @@ jest.mock("../src/AppState", () => ({
 jest.mock("../src/auth", () => ({
   signIn: (...args: Parameters<typeof mockSignIn>) => mockSignIn(...args),
   forgetDevice: (...args: unknown[]) => mockForgetDevice(...args),
+  wipeInterviewer: (...args: unknown[]) => mockWipeInterviewer(...args),
   loadActiveSlot: jest.fn(async () => mockSlot),
   loadDevice: jest.fn(async () => ({ server: "http://localhost:8051" })),
   unlockInterviewer: (...args: Parameters<typeof mockUnlockInterviewer>) => mockUnlockInterviewer(...args)
@@ -57,12 +61,14 @@ jest.mock("../src/auth", () => ({
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => mockIsUnlocked(),
   hasInterviewerStore: () => mockHasInterviewerStore(),
-  createInterviewerDb: (...args: Parameters<typeof mockCreateInterviewerDb>) => mockCreateInterviewerDb(...args)
+  createInterviewerDb: (...args: Parameters<typeof mockCreateInterviewerDb>) => mockCreateInterviewerDb(...args),
+  resetInterviewerPin: (...args: unknown[]) => mockResetInterviewerPin(...args)
 }));
 jest.mock("../src/vault", () => ({
   biometricKind: async () => "fingerprint",
   biometricEnabled: (...args: Parameters<typeof mockBiometricEnabled>) => mockBiometricEnabled(...args),
   failedAttempts: (...args: Parameters<typeof mockFailedAttempts>) => mockFailedAttempts(...args),
+  pinUnlockState: () => mockPinUnlockState(),
   readBiometricPin: (...args: Parameters<typeof mockReadBiometricPin>) => mockReadBiometricPin(...args),
   enableBiometric: (...args: Parameters<typeof mockEnableBiometric>) => mockEnableBiometric(...args),
   screenLockEnabled: () => mockScreenLockEnabled(),
@@ -76,7 +82,7 @@ jest.mock("../src/vault", () => ({
   storedPinLength: () => mockStoredPinLength(),
   recordPinLength: (...args: unknown[]) => mockRecordPinLength(...args),
   WARN_AFTER_FAILURES: 3,
-  WIPE_AFTER_FAILURES: 5,
+  FREE_PIN_ATTEMPTS: 5,
   pinProblem: () => undefined
 }));
 jest.mock("expo-secure-store", () => ({ canUseBiometricAuthentication: () => mockCanUseBiometric }));
@@ -96,6 +102,12 @@ jest.mock("../src/nativeAuthLinks", () => ({
   nativeAuthUrl: () => "http://localhost:8051/vaauth/sign-in",
   NATIVE_AUTH_PATHS: { signIn: "sign-in", redeemCode: "redeem-code", forgotPassword: "forgot-password", passkeys: "passkeys" },
   normalizeMobileIdentifier: (value: string) => value
+}));
+jest.mock("../src/ConfirmDialog", () => ({
+  ConfirmDialog: ({ confirmLabel, confirmDisabled, onConfirm, onCancel, children }: { confirmLabel: string; confirmDisabled?: boolean; onConfirm: () => void; onCancel: () => void; children?: ReactNode }) =>
+    (jest.requireActual("react") as typeof React).createElement("div", { testID: "erase-dialog" }, children,
+      (jest.requireActual("react") as typeof React).createElement("button", { "data-label": "dialog-cancel", onClick: onCancel }),
+      (jest.requireActual("react") as typeof React).createElement("button", { "data-label": confirmLabel, disabled: confirmDisabled, onClick: onConfirm }))
 }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
@@ -175,7 +187,7 @@ describe("native login refresh handoff", () => {
     act(() => input(tree!, "email")!.props.onChangeText("worker@example.org"));
     act(() => input(tree!, "password")!.props.onChangeText("secret"));
     await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
-    expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "active");
+    expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "active", { forPinReset: false });
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
     await act(async () => tree!.unmount());
   });
@@ -208,7 +220,7 @@ describe("native login refresh handoff", () => {
     it("forgets the Demo device the sign-in used, after locking, since that returns the phone to Active", async () => {
       mockSlot = "demo";
       await submitRevoked();
-      expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "demo");
+      expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "demo", { forPinReset: false });
       expect(mockForgetDevice).toHaveBeenCalledWith("demo");
       expect(mockOrder).toEqual(["lock", "forget"]);
     });
@@ -446,6 +458,125 @@ describe("native login refresh handoff", () => {
     expect(mockEnableScreenLock).toHaveBeenCalledWith("u1", "123456", "screenLockPrompt");
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
     await act(async () => tree!.unmount());
+  });
+
+  describe("standalone erase after a forgotten PIN", () => {
+    const open = async (failures: number, standalone = true) => {
+      mockParams = { userId: "u1" };
+      mockAccount.standalone = standalone || undefined;
+      mockPinUnlockState.mockResolvedValueOnce({ failures, lockedMs: 0, canReset: false });
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<Unlock />);
+      });
+      await settle();
+      return tree!;
+    };
+    const word = (tree: ReturnType<typeof create>, text: string) =>
+      act(() => tree.root.findAll((n) => typeof n.props.onChangeText === "function" && n.props.autoCapitalize === "characters")[0].props.onChangeText(text));
+    afterEach(() => { delete mockAccount.standalone; });
+
+    it("is not offered before the free tries are used, nor to an enrolled account", async () => {
+      const early = await open(4);
+      expect(early.root.findAllByProps({ "data-label": "pinForgotStandalone" })).toHaveLength(0);
+      await act(async () => early.unmount());
+      const enrolled = await open(7, false);
+      expect(enrolled.root.findAllByProps({ "data-label": "pinForgotStandalone" })).toHaveLength(0);
+      await act(async () => enrolled.unmount());
+    });
+
+    it("cancel deletes nothing; the typed word is needed; confirm wipes and returns to setup", async () => {
+      const tree = await open(5);
+      await act(async () => tree.root.findByProps({ "data-label": "pinForgotStandalone" }).props.onClick());
+      expect(tree.root.findByProps({ "data-label": "pinEraseConfirm" }).props.disabled).toBe(true);
+      await act(async () => tree.root.findByProps({ "data-label": "dialog-cancel" }).props.onClick());
+      expect(tree.root.findAllByProps({ testID: "erase-dialog" })).toHaveLength(0);
+      expect(mockWipeInterviewer).not.toHaveBeenCalled();
+
+      await act(async () => tree.root.findByProps({ "data-label": "pinForgotStandalone" }).props.onClick());
+      word(tree, "nope");
+      expect(tree.root.findByProps({ "data-label": "pinEraseConfirm" }).props.disabled).toBe(true);
+      word(tree, "pinEraseWord");
+      expect(tree.root.findByProps({ "data-label": "pinEraseConfirm" }).props.disabled).toBe(false);
+      await act(async () => tree.root.findByProps({ "data-label": "pinEraseConfirm" }).props.onClick());
+      expect(mockWipeInterviewer).toHaveBeenCalledWith("u1");
+      expect(mockRouter.replace).toHaveBeenCalledWith("/standalone-setup");
+      await act(async () => tree.unmount());
+    });
+  });
+
+  describe("wrong-PIN lockout and PIN reset (digitva-kfi)", () => {
+    it("shows the wait and the password way out while locked, with Unlock off and no fingerprint prompt", async () => {
+      mockParams = { userId: "u1" };
+      mockBiometricEnabled.mockResolvedValue(true);
+      mockPinUnlockState.mockResolvedValueOnce({ failures: 6, lockedMs: 4 * 60_000 + 1, canReset: true });
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<Unlock />);
+      });
+      await settle();
+      expect(tree!.root.findAllByProps({ testID: "pin-locked" }).length).toBeGreaterThan(0);
+      expect(mockReadBiometricPin).not.toHaveBeenCalled();
+      act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
+      expect(tree!.root.findByProps({ "data-label": "unlock" }).props.disabled).toBe(true);
+      await act(async () => tree!.root.findByProps({ "data-label": "pinForgot" }).props.onClick());
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/sign-in", params: { userId: "u1", resetPin: "1" } });
+      await act(async () => tree!.unmount());
+    });
+
+    it("starts the wait when a wrong PIN answers with one, and hides the reset link without a reset copy", async () => {
+      mockParams = { userId: "u1" };
+      mockUnlockInterviewer.mockResolvedValueOnce({ ok: false, wipe: false, failures: 5, lockedMs: 60_000 } as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<Unlock />);
+      });
+      await settle();
+      expect(tree!.root.findAllByProps({ testID: "pin-locked" })).toHaveLength(0);
+      expect(tree!.root.findAllByProps({ "data-label": "pinForgot" })).toHaveLength(0);
+      act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
+      await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
+      expect(tree!.root.findAllByProps({ testID: "pin-locked" }).length).toBeGreaterThan(0);
+      await act(async () => tree!.unmount());
+    });
+
+    it.each([
+      ["the same account", "u1", { pathname: "/pin-setup", params: { userId: "u1", reset: "1", refresh: "1" } }],
+      ["another account", "u2", { pathname: "/unlock", params: { userId: "u2", refresh: "1" } }]
+    ])("after a password sign-in as %s, goes to the matching screen", async (_name, signedIn, target) => {
+      mockParams = { userId: "u1", resetPin: "1" };
+      mockSignIn.mockResolvedValueOnce({ user_id: signedIn, name: "X" });
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<SignIn />);
+      });
+      act(() => input(tree!, "email")!.props.onChangeText("worker@example.org"));
+      act(() => input(tree!, "password")!.props.onChangeText("secret"));
+      await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
+      expect(mockRouter.replace).toHaveBeenCalledWith(target);
+      await act(async () => tree!.unmount());
+    });
+
+    it("sets the new PIN on the existing store, and asks for the password again when the permission is gone", async () => {
+      mockParams = { userId: "u1", reset: "1" };
+      mockResetInterviewerPin.mockRejectedValueOnce(new Error("pin_reset_not_allowed"));
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<PinSetup />);
+      });
+      const fields = editableInputs(tree!);
+      act(() => fields[0].props.onChangeText("975310"));
+      act(() => fields[6].props.onChangeText("975310"));
+      await act(async () => tree!.root.findByProps({ "data-label": "pinSave" }).props.onClick());
+      expect(mockResetInterviewerPin).toHaveBeenCalledWith("u1", "975310");
+      expect(mockCreateInterviewerDb).not.toHaveBeenCalled();
+      expect(JSON.stringify(tree!.toJSON())).toContain("pinResetSignInAgain");
+
+      await act(async () => tree!.root.findByProps({ "data-label": "pinSave" }).props.onClick());
+      expect(mockResetInterviewerPin).toHaveBeenCalledTimes(2);
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+      await act(async () => tree!.unmount());
+    });
   });
 
   it("keeps the PIN rules: a wrong PIN clears the boxes, and the Unlock button needs all six digits", async () => {

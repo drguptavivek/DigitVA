@@ -3,7 +3,7 @@ title: Offline PHC Desktop Edition Policy
 doc_type: policy
 status: active
 owner: Vivek Gupta
-last_updated: 2026-10-22
+last_updated: 2026-11-06
 ---
 
 # Offline PHC Desktop Edition Policy
@@ -44,7 +44,7 @@ The **DigitVA Field / PHC Edition** enables health workers and Medical Officers 
    - Deterministic A4 WHO Medical Certificate of Cause of Death (MCCD) PDF generation (`desktop/crates/digitva-pdf`) printed normally **without** a provisional watermark.
 
 6. **Data Protection, SQLCipher Per-User Stores & Sealed `.dvb` Bundles (`digitva-pii`, `digitva-bundle`, `digitva-db`, `digitva-server`)**:
-   - **SQLCipher (`bundled-sqlcipher`)**: Local database encrypted at rest using a 256-bit key derived via `HKDF-SHA256` from the OS keystore secret + roster user ID + user PIN (6–16 ASCII digits). Enforces inactivity auto-lock and wipes the user's local store after 5 consecutive wrong PIN attempts (`403 store_wiped_max_pin_attempts`).
+   - **SQLCipher (`bundled-sqlcipher`)**: Local database encrypted at rest using a 256-bit key derived via `HKDF-SHA256` from the OS keystore secret + roster user ID + user PIN (6–16 ASCII digits). Enforces inactivity auto-lock; wrong PINs lock the user out with a growing wait (after 5 free tries: 1, 5, 15, 60 minutes) and a password sign-in resets the PIN without losing data, as the phone does (field-data-collection "Wrong PINs and PIN reset").
    - **PII Envelope (`digitva-pii`)**: Implements [pii-envelope-format.md](../from-server/2026-10-21/policy/pii-envelope-format.md) (`v1:aes256gcm+mlkem768x25519:` DEK wrapping to the server's public key only, `v1:aes256gcm:` value sealing with `record_aad`, and HKDF/HMAC blind indexing).
    - **`.dvb` Bundle Transfer (`digitva-bundle`)**: Writes line-oriented `.dvb` files (JCS manifest line, Ed25519 `b"digitva-bundle-v1\x00"` signature line, and AEAD-sealed record lines in canonical order) and verifies signed server receipts (`b"digitva-receipt-v1\x00"`), deleting local records only upon matching receipt acknowledgement (`received_sha256` verified for interviews).
    - **Loopback Server (`digitva-server`)**: Binds `127.0.0.1` only, requires a constant-time per-launch 256-bit bearer token on every `/api/v1/*` route (GETs included), validates `Host` and `Origin` against DNS rebinding, sends `Cache-Control: no-store` on every reply, and emits zero CORS headers.

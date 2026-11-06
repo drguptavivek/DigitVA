@@ -1,7 +1,7 @@
 /**
  * Hands one private-cache file to the system share sheet and deletes it afterwards, whether or not the share
  * succeeds (the share activity, or on iOS the share sheet, returns when the person comes back). Never a public
- * folder, never an upload. Android uses an ACTION_SEND intent; iOS uses expo-sharing (docs/policy/ios-client.md).
+ * folder, never an upload. Android uses an ACTION_SEND intent (a PDF tries ACTION_VIEW first); iOS uses expo-sharing (docs/policy/ios-client.md).
  */
 import { Directory, File, Paths } from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
@@ -26,7 +26,7 @@ export const cacheFile = (name: string) => new File(Paths.cache, name);
 export function sweepExportLeftovers(): void {
   try {
     for (const entry of new Directory(Paths.cache).list()) {
-      if (entry instanceof File && /^digitva-records-.*|.*\.dvbak$/.test(entry.name)) removeFile(entry.uri);
+      if (entry instanceof File && /^(digitva-records-|attachment-).*|.*\.dvbak$/.test(entry.name)) removeFile(entry.uri);
     }
   } catch {
     // Cache unreadable or already cleared.
@@ -42,6 +42,15 @@ export async function shareAndDelete(file: File, mime: string): Promise<void> {
       const uti = UTI_BY_MIME[mime];
       await Sharing.shareAsync(file.uri, { mimeType: mime, dialogTitle: file.name, ...(uti ? { UTI: uti } : {}) });
       return;
+    }
+    if (mime === "application/pdf") {
+      // Open in a PDF viewer; with none installed (or on refusal) fall through to the share sheet.
+      try {
+        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", { data: file.contentUri, type: mime, flags: GRANT_READ_URI_PERMISSION });
+        return;
+      } catch {
+        // No viewer: share instead.
+      }
     }
     await IntentLauncher.startActivityAsync("android.intent.action.SEND", {
       type: mime,

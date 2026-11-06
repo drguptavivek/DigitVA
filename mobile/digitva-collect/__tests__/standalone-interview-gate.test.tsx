@@ -332,17 +332,17 @@ describe("standalone home gate", () => {
       await act(async () => tree.unmount());
     });
 
-    it("offers Revise coding only on a coded row, routed to offline coding", async () => {
+    it("offers View only on a coded row, routed to offline coding", async () => {
       const tree = await render();
       await act(async () => { button(tree, "standaloneCoded (1)").props.onClick(); });
-      const revise = button(tree, "standaloneReviseCoding");
+      const revise = button(tree, "standaloneViewCoding");
       expect(revise).toBeDefined();
       expect(tree.root.findAllByProps({ "data-label": "standaloneCodeIt" })).toHaveLength(0);
       await act(async () => { revise.props.onClick(); });
       expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/offline-coding", params: { userId: "standalone-1", caseId: "c-1" } });
       await act(async () => { button(tree, "standaloneTabPending (2)").props.onClick(); });
       expect(tree.root.findAllByProps({ "data-label": "standaloneCodeIt" })).toHaveLength(2);
-      expect(tree.root.findAllByProps({ "data-label": "standaloneReviseCoding" })).toHaveLength(0);
+      expect(tree.root.findAllByProps({ "data-label": "standaloneViewCoding" })).toHaveLength(0);
       await act(async () => tree.unmount());
     });
   });

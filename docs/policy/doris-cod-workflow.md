@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-31
+last_updated: 2026-11-06
 ---
 
 # DORIS COD Workflow Policy
@@ -247,6 +247,10 @@ accept a code the server would refuse.
   are integrity markers, not WHO canonical digests, and are never used for
   server verification.
 - **SmartVA** is not available offline for now; this section covers DORIS only.
+- **One step on a standalone phone.** With no second reviewer, the offline
+  DORIS editor saves the cause of death directly ("Save cause of death") and
+  shows no Step 1 or Step 2 wording. A coded case reopens read-only; "Revise"
+  reopens it pre-filled from the saved result.
 
 ### Offline coding workspace (owner 2026-10-30, `digitva-9cll.22.8`)
 

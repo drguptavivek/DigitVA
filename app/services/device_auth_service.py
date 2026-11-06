@@ -430,7 +430,7 @@ def enrol_with_password(
     context = interviewer_context(user, _grants=resolved)
     register_context = register_death_context(user, context, _grants=resolved)
     if not has_device_access(user, context, register_context, _grants=resolved):
-        raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
+        raise _no_access_error(user, resolved)
     projects = {entry["project_id"] for entry in context + register_context}
     if not projects:
         projects = {
@@ -703,11 +703,34 @@ def _check_credentials(identifier: str, password) -> tuple[VaUsers | None, bool]
     return user, user.check_password(password) and user.is_active and not unredeemed
 
 
+def _no_access_error(user: VaUsers, resolved=None) -> DeviceAuthError:
+    """The refusal for a user without device access. An interviewer grant on an
+    active project whose web intake is off gets ``project_intake_off`` so the
+    user and their supervisor know collection is switched off, not that the
+    account has no grants (same 403 and shape; old APKs show their generic
+    error). Anyone else keeps ``no_interviewer_grant``."""
+    resolved = resolved if resolved is not None else resolve_grants(user)
+    project_ids = {g.project_id for g in resolved.of({VaAccessRoles.interviewer}, virtual=False)}
+    if project_ids and db.session.scalar(
+        sa.select(sa.exists().where(
+            VaProjectMaster.project_id.in_(project_ids),
+            VaProjectMaster.project_status == VaStatuses.active,
+            VaProjectMaster.web_intake_mode == "off",
+        ))
+    ):
+        return DeviceAuthError(
+            "Data collection is switched off for your project. Ask your project administrator.",
+            "project_intake_off", 403,
+        )
+    return DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
+
+
 def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, VaUsers]:
     """Issue the normal device session after authentication and access checks."""
     if not has_device_access(user):
-        _sign_in_failed(device, user, "no_interviewer_grant")
-        raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
+        error = _no_access_error(user)
+        _sign_in_failed(device, user, error.code)
+        raise error
     check_device_slot(user, device.device_id)
     _end_existing_pair_sessions(device, user)
     return _create_session(device, user)
@@ -830,7 +853,7 @@ def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTo
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         raise _refuse(device, user, "Site is under maintenance.", "maintenance", 403)
 
-    # The code stays ``no_interviewer_grant``: the app matches on it.
+    # ``no_interviewer_grant`` (or ``project_intake_off``) when there is no access.
     try:
         return _open_authorized_session(device, user)
     except DeviceAuthError as exc:

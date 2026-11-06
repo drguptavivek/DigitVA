@@ -48,7 +48,7 @@ import { StateView } from "../ui/StateView";
 import { t } from "../i18n";
 import { createGuidanceRequester, createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
 import type { JsonRequester, WorkspaceApi } from "../workspace/api";
-import type { CodingWriteReply, DorisProcessReply, JsonValue, NotePayload, SmartvaStatus, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
+import type { CodingWriteReply, DorisProcessReply, JsonObject, JsonValue, NotePayload, SmartvaStatus, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import { createDisplayPackIndex, LOCAL_ATTACHMENT_PREFIX, localCaseHeader, localCaseView, type DisplayPackIndex, type LocalCaseView } from "../workspace/localCategories";
 import { LocalAttachmentMedia } from "../workspace/media/LocalAttachmentMedia.native";
@@ -223,7 +223,19 @@ function offlineWorkspaceApi(
       await setMeta(db, noteKey(vaSid), saved);
       return note(saved);
     },
-    getWorkflowEvents: () => unavailable("getWorkflowEvents"),
+    // The read-only summary's timeline: this case's coding events from the local store, newest last.
+    async getWorkflowEvents(_vaSid, options) {
+      await opened();
+      return {
+        va_sid: vaSid,
+        events: timeline.current.map((item) => ({
+          event_id: `${item.event}:${item.at}`, transition_id: item.event, previous_state: null, current_state: item.event,
+          actor_kind: "user", actor_role: "coder", transition_reason: null, event_created_at: item.at,
+        })),
+        limit: options?.limit ?? 50,
+        next_cursor: null,
+      };
+    },
     saveFinal: () => unavailable("saveFinal"),
     saveNotCodeable: () => unavailable("saveNotCodeable"),
     async searchDorisTerms(_vaSid, query, options) {
@@ -295,6 +307,19 @@ function offlineWorkspaceApi(
   };
 }
 
+/** The saved certificate and engine results of a stored coding, shaped for DorisPanel's pre-fill; null when unreadable. */
+function savedCoding(coding: OfflineCodingRow): { certificate: JsonObject; processing: JsonObject | null } | null {
+  try {
+    const certificate: unknown = JSON.parse(coding.certificate);
+    if (!certificate || typeof certificate !== "object" || Array.isArray(certificate)) return null;
+    const doris: unknown = coding.result ? JSON.parse(coding.result) : null;
+    const codedit: unknown = coding.codedit_result ? JSON.parse(coding.codedit_result) : null;
+    return { certificate: certificate as JsonObject, processing: doris && codedit ? { doris, codedit } as unknown as JsonObject : null };
+  } catch {
+    return null;
+  }
+}
+
 // Built once: the bundled pack is indexed on first use and refuses to load if it is not understood.
 let allowabilityIndex: ReturnType<typeof createAllowabilityIndex> | undefined;
 const packIndex = () => (allowabilityIndex ??= createAllowabilityIndex(allowabilityPack as AllowabilityPack));
@@ -331,6 +356,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   const [engineReady, setEngineReady] = useState(false);
   const [enginePercent, setEnginePercent] = useState<number>();
   const [retry, setRetry] = useState(0);
+  // Revise on the summary of a coded standalone case: reopens the coding form instead of the read-only view.
+  const [revising, setRevising] = useState(false);
   const lastReply = useRef<DorisProcessReply | null>(null);
   const timeline = useRef<WorkflowTimelineEvent[]>([]);
   const accountRef = useRef(account);
@@ -489,6 +516,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   const workspace: WorkspacePayload | undefined = useMemo(() => {
     if (!loaded) return undefined;
     const seed = certificateSeedFromInterview(loaded.draft.data ?? {});
+    const summary = accountRef.current.standalone && loaded.coding?.status === "coded" && !revising;
+    const saved = loaded.coding ? savedCoding(loaded.coding) : null;
     return {
       case: {
         va_sid: clientDraftId,
@@ -503,25 +532,33 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       },
       categories: loaded.view.categories,
       default_category: loaded.view.defaultCategory,
-      step: "initial",
+      step: summary ? "view" : "initial",
       blocked_by: [],
-      assessments: { initial: null, initial_prefill: null, final: null, not_codeable: null },
+      assessments: {
+        initial: null, initial_prefill: null, not_codeable: null,
+        final: summary && loaded.coding ? {
+          conclusive_cod: loaded.coding.ucod_code, doris_code: loaded.coding.ucod_code, doris_status: loaded.coding.status,
+          created_at: loaded.coding.updated_at,
+        } : null,
+      },
       smartva: smartvaResultJson ? JSON.parse(smartvaResultJson) as JsonValue : null,
       smartva_status: smartvaStatus,
       smartva_can_run: false,
       other_conditions_options: null,
-      doris: { initial_certificate: seed.certificate, prefill_provenance: seed.provenance, saved_processing: null },
+      // A revision opens pre-filled from the saved certificate and engine results, not from the interview alone.
+      doris: summary ? null : { initial_certificate: saved?.certificate ?? seed.certificate, prefill_provenance: seed.provenance, saved_processing: saved?.processing ?? null },
       narrative_qa: null,
       social_autopsy: null,
     };
-  }, [loaded, clientDraftId, smartvaResultJson, smartvaStatus]);
+  }, [loaded, clientDraftId, smartvaResultJson, smartvaStatus, revising]);
   const localCase = useRef<LocalCase | null>(null);
   localCase.current = loaded && workspace ? { workspace, view: loaded.view, answers: loaded.answers, smartvaStatus } : null;
   // The workspace reloads (keeping its section) when the local SmartVA state it shows changes: the capability probe
   // settling after the first load, or a run finishing.
-  const smartvaKey = `${smartvaStatus}:${smartvaResultJson ? smartvaCache?.updated_at : ""}`;
+  const smartvaKey = `${smartvaStatus}:${smartvaResultJson ? smartvaCache?.updated_at : ""}:${revising}`;
 
-  const identity: WorkspaceIdentity = useMemo(() => ({ vaSid: clientDraftId, mode: "coding" }), [clientDraftId]);
+  const summaryMode = !!loaded && !!account.standalone && loaded.coding?.status === "coded" && !revising;
+  const identity: WorkspaceIdentity = useMemo(() => ({ vaSid: clientDraftId, mode: summaryMode ? "view" : "coding" }), [clientDraftId, summaryMode]);
   const draftEnvelope = loaded?.draft;
   const editor = useMemo(
     () => createOfflineDorisEditor(
@@ -676,7 +713,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         </View> : null}
         <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
           {/* A saved Step 1 returns to the case list, as before the workspace. */}
-          <DorisPanel workspace={current} identity={identity} api={guardedApi} request={request} onSaved={async () => finish()} onDone={finish} />
+          <DorisPanel workspace={current} identity={identity} api={guardedApi} request={request} onSaved={async () => finish()} onDone={finish} direct={!!account.standalone} />
         </View>
         {!allowed && <Notice tone="error">Offline coding access for this project is unavailable.</Notice>}
       </View>
@@ -697,6 +734,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       renderDoris={renderDoris}
       renderMedia={renderMedia}
       refreshKey={smartvaKey}
+      viewAction={summaryMode ? <Button kind="secondary" label={t("standaloneReviseCoding")} onPress={() => setRevising(true)} /> : undefined}
     />
   );
 }

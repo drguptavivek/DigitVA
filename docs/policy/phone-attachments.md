@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-06
 ---
 
 # Phone Attachments
@@ -50,10 +50,9 @@ is the phone's side. Server caps and accepted types are not restated here:
    - At most one file per question, and the server's per-draft cap applies.
 3. **Storage: inside the interviewer's encrypted database.** A file is a BLOB
    row in the SQLCipher store (`attachments` table, `src/attachmentStore.ts`),
-   keyed with the same secret and PIN as the answers. So it is encrypted at rest
+   keyed with the same data key as the answers. So it is encrypted at rest
    exactly as the answers are, is deleted with its draft,
-   and is wiped with the store (sign-out, revocation with nothing unsent, repeated
-   wrong PINs in a row). Per-file encryption on top of that is not available (the
+   and is wiped with the store (revocation with nothing unsent). Per-file encryption on top of that is not available (the
    installed libraries have digests only) and would add nothing: the key is the
    store's key.
    - **Plain-text windows, all in app-private storage and never in a shared,

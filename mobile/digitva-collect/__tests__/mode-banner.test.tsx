@@ -1,4 +1,5 @@
 import React from "react";
+import { StyleSheet } from "react-native";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 const mockState: {
@@ -8,11 +9,14 @@ const mockState: {
   slot?: "active" | "demo";
   standaloneAvailable: boolean;
   device?: { server: string };
-} = { pathname: "/", accounts: [], standaloneAvailable: false };
+  header: boolean;
+  insetTop: number;
+} = { pathname: "/", accounts: [], standaloneAvailable: false, header: true, insetTop: 0 };
 
 jest.mock("expo-router", () => ({ usePathname: () => mockState.pathname }));
 jest.mock("../src/AppState", () => ({ useAppState: () => mockState }));
-jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ userId: mockState.userId }) }));
+jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ userId: mockState.userId, header: mockState.header }) }));
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: mockState.insetTop, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/theme", () => ({
   typography: { subhead: { fontSize: 14, lineHeight: 20 } },
   useTheme: () => ({ typography: { subhead: { fontSize: 14, lineHeight: 20 } }, ui: {
@@ -43,6 +47,8 @@ beforeEach(() => {
   mockState.slot = "active";
   mockState.standaloneAvailable = false;
   mockState.device = undefined;
+  mockState.header = true;
+  mockState.insetTop = 0;
 });
 
 describe("resolveModeBanner", () => {
@@ -103,5 +109,19 @@ describe("ModeBanner renderer", () => {
   it("keeps Demo mode on shared Settings without an account parameter", () => {
     Object.assign(mockState, { pathname: "/settings", userId: undefined, accounts: [serverAccount], slot: "demo" });
     expect(renderedText(renderBanner())).toContain("Demo Mode");
+  });
+});
+
+describe("ModeBanner top inset", () => {
+  const paddingTopOf = (tree: ReactTestRenderer) => StyleSheet.flatten(tree.root.findByProps({ accessibilityRole: "header" }).props.style).paddingTop;
+
+  it("clears the status bar when the header is hidden (the form screens)", () => {
+    Object.assign(mockState, { pathname: "/standalone", userId: "offline", accounts: [standaloneAccount], standaloneAvailable: true, header: false, insetTop: 24 });
+    expect(paddingTopOf(renderBanner())).toBe(30);
+  });
+
+  it("keeps the header-shown padding unchanged, without the status bar inset", () => {
+    Object.assign(mockState, { pathname: "/standalone", userId: "offline", accounts: [standaloneAccount], standaloneAvailable: true, header: true, insetTop: 24 });
+    expect(paddingTopOf(renderBanner())).toBe(6);
   });
 });

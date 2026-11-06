@@ -1,7 +1,8 @@
 /**
  * Unlock one interviewer's store: the biometric prompt first when it is on, else
- * the phone screen-lock prompt when that is on; the PIN (six boxes) always. Warns from the third wrong PIN; the fifth in a row erases
- * that interviewer's store and signs them out (src/auth.ts unlockInterviewer).
+ * the phone screen-lock prompt when that is on; the PIN (six boxes) always. Warns from the third wrong PIN; from the fifth in a
+ * row the store refuses PINs for a growing wait (src/vault.ts pinLockMs) and erases nothing. "Forgot PIN?" signs in with the
+ * password and then sets a new PIN, keeping the interviews (pin-setup reset; digitva-kfi).
  * An interviewer with no PIN yet goes to PIN setup. A signed-out profile goes
  * to sign-in instead: its PIN alone never opens the kept store.
  */
@@ -9,32 +10,34 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 
+import { ConfirmDialog } from "../ConfirmDialog";
+
 import { useAppState } from "../AppState";
-import { unlockInterviewer } from "../auth";
+import { unlockInterviewer, wipeInterviewer } from "../auth";
 import { t } from "../i18n";
 import { hasInterviewerStore, isUnlocked, resetMissingStore } from "../interviewerDb";
 import { homeRoute } from "../standalone/home";
 import { PIN_BOXES, PinBoxes } from "../PinBoxes";
 import { controls, spacing, useTheme } from "../theme";
-import { Button, Notice, PasswordInput, Screen, TextLink, useUiStyles } from "../ui";
+import { Button, Notice, PasswordInput, Screen, TextField, TextLink, useUiStyles } from "../ui";
 import { biometricText, pendingUnlockOffer, UnlockOffer, useBiometricKind } from "../UnlockOffer";
 import {
   biometricEnabled,
   enableBiometric,
   enableScreenLock,
-  failedAttempts,
+  FREE_PIN_ATTEMPTS,
+  pinUnlockState,
   readBiometricPin,
   PIN_MAX_LENGTH,
   readScreenLockPin,
   screenLockEnabled,
   storedPinLength,
-  WARN_AFTER_FAILURES,
-  WIPE_AFTER_FAILURES
+  WARN_AFTER_FAILURES
 } from "../vault";
 
 const wrongPinText = (failures: number) =>
-  failures >= WARN_AFTER_FAILURES
-    ? t("pinWrongWarn", { left: WIPE_AFTER_FAILURES - failures })
+  failures >= WARN_AFTER_FAILURES && failures < FREE_PIN_ATTEMPTS
+    ? t("pinWrongWarn", { left: FREE_PIN_ATTEMPTS - failures })
     : t("pinWrong");
 
 export default function Unlock() {
@@ -58,6 +61,56 @@ export default function Unlock() {
   // The vault allows 6 to 16 digits; the boxes take 6, so a longer PIN is typed in one field (never cut silently).
   const [longPin, setLongPin] = useState(false);
   const [offer, setOffer] = useState<{ pin: string; options: { biometric: boolean; screenLock: boolean } }>();
+  // Wall-clock end of the wrong-PIN wait (0 = none) and a tick that redraws the minutes left.
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [canReset, setCanReset] = useState(false);
+  // Wrong PINs in a row, to know when a standalone account may erase (all free tries used).
+  const [failures, setFailures] = useState(0);
+  const [erasing, setErasing] = useState(false);
+  const [eraseWord, setEraseWord] = useState("");
+  const locked = lockedUntil > now;
+
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const timer = setInterval(() => {
+      const tick = Date.now();
+      setNow(tick);
+      if (tick >= lockedUntil) {
+        setLockedUntil(0);
+        setError("");
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockedUntil]);
+
+  const showLock = useCallback((ms: number) => {
+    const start = Date.now();
+    setNow(start);
+    setLockedUntil(start + ms);
+  }, []);
+
+  // A standalone account has no server to reset the PIN, so after the free tries it may erase the phone's store by typed choice.
+  const eraseOffered = account?.standalone === true && failures >= FREE_PIN_ATTEMPTS;
+  const closeErase = () => {
+    setErasing(false);
+    setEraseWord("");
+  };
+  const erase = async () => {
+    if (!userId) return;
+    setBusy(true);
+    try {
+      await wipeInterviewer(userId);
+      closeErase();
+      await reload();
+      router.replace("/standalone-setup");
+    } catch {
+      closeErase();
+      setError(t("errGeneric"));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const toWorklist = useCallback(
     () => router.replace({ pathname: homeRoute(account), params: { userId: userId ?? "", ...(refresh === "1" ? { refresh: "1" } : {}) } }),
@@ -106,19 +159,22 @@ export default function Unlock() {
         setPin("");
         setShake((n) => n + 1);
         if (result.wipe) {
-          Alert.alert(t(result.revoked ? "sessionRevoked" : account?.standalone ? "pinWipedStandalone" : "pinWiped"));
+          // Only a revoke wipes (nothing unsent was left); wrong PINs never do.
+          Alert.alert(t("sessionRevoked"));
           await reload();
           router.replace("/");
           return;
         }
-        setError(wrongPinText(result.failures));
+        setFailures(result.failures);
+        if (result.lockedMs) showLock(result.lockedMs);
+        else setError(wrongPinText(result.failures));
       } catch {
         setError(t("errGeneric"));
       } finally {
         setBusy(false);
       }
     },
-    [userId, signedOut, enableBiometricParam, enableScreenLockParam, enabling, unlocked, toWorklist, reload, router, lockNow]
+    [userId, signedOut, enableBiometricParam, enableScreenLockParam, enabling, unlocked, toWorklist, reload, router, lockNow, showLock]
   );
 
   const tryBiometric = useCallback(async () => {
@@ -157,8 +213,13 @@ export default function Unlock() {
           router.replace({ pathname: "/pin-setup", params: { userId, ...(refresh === "1" ? { refresh: "1" } : {}) } });
           return;
         }
-        const failures = await failedAttempts(userId);
-        if (active && failures > 0) setError(wrongPinText(failures));
+        const state = await pinUnlockState(userId);
+        if (active) {
+          setCanReset(state.canReset);
+          setFailures(state.failures);
+          if (state.lockedMs) showLock(state.lockedMs);
+          else if (state.failures > 0) setError(wrongPinText(state.failures));
+        }
         const [bio, lock] = await Promise.all([biometricEnabled(userId), screenLockEnabled(userId)]);
         if (active) {
           setBiometric(bio);
@@ -166,7 +227,7 @@ export default function Unlock() {
         }
         const length = await storedPinLength(userId);
         if (active && length !== null && length > PIN_BOXES) setLongPin(true);
-        if (enabling) return;
+        if (enabling || state.lockedMs) return;
         if (bio) await tryBiometric();
         else if (lock) await tryScreenLock();
       } catch {
@@ -251,15 +312,46 @@ export default function Unlock() {
               </View>
             </>
           )}
-          {error ? <Notice tone="error">{error}</Notice> : null}
+          {locked ? (
+            <Notice tone="error" testID="pin-locked">{t("pinLocked", { minutes: Math.ceil((lockedUntil - now) / 60_000) })}</Notice>
+          ) : error ? <Notice tone="error">{error}</Notice> : null}
         </View>
-        <View testID="unlock-actions" style={{ gap: spacing.sm, marginTop: longPin || error ? 0 : linkOffsetBelow(spacing.lg) - spacing.lg }}>
-          <Button label={t("unlock")} disabled={busy || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
+        <View testID="unlock-actions" style={{ gap: spacing.sm, marginTop: longPin || error || locked ? 0 : linkOffsetBelow(spacing.lg) - spacing.lg }}>
+          <Button label={t("unlock")} disabled={busy || locked || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
           {biometric ? (
-            <Button kind="secondary" label={biometricText("biometricEnable", bioKind)} disabled={busy} onPress={() => void tryBiometric()} />
+            <Button kind="secondary" label={biometricText("biometricEnable", bioKind)} disabled={busy || locked} onPress={() => void tryBiometric()} />
           ) : null}
           {screenLock ? (
-            <Button kind="secondary" label={t("screenLockEnable")} disabled={busy} onPress={() => void tryScreenLock()} />
+            <Button kind="secondary" label={t("screenLockEnable")} disabled={busy || locked} onPress={() => void tryScreenLock()} />
+          ) : null}
+          {/* A standalone account has no password, and a store that never unlocked on this version has no reset copy. */}
+          {canReset && !account.standalone ? (
+            <TextLink
+              label={t("pinForgot")}
+              disabled={busy}
+              onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id, resetPin: "1" } })}
+            />
+          ) : null}
+          {eraseOffered ? <TextLink label={t("pinForgotStandalone")} disabled={busy} onPress={() => setErasing(true)} /> : null}
+          {erasing ? (
+            <ConfirmDialog
+              title={t("pinEraseTitle")}
+              message={t("pinEraseBody")}
+              confirmLabel={t("pinEraseConfirm")}
+              destructive
+              confirmDisabled={busy || eraseWord.trim().toLowerCase() !== t("pinEraseWord").toLowerCase()}
+              onConfirm={() => void erase()}
+              onCancel={closeErase}
+            >
+              <TextField
+                accessibilityLabel={t("pinErasePrompt", { word: t("pinEraseWord") })}
+                placeholder={t("pinErasePrompt", { word: t("pinEraseWord") })}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={eraseWord}
+                onChangeText={setEraseWord}
+              />
+            </ConfirmDialog>
           ) : null}
           {/* The accounts list: while locked, Home is behind this lock, so the way out is to another profile. */}
           <View testID="switch-profile-link" style={{ marginTop: linkOffsetAbove(spacing.lg) - spacing.sm }}>

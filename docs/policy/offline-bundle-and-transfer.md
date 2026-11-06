@@ -3,7 +3,7 @@ title: Offline PHC App, Bundle Format and Transfer
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-24
+last_updated: 2026-11-06
 ---
 
 # Offline PHC App, Bundle Format and Transfer
@@ -963,8 +963,8 @@ sandbox with an editable local roster; its records are never ingestable and
 never remapped (contract decision 2). Real fieldwork uses an onboarded
 station (enrolled, custodian recorded) with a signed station config and a
 read-only roster; every roster user has their own PIN and encrypted store
-(SQLCipher keyed from the OS keystore plus the PIN; auto-lock; 5 wrong PINs
-wipe that user's store); each record carries the roster `user_id` and the
+(SQLCipher keyed from the OS keystore plus the PIN; auto-lock; wrong PINs
+lock out with a growing wait, reset by password sign-in, as on the phone); each record carries the roster `user_id` and the
 acting role; station supervisors may correct death details and numbers
 locally (contract 4.2); an MCCD PDF from an offline coded result is not
 marked provisional or disabled (contract decision 3). Records are

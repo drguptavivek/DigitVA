@@ -22,7 +22,6 @@ jest.mock("../src/vault", () => ({
   buildPassphrase: jest.fn(), createStoreSecret: jest.fn(), forgetStoreKeys: jest.fn(),
   readStoreSecret: mockReadStoreSecret,
   recordFailedAttempt: jest.fn(), setFailedAttempts: jest.fn(), storeHash: jest.fn(),
-  WIPE_AFTER_FAILURES: 5,
 }));
 
 import { AccountStoreCollisionError } from "../src/authErrors";

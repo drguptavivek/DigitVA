@@ -34,10 +34,10 @@ jest.mock("../src/offlineIdentity", () => ({
   })),
 }));
 
-import { createDraftStore, getDraftRow, getMeta, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, reopenCompletedDraft, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary, SmartVaTarget } from "../src/api";
 import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
-import { acquireLocalCodingEditor } from "../src/localCodingLeases";
+import { acquireDraftUpload, acquireLocalCodingEditor } from "../src/localCodingLeases";
 import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { codingReceiptSha256 } from "../src/codingReceipt";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
@@ -1142,6 +1142,44 @@ describe("sync upload ordering", () => {
     const firstSubmissionCount = calls.filter(({ url }) => url.endsWith("/submissions")).length;
     await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0, remaining: 1 });
     expect(calls.filter(({ url }) => url.endsWith("/submissions")).length).toBe(firstSubmissionCount);
+  });
+
+  it("a reopened ready interview is not sent until completed again, then goes once without the local reopen log", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const id = "aaaaaaaa-0000-4000-8000-000000000015";
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(id, { Id10013: "no" }));
+    await markCompleted(db, id, { valid: true, issues: [] });
+    expect(await reopenCompletedDraft(db, USER, id)).toBe("reopened");
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call);
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    const sends = () => calls.filter(({ url }) => url.endsWith("/submissions"));
+    await syncInterviewer(USER, db);
+    expect(sends()).toHaveLength(0);
+    await markCompleted(db, id, { valid: true, issues: [] });
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
+    expect(sends()).toHaveLength(1);
+    expect(sends()[0].url).toBeDefined();
+    expect(JSON.stringify(sends()[0])).not.toContain("reopenedAtV1");
+    await syncInterviewer(USER, db);
+    expect(sends()).toHaveLength(1);
+  });
+
+  it("refuses to reopen while a send holds the interview, and sync leaves a reopened one alone", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const id = "aaaaaaaa-0000-4000-8000-000000000016";
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(id, { Id10013: "no" }));
+    await markCompleted(db, id, { valid: true, issues: [] });
+    const release = acquireDraftUpload(USER, id)!;
+    expect(await reopenCompletedDraft(db, USER, id)).toBe("busy");
+    release();
+    expect(await getDraftRow(db, id)).toMatchObject({ completed: 1 });
   });
 
   it("treats a public-demo limit (429 demo_limit) as final: kept, marked, never resent until the interviewer asks", async () => {

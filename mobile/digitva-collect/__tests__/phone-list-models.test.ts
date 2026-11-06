@@ -119,9 +119,13 @@ describe("interview items", () => {
     expect(items.map((item) => item.kind)).toEqual(["drafts", "revisions", "todo", "sent", "sent"]);
   });
 
-  it("offers no action on a draft already marked ready to send, and the ID alone when no name is known", () => {
+  it("offers Reopen only on a ready, unsent draft, and the ID alone when no name is known", () => {
     const [ready] = buildInterviewItems(sources({ drafts: [draft("d2", { completed: 1, unique_id: "VA-9" })] }));
-    expect(ready.action).toBeUndefined();
+    expect(ready.action).toMatchObject({ type: "reopen", label: "Reopen" });
+    const [held] = buildInterviewItems(sources({ drafts: [draft("d3", { completed: 1, upload_issue: "case_conflict" })] }));
+    expect(held.action).toBeUndefined();
+    const [open] = buildInterviewItems(sources({ drafts: [draft("d4")] }));
+    expect(open.action).toMatchObject({ type: "resume" });
     expect(ready.title).toBe("VA-9");
     expect(ready.caseId).toBeUndefined();
   });

@@ -4,7 +4,8 @@
  * STANDALONE_AGE_WARNING_DAYS, and a backup reminder every BACKUP_REMINDER_DAYS whose button opens Settings. Export,
  * backup, restore and Enrol this phone live in Settings (digitva-axim); Lock now stays here as the one-tap safety
  * action. Standalone work remains local after enrollment too. "New interview" waits for a complete offline profile
- * (standaloneProfileMissing, digitva-0vz7); existing records are never gated.
+ * (standaloneProfileMissing, digitva-0vz7); existing records are never gated. `view=interviews` (the Interviews tab)
+ * shows only the three record tabs and the list, as the enrolled Interviews view does.
  */
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -44,7 +45,8 @@ function localWhen(at: string, locale: string): string {
 export default function StandaloneHome() {
   const styles = useUiStyles();
   const router = useRouter();
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const { userId, view } = useLocalSearchParams<{ userId: string; view?: string }>();
+  const interviews = (Array.isArray(view) ? view[0] : view) === "interviews";
   const { accounts, lockVersion, lockNow, uiLocale } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [records, setRecords] = useState<StandaloneRecord[]>();
@@ -113,22 +115,24 @@ export default function StandaloneHome() {
   const openSettings = () => router.push({ pathname: "/settings", params: { userId: account.user_id } });
 
   return (
-    <Screen title={t("standaloneHomeTitle")}>
-      <Text style={styles.muted}>{account.name}</Text>
-      <Notice tone="info">{t("standaloneClockNotice")}</Notice>
-      <Text style={styles.text}>{now.toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}</Text>
-      {reminder.due ? (
+    <Screen title={interviews ? t("tabInterviews") : t("standaloneHomeTitle")}>
+      {interviews ? null : <Text style={styles.muted}>{account.name}</Text>}
+      {interviews ? null : <Notice tone="info">{t("standaloneClockNotice")}</Notice>}
+      {interviews ? null : <Text style={styles.text}>{now.toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })}</Text>}
+      {!interviews && reminder.due ? (
         <View style={[styles.card, { gap: 8 }]}>
           <Text style={styles.text}>{reminder.days === null ? t("standaloneBackupNever") : t("standaloneBackupReminder", { days: reminder.days })}</Text>
           <Button kind="secondary" label={t("standaloneBackupOpenSettings")} onPress={openSettings} />
         </View>
       ) : null}
-      <Button
-        label={t("standaloneNewInterview")}
-        disabled={profileMissing?.length !== 0}
-        onPress={() => router.push({ pathname: "/form", params: formParams(randomUUID()) })}
-      />
-      {profileMissing?.length ? (
+      {interviews ? null : (
+        <Button
+          label={t("standaloneNewInterview")}
+          disabled={profileMissing?.length !== 0}
+          onPress={() => router.push({ pathname: "/form", params: formParams(randomUUID()) })}
+        />
+      )}
+      {!interviews && profileMissing?.length ? (
         <View style={[styles.card, { gap: 8 }]}>
           <Notice tone="error">{standaloneProfileMissingText(profileMissing)}</Notice>
           <Button kind="secondary" label={t("standaloneProfileComplete")} onPress={() => router.push("/offline-profile")} />
@@ -174,10 +178,10 @@ export default function StandaloneHome() {
             <Notice tone="warning">{t("standaloneAgeWarning", { days: STANDALONE_AGE_WARNING_DAYS })}</Notice>
           ) : null}
           {record.completed ? (
-            // Coded rows get Revise coding only; View and prefill come with digitva-9cll.24.
+            // A coded row opens the read-only summary (offlineCoding.native.tsx), which carries Revise.
             <Button
               kind="secondary"
-              label={t(tab === "coded" ? "standaloneReviseCoding" : "standaloneCodeIt")}
+              label={t(tab === "coded" ? "standaloneViewCoding" : "standaloneCodeIt")}
               onPress={() => router.push({ pathname: "/offline-coding", params: { userId: account.user_id, caseId: record.id } })}
             />
           ) : (
@@ -187,8 +191,8 @@ export default function StandaloneHome() {
         );
       })}
       {error ? <Notice tone="error">{error}</Notice> : null}
-      <Button kind="secondary" label={t("settings")} onPress={openSettings} />
-      <Button kind="secondary" label={t("lockNow")} onPress={() => void lockNow()} />
+      {interviews ? null : <Button kind="secondary" label={t("settings")} onPress={openSettings} />}
+      {interviews ? null : <Button kind="secondary" label={t("lockNow")} onPress={() => void lockNow()} />}
     </Screen>
   );
 }

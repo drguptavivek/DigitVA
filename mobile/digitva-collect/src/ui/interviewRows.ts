@@ -24,6 +24,7 @@ export function parseInterviewFilter(value: string | string[] | undefined): Inte
 
 export type InterviewAction =
   | { type: "resume"; draft: DraftRow; label: string }
+  | { type: "reopen"; draft: DraftRow; label: string }
   | { type: "case"; deathId: string; projectId: string; label: string }
   | { type: "registration"; clientDeathId: string; label: string }
   | { type: "revise"; source: SubmittedRevisionSummary | RevisionRow; label: string };
@@ -38,7 +39,7 @@ export interface InterviewItem {
   dateOfDeath?: string | null;
   unit?: string;
   badge: { label: string; tone?: "neutral" | "accent" | "warning" };
-  /** Absent when nothing can be done with the row yet (a draft already marked ready to send). */
+  /** Absent when nothing can be done with the row (a ready draft held by an upload issue). */
   action?: InterviewAction;
   /** Extra lines under the facts: server-state notices, upload issues, a revision's status. */
   lines: Array<{ text: string; tone?: "error" }>;
@@ -181,7 +182,10 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       caseId: known?.name ? known.unique_id : draft.deceased_name ? draft.unique_id ?? draft.id.slice(0, 8) : draft.unique_id ? undefined : draft.id.slice(0, 8),
       ageYears: known?.age, sex: known?.sex, dateOfDeath: dateOnly(known?.died), unit: known?.unit_name ?? undefined,
       badge: ready ? { label: t("draftReady"), tone: "accent" } : { label: t("badgeDraft"), tone: "warning" },
-      action: ready && draft.upload_issue !== "consent_refused" && draft.upload_issue !== "refusal_stale" ? undefined : { type: "resume", draft, label: t("actionResume") },
+      // Ready and unsent offers Reopen (back to draft, to be completed again); a held one has no action.
+      action: !ready || draft.upload_issue === "consent_refused" || draft.upload_issue === "refusal_stale"
+        ? { type: "resume", draft, label: t("actionResume") }
+        : draft.upload_issue == null ? { type: "reopen", draft, label: t("actionReopen") } : undefined,
       timeText: ready
         ? whenText("interviewCompleted", draft.completed_at ?? draft.updated_at)
         : whenText("interviewStarted", draft.started_at) ?? whenText("interviewLastSaved", draft.updated_at),

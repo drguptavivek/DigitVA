@@ -1,14 +1,18 @@
 /**
- * Per-interviewer store keys and the PIN rules (Path B, phase 2b).
+ * Per-interviewer store keys and the PIN rules (Path B, phase 2b; digitva-kfi).
  *
- * Each interviewer's SQLCipher database is keyed with
- * `hex(store secret) + ":" + PIN`; SQLCipher's PBKDF2 derives the key. The
- * 32-byte store secret lives in Keystore-backed SecureStore, so a copy of the
- * app's files alone cannot be brute-forced, and the PIN is never stored
- * except in the optional biometric entry (Keystore key usable only after a
- * strong biometric; a new enrolment invalidates it and the app falls back to
- * the PIN). The failed-PIN counter sits beside the secret because it must be
- * readable while the store is locked.
+ * Each interviewer's SQLCipher database is keyed with its data key, a
+ * passphrase that never changes for the life of the store: random hex for a
+ * new store, or `hex(store secret) + ":" + PIN` for a store created before
+ * digitva-kfi (kept as is, so nothing is re-encrypted). Two copies sit in
+ * Keystore-backed SecureStore: one wrapped by the PIN and the 32-byte store
+ * secret (the PIN unlock), and the reset copy, released only after a password
+ * sign-in for this account (docs/policy/field-data-collection.md, "Wrong PINs
+ * and PIN reset"). The PIN is never stored except in the optional biometric
+ * entry (Keystore key usable only after a strong biometric; a new enrolment
+ * invalidates it and the app falls back to the PIN). The failed-PIN counter
+ * and the time of the last wrong PIN sit beside the secret because they must
+ * be readable while the store is locked.
  *
  * Entries are keyed by a hash of the user id, like the database file name.
  * Nothing here logs.
@@ -21,9 +25,15 @@ import { Platform } from "react-native";
 export const PIN_MIN_LENGTH = 6;
 export const PIN_MAX_LENGTH = 16;
 export const WARN_AFTER_FAILURES = 3;
-export const WIPE_AFTER_FAILURES = 5;
+/** Wrong PINs in a row before the first wait (pinLockMs). */
+export const FREE_PIN_ATTEMPTS = 5;
+/** Wait after the 5th, 6th, 7th wrong PIN, then the last one for every later wrong PIN. */
+const LOCK_MINUTES = [1, 5, 15, 60];
 
 const SECRET_HEX = /^[0-9a-f]{64}$/;
+/** A data key: random hex (new store) or the pre-digitva-kfi `secret:PIN` passphrase. Never carries a quote. */
+const DATA_KEY = /^[0-9a-f]{64}(:\d{6,16})?$/;
+const WRAPPED = /^([0-9a-f]{32})\.((?:[0-9a-f]{2})+)$/;
 const PIN_DIGITS = /^\d+$/;
 
 const OPTIONS: SecureStore.SecureStoreOptions = {
@@ -60,6 +70,9 @@ export function storeHash(userId: string): Promise<string> {
 
 const secretKey = (hash: string) => `store_secret_${hash}`;
 const failuresKey = (hash: string) => `pin_failures_${hash}`;
+const failedAtKey = (hash: string) => `pin_failed_at_${hash}`;
+const pinWrapKey = (hash: string) => `store_key_pin_${hash}`;
+const resetCopyKey = (hash: string) => `store_key_reset_${hash}`;
 const biometricFlagKey = (hash: string) => `pin_bio_on_${hash}`;
 const biometricKey = (hash: string) => `pin_bio_${hash}`;
 const screenLockFlagKey = (hash: string) => `pin_lock_on_${hash}`;
@@ -78,12 +91,75 @@ export async function readStoreSecret(userId: string): Promise<string | null> {
   return SecureStore.getItemAsync(secretKey(await storeHash(userId)), OPTIONS);
 }
 
+const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+const randomHex = async (n: number) => toHex(await getRandomBytesAsync(n));
+
 /** A fresh random 32-byte secret for a new store, saved and returned as hex. */
 export async function createStoreSecret(userId: string): Promise<string> {
-  const bytes = await getRandomBytesAsync(32);
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const hex = await randomHex(32);
   await SecureStore.setItemAsync(secretKey(await storeHash(userId)), hex, OPTIONS);
   return hex;
+}
+
+/** A random data key for a new store (64 hex characters). */
+export const newDataKey = () => randomHex(32);
+
+/** `key` when it is a well-formed data key, safe to put in `PRAGMA key`; throws otherwise. */
+export function checkedDataKey(key: string): string {
+  if (!DATA_KEY.test(key)) throw new Error("bad_data_key");
+  return key;
+}
+
+/**
+ * SHA-256 in counter mode over the store secret, a per-wrap salt and the PIN. Wrapping XORs the data key with it;
+ * the fresh salt makes every wrap's stream new. No key stretching: the Keystore-held secret is the barrier
+ * (threat model in docs/policy/field-data-collection.md).
+ */
+async function keyStream(secretHex: string, salt: string, pin: string, length: number): Promise<number[]> {
+  const out: number[] = [];
+  for (let block = 0; out.length < length; block += 1) {
+    const hex = await digestStringAsync(CryptoDigestAlgorithm.SHA256, `digitva-wrap:${secretHex}:${salt}:${pin}:${block}`);
+    for (let i = 0; i < hex.length; i += 2) out.push(parseInt(hex.slice(i, i + 2), 16));
+  }
+  return out.slice(0, length);
+}
+
+/** The data key wrapped by the PIN and store secret, as `salt.hex`. Throws on a malformed key, secret or PIN. */
+export async function wrapDataKey(secretHex: string, pin: string, dataKey: string): Promise<string> {
+  buildPassphrase(secretHex, pin);
+  checkedDataKey(dataKey);
+  const salt = await randomHex(16);
+  const stream = await keyStream(secretHex, salt, pin, dataKey.length);
+  return `${salt}.${toHex(Uint8Array.from(dataKey, (ch, i) => ch.charCodeAt(0) ^ stream[i]))}`;
+}
+
+/** The data key inside `wrapped`, or null when the PIN is wrong (the result is not a data key) or anything is malformed. */
+export async function unwrapDataKey(secretHex: string, pin: string, wrapped: string): Promise<string | null> {
+  const match = WRAPPED.exec(wrapped);
+  if (!match || !SECRET_HEX.test(secretHex) || !PIN_DIGITS.test(pin)) return null;
+  const [, salt, body] = match;
+  const stream = await keyStream(secretHex, salt, pin, body.length / 2);
+  let key = "";
+  for (let i = 0; i < body.length; i += 2) key += String.fromCharCode(parseInt(body.slice(i, i + 2), 16) ^ stream[i / 2]);
+  return DATA_KEY.test(key) ? key : null;
+}
+
+/** The PIN-wrapped data key, or null for a store not yet moved to wrapped keys (it opens with buildPassphrase). */
+export async function readPinWrap(userId: string): Promise<string | null> {
+  return SecureStore.getItemAsync(pinWrapKey(await storeHash(userId)), OPTIONS);
+}
+
+export async function savePinWrap(userId: string, wrapped: string): Promise<void> {
+  await SecureStore.setItemAsync(pinWrapKey(await storeHash(userId)), wrapped, OPTIONS);
+}
+
+/** The reset copy of the data key. Only interviewerDb's PIN reset (after a password sign-in) and its upkeep read it. */
+export async function readResetCopy(userId: string): Promise<string | null> {
+  return SecureStore.getItemAsync(resetCopyKey(await storeHash(userId)), OPTIONS);
+}
+
+export async function saveResetCopy(userId: string, dataKey: string): Promise<void> {
+  await SecureStore.setItemAsync(resetCopyKey(await storeHash(userId)), checkedDataKey(dataKey), OPTIONS);
 }
 
 export async function failedAttempts(userId: string): Promise<number> {
@@ -92,17 +168,56 @@ export async function failedAttempts(userId: string): Promise<number> {
   return Number.isInteger(count) && count > 0 ? count : 0;
 }
 
-/** Count one more wrong PIN and return the new total. Called before the PIN is tried. */
-export async function recordFailedAttempt(userId: string): Promise<number> {
+/** Count one more wrong PIN, note when, and return the new total. Called before the PIN is tried. */
+export async function recordFailedAttempt(userId: string, now = Date.now()): Promise<number> {
+  const hash = await storeHash(userId);
   const next = (await failedAttempts(userId)) + 1;
-  await SecureStore.setItemAsync(failuresKey(await storeHash(userId)), String(next), OPTIONS);
+  await SecureStore.setItemAsync(failedAtKey(hash), String(now), OPTIONS);
+  await SecureStore.setItemAsync(failuresKey(hash), String(next), OPTIONS);
   return next;
 }
 
+/** Set the counter; 0 also forgets the time of the last wrong PIN (a correct PIN or a reset ends the lockout). */
 export async function setFailedAttempts(userId: string, count: number): Promise<void> {
-  const key = failuresKey(await storeHash(userId));
-  if (count <= 0) await SecureStore.deleteItemAsync(key, OPTIONS);
-  else await SecureStore.setItemAsync(key, String(count), OPTIONS);
+  const hash = await storeHash(userId);
+  if (count > 0) {
+    await SecureStore.setItemAsync(failuresKey(hash), String(count), OPTIONS);
+    return;
+  }
+  await SecureStore.deleteItemAsync(failuresKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(failedAtKey(hash), OPTIONS);
+}
+
+/** How long the store refuses PINs after `failures` wrong ones in a row: 0 for the first FREE_PIN_ATTEMPTS - 1. */
+export function pinLockMs(failures: number): number {
+  if (failures < FREE_PIN_ATTEMPTS) return 0;
+  return LOCK_MINUTES[Math.min(failures - FREE_PIN_ATTEMPTS, LOCK_MINUTES.length - 1)] * 60_000;
+}
+
+/**
+ * Milliseconds until this store takes a PIN again (0 = now). Counted from the stored time of the last wrong PIN,
+ * so it survives a restart. A clock set back before that time restarts the full wait from now (stored), so it is
+ * never shortened that way; a clock set forward does shorten it (no restart-proof clock on the phone).
+ */
+export async function pinLockRemainingMs(userId: string, now = Date.now()): Promise<number> {
+  const wait = pinLockMs(await failedAttempts(userId));
+  if (!wait) return 0;
+  const hash = await storeHash(userId);
+  let at = Number(await SecureStore.getItemAsync(failedAtKey(hash), OPTIONS));
+  if (!Number.isFinite(at) || at <= 0 || at > now) {
+    at = now;
+    await SecureStore.setItemAsync(failedAtKey(hash), String(at), OPTIONS);
+  }
+  return Math.max(0, at + wait - now);
+}
+
+/** What the unlock screen shows while locked: the count, the wait left, and whether a PIN reset is possible. */
+export async function pinUnlockState(userId: string): Promise<{ failures: number; lockedMs: number; canReset: boolean }> {
+  return {
+    failures: await failedAttempts(userId),
+    lockedMs: await pinLockRemainingMs(userId),
+    canReset: (await readResetCopy(userId)) !== null
+  };
 }
 
 export async function biometricEnabled(userId: string): Promise<boolean> {
@@ -230,11 +345,14 @@ export async function recordPinLength(userId: string, length: number): Promise<v
   await SecureStore.setItemAsync(pinLengthKey(await storeHash(userId)), String(length), OPTIONS);
 }
 
-/** Forget this interviewer's secret, counter and biometric / screen-lock PIN. Other interviewers are untouched. */
+/** Forget this interviewer's secret, key copies, counter and biometric / screen-lock PIN. Other interviewers are untouched. */
 export async function forgetStoreKeys(userId: string): Promise<void> {
   const hash = await storeHash(userId);
   await SecureStore.deleteItemAsync(secretKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(pinWrapKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(resetCopyKey(hash), OPTIONS);
   await SecureStore.deleteItemAsync(failuresKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(failedAtKey(hash), OPTIONS);
   await SecureStore.deleteItemAsync(offerKey(hash), OPTIONS);
   await SecureStore.deleteItemAsync(pinLengthKey(hash), OPTIONS);
   await disableBiometric(hash);

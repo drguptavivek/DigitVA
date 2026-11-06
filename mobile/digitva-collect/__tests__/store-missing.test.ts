@@ -23,7 +23,6 @@ jest.mock("../src/vault", () => ({
   recordFailedAttempt: jest.fn(async () => 1),
   setFailedAttempts: async () => undefined,
   storeHash: async () => "abc",
-  WIPE_AFTER_FAILURES: 5,
 }));
 jest.mock("../src/mediaFiles", () => ({ wipeMediaCache: () => undefined }));
 

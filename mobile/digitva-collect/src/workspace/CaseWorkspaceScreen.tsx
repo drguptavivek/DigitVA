@@ -44,6 +44,7 @@ export function CaseWorkspaceScreen({
   assertIcd11DorisEnabled,
   refreshKey,
   serverOrigin,
+  viewAction,
 }: {
   identity: WorkspaceIdentity;
   api: WorkspaceApi;
@@ -68,6 +69,8 @@ export function CaseWorkspaceScreen({
   refreshKey?: string;
   /** The server a phone links to for static references (the Selected ICD Codes PDF); web callers omit it. */
   serverOrigin?: string;
+  /** Native offline summary: a button (Revise) shown above the read-only COD reference in view mode. */
+  viewAction?: ReactNode;
 }) {
   const styles = useUiStyles();
   const [loadedWorkspace, setLoadedWorkspace] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: WorkspacePayload } | null>(null);
@@ -550,6 +553,7 @@ export function CaseWorkspaceScreen({
           ) : null}
           {identity.mode === "view" ? (
             <>
+              {viewAction}
               <CaseReference workspace={workspace} />
               {workspace.case.history_available === false ? null : <WorkflowHistory
                 events={events}

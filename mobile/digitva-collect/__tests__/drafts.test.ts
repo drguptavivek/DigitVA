@@ -24,6 +24,7 @@ import {
   markCompleted,
   migrate,
   purgeProjectData,
+  reopenCompletedDraft,
   restoreResumedPrefill,
   countUnsentWork,
   countUnsentWorkByKind,
@@ -554,5 +555,33 @@ describe("draft store", () => {
     expect(await countUnsentWork(db)).toBe(4);
     expect(await countUnsentWorkByKind(db)).toEqual({ interviews: 2, registrations: 1, actions: 1, revisions: 0 });
     expect(await countUnsentWork(db, "PROJECT2")).toBe(0);
+  });
+
+  it("reopens a completed interview by compare-and-set: logged locally, answers kept, completion time dropped, refused when not completed", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("ro", "2026-09-30T01:00:00Z", { Id10007: "keep" }));
+    expect(await reopenCompletedDraft(db, "u1", "ro")).toBe("gone");
+    await markCompleted(db, "ro", { valid: true, issues: [] });
+    expect(await reopenCompletedDraft(db, "u1", "ro")).toBe("reopened");
+    expect(await getDraftRow(db, "ro")).toMatchObject({ completed: 0 });
+    const reopened = await store.load!("ro") as WhoVaDraft & { completedAt?: string; reopenedAtV1?: string[] };
+    expect(reopened.data).toEqual({ Id10007: "keep" });
+    expect(reopened.completedAt).toBeUndefined();
+    expect(reopened.reopenedAtV1).toHaveLength(1);
+    // A save from the form keeps the log; a second reopen after completing again appends to it.
+    await store.save(draft("ro", "2026-09-30T02:00:00Z", { Id10007: "edited" }));
+    await markCompleted(db, "ro", { valid: true, issues: [] });
+    expect((await completedDrafts(db)).map((row) => row.id)).toEqual(["ro"]);
+    expect(await reopenCompletedDraft(db, "u1", "ro")).toBe("reopened");
+    expect(((await store.load!("ro")) as WhoVaDraft & { reopenedAtV1?: string[] }).reopenedAtV1).toHaveLength(2);
+    expect(await reopenCompletedDraft(db, "u1", "ro")).toBe("gone");
+  });
+
+  it("does not reopen a completed interview held by an upload issue", async () => {
+    await createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" }).save(draft("held", "2026-09-30T01:00:00Z"));
+    await markCompleted(db, "held", { valid: true, issues: [] });
+    await setDraftUploadIssue(db, "held", "case_conflict");
+    expect(await reopenCompletedDraft(db, "u1", "held")).toBe("gone");
+    expect(await getDraftRow(db, "held")).toMatchObject({ completed: 1 });
   });
 });

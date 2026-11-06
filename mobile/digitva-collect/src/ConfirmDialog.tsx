@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import { Modal, Platform, StyleSheet, Text, View } from "react-native";
 
 import { t } from "./i18n";
@@ -16,6 +17,8 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = t("cancel"),
   destructive = false,
+  confirmDisabled = false,
+  children,
   onConfirm,
   onCancel,
 }: {
@@ -24,6 +27,9 @@ export function ConfirmDialog({
   confirmLabel: string;
   cancelLabel?: string;
   destructive?: boolean;
+  confirmDisabled?: boolean;
+  /** Extra content under the message, e.g. a typed-confirmation field. */
+  children?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -65,12 +71,13 @@ export function ConfirmDialog({
         >
           <Text accessibilityRole="header" style={[s.title, typography.headline, { color: colors.text }]}>{title}</Text>
           <Text style={[s.message, typography.subhead, { color: colors.textMuted }]}>{message}</Text>
+          {children}
           <View style={s.actions}>
             <View ref={cancelRef as never}>
               <Button kind="secondary" label={cancelLabel} onPress={onCancel} />
             </View>
             <View ref={confirmRef as never}>
-              <Button kind={destructive ? "danger" : "primary"} label={confirmLabel} onPress={onConfirm} />
+              <Button kind={destructive ? "danger" : "primary"} label={confirmLabel} disabled={confirmDisabled} onPress={onConfirm} />
             </View>
           </View>
         </View>

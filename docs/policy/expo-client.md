@@ -259,7 +259,7 @@ reported without a log cable, the Android app keeps a small local error log.
   the next unlock. It is not unsent work and is never uploaded.
 - **Cap:** the newest 500 rows and at most 30 days, enforced on every write.
 - **Wipe:** it lives in the interviewer's database file, so a wipe (a revoked
-  session with nothing unsent, the fifth wrong PIN) deletes it with the store.
+  session with nothing unsent) deletes it with the store.
   Sign-out and re-enrolment keep the store, and the log with it.
 - **Export:** Settings > Help & support > Export errors builds one text file
   content, `digitva-errors-<date>.txt` (a header with app version, device and
@@ -300,6 +300,26 @@ as the web does, instead of reopening it silently.
   when consent (`Id10013`) is no; and the consent question (`Id10013`) when
   the form is complete. A failing interview stays in progress with the reason
   and the "Fix:" line shown.
+
+## Reopening a ready interview (native; `digitva-7amd.13`)
+
+Owner decision, 2026-11-06. A completed interview that has not started sending
+shows **Reopen** on its Interviews card.
+
+- Reopen asks first (a confirmation dialog) and says the interview must be
+  completed again. It moves the interview back to in progress, answers kept,
+  and opens the form. It is a compare-and-set on the stored row: it applies
+  only while the interview is still completed and has no upload issue.
+- It is **refused** once a send is in flight or done (the send holds the
+  interview's upload lease, and sync re-reads the row after taking it, so a
+  reopened interview is never sent and a send that began first wins). A sent
+  interview is corrected through a revision, not reopened.
+- The reopen time is recorded in the interview's local timeline
+  (`reopenedAtV1`, newest last, at most 8) beside the answers. It stays on the
+  phone and is not sent to the server.
+- Complete again is required before it is sent: the completion time is
+  restamped and the Interviews card shows Draft until then. A held interview
+  (an upload issue) offers no Reopen.
 
 ## Phone form screens (interview and revision)
 

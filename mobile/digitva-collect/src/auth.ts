@@ -17,9 +17,11 @@
  * refresh_retry_race`, `session_expired`, `refresh_invalid`,
  * `device_invalid`) drops the dead tokens and marks the account "sign in
  * again", keeping its data; offline and 5xx keep everything. Unsent
- * interviews wait for the next sign-in. A wipe (`session_revoked`, five
- * wrong PINs) removes the database file, its store secret, PIN counter and
- * biometric entry, the tokens and the account entry. Sign-out and
+ * interviews wait for the next sign-in. A wipe (`session_revoked`) removes
+ * the database file, its store secret and key copies, PIN counter and
+ * biometric entry, the tokens and the account entry. Wrong PINs never wipe:
+ * they lock the store for a while, and a password sign-in allows a PIN reset
+ * for that account (digitva-kfi). Sign-out and
  * re-enrolment wipe nothing: they drop the tokens and keep the store, its PIN
  * and biometric entries (owner decision 2026-10-27).
  */
@@ -28,6 +30,7 @@ import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
+import { allowPinReset } from "./pinResetGrant";
 import {
   accessCapabilities,
   ApiError,
@@ -47,7 +50,7 @@ import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, Sessi
 import type { UnlockResult } from "./interviewerDb";
 import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
-import { attachmentMediaKind } from "./workspace/media/path";
+import { attachmentMediaExtension } from "./workspace/media/path";
 import { offlineCodingProjectIds } from "./codingCapabilities";
 import { flushPerformanceTelemetry } from "./performanceTelemetry";
 
@@ -559,6 +562,7 @@ export async function signIn(
   identifier: string,
   password: string,
   slot?: Slot,
+  options: { forPinReset?: boolean } = {},
 ): Promise<Account> {
   const snapshot = await selectedSlotSnapshot();
   if (slot !== undefined && slot !== snapshot.slot) throw new NotInSlotError();
@@ -578,7 +582,10 @@ export async function signIn(
       app_version: APP_VERSION,
     },
   });
-  return storeSession(slot, device.server, body, snapshot.generation);
+  const account = await storeSession(slot, device.server, body, snapshot.generation);
+  // Only the "Forgot PIN?" sign-in lets this account reset its own PIN, nobody else's.
+  if (options.forPinReset) allowPinReset(account.user_id);
+  return account;
 }
 
 type SessionBody = Tokens & { user: { user_id: string; name: string; email?: string | null }; access: unknown };
@@ -887,10 +894,9 @@ export async function requestAccountDeletion(userId: string): Promise<void> {
 }
 
 /**
- * Try the interviewer's PIN. After the fifth wrong PIN in a row their store
- * and keys are already deleted (src/interviewerDb.ts); this then ends the
- * server session (best effort) and drops their tokens and account entry.
- * Nobody else's data is touched.
+ * Try the interviewer's PIN (src/interviewerDb.ts: wrong PINs lock, never
+ * wipe). A right PIN on an account whose access was removed while its store
+ * was locked finishes that revoke's wipe when nothing is unsent.
  */
 export async function unlockInterviewer(
   userId: string,
@@ -898,12 +904,6 @@ export async function unlockInterviewer(
 ): Promise<UnlockResult> {
   const { unlockInterviewerDb, unsentWorkCount } = require("./interviewerDb") as typeof import("./interviewerDb");
   const result = await unlockInterviewerDb(userId, pin);
-  // The fifth wrong PIN already deleted the store (src/interviewerDb.ts): end the session and drop the profile too.
-  if (!result.ok && result.wipe) {
-    const standalone = (await loadAccounts()).find((a) => a.user_id === userId)?.standalone;
-    if (!standalone) await endServerSession(userId);
-    await wipeInterviewer(userId);
-  }
   if (!result.ok) return result;
   // A revoke that found the store locked kept it; now it can be counted.
   const account = (await loadAccounts()).find((item) => item.user_id === userId);
@@ -924,7 +924,7 @@ export async function getAuthenticatedAttachmentSource(
   userId: string,
   path: string,
 ): Promise<{ uri: string; headers: { Authorization: string } }> {
-  if (!attachmentMediaKind(path)) throw new Error("invalid_attachment_path");
+  if (!attachmentMediaExtension(path)) throw new Error("invalid_attachment_path");
   // Device and account from one slot (deviceFor); any refusal there means no source.
   const usable = (account: Account) => !account.needs_sign_in && !account.terms_required && !account.access_blocked;
   const [first, tokens] = await Promise.all([

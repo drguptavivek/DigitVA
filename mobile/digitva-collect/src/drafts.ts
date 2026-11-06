@@ -16,6 +16,7 @@ import { createNativeDefinitionCache } from "./formDefinitionCache";
 import { runInTransaction } from "./dbTransaction";
 import { clearSendError, sendRefusal } from "./unsentWork";
 import { localDateTimeWithOffset } from "./client/localDateTime";
+import { acquireDraftUpload } from "./localCodingLeases";
 import { isRefused, refusalAnswers } from "./refusalBoundary";
 
 export { localDateTimeWithOffset } from "./client/localDateTime";
@@ -45,6 +46,8 @@ export type DeviceTimedDraft = WhoVaDraft & {
   locale?: string;
   translation_version?: number;
   workflowTimelineV1?: unknown;
+  /** Local-only: when the interviewer reopened this completed interview (newest last, at most REOPEN_LOG_MAX). Never sent. */
+  reopenedAtV1?: string[];
   definitionSha256?: unknown;
   definitionExtensions?: unknown;
 };
@@ -213,6 +216,7 @@ function envelopeWithDeviceTimes(
     ...(translationVersion !== undefined ? { translation_version: translationVersion } : {}),
     // The engine's draft never carries the host's milestone timeline; keep what is stored.
     ...(Array.isArray(existing.workflowTimelineV1) ? { workflowTimelineV1: existing.workflowTimelineV1 } : {}),
+    ...(Array.isArray(existing.reopenedAtV1) ? { reopenedAtV1: existing.reopenedAtV1 } : {}),
   };
   if (pin) return withDefinitionPin(saved, pin) as DeviceTimedDraft;
   return {
@@ -744,6 +748,35 @@ export async function retryHeldDraft(db: Db, id: string): Promise<void> {
  */
 export async function reopenDraft(db: Db, id: string): Promise<void> {
   await db.runAsync("UPDATE drafts SET completed = 0, completion = NULL, draft_sync_dirty = 1 WHERE id = ?", [id]);
+}
+
+const REOPEN_LOG_MAX = 8;
+
+/**
+ * The interviewer takes a completed interview that has not started sending back to in progress, to edit it
+ * before sending (policy: expo-client.md "Reopening a ready interview"). Returns "busy" while a send holds the
+ * draft's upload lease (the send wins), "gone" when the row is no longer a plain completed draft (sent, deleted,
+ * held by an upload issue, or changed under us). The lease is held across the compare-and-set, and the update is
+ * guarded on the exact envelope read, so a send that began first is never raced and sync, which re-reads the row
+ * after taking the lease, never sends a reopened draft.
+ */
+export async function reopenCompletedDraft(db: Db, userId: string, id: string): Promise<"reopened" | "busy" | "gone"> {
+  const release = acquireDraftUpload(userId, id);
+  if (!release) return "busy";
+  try {
+    const row = await db.getFirstAsync<{ envelope: string }>(
+      "SELECT envelope FROM drafts WHERE id = ? AND completed = 1 AND upload_issue IS NULL", [id]);
+    if (!row) return "gone";
+    const { completedAt: _completedAt, ...draft } = JSON.parse(row.envelope) as DeviceTimedDraft;
+    const log = [...(Array.isArray(draft.reopenedAtV1) ? draft.reopenedAtV1 : []), localDateTimeWithOffset()].slice(-REOPEN_LOG_MAX);
+    const result = await db.runAsync(
+      `UPDATE drafts SET envelope = ?, completed = 0, completion = NULL, draft_sync_dirty = 1
+       WHERE id = ? AND completed = 1 AND upload_issue IS NULL AND envelope = ?`,
+      [JSON.stringify({ ...draft, reopenedAtV1: log }), id, row.envelope]);
+    return result && typeof result === "object" && "changes" in result && Number(result.changes) > 0 ? "reopened" : "gone";
+  } finally {
+    release();
+  }
 }
 
 export interface CompletedDraft {

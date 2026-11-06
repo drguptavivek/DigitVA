@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-06
 ---
 
 # Field Data Collection Policy
@@ -74,15 +74,18 @@ Requirements, all of which must hold before the app collects real data:
 - **Keys in hardware-backed storage** (iOS Keychain / Android Keystore), never
   in the application database and never derivable from it alone.
 - **One encrypted store per interviewer** (decision C2: phones are shared).
-  Each interviewer's answers and attachments are encrypted under a key derived
-  from their own PIN, so unlocking as one interviewer never exposes another's
+  Each interviewer's answers and attachments are encrypted under their own
+  store's data key, released by their own PIN (or, after a forgotten PIN, by a
+  password sign-in to that account), so unlocking as one interviewer never exposes another's
   in-flight interviews. A shared device holds several such stores side by side
   and no shared plaintext index of them: the device may reveal that other
   accounts exist, never what they hold.
-- **Unlock gate.** A PIN or biometric unlock; the working key exists only in
-  memory while unlocked; automatic lock after inactivity. Repeated failed
-  attempts wipe **only the store being unlocked** — never the whole device, or
-  one interviewer's forgetfulness would destroy a colleague's unsent work.
+- **Unlock gate.** A PIN or biometric unlock; the open store and its
+  unwrapped key exist only in memory while unlocked (the stored copies stay
+  in the Keystore); automatic lock after inactivity. Repeated failed
+  attempts lock **only the store being unlocked** for a while and never erase
+  it (see "Wrong PINs and PIN reset" below); another interviewer's store on
+  the same phone is untouched.
 - **Push and purge.** The device keeps only in-flight interviews. Once the
   server acknowledges a submission and its attachments, the local copy is
   deleted. The device is not an archive and holds no history of past cases.
@@ -111,8 +114,8 @@ Requirements, all of which must hold before the app collects real data:
   are never removed from the phone. The account menu also has "Switch
   profile" (lock and show the profiles list, session kept) and the profiles
   list "Add profile" (another person signs in alongside). What still deletes
-  a store: the fifth wrong PIN in a row, and a revoked session whose store
-  is known to hold nothing unsent.
+  a store: a revoked session whose store is known to hold nothing unsent.
+  Wrong PINs never delete it (owner decision 2026-11-06, `digitva-kfi`).
 - **Unsent work is never purged automatically** (owner decision 2026-10-22,
   `digitva-tnr6`). A completed interview not yet acknowledged, an offline
   registration, a queued contact attempt or visit, a queued revision or an
@@ -139,7 +142,7 @@ Requirements, all of which must hold before the app collects real data:
   - **Security trade-off, accepted by the owner:** after an administrative or
     lost-device revoke, unsent interviews (with names, phone numbers and
     answers) remain on the handset, encrypted under the interviewer's PIN and
-    the Keystore-held store secret; five wrong PINs still wipe the store. The
+    the Keystore-held keys; wrong PINs only lock it for a while. The
     server can no longer receive the outstanding-work report for that device,
     so the last report before revoke is the record of what it holds.
 - **Outstanding work is visible server-side.** Each sync reports the device's
@@ -193,10 +196,62 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
 - **Local unlock on the device**: after server sign-in, the encrypted store is
   opened with the interviewer's PIN or optional device biometric. This local
   unlock is not a server factor and does not add permissions.
-- **Store key**: a random per-store secret in the Android Keystore joined
-  with the interviewer's PIN, fed to SQLCipher's key derivation; biometric
-  unlock releases the PIN part from a Keystore entry that requires a strong
-  biometric. PIN at least 6 digits; 5 wrong PINs in a row wipe that store.
+- **Store key** (owner decision 2026-11-06, `digitva-kfi`): each store has
+  its own data key, the SQLCipher passphrase, which never changes for the
+  life of the store. It is kept in two wrapped copies in Keystore-backed
+  SecureStore: one wrapped by a key derived from the PIN and a random
+  per-store Keystore secret, and one the app releases only after a
+  successful password sign-in to the server **for that same account** (the
+  reset copy). A new store gets a random data key. A store created before
+  this change keeps its original passphrase (the Keystore secret joined with
+  the old PIN) as its data key: on the next correct PIN the app writes both
+  copies beside it, so nothing in the database is rewritten or re-encrypted,
+  and until both copies are written and verified the old PIN path keeps
+  working. A store that never unlocks on the new version has no reset copy,
+  so its PIN cannot be reset. Biometric unlock releases the PIN from a
+  Keystore entry that requires a strong biometric. PIN at least 6 digits.
+- **Wrong PINs and PIN reset** (owner decision 2026-11-06, `digitva-kfi`;
+  replaces "five wrong PINs wipe that store"). No number of wrong PINs
+  erases anything. The first five wrong PINs in a row are free (a warning
+  from the third); after the fifth the store refuses any PIN for 1 minute,
+  after the sixth 5 minutes, after the seventh 15 minutes, and after the
+  eighth and every later one 60 minutes. A PIN tried while locked is not
+  tried or counted. The count and the time of the last wrong PIN are stored
+  beside the key copies, so the wait survives closing the app or restarting
+  the phone. Only a correct PIN or a PIN reset clears them. Clock limit:
+  setting the phone clock back restarts the full wait from the new time, but
+  Android gives an app no clock that survives a restart and cannot be set,
+  so setting the clock forward shortens the wait. An interviewer who forgot
+  the PIN uses "Forgot PIN? Sign in with password" on the unlock screen:
+  after the server accepts the password for that account, the app opens
+  the store with the reset copy, asks for a new PIN and keeps every
+  interview, unsent work included. The permission is granted only by a
+  sign-in started from "Forgot PIN?" for that same account (an ordinary
+  password sign-in grants nothing, so a deep link cannot set a PIN), held in
+  memory for a few minutes, used once, and cleared on a successful unlock, on
+  lock and when the reset flow is left; signing in as a different account
+  never resets this one. Resetting drops the fingerprint and screen-lock entries (they
+  held the old PIN). A standalone (Path C) account has no server password,
+  so it has no reset; its only way out of a forgotten PIN is to erase
+  (owner decision 2026-11-06). Once five wrong PINs in a row are used up
+  (locked or not), the unlock screen shows "Forgot PIN?", never before. It
+  opens a destructive confirmation saying every interview on the phone that
+  was not exported is deleted for good, and the person must type the
+  confirmation word before the button works. Confirming wipes that
+  account through the same routine as any standalone wipe and returns to
+  standalone setup; cancelling deletes nothing. The erase happens by this
+  explicit typed choice only; nothing is ever wiped automatically.
+  - **Threat model, accepted by the owner:** the PIN is a 6-digit gate, a
+    million guesses. The lockout stops guessing through the app. Against an
+    attacker who can run code as the app on the phone, or extract its
+    Keystore entries, the PIN adds little: the PIN-wrapped copy can be
+    brute-forced in seconds without SQLCipher's key stretching, and the
+    reset copy is protected by the Keystore alone (app policy, not
+    cryptography, ties it to a server sign-in). Protection at rest therefore
+    rests on the Keystore and Android's own lock, as it did for the store
+    secret before. The stronger form, a reset copy wrapped by a per-account
+    secret the server returns only on sign-in, needs a server endpoint and
+    is not built.
 - **Idempotent upload**: each interview carries a client draft id; a resend
   returns the first result. An interview for a case a teammate already
   submitted is kept as a superseded copy, never left on the phone.
@@ -224,8 +279,9 @@ from the device API.
 **Built, app phase 2b** (2026-09-30): each interviewer's drafts are a
 SQLCipher database keyed by a random Keystore-held secret joined with a PIN
 of 6-16 digits; optional biometric unlock releases the PIN from a Keystore
-entry that needs a strong biometric; five wrong PINs in a row wipe that
-interviewer's store and end the server session; the app locks after 5 idle
+entry that needs a strong biometric; wrong PINs lock that store for a growing
+time and erase nothing (`digitva-kfi`, 2026-11-06; until then five wrong PINs
+wiped it and ended the session); the app locks after 5 idle
 minutes or over a minute in the background, saving the open draft first;
 FLAG_SECURE covers every screen. Checked on the emulator (encrypted file,
 lock, PIN counter, wipe); biometric enforcement needs a real device. Builds
@@ -611,12 +667,13 @@ access rule below.
   never offers Path C (it is Collect Plus only, and Android only like the
   device identity below).
 - **Entry flow (owner decision 2026-10-27, `digitva-5bzf`).** The first-run
-  screen offers "Use without a server" beside enrolment. It creates, on the
+  screen offers "Use without a server" beside enrolment (the screen reads
+  "Use on this phone only"). It creates, on the
   phone alone: an **offline profile** (name, age, sex, country, HIV and
   malaria mortality level required for a standalone account, see "Interview
   start gate" below; the other profile fields as the app defines them), a **local account** with its own
   PIN and its own encrypted store under the Path B rules (SQLCipher, Keystore
-  secret plus PIN, auto-lock, five wrong PINs wipe that store only), and a
+  keys, auto-lock, timed lockout after wrong PINs with no password reset), and a
   **project-less form path**: the interview runs from the instrument bundled in
   the app, with the DigitVA extension set the user picks in setup (default
   the medical and death document photographs, `medical_records` and
@@ -626,6 +683,22 @@ access rule below.
   a server account: it holds no grants, never calls the server, and is
   skipped by token refresh, notification polling and sync.
   Informant details are saved only after the standalone consent below.
+- **Definition pin (owner decision 2026-11-06, `digitva-5bzf.12`).** A
+  standalone draft is pinned to the full questionnaire bundled in the app, as
+  an enrolled draft is pinned to its served form: the instrument version, the
+  SHA-256 of the bundled instrument's JSON compiled for the draft's
+  extensions, and those extensions (`definitionSha256`, `definitionExtensions`
+  on the envelope). The pin is computed once per app start and stored on the
+  draft's first save; it is never sent to a server. Only the instrument
+  version decides (owner decision 2026-11-06): when a draft's recorded version
+  differs from the bundled questionnaire's (an app update changed it), the
+  draft opens **read-only**: its answers are listed, there is no editing, no
+  Complete and no save, and a message says the app's questionnaire changed and
+  that the owner should back up or export the data from Settings, or finish
+  the interview on the earlier version of the app. The hash and extensions
+  stay recorded but are not compared, so a label-only change keeps drafts
+  editable. A draft saved before pins existed is judged by its version string
+  the same way. Answers are never rewritten or deleted by the mismatch.
 - **Interview start gate (owner decision 2026-10-30, `digitva-0vz7`).** No
   blocker may appear once a standalone interview has started, so the
   interviewer's name, age, sex, the country, and the HIV and malaria
@@ -685,6 +758,11 @@ access rule below.
   reaches the server as an imported, coded result with its provenance, not as
   a masked coding (see [Offline API Contract](offline-api-contract.md)
   section 17).
+- **Coding steps.** A standalone phone has no second reviewer, so coding is one
+  direct save ("Save cause of death"), not the two-step propose and confirm
+  flow. A coded case opens read-only in view mode showing the saved cause of
+  death; "Revise" reopens coding pre-filled from the saved result. The case's
+  workflow events are served locally.
 - **Earlier adoption design (superseded 2026-10-28).** The historical server
   import contract remains for older APK compatibility, but the current app
   exposes no standalone adoption or upload action. Enrolling keeps standalone
@@ -757,7 +835,7 @@ or JSON**, one record or a chosen set, through the share sheet.
 - *Identifiers:* the user may choose "omit identifiers", which strips the
   personal-field registry fields (`app/services/pii_field_registry.py`) and
   the consent notice's covered fields. Whether that option is on by default is
-  open point 5.
+  open point 5 (the app currently starts with it on).
 - *Handling:* an export is plaintext by nature, like a printout. The app
   confirms with a message naming the personal data it contains, writes the file
   only to its private cache, deletes it when the share ends, and never
@@ -787,8 +865,8 @@ attachments, coding results, consent records, profile).
   names, phone numbers, addresses and the stories of real people. Anyone who
   has the file and (for a backup) the passphrase can read it. Save it only
   where you control access. Do not send it by WhatsApp, e-mail or any chat
-  app. If you lose the passphrase, nothing can recover the backup. The wipe
-  after five wrong PINs does not protect a file you have already saved."
+  app. If you lose the passphrase, nothing can recover the backup. The PIN
+  lock on this phone does not protect a file you have already saved."
 
 #### Path C open points
 

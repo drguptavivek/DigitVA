@@ -195,6 +195,7 @@ jest.mock("../src/formDefinitionCache", () => ({
 }));
 jest.mock("../src/formDefinitionRuntime", () => ({
   PinnedDefinitionError: class PinnedDefinitionError extends Error { code?: string },
+  readDefinitionPin: (envelope: unknown) => jest.requireActual("../src/formDefinitionRuntime").readDefinitionPin(envelope),
   resolveNewInterviewDefinition: jest.fn(async () => mockResolvedDefinition),
   resolveSavedEnvelopeDefinition: jest.fn(async () => mockResolvedDefinition),
 }));
@@ -1940,6 +1941,21 @@ describe("immersive interview form", () => {
         binding: { projectId: expect.any(String), prefill },
       }));
       expect(draftConfigWrites()[0]![2]).toMatchObject({ smartva: { options: { country: "India", hiv: true, malaria: false } } });
+      await act(async () => tree.unmount());
+    });
+
+    it("opens a standalone draft pinned to another questionnaire read-only, with its answers and no form", async () => {
+      mockOfflineProfile = null;
+      (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValue({ completed: false });
+      (mockDb.getFirstAsync as jest.Mock).mockResolvedValueOnce({
+        envelope: JSON.stringify({ locale: "en", instrumentVersion: "old", definitionSha256: "b".repeat(64), definitionExtensions: [], data: { Id10017: "Asha" } }),
+      });
+      const tree = await open("standalone-device");
+      const text = JSON.stringify(tree.toJSON());
+      expect(text).toContain("standaloneDraftReadOnly");
+      expect(text).toContain("Id10017: Asha");
+      expect(mockFormProps.instrument).toBeUndefined();
+      expect(draftConfigWrites()).toHaveLength(0);
       await act(async () => tree.unmount());
     });
 

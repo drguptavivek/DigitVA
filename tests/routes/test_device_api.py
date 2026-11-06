@@ -524,11 +524,15 @@ class DeviceApiTests(BaseTestCase):
         self.addCleanup(self._set_intake_mode, self.PROJECT_ID, "both")
         device, tokens = self._session(email=email)
         self.assertEqual(self._refresh(tokens["refresh_token"]).status_code, 200)
-        # Without the coder grant the intake-off interviewer has nothing to open.
+        # Without the coder grant the intake-off interviewer has nothing to open,
+        # and is told collection is off rather than that no access exists.
         coder.grant_status = VaStatuses.deactive
         db.session.commit()
         refused = self._sign_in(device, email=email)
-        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "no_interviewer_grant"))
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "project_intake_off"))
+        # A user with no interviewer grant at all keeps the old code.
+        other = self._sign_in(device, email="device.outsider@test.local")
+        self.assertEqual((other.status_code, other.get_json()["code"]), (403, "no_interviewer_grant"))
 
     def _set_intake_mode(self, project_id, mode):
         db.session.get(VaProjectMaster, project_id).web_intake_mode = mode

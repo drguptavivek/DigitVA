@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-06
 ---
 
 # Sign-in by Mobile Number
@@ -55,11 +55,22 @@ everything not said here.
 - A mobile number becomes usable for sign-in when its holder first redeems
   a code (section 3), or when the account's email is verified (onboarding
   policy section 5.1).
+- **Project collection switched off (digitva-7amd.24).** Device sign-in
+  (password enrolment and `POST /auth/sessions`) that finds no device access
+  but finds an active `interviewer` grant on an active project whose web
+  intake mode is `off` is refused with the same 403 and a distinct code,
+  `project_intake_off`, and the message "Data collection is switched off for
+  your project. Ask your project administrator." A user with no such grant
+  keeps `no_interviewer_grant`. Only the `code` and message differ; status
+  and response shape are unchanged. Phones on Collect 0.3.19 and older do
+  not know the code and show their generic "Something went wrong. Try
+  again."; nothing is lost or wiped.
 
 ### Manual native device enrolment
 
-Owner decision 2026-10-28 (`digitva-hs7e.6`): "Enroll This Device with
-Server" offers both QR enrolment and a manual server address, username
+Owner decision 2026-10-28 (`digitva-hs7e.6`): the welcome screen ("Enrol
+this device") offers both QR enrolment ("Scan your enrolment QR") and, under
+"Sign in with email or mobile", a manual server address, username
 (the existing email/mobile identifier) and password form. Demo enrolment
 remains a distinct flow and target. The manual Active flow must not reuse
 the demo enrolment endpoint or silently change the selected target server.
@@ -330,8 +341,12 @@ Shipped endpoints, fields, rate limits and error codes: [Authentication, Login a
 
 The device PIN (6 to 16 digits in `src/vault.ts`; the entry and setup screens
 take **six digits**, one per box) keys the interviewer's encrypted store. The
-rules of sections 1 to 8, the 3-wrong-PIN warning and the wipe on the 5th wrong
-PIN in a row are unchanged.
+rules of sections 1 to 8 and the 3-wrong-PIN warning are unchanged. Wrong PINs
+lock the store for a growing time and never wipe it, and a forgotten PIN is
+reset after a password sign-in for the same account made from "Forgot PIN?" (an
+ordinary sign-in grants no reset)
+([field data collection](field-data-collection.md), "Wrong PINs and PIN reset",
+owner 2026-11-06, `digitva-kfi`).
 
 - **Entry.** PIN entry and PIN setup use six separate boxes: one digit each,
   moving on as a digit is typed, backspace stepping back, the numeric keypad
@@ -357,8 +372,8 @@ PIN in a row are unchanged.
     code, which could skip the prompt. It is
     offered only when the phone has a screen lock set.
   Turning an option on needs the PIN (or the first-run PIN just set) and one
-  successful prompt. A wipe (a revoked session with nothing unsent, the
-  fifth wrong PIN) erases both entries with the store; sign-out and
+  successful prompt. A wipe (a revoked session with nothing unsent) erases
+  both entries with the store, and a PIN reset drops both; sign-out and
   re-enrolment keep them, and a signed-out profile is not offered either
   option and must sign in again before its PIN, fingerprint or screen lock
   opens the store.

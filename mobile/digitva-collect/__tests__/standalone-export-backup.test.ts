@@ -241,7 +241,7 @@ describe("export", () => {
   });
 
   it("sweeps stale export and backup files but nothing else", () => {
-    for (const n of ["digitva-records-2026-01-01.csv", "digitva-backup-2026-01-01.dvbak", "keep.txt"]) fs.writeFileSync(path.join(mockDir, n), "x");
+    for (const n of ["digitva-records-2026-01-01.csv", "digitva-backup-2026-01-01.dvbak", "attachment-1767225600000-a.pdf", "keep.txt"]) fs.writeFileSync(path.join(mockDir, n), "x");
     sweepExportLeftovers();
     expect(fs.readdirSync(mockDir)).toEqual(["keep.txt"]);
   });

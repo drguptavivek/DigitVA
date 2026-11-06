@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **PIN lockout and reset, reopen, standalone draft pin and one-step coding**
+  (`2d78e9660`; `digitva-kfi`, `digitva-7amd.13`, `digitva-5bzf.12`,
+  `digitva-9cll.23`, `digitva-9cll.24`, `digitva-9cll.22.2`,
+  `digitva-7amd.24`, `digitva-5kl3`, `digitva-r4o5`): wrong PINs lock out
+  (1/5/15/60 min after 5 tries) instead of wiping; "Forgot PIN?" resets after
+  a password sign-in begun from it; standalone phones erase only by typed
+  choice. Ready unsent interviews can be reopened (phone-only record).
+  Standalone drafts go read-only only on a questionnaire version change.
+  Standalone coding is one step with View and Revise. PDF attachments open;
+  sign-in names `project_intake_off`. Policy: `docs/policy/field-data-collection.md`
+  "Wrong PINs and PIN reset". Not yet checked on a device.
 - **Project clock, data-collection gate, coder daily cap, repeated recodes**
   (`87fff09cd`; `digitva-apee`, `digitva-jeyy`, `digitva-fkec`,
   `digitva-g7xq`): projects have a timezone and every project "today" (gate

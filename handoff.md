@@ -50,7 +50,10 @@ contrast, Large text) and refrozen.
 5. On staging, by hand: refuse then re-consent a direct interview
    (`digitva-lgzl`); a DORIS cluster such as BD1Z shows the whole title
    (`digitva-iae8`); the other-interviewer banner names them.
-6. USB Samsung (RZCW81QZT2Z): 0.3.18 checks with
+6. Device check of `2d78e9660` (PIN lockout/reset, standalone erase, reopen,
+   View/Revise, PDF opens in a viewer) on the Samsung with the CI APK over
+   0.3.19 in place; the iPhone waits for a CI/TestFlight build (owner).
+   USB Samsung (RZCW81QZT2Z): 0.3.18 checks with
    `build/ci-plus/digitva-collect-plus-0.3.18-arm64-v8a.apk` (icons, Hindi
    wrap Id10128/Id10129/Id10484, certificate camera, standalone documents,
    `digitva-ljx2`, DORIS warm `digitva-4j8h`), then close `digitva-9l5c`,
@@ -61,8 +64,7 @@ contrast, Large text) and refrozen.
 8. Standalone engine (`digitva-xw1s`): `v0.1.0` draft release built; the
    owner publishes it, then close. Not run on Linux/Intel Mac; no Windows.
 9. `digitva-9cll.5` phone proof (standalone certificate steps, then an
-   enrolled TST001 coder offline); `digitva-9cll.22` children (`.22.2`,
-   `.22.3`, `.22.4`, `.22.5`, `.22.6`, `.22.9`); `digitva-9cll.23`, `.24`.
+   enrolled TST001 coder offline); `digitva-9cll.22` children (`.22.3`, `.22.4`, `.22.5`, `.22.6`, `.22.9`).
 10. `digitva-gt2v`, `digitva-bged`; DORIS validation gaps
     (`docs/current-state/doris-validation-checks.md`: `digitva-l0ey`,
     `digitva-2j57`, `digitva-e505`, `digitva-giym`, `digitva-o16a`,

@@ -373,12 +373,12 @@ it("hides the offline engine check in the plain build", async () => {
 it("shows the device-wide ICD-11 / DORIS choice in Settings and saves changes without changing work", async () => {
   const tree = await render();
   const coding = () => tree.root.findByProps({ accessibilityLabel: themeEn.codingOnPhone, accessibilityRole: "switch" });
-  expect(coding().props.value).toBe(false);
+  expect(coding().props.value).toBe(true); // plain Collect defaults on
   expect(mockSecureStoreSet).not.toHaveBeenCalled();
   const pushCount = mockRouter.push.mock.calls.length;
-  await toggle(tree, themeEn.codingOnPhone, true);
-  expect(mockSecureStoreSet).toHaveBeenCalledWith("digitva.icd11-doris-enabled.v1", "enabled");
-  expect(coding().props.value).toBe(true);
+  await toggle(tree, themeEn.codingOnPhone, false);
+  expect(mockSecureStoreSet).toHaveBeenCalledWith("digitva.icd11-doris-enabled.v1", "disabled");
+  expect(coding().props.value).toBe(false);
   expect(mockRouter.push).toHaveBeenCalledTimes(pushCount);
   expect(shell.sync.work?.unsent).toBe(2);
 });

@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-06
 
+- **Plain Collect asks no coding question** (`digitva-qfji`): offline coding
+  is Collect Plus only, so plain Collect skips the first-launch "Enable
+  ICD-11 / DORIS coding" question and online coding defaults on (server
+  permissions still decide; the Settings switch can turn it off). Plus still
+  asks, default off. Policy: `docs/policy/field-data-collection.md`.
 - **PIN lockout and reset, reopen, standalone draft pin and one-step coding**
   (`2d78e9660`; `digitva-kfi`, `digitva-7amd.13`, `digitva-5bzf.12`,
   `digitva-9cll.23`, `digitva-9cll.24`, `digitva-9cll.22.2`,

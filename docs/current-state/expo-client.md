@@ -1038,6 +1038,9 @@ the device while unenrolled.
   device-wide ICD-11 / DORIS switch is respected (off: a message and a link to
   Settings; turned on from there: wait for Continue). Engine start shows the
   engine's progress. No "Try on web" button yet (comes with WP7).
+  `src/icd11DorisPreference.ts` decides the default once: plain Collect reads a missing
+  preference as enabled and answered (no first-launch gate; an explicit stored off wins),
+  Collect Plus reads it as off and unanswered, so `NativeIcd11DorisFirstLaunchGate` asks.
 - **React ICD-11 picker (digitva-9cll.2, 2026-10-29).** In the Collect Plus
   build only (`isPlusVariant()`), `IcdPickerModal` renders
   `src/workspace/doris/picker/IcdPicker.tsx` instead of `IcdPickerFrame`, for

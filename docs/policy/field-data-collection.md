@@ -967,14 +967,18 @@ The mode notice must remain visible when the normal navigation header is hidden.
 
 Owner-approved coding reliability additions (`digitva-hs7e.4`, 2026-10-28):
 
-Native first launch asks "Enable ICD-11 / DORIS coding in this app?" with
-the feature off by default (`digitva-hs7e.7`). The choice is device-wide and
+Collect Plus first launch asks "Enable ICD-11 / DORIS coding in this app?" with
+the feature off by default (`digitva-hs7e.7`). Plain Collect (not Plus) never
+asks (owner decision, 2026-11-06): offline coding exists only in Plus, so in
+plain Collect the preference only gates online server-backed ICD-11/DORIS
+coding, a missing preference reads as on and follows the account's server
+permissions, the Settings switch stays and an explicit stored off is honoured. The choice is device-wide and
 editable in Settings. It applies to online server-backed ICD-11/DORIS and
 eligible bundled local tools in Enrolled, Demo and Standalone modes. It grants
 no account/project permission, changes no server target, downloads nothing and
 does not start the engine. Disabling preserves all work. ICD-10 coding,
 collection, queues and read-only history remain available under their existing
-permissions; web coding is unchanged. Missing/unreadable preference is off.
+permissions; web coding is unchanged. In Plus a missing/unreadable preference is off.
 
 Settings exposes bundled open-source licence notices (`digitva-hs7e.8`):
 DigitVA and SmartVA retain their MIT notices; WHO ICD-11 retains its separate

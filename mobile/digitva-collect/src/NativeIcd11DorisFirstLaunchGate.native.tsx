@@ -34,7 +34,8 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
 
   // The gate sits above the routes, so the account is known only once a route names one.
   const account = accounts.find((item) => item.user_id === shell.userId);
-  if (preference.ready && preference.answered) return children;
+  // Plain Collect never asks; returning early also avoids a blocked, remounted tree while the preference loads.
+  if (!isPlusVariant() || (preference.ready && preference.answered)) return children;
   return (
     <View style={{ flex: 1 }}>
       <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ flex: 1 }}>
@@ -45,7 +46,7 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
         <Screen title={t("icd11DorisPreferenceTitle")}>
           {!preference.ready ? <ActivityIndicator accessibilityLabel={t("loading")} /> : null}
           <Text style={styles.text}>{t("icd11DorisPreferenceDescription")}</Text>
-          <Text style={styles.muted}>{t(account?.standalone ? "icd11DorisPreferenceScopeStandalone" : isPlusVariant() ? "icd11DorisPreferenceScope" : "icd11DorisPreferenceScopeOnline")} {t("icd11DorisPreferenceChangeLater")}</Text>
+          <Text style={styles.muted}>{t(account?.standalone ? "icd11DorisPreferenceScopeStandalone" : "icd11DorisPreferenceScope")} {t("icd11DorisPreferenceChangeLater")}</Text>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Button label={t("icd11DorisPreferenceEnable")} loading={busy} disabled={busy || !preference.ready} onPress={() => void answer(true)} />
           <Button kind="secondary" label={t("icd11DorisPreferenceNotNow")} loading={busy} disabled={busy || !preference.ready} onPress={() => void answer(false)} />

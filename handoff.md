@@ -17,6 +17,30 @@ Collect screens are frozen (`docs/design/collect-petrol-theme/README.md`);
 any change to one is re-checked against `frozen/` (light, dark, high
 contrast, Large text) and refrozen.
 
+## Next session prompt (owner, 2026-11-06)
+
+"Drive a full end-to-end test of DigitVA Collect and Collect Plus on the
+Android emulator (DigitVA_Pixel_7) and the iOS 27.2 simulator (iPhone 17 Pro
+(iOS 27.2)) against the LOCAL dev server only (localhost:8051 via adb
+reverse; seeded TST001 accounts in docs/current-state/test-project-tst001.md).
+Cover: start, every sign-in/enrol path (QR, email, demo, standalone), PIN
+lockout and Forgot PIN, record a death and update it, GPS, the interview
+(start, consent approve and refuse, stop, resume with every answer and
+attachment intact, narrative audio record/pause/stop/delete, document photos
+with scanner, blur prompt and full-screen viewer), reopen a ready interview,
+sync, update, resend, and every in-app coding workflow (online and offline,
+standalone View/Revise). Write a repeatable e2e script where feasible (Maestro
+or Detox; propose first) and record every finding with screenshots in
+docs/current-state/collect-e2e-run-<date>.md, one bead per failure."
+Uncommitted in the tree for that session to verify first, then commit:
+`digitva-lq5m` photo tools (vendor question-controls, sharpness, viewer,
+scanner plugin, gesture-handler; policy in docs/policy/phone-attachments.md
+decision 9), the resumed-photo preview fix, and vendor test mocks. Dev builds
+with them are on both simulators; the Samsung needs the new debug APK
+(android/app/build/outputs/apk/debug). After it: waveform recorder
+(owner-approved, not started). Metro: 8081 Plus, 8082 plain; the Mac's LAN
+IP is now 192.168.1.18.
+
 ## Ranked next steps
 
 1. Collection gate, app side (`digitva-dj29`, the iOS/Expo session): the

@@ -122,7 +122,7 @@ class DmBackendFixesTests(BaseTestCase):
         """/kpi reads the analytics MVs, which conftest drops (test-harness.md)."""
         for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         db.session.execute(sa.text(f"CREATE UNIQUE INDEX dmfix_core_va_sid ON {CORE_MV_NAME} (va_sid)"))
         db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
         db.session.execute(sa.text(f"CREATE UNIQUE INDEX dmfix_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)"))

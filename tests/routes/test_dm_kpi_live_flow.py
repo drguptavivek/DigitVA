@@ -1,8 +1,9 @@
 """Live KPI flow, time to code and aging (digitva-0hul step 2, digitva-r5s0 2a/2b).
 
 docs/policy/kpis.md: canonical definitions, C-01, C-04, C-19, C-07, C-08.
-Every figure is computed live from workflow events; days are the viewer's
-(Asia/Kolkata here unless a test says otherwise). The compute functions are
+Every figure is computed live from workflow events; days are each event's
+project's (docs/policy/kpis.md, "Days follow the project clock"): Asia/Kolkata
+unless a project here says otherwise. The compute functions are
 called directly, as MCP will; the C-09 window check goes through its route.
 
 Each assertion of an absence is preceded by the subject's presence.
@@ -50,8 +51,14 @@ def _ist(day, hour, minute=0):
 class DmKpiLiveFlowTests(BaseTestCase):
     #: SHORT has a 60-minute recode window, LONG the 24-hour default.
     SHORT, LONG = "KFL001", "KFL002"
-    SITES = {SHORT: "KF01", LONG: "KF02"}
-    FORMS = {SHORT: "KFL001KF0101", LONG: "KFL002KF0201"}
+    #: Project clocks other than the default, for the "days follow the project clock" tests.
+    UTC_P, NY_P = "KFL003", "KFL004"
+    SITES = {SHORT: "KF01", LONG: "KF02", UTC_P: "KF03", NY_P: "KF04"}
+    FORMS = {
+        SHORT: "KFL001KF0101", LONG: "KFL002KF0201",
+        UTC_P: "KFL003KF0301", NY_P: "KFL004KF0401",
+    }
+    ZONES = {UTC_P: "UTC", NY_P: "America/New_York"}
 
     @classmethod
     def setUpClass(cls):
@@ -68,6 +75,7 @@ class DmKpiLiveFlowTests(BaseTestCase):
                 project_status=VaStatuses.active,
                 project_registered_at=now, project_updated_at=now,
                 recode_window_minutes=60 if project_id == cls.SHORT else 1440,
+                timezone=cls.ZONES.get(project_id, "Asia/Kolkata"),
             ))
             db.session.add(VaResearchProjects(
                 project_id=project_id, project_code=project_id,
@@ -97,9 +105,9 @@ class DmKpiLiveFlowTests(BaseTestCase):
 
     # -- fixtures ----------------------------------------------------------
 
-    def _scope(self, *projects, tz="Asia/Kolkata"):
+    def _scope(self, *projects):
         projects = projects or (self.SHORT,)
-        return DmScope(pairs=sorted((p, self.SITES[p]) for p in projects), unit_ids=[], tz=tz)
+        return DmScope(pairs=sorted((p, self.SITES[p]) for p in projects), unit_ids=[])
 
     def _case(self, state, *, created_at, events=(), updated_at=None, project=None):
         """A submission now in *state*; *events* are (transition, previous, current, at)."""
@@ -190,9 +198,6 @@ class DmKpiLiveFlowTests(BaseTestCase):
         self.assertEqual(ist[utc_day.isoformat()]["coded"], 0)
         self.assertEqual(self._by_date(compute_c19(self._scope(), 7)["data"])[next_day]["outflow"], 1)
 
-        utc = self._by_date(compute_c01(self._scope(tz="UTC"), 8)["data"])
-        self.assertEqual(utc[utc_day.isoformat()]["coded"], 1)
-        self.assertEqual(utc[next_day]["coded"], 0)
 
     def test_net_inflow_over_28_days_flags_a_backlog_that_does_not_clear(self):
         today = datetime.now(IST).date()
@@ -322,8 +327,8 @@ class DmKpiLiveFlowTests(BaseTestCase):
         self.assertIn("recode window", alert["dm_action"])
         self.assertNotIn("24h", alert["dm_action"])
 
-    def test_burndown_projected_start_is_the_first_case_day_in_the_viewers_timezone(self):
-        # 20:00 UTC on 1 Jan is 01:30 IST on 2 Jan: the projected line starts on the viewer's day.
+    def test_burndown_projected_start_is_the_first_case_day_on_the_project_clock(self):
+        # 20:00 UTC on 1 Jan is 01:30 IST on 2 Jan: the projected line starts on the project's day.
         self._case("ready_for_coding", created_at=datetime(2000, 1, 1, 20, 0, tzinfo=UTC))
         project = db.session.get(VaProjectMaster, self.SHORT)
         project.project_target_completion_date = datetime(2000, 1, 5).date()
@@ -375,3 +380,157 @@ class DmKpiLiveFlowTests(BaseTestCase):
         self._login(str(self.base_admin_user.user_id))
         response = self.client.get("/api/v1/analytics/dm-kpi/pipeline/aging?by=unit")
         self.assertEqual(response.status_code, 400)
+
+    # -- Days follow the project clock (digitva-apee) ------------------------
+
+    def _finalized_at(self, project, at, *, actor=None):
+        """A coded case of *project* whose coding started 10 minutes before *at*."""
+        return self._case("coder_finalized", project=project, created_at=at - timedelta(hours=1), events=[
+            ("coding_started", "ready_for_coding", "coding_in_progress", at - timedelta(minutes=10)),
+            ("coder_finalized", "coding_in_progress", "coder_finalized", at),
+        ])
+
+    def test_an_event_at_2330_utc_lands_on_each_projects_own_day(self):
+        # Wednesday 12 March 2031, 15:00 UTC: 20:30 in Kolkata, 11:00 in New York.
+        now = datetime(2031, 3, 12, 15, 0, tzinfo=UTC)
+        late = datetime(2031, 3, 10, 23, 30, tzinfo=UTC)  # 05:00 on the 11th in Kolkata
+        for project in (self.SHORT, self.UTC_P, self.NY_P):
+            self._finalized_at(project, late)
+        all_three = self._scope(self.SHORT, self.UTC_P, self.NY_P)
+
+        statements = []
+
+        def record(_conn, _cursor, statement, *_args):
+            if not statement.startswith(("SAVEPOINT", "RELEASE SAVEPOINT")):  # the test harness's
+                statements.append(statement)
+
+        from sqlalchemy import event
+        with mock.patch("app.services.project_clock._now", return_value=now):
+            event.listen(db.engine, "before_cursor_execute", record)
+            try:
+                grid = compute_c01(all_three, 8)["data"]
+            finally:
+                event.remove(db.engine, "before_cursor_execute", record)
+            singles = {
+                p: self._by_date(compute_c01(self._scope(p), 8)["data"])
+                for p in (self.SHORT, self.UTC_P, self.NY_P)
+            }
+            flow = self._by_date(compute_c19(all_three, 7)["data"])
+
+        # Three queries as before, plus the scope's project zones once.
+        self.assertEqual(len(statements), 4, [" ".join(s.split())[:90] for s in statements])
+        rows = self._by_date(grid)
+        self.assertEqual(grid[0]["date"], "2031-03-12")
+        # The sum of each project's local day.
+        self.assertEqual(rows["2031-03-11"]["coded"], 1)
+        self.assertEqual(rows["2031-03-10"]["coded"], 2)
+        self.assertEqual(rows["2031-03-11"]["new_from_odk"], 1)  # created 22:30 UTC
+        self.assertEqual(rows["2031-03-10"]["new_from_odk"], 2)
+        self.assertEqual(flow["2031-03-11"]["outflow"], 1)
+        self.assertEqual(flow["2031-03-10"]["outflow"], 2)
+        self.assertEqual(singles[self.SHORT]["2031-03-11"]["coded"], 1)
+        self.assertEqual(singles[self.SHORT]["2031-03-10"]["coded"], 0)
+        for project in (self.UTC_P, self.NY_P):
+            self.assertEqual(singles[project]["2031-03-10"]["coded"], 1, project)
+            self.assertEqual(singles[project]["2031-03-11"]["coded"], 0, project)
+
+    def test_today_and_last_7_days_are_each_projects_own(self):
+        # Thursday 12 June 2031, 15:00 UTC: today is the 12th in all three zones.
+        now = datetime(2031, 6, 12, 15, 0, tzinfo=UTC)
+        # 03:00 UTC on the 12th: today in Kolkata and UTC, 23:00 on the 11th in New York.
+        early = datetime(2031, 6, 12, 3, 0, tzinfo=UTC)
+        # 02:00 UTC on the 6th: the first of the last 7 days in Kolkata (07:30)
+        # and UTC, 22:00 on the 5th in New York, a day outside its window.
+        edge = datetime(2031, 6, 6, 2, 0, tzinfo=UTC)
+        for project in (self.SHORT, self.UTC_P, self.NY_P):
+            self._finalized_at(project, early)
+            self._finalized_at(project, edge)
+        all_three = self._scope(self.SHORT, self.UTC_P, self.NY_P)
+
+        with mock.patch("app.services.project_clock._now", return_value=now):
+            today_all = compute_c08(all_three, 1)["count"]
+            week_all = compute_c08(all_three, 7)["count"]
+            today_ny = compute_c08(self._scope(self.NY_P), 1)["count"]
+            week_ny = compute_c08(self._scope(self.NY_P), 7)["count"]
+            today_utc = compute_c08(self._scope(self.UTC_P), 1)["count"]
+
+        self.assertEqual(today_utc, 1)
+        self.assertEqual(today_ny, 0)
+        self.assertEqual(today_all, 2)
+        self.assertEqual(week_ny, 1)
+        self.assertEqual(week_all, 5)
+
+    def test_the_viewers_timezone_does_not_move_a_coders_day(self):
+        from app.services.data_management_service import dm_coder_daily_statistics
+
+        now = datetime(2031, 9, 10, 15, 0, tzinfo=UTC)
+        late = datetime(2031, 9, 8, 23, 30, tzinfo=UTC)  # the 9th in Kolkata, the 8th in UTC
+        admin = self.base_admin_user
+        for project in (self.SHORT, self.UTC_P):
+            sid = self._finalized_at(project, late)
+            db.session.execute(
+                VaSubmissionWorkflowEvent.__table__.update()
+                .where(VaSubmissionWorkflowEvent.va_sid == sid)
+                .values(actor_user_id=admin.user_id)
+            )
+        db.session.commit()
+
+        def daily(project, viewer_tz):
+            admin.timezone = viewer_tz
+            db.session.commit()
+            with mock.patch("app.services.project_clock._now", return_value=now):
+                result = dm_coder_daily_statistics(admin, project=project, days=7)
+            row = next(r for r in result["rows"] if r["coder_id"] == str(admin.user_id))
+            return row["daily"], result["timezone"]
+
+        try:
+            for viewer_tz in ("Asia/Kolkata", "America/Los_Angeles"):
+                kolkata, label = daily(self.SHORT, viewer_tz)
+                # The admin holds every project, in more than one zone.
+                self.assertEqual(label, "project time zones")
+                self.assertEqual((kolkata["2031-09-09"], kolkata["2031-09-08"]), (1, 0), viewer_tz)
+                utc, _ = daily(self.UTC_P, viewer_tz)
+                self.assertEqual((utc["2031-09-08"], utc["2031-09-09"]), (1, 0), viewer_tz)
+        finally:
+            admin.timezone = "Asia/Kolkata"
+            db.session.commit()
+
+    def test_project_clock_windows_parse_and_bind_on_every_route(self):
+        """Each text-SQL window moved onto the project clock, through its route.
+        The critical path reads the analytics MV, which this class does not
+        build; tests/routes/test_dm_kpi_outcomes.py runs it."""
+        today = datetime.now(IST).date()
+        sid = self._finalized_at(self.UTC_P, _ist(today, 8))
+        db.session.execute(
+            VaSubmissionWorkflowEvent.__table__.update()
+            .where(VaSubmissionWorkflowEvent.va_sid == sid)
+            .values(actor_user_id=self.base_admin_user.user_id)
+        )
+        project = db.session.get(VaProjectMaster, self.UTC_P)
+        project.project_target_completion_date = today + timedelta(days=30)
+        db.session.commit()
+        self._login(str(self.base_admin_user.user_id))
+        base = "/api/v1/analytics/dm-kpi"
+        try:
+            for path, key in (
+                ("/pipeline/reviewer-throughput", "last_7d"),
+                ("/pipeline/upstream-changes", "d_wt_04_reopened_7d"),
+                ("/pipeline/time-to-code?range=today", "count"),
+                ("/pipeline/time-to-code", "count"),
+                ("/sync/latency?range=today", "count"),
+                ("/sync/latency", "count"),
+                ("/workflow/state-velocity?days=7", "states"),
+                ("/workflow/daily-transitions?days=7", "days"),
+                ("/coders/output?range=7d", "heatmap"),
+                ("/language/pendency", None),
+                ("/burndown/", "c16_total_coded_7d"),
+                ("/grid/?days=8", "data"),
+            ):
+                with self.subTest(path=path):
+                    response = self.client.get(base + path)
+                    self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+                    if key:
+                        self.assertIn(key, response.get_json())
+        finally:
+            project.project_target_completion_date = None
+            db.session.commit()

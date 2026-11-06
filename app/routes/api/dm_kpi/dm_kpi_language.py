@@ -20,7 +20,6 @@ grouping and average below (docs/policy/odk-retired-submissions.md).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify
@@ -28,7 +27,13 @@ from flask import Blueprint, jsonify
 from app import db
 from app.decorators import role_required
 from app.routes.api.dm_kpi.dm_kpi_coders import coders_covering_scope_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
+from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
+    cached_kpi,
+    clock_params,
+    dm_scope,
+    in_last_days_sql,
+)
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.services.workflow.definition import (
@@ -82,7 +87,7 @@ def _language_table(scope, states_sql: str) -> list[dict]:
         {**IN_ODK_BIND, **scope.params},
     ).mappings().all()
 
-    # Mean daily coding rate per language, last 7 days; demo sessions dropped.
+    # Mean daily coding rate per language, last 7 project-clock days; demo sessions dropped.
     rates = db.session.execute(
         sa.text(f"""
             SELECT lower(trim(s.va_narration_language)) AS lang_key,
@@ -90,16 +95,17 @@ def _language_table(scope, states_sql: str) -> list[dict]:
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
+            {CLOCK_JOIN_SQL}
             WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
               AND e.transition_id IN ('coder_finalized', 'recode_finalized')
-              AND e.event_created_at >= :cutoff
+              AND {in_last_days_sql("e.event_created_at", "e.event_created_at >= :clock_floor")}
               AND {NOT_DEMO_EVENT_SQL}
               AND s.va_narration_language IS NOT NULL
             GROUP BY 1
         """),
-        {**IN_ODK_BIND, **scope.params, "cutoff": datetime.now(timezone.utc) - timedelta(days=7)},
+        {**IN_ODK_BIND, **scope.params, **clock_params(7)},
     ).mappings().all()
     rate_map = {r["lang_key"]: round(float(r["daily_rate"]), 1) for r in rates}
 

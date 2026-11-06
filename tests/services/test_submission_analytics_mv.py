@@ -144,7 +144,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         ):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
 
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         db.session.execute(sa.text(
             f"CREATE UNIQUE INDEX ix_test_core_va_sid ON {CORE_MV_NAME} (va_sid)"
         ))
@@ -519,7 +519,6 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         filtered_stats = get_dm_project_site_stats_from_mv(
             project_ids=[self.PROJECT_ID],
             project_site_pairs=[],
-            timezone_name="Asia/Kolkata",
             workflow="coder_finalized",
             gender="male",
         )
@@ -2143,12 +2142,10 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         stats = get_dm_project_site_stats_from_mv(
             project_ids=[],
             project_site_pairs=[(self.PROJECT_ID, self.SITE_ID)],
-            timezone_name="UTC",
         )
         all_stats = get_dm_project_site_stats_from_mv(
             project_ids=[],
             project_site_pairs=[(self.PROJECT_ID, self.SITE_ID)],
-            timezone_name="UTC",
             odk_sync="all",
         )
 
@@ -2313,6 +2310,64 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(by_code["ROLLUPD01"], 2)
         self.assertEqual(by_code["ROLLUPP01"], 1)
 
+    def _clock_day(self, sid):
+        return db.session.execute(
+            sa.text(
+                f"SELECT submission_date, submission_week_start, submission_month_start"
+                f" FROM {CORE_MV_NAME} WHERE va_sid = :sid"
+            ),
+            {"sid": sid},
+        ).one()
+
+    def test_core_mv_days_and_site_stats_follow_the_project_clock(self):
+        """docs/policy/kpis.md, "Days follow the project clock": 23:30 UTC on
+        Monday 31 March is Tuesday 1 April in Kolkata, still 31 March in UTC
+        and New York; the site stats' today and this week are the project's."""
+        from datetime import UTC, date
+        from unittest import mock
+
+        sid = "uuid:mv-project-clock"
+        self._add_submission(sid, {"age_group": "adult", "ageInYears": "40"})
+        db.session.get(VaSubmissions, sid).va_submission_date = datetime(2031, 3, 31, 23, 30)
+        db.session.commit()
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        self.assertEqual(project.timezone, "Asia/Kolkata")
+        pair = [(self.PROJECT_ID, self.SITE_ID)]
+        now = datetime(2031, 4, 1, 6, 0, tzinfo=UTC)
+
+        def stats():
+            with mock.patch("app.services.project_clock._now", return_value=now):
+                return get_dm_project_site_stats_from_mv(
+                    project_ids=[], project_site_pairs=pair, odk_sync="all"
+                )[0]
+
+        try:
+            refresh_submission_analytics_mv(concurrently=False)
+            self.assertEqual(
+                tuple(self._clock_day(sid)), (date(2031, 4, 1), date(2031, 3, 31), date(2031, 4, 1))
+            )
+            row = stats()
+            self.assertEqual((row["today_submissions"], row["this_week_submissions"]), (1, 1))
+
+            for zone in ("UTC", "America/New_York"):
+                project.timezone = zone
+                db.session.commit()
+                refresh_submission_analytics_mv(concurrently=False)
+                self.assertEqual(
+                    tuple(self._clock_day(sid)),
+                    (date(2031, 3, 31), date(2031, 3, 31), date(2031, 3, 1)),
+                    zone,
+                )
+                row = stats()
+                # Today (1 April) is not the submission's day; this week is.
+                self.assertGreaterEqual(row["total_submissions"], 1)
+                self.assertEqual(
+                    (row["today_submissions"], row["this_week_submissions"]), (0, 1), zone
+                )
+        finally:
+            project.timezone = "Asia/Kolkata"
+            db.session.commit()
+
     def test_no_tree_project_kpi_and_site_stats_unchanged(self):
         """A project with no organization tree is untouched by the new
         columns: KPI counts and site-grouped stats behave exactly as before.
@@ -2326,7 +2381,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         scope = [(self.PROJECT_ID, self.SITE_ID)]
         kpi = get_dm_kpi_from_mv([], scope)
         stats = get_dm_project_site_stats_from_mv(
-            project_ids=[], project_site_pairs=scope, timezone_name="UTC"
+            project_ids=[], project_site_pairs=scope
         )
 
         self.assertGreaterEqual(kpi["total_submissions"], 1)

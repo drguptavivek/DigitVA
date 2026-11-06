@@ -27,7 +27,6 @@ grouping and average below (docs/policy/odk-retired-submissions.md).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
@@ -41,7 +40,15 @@ from app.services.workflow.revision_request_sql import (
     effective_workflow_state_sql,
     revision_reasons_sql,
 )
-from app.routes.api.dm_kpi.dm_kpi_scope import DmScope, cached_kpi, dm_scope
+from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
+    DmScope,
+    cached_kpi,
+    clock_day_sql,
+    clock_params,
+    dm_scope,
+    in_last_days_sql,
+)
 
 bp = Blueprint("dm_kpi_workflow", __name__)
 log = logging.getLogger(__name__)
@@ -293,7 +300,7 @@ def state_velocity():
     range_days = min(int(request.args.get("days", 30)), 90)
 
     def compute():
-        cutoff = datetime.now(timezone.utc) - timedelta(days=range_days)
+        # The last range_days days on each event's project clock.
 
         rows = db.session.execute(
             sa.text(f"""
@@ -306,10 +313,11 @@ def state_velocity():
                     FROM va_submission_workflow_events cur
                     JOIN va_submissions s ON s.va_sid = cur.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
+                    {CLOCK_JOIN_SQL}
                     WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
-                      AND cur.event_created_at >= :cutoff
+                      AND {in_last_days_sql("cur.event_created_at", "cur.event_created_at >= :clock_floor")}
                       AND cur.previous_state IS NOT NULL
                       -- Tester runs are not workflow activity (digitva-ggc3):
                       -- no event the tester wrote up to its return.
@@ -358,7 +366,7 @@ def state_velocity():
                 GROUP BY previous_state
                 ORDER BY avg_seconds DESC
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, **clock_params(range_days)},
         ).mappings().all()
 
         states = []
@@ -429,12 +437,12 @@ def daily_transitions():
     days = min(int(request.args.get("days", 7)), 90)
 
     def compute():
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        # Each event on its own project's day, the last *days* of them.
 
         rows = db.session.execute(
             sa.text(f"""
                 SELECT
-                    DATE(e.event_created_at) AS day,
+                    {clock_day_sql("e.event_created_at")} AS day,
                     (CASE WHEN e.current_state = 'finalized_upstream_changed'
                            AND e.transition_reason IN {_REVISION_REASONS_SQL}
                           THEN '{SENT_BACK_FOR_REVISION}'
@@ -443,10 +451,11 @@ def daily_transitions():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
-                  AND e.event_created_at >= :cutoff
+                  AND {in_last_days_sql("e.event_created_at", "e.event_created_at >= :clock_floor")}
                   -- Tester runs are not workflow activity (digitva-ggc3).
                   AND NOT EXISTS (
                       SELECT 1 FROM va_submission_workflow_events tr
@@ -458,7 +467,7 @@ def daily_transitions():
                 GROUP BY 1, 2
                 ORDER BY day ASC
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, **clock_params(days)},
         ).mappings().all()
 
         # Pivot into per-day dicts

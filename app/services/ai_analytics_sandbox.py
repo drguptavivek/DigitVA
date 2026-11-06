@@ -477,17 +477,26 @@ def run_query(sql, user, *, statement_timeout_ms: int = STATEMENT_TIMEOUT_MS,
     """
     sql, names = _validate(sql)
     builds = tables.build_selects(user, names)
+    zone = tables.scope_timezone(user)
     with _sandbox_connection() as conn:
         _require_reader(conn)
-        return _run(conn, builds, sql, int(statement_timeout_ms), int(output_max_bytes))
+        return _run(conn, builds, sql, int(statement_timeout_ms), int(output_max_bytes), zone)
 
 
 def _run(conn, builds, sql: str, statement_timeout_ms: int,
-         output_max_bytes: int = AI_OUTPUT_MAX_BYTES) -> SandboxResult:
+         output_max_bytes: int = AI_OUTPUT_MAX_BYTES, zone: str | None = None) -> SandboxResult:
     """The database half of ``run_query``, with no parser check (tests call it
-    directly to prove the database limits hold on their own)."""
+    directly to prove the database limits hold on their own).
+
+    *zone*, when given, is the session TimeZone for the query, so CURRENT_DATE
+    is today on the scope's one project clock (docs/policy/kpis.md, "Days
+    follow the project clock"). A scope over projects in different zones
+    keeps the server's zone: no single "today" fits it.
+    """
     try:
         with _cube_transaction(conn, builds):
+            if zone:
+                conn.execute(sa.text("SELECT set_config('TimeZone', :zone, true)"), {"zone": zone})
             _become_reader(conn, builds, statement_timeout_ms)
             result = conn.execute(
                 sa.text("SELECT * FROM digitva_ai_run(:query, :max_bytes)"),

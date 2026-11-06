@@ -42,6 +42,7 @@ from app.models.va_allocations import VaAllocations
 from app.models.va_selectives import VaAccessRoles, VaAllocation, VaStatuses
 from app.services.authz import user_list_filter
 from app.services.data_management_service import dm_grant_scope
+from app.services.project_clock import DEFAULT_PROJECT_TIMEZONE
 from app.services.submission_analytics_mv import (
     COD_SNAPSHOT_MV_NAME,
     CORE_MV_NAME,
@@ -124,6 +125,21 @@ def _scope_projects(scope) -> list[str]:
     return sorted(scope.project_ids | {p for p, _ in scope.pairs} | scope.unit_project_ids)
 
 
+def scope_timezone(user) -> str | None:
+    """The one project-clock zone of *user*'s AI scope, or None when its
+    projects use different zones (or it has none). One query."""
+    projects = _scope_projects(dm_grant_scope(user))
+    rows = db.session.execute(
+        sa.select(VaProjectMaster.project_id, VaProjectMaster.timezone)
+        .where(VaProjectMaster.project_id.in_(projects))
+    ).all()
+    zones = {tz or DEFAULT_PROJECT_TIMEZONE for _, tz in rows}
+    if len(rows) < len(projects):
+        # A project with no master row is on the default clock, as in DmScope.
+        zones.add(DEFAULT_PROJECT_TIMEZONE)
+    return zones.pop() if len(zones) == 1 else None
+
+
 def scope_places(user) -> dict:
     """The projects and sites in *user*'s AI table scope, for the
     model to match a question's wording against exact values (``digitva-g72d``).
@@ -186,8 +202,23 @@ def _names(names) -> list:
     return [names.c[c] for c in ORG_NAME_COLUMNS]
 
 
+#: The project clock of ``_core``'s project (docs/policy/kpis.md, "Days follow
+#: the project clock"); outer-joined so a missing master row takes the default.
+_clock = sa.table("va_project_master", sa.column("project_id"), sa.column("timezone"))
+
+
+def _with_clock(source):
+    return source.outerjoin(_clock, _clock.c.project_id == _core.c.project_id)
+
+
+def _local(column):
+    """Naive-UTC *column* as wall time on its project's clock (needs ``_with_clock``)."""
+    zone = sa.func.coalesce(_clock.c.timezone, DEFAULT_PROJECT_TIMEZONE)
+    return sa.func.timezone(zone, sa.func.timezone("UTC", column))
+
+
 def _month(column):
-    return sa.cast(sa.func.date_trunc("month", column), sa.Date)
+    return sa.cast(sa.func.date_trunc("month", _local(column)), sa.Date)
 
 
 def cube_select(user) -> sa.Select:
@@ -224,7 +255,9 @@ def cube_select(user) -> sa.Select:
         dm_review.c.va_dmreview_reason.label("dm_not_codeable_reason"),
         *_names(names),
         _month(_snap.c.authoritative_saved_at).label("final_saved_month"),
-        sa.cast(sa.func.date_trunc("week", _snap.c.authoritative_saved_at), sa.Date).label("final_saved_week"),
+        sa.cast(sa.func.date_trunc("week", _local(_snap.c.authoritative_saved_at)), sa.Date).label(
+            "final_saved_week"
+        ),
     )
     return (
         sa.select(
@@ -238,11 +271,13 @@ def cube_select(user) -> sa.Select:
         # totals never join the COD snapshot: an outer join keeps them equal
         # when the snapshot lags a refresh.
         .select_from(
-            _core.join(_demo, _demo.c.va_sid == _core.c.va_sid)
-            .join(_sub, _sub.c.va_sid == _core.c.va_sid)
-            .outerjoin(_snap, _snap.c.va_sid == _core.c.va_sid)
-            .outerjoin(dm_review, dm_review.c.va_sid == _core.c.va_sid)
-            .outerjoin(names, names.c.org_unit_id == _core.c.org_unit_id)
+            _with_clock(
+                _core.join(_demo, _demo.c.va_sid == _core.c.va_sid)
+                .join(_sub, _sub.c.va_sid == _core.c.va_sid)
+                .outerjoin(_snap, _snap.c.va_sid == _core.c.va_sid)
+                .outerjoin(dm_review, dm_review.c.va_sid == _core.c.va_sid)
+                .outerjoin(names, names.c.org_unit_id == _core.c.org_unit_id)
+            )
         )
         .where(_scope_filter(scope))
         .group_by(*dimensions)
@@ -443,12 +478,14 @@ def coder_select(user) -> sa.Select:
             sa.literal(0).label("not_codeable"),
         )
         .select_from(
-            _core.join(_demo, _demo.c.va_sid == _core.c.va_sid)
-            .join(_snap, _snap.c.va_sid == _core.c.va_sid)
-            .join(final, final.va_finassess_id == _snap.c.coder_final_assessment_id)
-            .outerjoin(step1, sa.and_(step1.va_iniassess_id == _snap.c.coder_step1_assessment_id,
-                                      step1.va_iniassess_by == coder_id))
-            .outerjoin(alloc, sa.true())
+            _with_clock(
+                _core.join(_demo, _demo.c.va_sid == _core.c.va_sid)
+                .join(_snap, _snap.c.va_sid == _core.c.va_sid)
+                .join(final, final.va_finassess_id == _snap.c.coder_final_assessment_id)
+                .outerjoin(step1, sa.and_(step1.va_iniassess_id == _snap.c.coder_step1_assessment_id,
+                                          step1.va_iniassess_by == coder_id))
+                .outerjoin(alloc, sa.true())
+            )
         )
         .where(in_scope, coder_id.is_not(None), final.is_tester.is_(False))
         .group_by(coder_id, _core.c.project_id, month)
@@ -467,7 +504,7 @@ def coder_select(user) -> sa.Select:
             *filler,
             sa.func.count().label("not_codeable"),
         )
-        .select_from(_core.join(VaCoderReview, VaCoderReview.va_sid == _core.c.va_sid))
+        .select_from(_with_clock(_core.join(VaCoderReview, VaCoderReview.va_sid == _core.c.va_sid)))
         .where(in_scope, VaCoderReview.is_tester.is_(False))
         .group_by(VaCoderReview.va_creview_by, _core.c.project_id, marks_month)
     )

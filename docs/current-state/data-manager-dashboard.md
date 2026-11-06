@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-06
 ---
 
 # Data Manager Dashboard
@@ -69,8 +69,18 @@ step 2): `va_daily_kpi_aggregates` is not read, written or refreshed, and the
 whatever the window: created submissions (Total, New), workflow events
 (Coded, Not analysable, Not Codeable) and `bucket_flow_by_day`
 (`app/routes/api/dm_kpi/dm_kpi_scope.py`) for Pending. Every day of the window
-has a row. Days follow the viewer's timezone (`DmScope.tz`, default
-Asia/Kolkata); coding gates stay on UTC.
+has a row. Days follow the project clock (docs/policy/kpis.md, "Days follow
+the project clock"): each submission and event falls on its own project's day
+(`va_project_master.timezone`, default Asia/Kolkata), joined as `clock_pm`
+(`CLOCK_JOIN_SQL`, `clock_day_sql`), so a day's figure across projects in
+different zones is the sum of each project's local day. The newest row is
+the latest project today in scope (`DmScope.today`); a project still on
+yesterday has nothing on it. The viewer's timezone plays no part, and
+`DmScope` loads the scope's project zones once per request when a figure
+needs them (one query). Relative windows (C-08 today / 7 days, C-16, C-24,
+the 7-day language rate, D-WT-01/02/04, D-WF-02/04, C-13, the critical path)
+are each project's last N days, today included (`in_last_days_sql`, with a
+raw-timestamp floor so the timestamp index still applies).
 
 - **Total:** cumulative, the scope's count now minus the submissions created
   after the day.
@@ -276,7 +286,10 @@ The main `/data-management` dashboard now includes a coder-by-day output table.
 Current semantics:
 
 - rows are coder names derived from workflow events
-- columns cover the last 7 local calendar days, inclusive of today
+- columns cover the last 7 days, inclusive of today; each finalization falls
+  on its project's day and each project counts its own last 7 days; the
+  columns end on the latest project today in the DM's scope, and `timezone`
+  names that zone, or "project time zones" when the projects differ
 - `Total` is the sum of those 7 daily columns
 - `Cumulative` is the all-time first-pass coding total for the currently
   filtered submission scope
@@ -289,13 +302,14 @@ Current filter behavior:
   cards
 - this includes project, site, submitted from/to, ODK status, SmartVA status,
   age group, gender, ODK sync, workflow state, and text search
-- date grouping uses the current user's timezone
+- day grouping uses each project's clock, not the viewer's timezone
 - the table's submitted date, its date sort and the submitted from/to filters all
   use the viewer's local calendar day (`user.timezone`, default Asia/Kolkata);
   from/to are converted to UTC instants (`>= local start`, `< next local day`)
-  so the plain column is compared. The KPI cards and charts read the analytics
-  materialized views and still bucket by UTC day, so a late-evening case can
-  count on a different day there than in the table
+  so the plain column is compared (a per-row display, so it stays on the
+  viewer's clock). The KPI cards and charts read the analytics materialized
+  views, whose days are the project's, so a late-evening case can count on a
+  different day there than in the table
 - the full-submissions CSV writes `va_submission_date` as local wall time
   (`YYYY-MM-DD HH:MM:SS`); the timezone is part of the data-management cache key
   and of the export cache identity

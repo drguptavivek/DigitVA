@@ -50,7 +50,13 @@ from app.decorators import role_required
 from app.routes.api.request_helpers import error as api_error
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
-from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
+from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
+    cached_kpi,
+    clock_params,
+    dm_scope,
+    in_last_days_sql,
+)
 
 bp = Blueprint("dm_kpi_sync", __name__)
 log = logging.getLogger(__name__)
@@ -166,7 +172,7 @@ def sync_latency():
     Formula: va_created_at − va_submission_date per submission.
     Aggregates: P50, P90, P99.
     Denominator scope: ALL-SYNCED (DM-scoped via site_id).
-    Time frames: Today, 7d.
+    Time frames: Today, 7d, by insert day on the submission's project clock.
     Source: va_submissions JOIN va_forms scoped by site_id.
     """
     scope = dm_scope()
@@ -176,12 +182,10 @@ def sync_latency():
     range_param = request.args.get("range", "7d")
 
     def compute():
-        if range_param == "today":
-            cutoff = datetime.now(timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-        else:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        # va_created_at is naive UTC: raw floor for the index, local day exact.
+        window = in_last_days_sql(
+            "timezone('UTC', s.va_created_at)", "s.va_created_at >= :clock_floor_naive"
+        )
 
         row = db.session.execute(
             sa.text(f"""
@@ -198,13 +202,14 @@ def sync_latency():
                     ) AS p99
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
-                  AND s.va_created_at >= :cutoff
+                  AND {window}
                   AND s.va_submission_date IS NOT NULL
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
+            {**IN_ODK_BIND, **scope.params, **clock_params(1 if range_param == "today" else 7)},
         ).mappings().first()
 
         def _fmt(val):

@@ -23,7 +23,6 @@ grouping and average below (docs/policy/odk-retired-submissions.md).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
@@ -33,9 +32,12 @@ from app.decorators import role_required
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     GRANT_PROJECT_JOINS,
     GRANT_PROJECT_SQL,
+    CLOCK_JOIN_SQL,
     DmScope,
     cached_kpi,
+    clock_params,
     dm_scope,
+    in_last_days_sql,
 )
 from app.routes.api.request_helpers import error as api_error
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
@@ -254,16 +256,17 @@ def coder_output():
     range_param = request.args.get("range", "cumulative")
 
     def compute():
-        cutoff = None
-        if range_param == "7d":
-            cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-
-        # Build WHERE clause for date range
+        # Build WHERE clause for date range: the last 7 days on each
+        # assessment's project clock (va_finassess_createdat is naive UTC).
         date_filter = ""
         params: dict = {**IN_ODK_BIND, **scope.params}
-        if cutoff:
-            date_filter = "AND fa.va_finassess_createdat >= :cutoff"
-            params["cutoff"] = cutoff
+        if range_param == "7d":
+            window = in_last_days_sql(
+                "timezone('UTC', fa.va_finassess_createdat)",
+                "fa.va_finassess_createdat >= :clock_floor_naive",
+            )
+            date_filter = f"AND {window}"
+            params.update(clock_params(7))
 
         # C-24 / D-LC-04: coder × language heatmap
         rows = db.session.execute(
@@ -276,6 +279,7 @@ def coder_output():
                 FROM va_final_assessments fa
                 JOIN va_submissions s ON s.va_sid = fa.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 LEFT JOIN va_users u ON u.user_id = fa.va_finassess_by
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}

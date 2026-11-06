@@ -144,16 +144,16 @@
           <input type="number" min="1" max="10080" step="1" class="form-control form-control-sm" id="project-recode-window-minutes-input" value="1440" style="width:6rem;">
         </div>
         {# docs/policy/project-clock-and-gates.md ("Project clock") #}
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex flex-wrap align-items-center gap-2 mw-100">
           <label class="small text-nowrap mb-0" for="project-timezone-input" title="The project clock: its midnight starts the day for coding gate dates, daily limits and the coder daily cap.">Timezone</label>
-          <select class="form-select form-select-sm" id="project-timezone-input" style="width:auto;">
+          <select class="form-select form-select-sm" id="project-timezone-input" style="width:auto;max-width:100%;">
             <option value="Asia/Kolkata">Asia/Kolkata</option>
           </select>
         </div>
         {# docs/policy/kpis.md ("App-Level Settings"): the burndown's target; empty clears it #}
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex flex-wrap align-items-center gap-2 mw-100">
           <label class="small text-nowrap mb-0" for="project-target-completion-date-input" title="The burndown chart's target. Leave empty to remove it.">Target completion</label>
-          <input type="date" class="form-control form-control-sm" id="project-target-completion-date-input" style="width:auto;">
+          <input type="date" class="form-control form-control-sm" id="project-target-completion-date-input" style="width:auto;max-width:100%;">
         </div>
       </div>
 

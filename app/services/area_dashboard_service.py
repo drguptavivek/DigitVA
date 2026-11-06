@@ -57,7 +57,7 @@ from app.models import (
     VaUsers,
     VaWebIntakeDraft,
 )
-from app.services import authz, org_grant_service, training_scope
+from app.services import authz, org_grant_service, project_clock, training_scope
 from app.services.authz.consulted import mark_consulted
 from app.services.case_list_service import (
     CASE_SUBMISSION,
@@ -364,18 +364,28 @@ PERIOD_DAYS = {"30d": 30, "90d": 90, "12m": 365, "all": None}
 DEFAULT_PERIOD = "all"
 
 
-def period_start(period: str) -> datetime | None:
-    """Start of *period* (a ``PERIOD_DAYS`` key) at UTC midnight, or None for all time.
+def period_start(period: str, project_id: str | None = None) -> datetime | None:
+    """Start of *period* (a ``PERIOD_DAYS`` key) at midnight on *project_id*'s
+    clock (aware; the default zone without a project), or None for all time.
 
-    Midnight, so a period count equals the data manager's ``date_from``
-    filter on the same day. Raises ValueError for any other value.
+    Midnight on the project clock (docs/policy/kpis.md, "Days follow the
+    project clock"), so a period count equals the data manager's
+    ``date_from`` filter on the analytics MV's project-local
+    ``submission_date``, and ``.date()`` is that local day. One query for the
+    project's zone, none for all time. Raises ValueError for any other value.
     """
     if period not in PERIOD_DAYS:
         raise ValueError(f"Unknown period {period!r}.")
     days = PERIOD_DAYS[period]
     if days is None:
         return None
-    return datetime.combine(datetime.now(UTC).date() - timedelta(days=days), time.min, UTC)
+    tz_name = None
+    if project_id:
+        tz_name = db.session.scalar(
+            sa.select(VaProjectMaster.timezone).where(VaProjectMaster.project_id == project_id)
+        )
+    today = project_clock.project_day(tz_name).today
+    return datetime.combine(today - timedelta(days=days), time.min, project_clock.zone(tz_name))
 
 
 # ---------------------------------------------------------------------------
@@ -1185,7 +1195,7 @@ def area_summary(
 
 
 def _area_summary(user, project_id, unit_id, site_id, period) -> dict:
-    since = period_start(period)
+    since = period_start(period, project_id)
     scope = resolve_area_scope(user, project_id)
     if scope is None:
         raise AreaNotFound()

@@ -417,7 +417,6 @@ def coder_daily_stats():
                 current_user,
                 **filters,
                 days=7,
-                timezone_name=getattr(current_user, "timezone", "Asia/Kolkata"),
             ),
         )
     )
@@ -708,7 +707,6 @@ def project_site_submissions():
             project_ids=project_ids,
             project_site_pairs=project_site_pairs,
             unit_ids=unit_ids,
-            timezone_name=timezone_name,
             project=project_filter,
             **common_filters,
         ),

@@ -10,8 +10,8 @@ last_updated: 2026-11-06
 
 Owner decisions, 2026-11-06 (beads `digitva-fkec`, `digitva-g7xq` and the
 beads named below). The project clock (stage 1), the coding gate on the project
-clock and the server side of the data-collection gate are built; dashboard
-bucketing (stage 2) and the app's start check are not. Payload and error
+clock, the server side of the data-collection gate and dashboard bucketing
+(stage 2) are built; the app's start check is not. Payload and error
 shapes: `docs/current-state/device-collection-api.md`, "Collection gate".
 
 ## Project clock
@@ -26,8 +26,10 @@ shapes: `docs/current-state/device-collection-api.md`, "Collection gate".
   - the coder daily allocation cap
     ([Coding Workflow State Machine](coding-workflow-state-machine.md),
     "Coder daily allocation limit");
-  - date bucketing in the project's dashboards, KPIs and reports (a second
-    stage; until it lands those keep their current bucketing).
+  - date bucketing in the project's dashboards, KPIs, AI-question results
+    and reports, including relative windows such as "today" and "the last 7
+    days" (stage 2; rules in [KPIs](kpis.md), "Days follow the project
+    clock"). A view spanning projects buckets each project on its own clock.
 - Instants stay instants. A deadline such as the recode `recode_until`, or a
   sync time, is stored in UTC and shown in the viewer's own timezone
   (`{{ dt | user_timezone }}`); the project clock does not change it.

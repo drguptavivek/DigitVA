@@ -129,7 +129,7 @@ class AreaDashboardFixture(BaseTestCase):
 
         for mv in _ANALYTICS_MVS:
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX ix_test_area_core_va_sid ON {CORE_MV_NAME} (va_sid)")
         )

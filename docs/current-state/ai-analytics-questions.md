@@ -48,7 +48,11 @@ state. Chart.js is the vendored `app/static/vendor/chartjs`.
   characters, no `||`); the per-request `ai_cube` temp table (core MV inner
   join demographics MV, as the analytics API, outer join COD snapshot, scoped
   by `dm_grant_scope` + `_mv_scope_filter`); `run_query` through
-  `digitva_ai_run` as `digitva_ai_reader`; `explain_query`; `breakdown`
+  `digitva_ai_run` as `digitva_ai_reader`, with the transaction's `TimeZone`
+  set to the scope's project clock when all its projects share one zone
+  (`ai_analytics_tables.scope_timezone`, one query), so `CURRENT_DATE` is the
+  project's today; a scope over several zones keeps the server's zone;
+  `explain_query`; `breakdown`
   (server SQL as the app user, whitelisted column, bound value); after each
   run `pg_advisory_unlock_all()`.
 - `app/services/ai_analytics_providers.py`: `anthropic` (Claude,
@@ -75,7 +79,8 @@ state. Chart.js is the vendored `app/static/vendor/chartjs`.
   exactly those:
   - `ai_cube`: case counts, adding narration language, org unit names by
     depth (`org_l1_name`..`org_l7_name`), consent mode and the final-saved
-    month and week;
+    month and week (every month and week, here and in `ai_coder`, on the
+    case's project clock);
   - `ai_org_levels`: level names per project;
   - `ai_staff`: staff counts per project, site, unit and role, with no
     names, scoped like the caller's Users page (`authz.user_list_filter`);

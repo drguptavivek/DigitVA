@@ -18,14 +18,13 @@ Stages (``STAGES``) are the pending states (``PENDING_STATES``) plus the
 upstream stage, split by the reason of the event that entered it: an ODK
 change (``finalized_upstream_changed``) or the Collect correction
 (``sent_back_for_revision``, CL-02). Retired, duplicate, demo and tester
-events are left out; the window is the last *period* days in the viewer's
-timezone.
+events are left out; the window is the last *period* days on each event's
+project clock (docs/policy/kpis.md, "Days follow the project clock").
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify
@@ -39,12 +38,13 @@ from app.routes.api.dm_kpi.dm_kpi_outcomes import (
     sibling_median,
 )
 from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
     NOT_DEMO_OUTPUT_SQL,
     DmScope,
     cached_kpi,
+    clock_params,
     dm_scope,
-    local_day_start,
-    local_today,
+    in_last_days_sql,
 )
 from app.routes.api.dm_kpi.dm_kpi_workflow import STATE_LABELS
 from app.routes.api.request_helpers import clamped_int_arg
@@ -77,7 +77,6 @@ MAX_PERIOD_DAYS = 90
 
 def _stage_rows(scope: DmScope, period: int) -> list:
     """Per stage, over the scope and per peer unit: n, p50 and p90 hours. One query."""
-    cutoff = local_day_start(local_today(scope.tz) - timedelta(days=period - 1), scope.tz)
     stage = (
         f"(CASE WHEN e.previous_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}'"
         f" AND COALESCE(prev.transition_reason, '') IN {revision_reasons_sql()}"
@@ -95,6 +94,7 @@ def _stage_rows(scope: DmScope, period: int) -> list:
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 LEFT JOIN mas_org_unit su ON su.org_unit_id = s.org_unit_id
                 LEFT JOIN peers pu ON pu.project_id = su.project_id AND su.path <@ pu.path
                 JOIN LATERAL (
@@ -109,7 +109,7 @@ def _stage_rows(scope: DmScope, period: int) -> list:
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND {NOT_DEMO_OUTPUT_SQL}
-                  AND e.event_created_at >= :cutoff
+                  AND {in_last_days_sql("e.event_created_at", "e.event_created_at >= :clock_floor")}
                   AND e.previous_state = ANY(CAST(:stage_states AS text[]))
                   -- Tester runs are not workflow activity (digitva-ggc3), as
                   -- in state_velocity.
@@ -135,7 +135,7 @@ def _stage_rows(scope: DmScope, period: int) -> list:
             **IN_ODK_BIND,
             **scope.params,
             **peer_params(scope),
-            "cutoff": cutoff,
+            **clock_params(period),
             "stage_states": list(STAGES[:-1]),
         },
     ).mappings().all()

@@ -37,7 +37,7 @@ class MeHomeTests(AuthzFixtureMixin, BaseTestCase):
         # The data manager block reads the core analytics MV; per-test isolation
         # rolls DDL back, so build it here (docs/policy/test-harness.md).
         db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {CORE_MV_NAME} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         db.session.commit()
 
     def _home(self, user):

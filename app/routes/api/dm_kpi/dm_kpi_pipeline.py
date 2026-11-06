@@ -19,7 +19,7 @@ KPIs served:
 Sources (live, digitva-0hul; ``va_daily_kpi_aggregates`` is not read):
   - va_submission_workflow (current states)
   - va_submission_workflow_events (transitions, durations; per-day series
-    through ``bucket_flow_by_day`` in the viewer's timezone)
+    through ``bucket_flow_by_day``, each event on its project's clock)
   - va_submission_upstream_changes (resolution times)
 
 Core KPIs (C-04, C-07, C-08, C-19) are ``compute_<id>(scope, period, by)``
@@ -32,7 +32,7 @@ grouping and average below (docs/policy/odk-retired-submissions.md).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
@@ -48,13 +48,14 @@ from app.services.workflow.definition import (
     PENDING_STATES_SQL,
 )
 from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
     NOT_DEMO_OUTPUT_SQL,
     DmScope,
     bucket_flow_by_day,
     cached_kpi,
+    clock_params,
     dm_scope,
-    local_day_start,
-    local_today,
+    in_last_days_sql,
 )
 from app.routes.api.dm_kpi.dm_kpi_workflow import DM_ACTIONS, STATE_LABELS
 from app.services.workflow.revision_request_sql import (
@@ -160,12 +161,9 @@ def compute_c04(scope: DmScope, period: int = FLOW_AVERAGE_DAYS, by: str | None 
 
 
 def _pending_flow(scope: DmScope, days: int) -> list[dict]:
-    """``bucket_flow_by_day`` over the pending set for the last *days* viewer days."""
-    today = local_today(scope.tz)
-    return bucket_flow_by_day(
-        scope.sql(), scope.params, PENDING_STATES,
-        today - timedelta(days=days - 1), today, scope.tz,
-    )
+    """``bucket_flow_by_day`` over the pending set for the last *days* project-clock days."""
+    today = scope.today()
+    return bucket_flow_by_day(scope, PENDING_STATES, today - timedelta(days=days - 1), today)
 
 
 @bp.get("/aging")
@@ -312,8 +310,8 @@ def _ready_pool_aging(scope: DmScope) -> dict:
 def time_to_code():
     """KPI: C-08 — Time to Code, thin wrapper over ``compute_c08``.
 
-    ``range=today`` is since midnight in the viewer's timezone; anything else
-    is the last 7 days including today.
+    ``range=today`` is since midnight on each project's clock; anything else
+    is the last 7 project days including today.
     """
     scope = dm_scope()
     range_param = "today" if request.args.get("range") == "today" else "7d"
@@ -330,7 +328,7 @@ def time_to_code():
 
 
 def compute_c08(scope: DmScope, period: int = 7, by: str | None = None) -> dict:
-    """C-08: coding-episode durations finalized in the last *period* viewer days.
+    """C-08: coding-episode durations finalized in the last *period* project days.
 
     Each non-demo coder_finalized / recode_finalized event is paired, through
     a LATERAL lookup, with the latest coding_started / recode_started of the
@@ -341,7 +339,6 @@ def compute_c08(scope: DmScope, period: int = 7, by: str | None = None) -> dict:
     """
     if by is not None:
         raise ValueError(f"C-08 does not support by={by!r}")
-    cutoff = local_day_start(local_today(scope.tz) - timedelta(days=period - 1), scope.tz)
     row = db.session.execute(
         sa.text(f"""
             SELECT
@@ -353,6 +350,7 @@ def compute_c08(scope: DmScope, period: int = 7, by: str | None = None) -> dict:
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
+            {CLOCK_JOIN_SQL}
             CROSS JOIN LATERAL (
                 SELECT EXTRACT(EPOCH FROM (e.event_created_at - MAX(st.event_created_at))) AS secs
                 FROM va_submission_workflow_events st
@@ -365,10 +363,10 @@ def compute_c08(scope: DmScope, period: int = 7, by: str | None = None) -> dict:
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
               AND e.transition_id IN ('coder_finalized', 'recode_finalized')
-              AND e.event_created_at >= :cutoff
+              AND {in_last_days_sql("e.event_created_at", "e.event_created_at >= :clock_floor")}
               AND {NOT_DEMO_OUTPUT_SQL}
         """),
-        {**IN_ODK_BIND, **scope.params, "cutoff": cutoff},
+        {**IN_ODK_BIND, **scope.params, **clock_params(period)},
     ).mappings().first()
 
     def _fmt(val):
@@ -555,7 +553,6 @@ def upstream_changes():
         upstream_rate = round(with_upstream / total_coded * 100, 1) if total_coded > 0 else 0.0
 
         # D-WT-02: resolution time (7d)
-        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
         resolution = db.session.execute(
             sa.text(f"""
                 SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
@@ -564,13 +561,14 @@ def upstream_changes():
                 FROM va_submission_upstream_changes uc
                 JOIN va_submissions s ON s.va_sid = uc.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND uc.resolved_at IS NOT NULL
-                  AND uc.resolved_at >= :cutoff
+                  AND {in_last_days_sql("uc.resolved_at", "uc.resolved_at >= :clock_floor")}
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, **clock_params(7)},
         ).scalar()
 
         # D-WT-04: reopen rate (7d)
@@ -588,12 +586,13 @@ def upstream_changes():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
-                  AND e.event_created_at >= :cutoff
+                  AND {in_last_days_sql("e.event_created_at", "e.event_created_at >= :clock_floor")}
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, **clock_params(7)},
         ).mappings().first()
 
         reopened = reopen["reopened"] or 0 if reopen else 0
@@ -736,25 +735,23 @@ def reviewer_throughput():
         return jsonify({"today": 0, "last_7d": 0, "cumulative": 0})
 
     def compute():
-        now = datetime.now(timezone.utc)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        seven_days_ago = now - timedelta(days=7)
-
+        # Today and the last 7 days on each event's project clock.
         row = db.session.execute(
             sa.text(f"""
                 SELECT
-                    COUNT(*) FILTER (WHERE e.event_created_at >= :today) AS today,
-                    COUNT(*) FILTER (WHERE e.event_created_at >= :seven_d) AS last_7d,
+                    COUNT(*) FILTER (WHERE {in_last_days_sql("e.event_created_at", days_param="today_days")}) AS today,
+                    COUNT(*) FILTER (WHERE {in_last_days_sql("e.event_created_at")}) AS last_7d,
                     COUNT(*) AS cumulative
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id = 'reviewer_finalized'
             """),
-            {**IN_ODK_BIND, **scope.params, "today": today_start, "seven_d": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, **clock_params(7), "today_days": 1},
         ).mappings().first()
 
         return {

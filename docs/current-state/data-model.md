@@ -1635,7 +1635,9 @@ Purpose:
 Key fields:
 
 - project/site/form identifiers
-- submission day/week/month buckets
+- submission day/week/month buckets (in the split core MV
+  `va_submission_analytics_core_mv`, on the project clock since migration
+  `d8a4c6e2f1b3`; see [Submission Analytics](submission-analytics.md))
 - workflow and sync states
 - normalized age fields
 - analytics age band

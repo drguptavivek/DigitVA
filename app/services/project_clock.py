@@ -51,17 +51,19 @@ def timezone_choices() -> list[str]:
     return sorted(available_timezones())
 
 
-def project_day(tz_name: str | None, now: datetime | None = None) -> ProjectDay:
-    """The project day containing *now* (default: the current instant) in *tz_name*.
-
-    An unknown or empty zone falls back to the default rather than failing
-    the coder's request; the admin save refuses such names.
-    """
+def zone(tz_name: str | None) -> ZoneInfo:
+    """*tz_name* as a zone; an unknown or empty name falls back to the default
+    rather than failing the request (the admin save refuses such names)."""
     try:
-        zone = ZoneInfo(tz_name or DEFAULT_PROJECT_TIMEZONE)
+        return ZoneInfo(tz_name or DEFAULT_PROJECT_TIMEZONE)
     except (ZoneInfoNotFoundError, ValueError):
-        zone = ZoneInfo(DEFAULT_PROJECT_TIMEZONE)
-    local = (now or _now()).astimezone(zone)
+        return ZoneInfo(DEFAULT_PROJECT_TIMEZONE)
+
+
+def project_day(tz_name: str | None, now: datetime | None = None) -> ProjectDay:
+    """The project day containing *now* (default: the current instant) in *tz_name*
+    (unknown or empty: the default zone, see ``zone``)."""
+    local = (now or _now()).astimezone(zone(tz_name))
     midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
     return ProjectDay(
         today=local.date(),

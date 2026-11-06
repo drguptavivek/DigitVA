@@ -22,9 +22,16 @@ build scoped sub-queries.  The key design decisions:
   counted once.
 - **Every panel is live** (digitva-0hul): ``va_daily_kpi_aggregates`` is
   no longer read. Per-day series come from ``bucket_flow_by_day``, which
-  rebuilds end-of-day counts from workflow events in the viewer's timezone
-  (``DmScope.tz``), so a unit subtree is counted with the same one WHERE as
-  every other panel.
+  rebuilds end-of-day counts from workflow events, so a unit subtree is
+  counted with the same one WHERE as every other panel.
+- **Days follow the project clock** (docs/policy/kpis.md, "Days follow the
+  project clock"): an event's day, "today" and "the last N days" are taken in
+  the timezone of the event's own project (``va_project_master.timezone``),
+  never the viewer's. A query joins ``CLOCK_JOIN_SQL`` and buckets with
+  ``clock_day_sql``; a window filter keeps a raw-timestamp floor beside the
+  per-project date test (``in_last_days_sql``) so the timestamp index still
+  applies. A day series ends on the latest project today in scope
+  (``DmScope.today``).
 - Coder counts keyed by coder grant project (utilization denominator, coders
   per language) include a unit grant's project; they are counts only. The
   coder roster names coders, so it stays on the direct projects: a unit grant
@@ -38,8 +45,8 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo
+from datetime import UTC, date, datetime, time, timedelta
+from functools import cached_property
 
 import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
@@ -47,6 +54,8 @@ from flask_login import current_user
 
 from app import cache, db, limiter
 from app.decorators import role_required
+from app.models import VaProjectMaster
+from app.services import project_clock
 from app.services.authz import grant_cache
 from app.services.data_management_service import dm_grant_scope
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
@@ -57,7 +66,6 @@ from app.services.workflow.definition import (
     TRANSITION_DEMO_STARTED,
     WORKFLOW_CODING_BUCKETS,
 )
-from app.utils.va_render.va_render_07_serialisedates import va_user_timezone_name
 
 log = logging.getLogger(__name__)
 
@@ -85,8 +93,12 @@ _IN_ODK_SQL = in_odk_sql("s")
 # Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
 _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
-#: Viewer timezone when the user has none (docs/policy/kpis.md, Time Frames).
-DEFAULT_KPI_TZ = "Asia/Kolkata"
+#: ``clock_pm``: the ``va_project_master`` row of form ``f``'s project, whose
+#: timezone is the project clock (docs/policy/kpis.md, "Days follow the
+#: project clock"). A LEFT primary-key join: ``va_forms.project_id`` points at
+#: ``va_research_projects``, so a missing row keeps the count and takes the
+#: default zone.
+CLOCK_JOIN_SQL = "LEFT JOIN va_project_master clock_pm ON clock_pm.project_id = f.project_id"
 
 #: Demo exclusion for output and rate KPIs (docs/policy/kpis.md, "Demo
 #: exclusion"): no ``demo_started`` event on the submission and the form's
@@ -108,15 +120,14 @@ class DmScope:
 
     ``pairs`` are bound as two parallel text arrays and ``unit_ids`` (string
     UUIDs of the DM's granted units, the subtree anchors) as a ``uuid[]``;
-    nothing is interpolated. ``tz`` is the viewer's timezone, the day
-    boundary of every per-day figure. ``unit_project_ids`` are the unit grants' projects (counts and project
+    nothing is interpolated. Days are each project's own (``zones``); the
+    viewer's timezone plays no part. ``unit_project_ids`` are the unit grants' projects (counts and project
     metadata only); ``direct`` says the DM holds a project or pair grant
     (authz ``Lens.DM_DIRECT``), which the system-level sync panels need.
     """
 
     pairs: list[tuple[str, str]]
     unit_ids: list[str]
-    tz: str = DEFAULT_KPI_TZ
     unit_project_ids: tuple[str, ...] = ()
     direct: bool = True
     grant_project_ids: tuple[str, ...] = ()
@@ -190,6 +201,39 @@ class DmScope:
         project metadata only."""
         return sorted(set(self.direct_project_ids) | set(self.unit_project_ids))
 
+    @cached_property
+    def zones(self) -> dict[str, str]:
+        """``{project_id: timezone}`` of every project in scope; one query, on first use."""
+        ids = self.all_project_ids
+        if not ids:
+            return {}
+        rows = db.session.execute(
+            sa.select(VaProjectMaster.project_id, VaProjectMaster.timezone).where(
+                VaProjectMaster.project_id.in_(ids)
+            )
+        ).all()
+        return dict(rows)
+
+    def _zone_names(self) -> list[str]:
+        """The scope's zones; the default stands in for a project with no master row."""
+        names = list(self.zones.values())
+        if len(names) < len(self.all_project_ids) or not names:
+            names.append(project_clock.DEFAULT_PROJECT_TIMEZONE)
+        return names
+
+    def today(self) -> date:
+        """The latest project today in scope: the newest row of a day series.
+
+        A project still on yesterday simply has nothing on the newest day.
+        """
+        now = project_clock._now()
+        return max(project_clock.project_day(tz, now).today for tz in self._zone_names())
+
+    def day_floor(self, day: date) -> datetime:
+        """The earliest midnight of *day* across the scope's projects (aware):
+        a raw-timestamp floor no later than any project's start of *day*."""
+        return min(local_day_start(day, tz) for tz in self._zone_names())
+
     @property
     def params(self) -> dict:
         """Bind parameters matching ``sql`` and ``grant_in_scope_sql``."""
@@ -203,36 +247,83 @@ class DmScope:
     def digest(self) -> str:
         """Short stable hash of the scope, for cache keys. Pairs, not sites:
         the same site in another project is another scope; the unit grant
-        ids, not their subtrees: two grants are two scopes. The timezone moves
-        every day boundary, so it is part of the scope too."""
+        ids, not their subtrees: two grants are two scopes. Days follow
+        the projects' clocks, not the viewer's, so no timezone is part of it;
+        a project timezone edit shows once the cached figures expire."""
         raw = (
             "|".join(f"{project_id}/{site_id}" for project_id, site_id in self.pairs)
-            + "#" + "|".join(self.unit_ids) + "#" + self.tz
+            + "#" + "|".join(self.unit_ids)
         )
         return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 
-def local_today(tz: str) -> date:
-    """Today's date in *tz*: the grid's last row, never the database's or the server's day."""
-    return datetime.now(ZoneInfo(tz)).date()
-
-
 def local_day_start(day: date, tz: str) -> datetime:
     """Midnight of *day* in *tz*, as an aware datetime (binds as timestamptz)."""
-    return datetime.combine(day, time(), ZoneInfo(tz))
+    return datetime.combine(day, time(), project_clock.zone(tz))
+
+
+def clock_day_sql(instant_sql: str, pm: str = "clock_pm") -> str:
+    """SQL date of the timestamptz *instant_sql* on its project's clock.
+
+    *pm* is the joined ``va_project_master`` alias (``CLOCK_JOIN_SQL``). A
+    naive-UTC column goes in as ``timezone('UTC', col)``.
+    """
+    return f"DATE(timezone({clock_tz_sql(pm)}, {instant_sql}))"
+
+
+def clock_tz_sql(pm: str = "clock_pm") -> str:
+    """The project clock's zone name of the joined *pm*, the default when unjoined."""
+    return f"COALESCE({pm}.timezone, '{project_clock.DEFAULT_PROJECT_TIMEZONE}')"
+
+
+def in_last_days_sql(
+    instant_sql: str,
+    floor_sql: str = "TRUE",
+    days_param: str = "clock_days",
+    pm: str = "clock_pm",
+) -> str:
+    """WHERE fragment: *instant_sql* falls in the last ``:days_param`` days of
+    its project's clock, today included (1 = today only).
+
+    The date test is exact but wraps the column; *floor_sql* compares the
+    raw column with ``clock_params``' floor (no later than any project's
+    window start), so a timestamp index still serves the scan. Binds
+    ``clock_params``.
+    """
+    today = f"DATE(timezone({clock_tz_sql(pm)}, CAST(:clock_now AS timestamptz)))"
+    return (
+        f"({floor_sql} AND {clock_day_sql(instant_sql, pm)}"
+        f" > {today} - CAST(:{days_param} AS integer))"
+    )
+
+
+def clock_params(days: int, days_param: str = "clock_days") -> dict:
+    """Bind parameters of ``in_last_days_sql`` for a *days*-day window.
+
+    ``clock_floor`` (aware) and ``clock_floor_naive`` (naive UTC, for naive
+    columns) are a day earlier than the earliest possible project start, so
+    no event inside a project's window falls below them.
+    """
+    now = project_clock._now()
+    floor = now - timedelta(days=days + 1)
+    return {
+        "clock_now": now,
+        "clock_floor": floor,
+        "clock_floor_naive": floor.astimezone(UTC).replace(tzinfo=None),
+        days_param: days,
+    }
 
 
 def bucket_flow_by_day(
-    scope_sql: str,
-    params: dict,
+    scope: DmScope,
     states,
     from_date: date,
     to_date: date,
-    tz: str,
 ) -> list[dict]:
     """Daily flow across the boundary of the state set *states*, one query.
 
-    For each day from *from_date* to *to_date* (days in *tz*, ascending):
+    For each day from *from_date* to *to_date* (ascending; each event on its
+    own project's clock, the series ending on ``scope.today()``):
     ``inflow`` (events whose ``previous_state`` is outside *states* and
     ``current_state`` inside), ``outflow`` (the reverse), split into
     ``outflow_coded`` (left for the coded bucket) and ``outflow_other``, and
@@ -247,14 +338,17 @@ def bucket_flow_by_day(
     ~95% of the run time on dev), so ``inflow - outflow`` need not equal the
     day's change in ``end_of_day`` when demo cases moved.
 
-    *scope_sql* / *params* are ``DmScope.sql()`` / ``DmScope.params`` (aliases
-    ``f`` and ``s``). *states* are fixed state names, bound as an array.
+    *scope* gives the WHERE (aliases ``f`` and ``s``). *states* are fixed
+    state names, bound as an array. The scan starts at
+    ``scope.day_floor(from_date)``; events from before a project's own
+    *from_date* fall on days the series does not show.
 
     ponytail: a case with no events (imported before workflow events) is
     counted in ``end_of_day`` for every past day. Add its created date as a
     synthetic entry if that history matters.
     """
-    today = local_today(tz)
+    scope_sql = scope.sql()
+    today = scope.today()
     to_date = min(to_date, today)
     rows = db.session.execute(
         sa.text(f"""
@@ -269,7 +363,7 @@ def bucket_flow_by_day(
                   AND w.workflow_state = ANY(CAST(:flow_states AS text[]))
             ), crossings AS (
                 SELECT
-                    DATE(timezone(:flow_tz, e.event_created_at)) AS d,
+                    {clock_day_sql("e.event_created_at", "pm")} AS d,
                     CASE WHEN e.current_state = ANY(CAST(:flow_states AS text[])) THEN 1 ELSE 0 END
                       - CASE WHEN e.previous_state = ANY(CAST(:flow_states AS text[])) THEN 1 ELSE 0 END
                       AS net,
@@ -303,11 +397,10 @@ def bucket_flow_by_day(
         """),
         {
             **IN_ODK_BIND,
-            **params,
+            **scope.params,
             "flow_states": list(states),
             "flow_coded_states": _CODED_STATES,
-            "flow_tz": tz,
-            "flow_start": local_day_start(from_date, tz),
+            "flow_start": scope.day_floor(from_date),
             "flow_demo_started": TRANSITION_DEMO_STARTED,
         },
     ).mappings().all()
@@ -354,7 +447,6 @@ def dm_scope() -> DmScope:
     scope = DmScope(
         pairs=sorted(pairs),
         unit_ids=sorted(str(u) for u in grants.unit_grant_ids),
-        tz=va_user_timezone_name(current_user),
         unit_project_ids=tuple(sorted(grants.unit_project_ids)),
         direct=grants.has_direct,
         grant_project_ids=tuple(sorted(grants.project_ids)),

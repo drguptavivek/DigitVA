@@ -27,7 +27,7 @@ grouping and average below (docs/policy/odk-retired-submissions.md).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify
@@ -38,11 +38,18 @@ from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.services.workflow.definition import PENDING_STATES_SQL
 from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
     NOT_DEMO_OUTPUT_SQL,
     DmScope,
     cached_kpi,
+    clock_day_sql,
+    clock_params,
     dm_scope,
+    in_last_days_sql,
 )
+
+#: The C-16 window: the last 7 days on each event's project clock, today included.
+_LAST_7_DAYS_SQL = in_last_days_sql("e.event_created_at", "e.event_created_at >= :clock_floor")
 
 bp = Blueprint("dm_kpi_burndown", __name__)
 log = logging.getLogger(__name__)
@@ -109,9 +116,9 @@ def burndown():
 
     def compute():
         # --- C-16: Mean Daily Coding Rate (7d) ---
-        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        last_7d = clock_params(7)
 
-        total_coded_7d = _coded_since(scope.sql(), scope.params, seven_days_ago)
+        total_coded_7d = _coded_last_7_days(scope)
         mean_daily_rate = round(total_coded_7d / 7.0, 1)
 
         # --- C-17: Pending count for prediction ---
@@ -146,18 +153,19 @@ def burndown():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 LEFT JOIN va_users u ON u.user_id = e.actor_user_id
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
-                  AND e.event_created_at >= :cutoff
+                  AND {_LAST_7_DAYS_SQL}
                   AND e.actor_user_id IS NOT NULL
                   AND {NOT_DEMO_OUTPUT_SQL}
                 GROUP BY e.actor_user_id, u.name
                 ORDER BY coded_7d DESC
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, **last_7d},
         ).mappings().all()
 
         # Per-language rate
@@ -170,17 +178,18 @@ def burndown():
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
-                  AND e.event_created_at >= :cutoff
+                  AND {_LAST_7_DAYS_SQL}
                   AND s.va_narration_language IS NOT NULL
                   AND {NOT_DEMO_OUTPUT_SQL}
                 GROUP BY s.va_narration_language
                 ORDER BY coded_7d DESC
             """),
-            {**IN_ODK_BIND, **scope.params, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, **scope.params, **last_7d},
         ).mappings().all()
 
         # --- C-18: Burndown ---
@@ -225,17 +234,18 @@ def burndown():
                 {**IN_ODK_BIND, **scope.params},
             ).scalar() or 0
 
-            # First submission date
+            # First submission date, on the submission's project clock
             first_date = db.session.execute(
                 sa.text(f"""
-                    SELECT MIN(DATE(timezone(:tz, timezone('UTC', va_created_at)))) AS d
+                    SELECT MIN({clock_day_sql("timezone('UTC', s.va_created_at)")}) AS d
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
+                    {CLOCK_JOIN_SQL}
                     WHERE {scope.sql()}
                       AND {_IN_ODK_SQL}
                       AND {_NOT_DUPLICATE_SQL}
                 """),
-                {**IN_ODK_BIND, **scope.params, "tz": scope.tz},
+                {**IN_ODK_BIND, **scope.params},
             ).scalar()
 
             if first_date and total_forms > 0:
@@ -286,36 +296,39 @@ def burndown():
     return jsonify(cached_kpi("burndown", compute))
 
 
-def _coded_since(scope_sql: str, scope_params: dict, cutoff: datetime) -> int:
-    """Live count of non-demo coder_finalized / recode_finalized events since *cutoff*."""
+def _coded_last_7_days(scope: DmScope) -> int:
+    """Live count of non-demo coder_finalized / recode_finalized events in the
+    last 7 days on each event's project clock."""
     return db.session.execute(
         sa.text(f"""
             SELECT COUNT(*) AS cnt
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE {scope_sql}
+            {CLOCK_JOIN_SQL}
+            WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
               AND e.transition_id IN ('coder_finalized', 'recode_finalized')
-              AND e.event_created_at >= :cutoff
+              AND {_LAST_7_DAYS_SQL}
               AND {NOT_DEMO_OUTPUT_SQL}
         """),
-        {**IN_ODK_BIND, **scope_params, "cutoff": cutoff},
+        {**IN_ODK_BIND, **scope.params, **clock_params(7)},
     ).scalar() or 0
 
 
 def _achieved_line(scope: DmScope, total_forms: int) -> list[dict]:
-    """C-18 achieved line: cumulative non-demo finalize events per viewer day.
+    """C-18 achieved line: cumulative non-demo finalize events per project-clock day.
 
     One query over the whole scope; a day with no event has no point.
     """
     rows = db.session.execute(
         sa.text(f"""
-            SELECT DATE(timezone(:tz, e.event_created_at)) AS d, COUNT(*) AS cnt
+            SELECT {clock_day_sql("e.event_created_at")} AS d, COUNT(*) AS cnt
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
+            {CLOCK_JOIN_SQL}
             WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
@@ -324,7 +337,7 @@ def _achieved_line(scope: DmScope, total_forms: int) -> list[dict]:
             GROUP BY 1
             ORDER BY 1
         """),
-        {**IN_ODK_BIND, **scope.params, "tz": scope.tz},
+        {**IN_ODK_BIND, **scope.params},
     ).all()
 
     achieved = []

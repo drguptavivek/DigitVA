@@ -56,7 +56,7 @@ class UnitScopeActivePairTests(UnitScopeFixture, BaseTestCase):
         super().setUpClass()
         for mv in _MVS:
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
         db.session.execute(sa.text(build_submission_cod_detail_mv_sql(include_icd11=True)))
         db.session.commit()

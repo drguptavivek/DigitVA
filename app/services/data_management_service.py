@@ -37,6 +37,7 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
+    VaProjectMaster,
     VaProjectSites,
     VaReviewerFinalAssessments,
     VaReviewerReview,
@@ -57,7 +58,7 @@ from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.mas_icd11_mms import MasIcd11Mms
 from app.services.coding_release_service import deactivate_coding_for_accepted_change
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
-from app.services import training_scope
+from app.services import project_clock, training_scope
 from app.services.icd11_licence import ICD11_CITATION
 from app.services.icd_coding_value import extract_icd_code
 from app.services.final_cod_authority_service import upsert_final_cod_authority
@@ -2002,13 +2003,24 @@ def dm_coded_cod_snapshot_export_csv(
         *SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
     ]
 
+    # submission_date is the submission's day on its project clock
+    # (docs/policy/kpis.md, "Days follow the project clock"), taken here
+    # rather than from the snapshot MV, whose column is the UTC day.
+    project_day = va_local_date(
+        snapshot.c.submission_at,
+        sa.func.coalesce(VaProjectMaster.timezone, project_clock.DEFAULT_PROJECT_TIMEZONE),
+    ).label("submission_date")
     query = (
         sa.select(
-            *(getattr(snapshot.c, header) for header in headers),
+            *(
+                project_day if header == "submission_date" else getattr(snapshot.c, header)
+                for header in headers
+            ),
             *(getattr(snapshot.c, source) for source in COD_SNAPSHOT_ICD11_URI_COLUMNS),
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .outerjoin(VaProjectMaster, VaProjectMaster.project_id == VaForms.project_id)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .join(snapshot, snapshot.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
@@ -2449,9 +2461,14 @@ def dm_coder_daily_statistics(
     visit_note: str = "",
     org_unit: str = "",
     days: int = 7,
-    timezone_name: str = "Asia/Kolkata",
 ) -> dict:
     """Return coder-by-day first-pass finalization counts for filtered DM scope.
+
+    Each finalization falls on its project's day (docs/policy/kpis.md, "Days
+    follow the project clock"), and the window is each project's last *days*
+    days; the columns end on the latest project today in the DM's scope. The
+    viewer's timezone plays no part. ``timezone`` names the one zone of the
+    scope's projects, or "project time zones" when they differ.
 
     Every row of this panel IS staff identity — a named coder and their
     per-day throughput — so a viewer who must not see staff identity gets no
@@ -2464,12 +2481,16 @@ def dm_coder_daily_statistics(
     """
     pii = pii_scope(user)
     days = max(1, min(int(days or 7), 14))
-    try:
-        user_tz = pytz.timezone(timezone_name or "Asia/Kolkata")
-    except pytz.UnknownTimeZoneError:
-        user_tz = pytz.timezone("Asia/Kolkata")
-
-    today_local = datetime.now(user_tz).date()
+    grants = dm_grant_scope(user)
+    scope_projects = (
+        set(grants.project_ids) | {p for p, _ in grants.pairs} | set(grants.unit_project_ids)
+    )
+    zones = sorted(set(db.session.scalars(
+        sa.select(VaProjectMaster.timezone).where(VaProjectMaster.project_id.in_(scope_projects))
+    ))) or [project_clock.DEFAULT_PROJECT_TIMEZONE]
+    zone_label = zones[0] if len(zones) == 1 else "project time zones"
+    now = project_clock._now()
+    today_local = max(project_clock.project_day(tz, now).today for tz in zones)
     date_window = [today_local - timedelta(days=offset) for offset in range(days)]
     date_window.reverse()
     window_start = date_window[0]
@@ -2485,7 +2506,7 @@ def dm_coder_daily_statistics(
                 for day in date_window
             ],
             "rows": [],
-            "timezone": user_tz.zone,
+            "timezone": zone_label,
             "window_days": days,
             "staff_identity_redacted": True,
         }
@@ -2512,7 +2533,7 @@ def dm_coder_daily_statistics(
     )
 
     filtered_submissions_sq = (
-        sa.select(VaSubmissions.va_sid.label("va_sid"))
+        sa.select(VaSubmissions.va_sid.label("va_sid"), VaForms.project_id.label("project_id"))
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .outerjoin(
@@ -2541,9 +2562,14 @@ def dm_coder_daily_statistics(
         sa.and_(*conditions, pii.condition(VaForms.project_id))
     ).subquery()
 
+    # The event's day and "today" on its project's clock. The raw floor keeps
+    # the event_created_at index usable; the date test is exact per project.
+    zone = sa.func.coalesce(VaProjectMaster.timezone, project_clock.DEFAULT_PROJECT_TIMEZONE)
     local_event_day = sa.cast(
-        sa.func.timezone(user_tz.zone, VaSubmissionWorkflowEvent.event_created_at),
-        sa.Date,
+        sa.func.timezone(zone, VaSubmissionWorkflowEvent.event_created_at), sa.Date
+    )
+    project_today = sa.cast(
+        sa.func.timezone(zone, sa.cast(sa.literal(now), sa.DateTime(timezone=True))), sa.Date
     )
 
     event_base = (
@@ -2558,6 +2584,9 @@ def dm_coder_daily_statistics(
             filtered_submissions_sq,
             filtered_submissions_sq.c.va_sid == VaSubmissionWorkflowEvent.va_sid,
         )
+        .outerjoin(
+            VaProjectMaster, VaProjectMaster.project_id == filtered_submissions_sq.c.project_id
+        )
         .join(VaUsers, VaUsers.user_id == VaSubmissionWorkflowEvent.actor_user_id)
         .where(
             VaSubmissionWorkflowEvent.transition_id == "coder_finalized",
@@ -2566,7 +2595,12 @@ def dm_coder_daily_statistics(
     )
 
     window_rows = db.session.execute(
-        event_base.where(local_event_day >= window_start).group_by(
+        event_base.where(
+            VaSubmissionWorkflowEvent.event_created_at >= now - timedelta(days=days + 1),
+            local_event_day > project_today - days,
+            # A project a day behind would reach one day before the columns.
+            local_event_day >= window_start,
+        ).group_by(
             VaSubmissionWorkflowEvent.actor_user_id,
             VaUsers.name,
             local_event_day,
@@ -2639,7 +2673,7 @@ def dm_coder_daily_statistics(
             for day in date_window
         ],
         "rows": rows,
-        "timezone": user_tz.zone,
+        "timezone": zone_label,
         "window_days": days,
         "staff_identity_redacted": False,
     }

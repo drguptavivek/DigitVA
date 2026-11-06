@@ -172,7 +172,7 @@ class DmKpiOutcomesTests(BaseTestCase):
 
         for mv in (COD_SNAPSHOT_MV_NAME, CORE_MV_NAME):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql(icd11_buckets=True)))
         db.session.commit()
 

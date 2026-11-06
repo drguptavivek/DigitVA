@@ -63,6 +63,24 @@ class AiAnalyticsTablesTests(AiAnalyticsFixtures, BaseTestCase):
     def _rows(self, sql, user=None):
         return sandbox.run_query(sql, user or self.base_admin_user).rows
 
+    def test_scope_timezone_counts_a_project_without_a_master_row_on_the_default_clock(self):
+        from types import SimpleNamespace
+
+        from app.models import VaProjectMaster
+
+        def zone_for(*project_ids):
+            scope = SimpleNamespace(project_ids=set(project_ids), pairs=set(), unit_project_ids=set())
+            with mock.patch.object(tables, "dm_grant_scope", return_value=scope):
+                return tables.scope_timezone(self.base_admin_user)
+
+        self.assertEqual(zone_for(PROJECT_ID), "Asia/Kolkata")
+        self.assertEqual(zone_for(PROJECT_ID, "NOMASTR"), "Asia/Kolkata")
+        db.session.get(VaProjectMaster, PROJECT_ID).timezone = "America/New_York"
+        db.session.flush()
+        self.assertEqual(zone_for(PROJECT_ID), "America/New_York")
+        # Mixed clocks: no single zone, so the sandbox keeps the server zone.
+        self.assertIsNone(zone_for(PROJECT_ID, "NOMASTR"))
+
     def test_cube_carries_language_consent_units_and_final_dates(self):
         rows = self._rows(
             "SELECT site_id, narration_language, consent_mode, org_l1_name, org_l2_name, final_saved_month,"

@@ -14,15 +14,16 @@ Sources (live, digitva-0hul; ``va_daily_kpi_aggregates`` is not read):
 
 Design notes:
   Every row comes from the same three queries over the whole scope (direct
-  pairs OR unit subtree, one WHERE), so a submission is counted once. Days
-  are the viewer's (``DmScope.tz``), every day of the window has a row, and
-  today is today in that timezone.
+  pairs OR unit subtree, one WHERE), so a submission is counted once. Each
+  submission and event falls on its own project's day (docs/policy/kpis.md,
+  "Days follow the project clock"), every day of the window has a row, and
+  the newest row is the latest project today in scope (``DmScope.today``).
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify
@@ -38,13 +39,14 @@ from app.services.workflow.definition import (
     PENDING_STATES,
 )
 from app.routes.api.dm_kpi.dm_kpi_scope import (
+    CLOCK_JOIN_SQL,
     NOT_DEMO_OUTPUT_SQL,
     DmScope,
     bucket_flow_by_day,
     cached_kpi,
+    clock_day_sql,
+    clock_tz_sql,
     dm_scope,
-    local_day_start,
-    local_today,
 )
 
 bp = Blueprint("dm_kpi_grid", __name__)
@@ -74,7 +76,7 @@ def daily_grid():
 
 
 def compute_c01(scope: DmScope, period: int = 8, by: str | None = None) -> dict:
-    """C-01 rows for the last *period* days in the viewer's timezone, newest first.
+    """C-01 rows for the last *period* project-clock days, newest first.
 
     Columns (docs/policy/kpis.md, C-01):
       - total:           submissions created up to the end of the day (cumulative)
@@ -90,28 +92,35 @@ def compute_c01(scope: DmScope, period: int = 8, by: str | None = None) -> dict:
     """
     if by is not None:
         raise ValueError(f"C-01 does not support by={by!r}")
-    tz = scope.tz
-    today = local_today(tz)
+    today = scope.today()
     from_date = today - timedelta(days=period - 1)
-    window_start = local_day_start(from_date, tz)
-    params = {**IN_ODK_BIND, **scope.params, "tz": tz, "window_start": window_start}
+    window_start = scope.day_floor(from_date)
+    params = {
+        **IN_ODK_BIND,
+        **scope.params,
+        "window_start": window_start,
+        "window_start_naive": window_start.astimezone(UTC).replace(tzinfo=None),
+    }
 
-    # Total and New: va_created_at is naive UTC, hence timezone('UTC', ...).
+    # Total and New: va_created_at is naive UTC, compared raw (indexed) with
+    # the naive floor and bucketed through timezone('UTC', ...). Days before
+    # from_date (read when another project's zone sets the floor) are ignored.
     created = db.session.execute(
         sa.text(f"""
             WITH scoped AS (
-                SELECT s.va_created_at
+                SELECT s.va_created_at, {clock_tz_sql()} AS timezone
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
+                {CLOCK_JOIN_SQL}
                 WHERE {scope.sql()}
                   AND {_IN_ODK_SQL}
                   AND {_NOT_DUPLICATE_SQL}
             )
             SELECT NULL::date AS d, COUNT(*) AS n FROM scoped
             UNION ALL
-            SELECT DATE(timezone(:tz, timezone('UTC', va_created_at))), COUNT(*)
+            SELECT DATE(timezone(timezone, timezone('UTC', va_created_at))), COUNT(*)
             FROM scoped
-            WHERE timezone('UTC', va_created_at) >= :window_start
+            WHERE va_created_at >= :window_start_naive
             GROUP BY 1
         """),
         params,
@@ -121,13 +130,14 @@ def compute_c01(scope: DmScope, period: int = 8, by: str | None = None) -> dict:
 
     events = db.session.execute(
         sa.text(f"""
-            SELECT DATE(timezone(:tz, e.event_created_at)) AS d,
+            SELECT {clock_day_sql("e.event_created_at")} AS d,
                    COUNT(*) FILTER (WHERE {_FINALIZE_SQL} AND {NOT_DEMO_OUTPUT_SQL}) AS coded,
                    COUNT(*) FILTER (WHERE {EVENT_NOT_CODEABLE_SQL}) AS not_codeable,
                    COUNT(*) FILTER (WHERE {EVENT_CONSENT_REFUSED_SQL}) AS consent_refused
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
+            {CLOCK_JOIN_SQL}
             WHERE {scope.sql()}
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
@@ -139,7 +149,7 @@ def compute_c01(scope: DmScope, period: int = 8, by: str | None = None) -> dict:
     ).mappings().all()
     events_by_day = {r["d"]: r for r in events}
 
-    flow = bucket_flow_by_day(scope.sql(), scope.params, PENDING_STATES, from_date, today, tz)
+    flow = bucket_flow_by_day(scope, PENDING_STATES, from_date, today)
     pending_by_day = {row["date"]: row["end_of_day"] for row in flow}
 
     rows = []

@@ -19,8 +19,9 @@ SQL. ``include_org_unit`` follows this rule: only migration
 build the MV fresh pass ``include_org_unit=True``; every earlier migration
 keeps calling this function with the default and keeps getting the SQL it
 always got, because ``mas_org_unit`` does not exist yet when those
-migrations run. ``build_submission_cod_snapshot_mv_sql(icd11_buckets=...)``
-follows the same rule.
+migrations run. ``project_clock`` (migration ``d8a4c6e2f1b3``) follows it
+too. ``build_submission_cod_snapshot_mv_sql(icd11_buckets=...)`` follows the
+same rule.
 """
 
 from __future__ import annotations
@@ -128,8 +129,16 @@ def build_submission_analytics_core_mv_sql(
     view_name: str = CORE_MV_NAME,
     *,
     include_org_unit: bool = False,
+    project_clock: bool = False,
 ) -> str:
     """Return the CREATE MATERIALIZED VIEW statement for the core analytics MV.
+
+    ``project_clock=True`` takes ``submission_date`` and the week and month
+    starts on the project clock (``va_project_master.timezone``; the
+    submission date is naive UTC) instead of UTC (docs/policy/kpis.md, "Days
+    follow the project clock"). A project timezone edit shows after the next
+    refresh. Default False for the same reason as ``include_org_unit``: the
+    timezone column arrives in a7d3f9c2e5b1.
 
     ``include_org_unit=True`` adds org_unit_id/org_unit_code/org_unit_path
     (joined from mas_org_unit) to the SELECT. Default False so every
@@ -151,6 +160,15 @@ def build_submission_analytics_core_mv_sql(
     ou.unit_code AS org_unit_code,
     ou.path AS org_unit_path"""
         org_unit_join = "\nLEFT JOIN mas_org_unit ou ON ou.org_unit_id = s.org_unit_id"
+    local = "s.va_submission_date"
+    clock_join = ""
+    if project_clock:
+        local = (
+            "timezone(COALESCE(pm.timezone, 'Asia/Kolkata'), timezone('UTC', s.va_submission_date))"
+        )
+        # LEFT: va_forms.project_id points at va_research_projects, and the
+        # MV keeps one row per submission whatever the master holds.
+        clock_join = "\nLEFT JOIN va_project_master pm ON pm.project_id = f.project_id"
 
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
@@ -159,9 +177,9 @@ SELECT
     f.project_id,
     f.site_id,
     s.va_submission_date AS submission_at,
-    DATE(s.va_submission_date) AS submission_date,
-    DATE_TRUNC('week', s.va_submission_date)::date AS submission_week_start,
-    DATE_TRUNC('month', s.va_submission_date)::date AS submission_month_start,
+    DATE({local}) AS submission_date,
+    DATE_TRUNC('week', {local})::date AS submission_week_start,
+    DATE_TRUNC('month', {local})::date AS submission_month_start,
     w.workflow_state,
     s.va_odk_reviewstate AS odk_review_state,
     s.va_sync_issue_code AS odk_sync_issue_code,
@@ -172,7 +190,7 @@ SELECT
     (s.va_sync_issue_code IS NOT DISTINCT FROM '{MISSING_IN_ODK}') AS odk_missing,
     (w.workflow_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}') AS cod_pending_upstream_review{org_unit_columns}
 FROM va_submissions s
-JOIN va_forms f ON f.form_id = s.va_form_id
+JOIN va_forms f ON f.form_id = s.va_form_id{clock_join}
 -- A submission belongs to its form's own (project, site) pair: va_forms and
 -- map_project_site_odk key a form to exactly one pair, and a site may be in
 -- several active projects at once, so "the site's project" is not defined.
@@ -1737,7 +1755,6 @@ def get_dm_project_site_stats_from_mv(
     *,
     project_ids: list[str],
     project_site_pairs,
-    timezone_name: str,
     project: str = "",
     site: str = "",
     date_from: str | None = None,
@@ -1757,10 +1774,11 @@ def get_dm_project_site_stats_from_mv(
     """Return project/site submission stats for the data-manager dashboard.
 
     *unit_ids*: the caller's unit-grant subtree, as in ``get_dm_kpi_from_mv``.
+    "Today" and "this week" (from Monday) are each project's own, on its
+    clock (docs/policy/kpis.md, "Days follow the project clock"), compared
+    with the MV's project-local ``submission_date``.
     """
-    from datetime import datetime, timedelta
-
-    import pytz
+    from app.services import project_clock
 
     core = sa.table(
         CORE_MV_NAME,
@@ -1783,12 +1801,11 @@ def get_dm_project_site_stats_from_mv(
         sa.column("has_smartva"),
     )
 
-    user_tz = pytz.timezone(timezone_name or "Asia/Kolkata")
-    now_local = datetime.now(user_tz)
-    today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start_local = today_start_local - timedelta(days=today_start_local.weekday())
-    today_start_utc = today_start_local.astimezone(pytz.UTC)
-    week_start_utc = week_start_local.astimezone(pytz.UTC)
+    clock = sa.table("va_project_master", sa.column("project_id"), sa.column("timezone"))
+    now = sa.cast(sa.literal(project_clock._now()), sa.DateTime(timezone=True))
+    zone = sa.func.coalesce(clock.c.timezone, project_clock.DEFAULT_PROJECT_TIMEZONE)
+    project_today = sa.cast(sa.func.timezone(zone, now), sa.Date)
+    project_week_start = sa.cast(sa.func.date_trunc("week", project_today), sa.Date)
 
     conditions = build_dm_mv_filter_conditions(
         core,
@@ -1812,7 +1829,9 @@ def get_dm_project_site_stats_from_mv(
         org_unit=org_unit,
     )
 
-    joined = core.join(demo, core.c.va_sid == demo.c.va_sid)
+    joined = core.join(demo, core.c.va_sid == demo.c.va_sid).outerjoin(
+        clock, clock.c.project_id == core.c.project_id
+    )
 
     rows = db.session.execute(
         sa.select(
@@ -1820,10 +1839,10 @@ def get_dm_project_site_stats_from_mv(
             core.c.site_id,
             sa.func.count().label("total_submissions"),
             sa.func.sum(
-                sa.case((core.c.submission_at >= week_start_utc, 1), else_=0)
+                sa.case((core.c.submission_date >= project_week_start, 1), else_=0)
             ).label("this_week_submissions"),
             sa.func.sum(
-                sa.case((core.c.submission_at >= today_start_utc, 1), else_=0)
+                sa.case((core.c.submission_date >= project_today, 1), else_=0)
             ).label("today_submissions"),
         )
         .select_from(joined)

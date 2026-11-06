@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-06
 ---
 
 # Submission Analytics Materialized Views
@@ -91,6 +91,23 @@ Across the three views, DigitVA stores:
 - normalized demographic fields
 - human coding outputs
 - SmartVA outputs
+
+### Days on the project clock
+
+The core MV's `submission_date`, `submission_week_start` and
+`submission_month_start` are the submission's day, ISO week start and month
+on its project's clock (`va_project_master.timezone`, default Asia/Kolkata;
+`va_submission_date` is naive UTC), not UTC (migration `d8a4c6e2f1b3`,
+docs/policy/kpis.md "Days follow the project clock"). The master join is
+LEFT, so a form whose project has no master row keeps its row on the default
+zone. Every reader follows: the `date_from` / `date_to` filters, the analytics
+day/week/month series, the AI cube's `submission_month`, the COD bucket
+report and the area dashboard. A project timezone edit shows after the next
+refresh. The data manager's "Today" and "This week" site columns
+(`get_dm_project_site_stats_from_mv`) compare `submission_date` with each
+project's own today and Monday. The COD snapshot MV's own `submission_date`
+is still the UTC day; the coded-COD export writes the project-clock day
+computed from `submission_at` at query time instead of rebuilding that view.
 
 ## Core MV — ODK sync state
 
@@ -222,8 +239,11 @@ beads `digitva-stc`, `digitva-qfh8`). Code:
   shown per site: all active sites for admin, PI or a project grant, else the
   granted sites. A project, unit or site outside scope is a 404.
 - `period` is `30d`, `90d`, `12m` or `all` (default); anything else is a 400.
-  `period_start` is UTC midnight that many days back, so it equals the data
-  manager's `date_from`. It filters deaths reported (case `created_at`),
+  `period_start` is midnight that many days back on the project's clock
+  (aware, one query for the zone; none for `all`), so it equals the data
+  manager's `date_from` on the project-local `submission_date`. The last 7
+  and 30 days columns, the register counts and the overdue "today" are still
+  rolling from now / UTC (not yet on the project clock). It filters deaths reported (case `created_at`),
   submitted (`submission_at`) and causes (date of death); nothing else.
 - Rows are the grant roots (or the project's top-level units when the scope
   is project-wide, plus an "Unrouted" row), or the direct children of a

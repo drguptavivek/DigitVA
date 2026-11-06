@@ -120,10 +120,14 @@ burndown from project start misses its budget at production size.
 
 The `daily_kpi_aggregation_timezone` and `daily_kpi_aggregation_time` settings
 are removed (owner decision 2026-10-27, `digitva-0hul`): they were never implemented and there is no snapshot task to
-time. **Days follow the viewer's timezone** (`user.timezone`, default
-`Asia/Kolkata`), applied at query time, until the project clock's second stage
-moves dashboard days to the project timezone
-([Project Clock and Gates](project-clock-and-gates.md), owner 2026-11-06).
+time. **Days follow the project clock** (owner 2026-11-06, stage 2 of
+[Project Clock and Gates](project-clock-and-gates.md)): an event's day, and
+"today" or "the last N days", are taken in the timezone of the event's own
+project (`va_project_master.timezone`, default `Asia/Kolkata`), applied at
+query time. A view spanning projects in different timezones buckets each
+project's events on its own clock, so a day's total is the sum of each
+project's local day. The viewer's timezone (`user.timezone`) no longer
+decides a day; it still formats times shown to the viewer.
 Coding and collection gates and the coder daily cap use the project clock;
 recode windows are durations and need no clock. Do not use `va_local_date` on `event_created_at`.
 
@@ -259,7 +263,7 @@ each was decided from its own definition:
 
 | Frame | Definition |
 |-------|-----------|
-| **Today** | Since midnight in the viewer's timezone (default Asia/Kolkata) (owner decision 2026-10-27, `digitva-0hul`) |
+| **Today** | Since midnight on the event's project clock (`va_project_master.timezone`, default Asia/Kolkata); see "Days follow the project clock" (owner 2026-11-06, superseding the viewer's timezone of 2026-10-27, `digitva-0hul`) |
 | **Yesterday** | Previous calendar day |
 | **Last 7 days** | Rolling 7 calendar days including today |
 | **Cumulative** | All-time since first submission in scope |

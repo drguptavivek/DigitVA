@@ -139,6 +139,10 @@ To be named as having accessed and verified the data, a second author:
 
 The data sheet is rebuilt from the live database, so rerun
 `scripts/stata/build_package.sh` before submission and after any change to
-the study projects. If a value no longer matches, update the manuscript
-builder (`scripts/build_digitva_ldh_manuscript.py`) and the expected value in
-the do file together.
+the study projects. If a value no longer matches, correct it in the
+manuscript on Google Drive and the expected value in the do file together.
+Since 7 November 2026 the manuscript and appendix are edited on Drive only:
+`scripts/manuscript-drive.sh pull` fetches them into `private/manuscript-drive/`
+(the `docs/manuscript` files are symlinks to that copy), and `push` uploads an
+edit to the same Drive files, refusing if Drive changed since the pull. The
+builder `scripts/build_digitva_ldh_manuscript.py` is retired.

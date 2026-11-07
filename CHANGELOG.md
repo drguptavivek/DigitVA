@@ -3,6 +3,18 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-07
+
+- **LDH manuscript moves to Google Drive only; appendix screenshots** (no beads):
+  the manuscript and appendix are edited on Drive, and
+  `scripts/manuscript-drive.sh` pulls them into git-ignored
+  `private/manuscript-drive/` and pushes edits back to the same files, refusing
+  when Drive changed since the pull. The `docs/manuscript` .docx files are now
+  symlinks to that copy, and `scripts/build_digitva_ldh_manuscript.py` exits
+  instead of rebuilding over Drive edits. Appendix section 11 adds figures
+  S1–S21 (six legacy-versus-Collect workflow pairs, then coding, reporting and
+  administration screens, synthetic or test cases only), cited in Results.
+
 ## 2026-11-06
 
 - **LDH manuscript analysis package and owner inputs** (no beads): the

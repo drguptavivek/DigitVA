@@ -476,5 +476,8 @@ def build_appendix():
 
 
 if __name__ == "__main__":
-    build()
-    build_appendix()
+    # Since 2026-11-07 the manuscript and appendix are edited on Google Drive only;
+    # the docs/manuscript files are symlinks to the Drive working copy
+    # (scripts/manuscript-drive.sh). Rebuilding would overwrite it and lose those edits.
+    sys.exit("The LDH manuscript is edited on Google Drive only; this builder is retired. "
+             "Use scripts/manuscript-drive.sh pull, edit, push.")

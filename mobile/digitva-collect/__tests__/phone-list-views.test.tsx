@@ -270,7 +270,7 @@ describe("Interviews", () => {
     expect(shown(tree)).toContain("More: Revisions");
     await act(async () => pressable(tree, "More").props.onPress());
     await act(async () => pressable(tree, "All").props.onPress());
-    expect(shown(tree)).toContain("More: All");
+    expect(shown(tree)).not.toContain("More: ");
   });
 
   it("opens the case detail when a Sent case card is tapped anywhere on its body", async () => {

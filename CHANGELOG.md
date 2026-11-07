@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-07
 
+- **Collect e2e fixes, GPS capture, Code and Review tabs; staging deploy**
+  (`d024b5ad0`; beads frgn, kspl, vz9f, c86x, xpaf, b3hl, vpez, 1wov, 961u,
+  xq0i, toyw, toyw.1, cy9u, d9zg, 2gw7, 35iw, 6zib, 6i9u, oll6, bl3b, frnc,
+  jb4t, 5leu): fixes from the 2026-11-06 simulator and phone run
+  (`docs/current-state/collect-e2e-run-2026-11-06.md`), native GPS chain with
+  warmup (`docs/policy/native-location-capture.md`), project choice instead of
+  a silent default, project-time-zone "today", audio Replace/Delete
+  confirmations, web live camera, simpler field-role Home and Interviews, and
+  random seeded passwords off debug. Deployed to staging 2026-11-07 after the
+  old-APK audit (no held standalone codings on staging); the staging seed
+  wrote test.all's 2 new grants.
 - **LDH manuscript moves to Google Drive only; appendix screenshots** (no beads):
   the manuscript and appendix are edited on Drive, and
   `scripts/manuscript-drive.sh` pulls them into git-ignored

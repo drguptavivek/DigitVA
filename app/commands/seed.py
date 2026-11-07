@@ -371,6 +371,8 @@ _TST_USERS = (
     ("test.mo.phc01", "coder", "PHC01", "MO", ("interview_supervisor", "coder")),
     ("test.mo.phc02", "coder", "PHC02", "MO", ("interview_supervisor", "coder")),
     *((f"test.cho.sc0{n}", "intake", f"SC0{n}", "CHO", ("interviewer",)) for n in range(1, 7)),
+    # A second interviewer in scope of SC01 cases (the other-interviewer warning).
+    ("test.cho.sc02", "intake", "SC01", "CHO", ("interviewer",)),
     # Register deaths but never interview; the app is their only surface, so
     # the web landing page falls through to the home page.
     ("test.anm.sc01", "intake", "SC01", "ANM", ("death_reporter",)),

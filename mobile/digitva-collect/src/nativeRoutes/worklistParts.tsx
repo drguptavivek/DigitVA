@@ -262,8 +262,8 @@ const MORE_FILTERS: Array<{ key: InterviewFilter; label: () => string }> = [
 function FilterChips({ value, counts, onChange }: { value: InterviewFilter; counts: Record<InterviewFilter, number>; onChange(filter: InterviewFilter): void }) {
   const { ui, typography, textScale } = useTheme();
   const [more, setMore] = useState(false);
-  // "All" counts as picked here too: the sheet's way back to it leaves the chip reading "More: All", not plain "More".
-  const activeMore = MORE_FILTERS.find((chip) => chip.key === value);
+  // "All" is the default, so it leaves the chip plain "More"; only Sent and Revisions highlight it.
+  const activeMore = MORE_FILTERS.find((chip) => chip.key === value && chip.key !== "all");
   const moreOn = activeMore !== undefined;
   const moreText = activeMore ? t("filterMoreActive", { label: activeMore.label() }) : t("filterMore");
   const build = useCallback((): ChoiceList => ({

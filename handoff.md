@@ -3,7 +3,7 @@
 ## Start here
 
 Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Staging runs
-`f01f3e68f` (deployed 5 Nov; web `expo-web-v2026.11.05.1`); phones there are
+`d024b5ad0` (deployed 7 Nov); phones there are
 on 0.3.19 or older. main now also carries the Collect Petrol redesign,
 accessibility settings and server UI languages (CHANGELOG 2026-11-06), with
 the iOS, SmartVA and standalone app work that shared its files. Never reset
@@ -17,41 +17,31 @@ Collect screens are frozen (`docs/design/collect-petrol-theme/README.md`);
 any change to one is re-checked against `frozen/` (light, dark, high
 contrast, Large text) and refrozen.
 
-## Next session prompt (owner, 2026-11-06)
+## Next session prompt (owner, 2026-11-07)
 
-"Drive a full end-to-end test of DigitVA Collect and Collect Plus on the
-Android emulator (DigitVA_Pixel_7) and the iOS 27.2 simulator (iPhone 17 Pro
-(iOS 27.2)) against the LOCAL dev server only (localhost:8051 via adb
-reverse; seeded TST001 accounts in docs/current-state/test-project-tst001.md).
-Cover: start, every sign-in/enrol path (QR, email, demo, standalone), PIN
-lockout and Forgot PIN, record a death and update it, GPS, the interview
-(start, consent approve and refuse, stop, resume with every answer and
-attachment intact, narrative audio record/pause/stop/delete, document photos
-with scanner, blur prompt and full-screen viewer), reopen a ready interview,
-sync, update, resend, and every in-app coding workflow (online and offline,
-standalone View/Revise). Write a repeatable e2e script where feasible (Maestro
-or Detox; propose first). Run it as two Sonnet agents, one driving Android, one
-driving iOS, each with its own test DB if it writes tests, and record every finding with screenshots in
-docs/current-state/collect-e2e-run-<date>.md, one bead per failure."
-Uncommitted in the tree for that session to verify first, then commit:
-`digitva-lq5m` photo tools (vendor question-controls, sharpness, viewer,
-scanner plugin, gesture-handler; policy in docs/policy/phone-attachments.md
-decision 9), the resumed-photo preview fix, and vendor test mocks. Dev builds
-with them are on both simulators; the Samsung needs the new debug APK
-(android/app/build/outputs/apk/debug). After it: waveform recorder
-(owner-approved, not started). Metro: 8081 Plus, 8082 plain; the Mac's LAN
-IP is now 192.168.1.18.
+The 2026-11-06 Collect e2e run and its fixes are done and on staging
+(`d024b5ad0`, CHANGELOG 2026-11-07; report
+`docs/current-state/collect-e2e-run-2026-11-06.md`). Left from it:
+- `digitva-nih5` web live camera: check in a real browser (the browser pane
+  blocks the camera; only unit-tested).
+- Saved web audio from S3 (`oll6` fix) on staging: record, leave, return.
+- Sent read-only view of an interview with media: untested.
+- Hindi for the new attachment-load and camera strings.
+- Vendor change on the :8051 dev web interview needs
+  `npm --prefix vendor/who-va-2022 run build` then
+  `docker restart digitva-digitva_web_hmr-1` (add to expo-client.md).
+- Optional: lock the profile store when the server revokes a session.
+Native folders: `ios/`, `android/` are Collect Plus; plain Collect prebuilds
+are in `ios.plain-bak`, `android.plain-bak` (untracked). Dev data: SADEMO
+cases coded by test.coder.nc01, drafts SC01-000164..177, a test.cho.sc02
+draft on SC01 case b9cf3f2c. Samsung has the plain Collect debug build.
 
 ## Ranked next steps
 
 1. Collection gate, app side (`digitva-dj29`, the iOS/Expo session): the
    Expo start check against `/me/access` "Collection gate"
    (`docs/current-state/device-collection-api.md`); the server side is on main
-   (`87fff09cd`, `digitva-jeyy`). Before a staging deploy: run migrations
-   `e4b7c2d9a6f1`..`d8a4c6e2f1b3` and audit old APKs (the access fields are
-   additive; `collection_closed` is web-only); `d8a4c6e2f1b3` drops and
-   rebuilds the core analytics MV with CASCADE, so check `pg_depend` on
-   staging first. Owner decision: area dashboard windows on the project clock
+   (`87fff09cd`, `digitva-jeyy`). Migrations through `d8a4c6e2f1b3` are on staging. Owner decision: area dashboard windows on the project clock
    (`digitva-at68`). Help chatbot build (`digitva-wawz`, policy
    `docs/policy/help-chatbot.md`; the PII redaction step is not built).
    Manuscript placeholders: ethics numbers (owner adds), two surnames,
@@ -64,7 +54,7 @@ IP is now 192.168.1.18.
    `load_failed` on the arm64 emulator (`digitva-rih6`, so the coding tools
    and Demo mode were never design-reviewed), app speed on the SM-E146B with
    the CI APK (`digitva-xxfz`).
-3. Security audit run-5 fixes (`digitva-ssg7`) are on main, not staging.
+3. Security audit run-5 fixes (`digitva-ssg7`) are on staging since 7 Nov.
    Before deploying: count active `va_reviewer_initial_assessments` rows with
    NULL `payload_version_id`; check a multi-project user's case list and
    export (PII is per project). Report:
@@ -72,7 +62,7 @@ IP is now 192.168.1.18.
    needs the old-APK audit (the redesign changes no API shapes; the new
    `/api/v1/ui-strings` routes are additive).
 4. Staging rollback:
-   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 3ab5c2d69bfa166d95d2d5923e43babab71823e1`.
+   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh f01f3e68fa2d39e8709a37f8efbea95e4fe9d961`.
    `minerva_icd_cache_redis` (128 MB) holds the ICD-11 caches; ~0.8 GB free
    RAM, no swap. `/download/android*` serve 0.3.19 from `private/android-hosted`.
 5. On staging, by hand: refuse then re-consent a direct interview

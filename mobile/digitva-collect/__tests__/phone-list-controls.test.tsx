@@ -100,6 +100,13 @@ describe("controls", () => {
     expect(more.findAllByType(Text)[0].props.children).toBe("More");
   });
 
+  it("leaves the More chip unselected and plain at the default All filter", async () => {
+    await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onLoadMore={noop} initialFilter="all" />);
+    const more = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && n.props.accessibilityLabel === "More")[0];
+    expect(more.props.accessibilityState).toEqual({ selected: false });
+    expect(more.findAllByType(Text)[0].props.children).toBe("More");
+  });
+
   it("filter chips are single line, 44dp, with the centring style", async () => {
     await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onLoadMore={noop} />);
     const chips = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && typeof n.props.onPress === "function");

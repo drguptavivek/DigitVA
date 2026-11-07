@@ -307,3 +307,26 @@ are not in the repo.
   follow-up, being fixed).
 - Not tested anywhere: the sent read-only view of an interview with media. It requires completing
   about 40 required questions.
+
+## Follow-up 2026-11-07 (digitva-aivk, digitva-w80u)
+
+- digitva-aivk (closed): the More chip now reads plain "More", unselected, at the default All filter, and
+  "More: Sent" / "More: Revisions" highlighted otherwise (Jest: `phone-list-controls`, `phone-list-views`).
+  Seed `test-project` now also grants `test.cho.sc02` the interviewer role at SC01 (a second interviewer in
+  scope of SC01 cases); run on dev. To exercise the warning, a draft for SC01 case b9cf3f2c was started as
+  test.cho.sc02 through `start_draft` (dev data only, not in the seed). On the Android emulator (plain Collect,
+  Metro 8082) as test.cho.sc01 the card read "Test CHO SC02 started this on 7 Nov. Check with them before you
+  start." and the More sheet had Sent / Revisions / All and no "Search units" box. Android `home.png`,
+  `interviews-list.png`, `interviews-list-2.png` under `docs/design/collect-petrol-theme/frozen/` were refrozen.
+  The emulator was on the PIN lock screen; signing in again with the password kept the local drafts
+  ("the work on this phone is kept") and a new PIN was set.
+- digitva-w80u (closed, not reproduced): on the emulator a narrative recording was made in a draft, saved,
+  the app force-stopped and relaunched, the draft reopened: the recording loaded and played (00:08). Audio
+  bytes live in the encrypted store (`attachments` table), not in a file path, so container or cache moves
+  cannot break them; `resolveStored` writes a fresh playback copy each time. The error therefore only occurs when
+  the answer references an attachment whose bytes are not on this phone (draft re-imported from the server after the
+  local store was cleared; the phone cannot re-download server attachments). Fix: the message now says what
+  to do ("This recording is not on this phone any more. Choose Replace audio to record it again."; the image
+  message likewise) in `vendor/who-va-2022/src/i18n.ts`. The missing-bytes path is already covered by
+  `attachment-capture.test.ts` (`resolveStored` returns undefined). `make check-web` passes.
+

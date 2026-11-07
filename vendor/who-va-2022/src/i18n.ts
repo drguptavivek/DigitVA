@@ -106,20 +106,29 @@ export interface WhoVaUiMessageTemplates {
   openingImages: string;
   replaceImage: string;
   chooseImage: string;
-  hideImage: string;
-  viewImage: string;
   rotate: string;
-  zoomIn: string;
-  zoomOut: string;
+  viewFullScreen: string;
+  closeImage: string;
+  scanDocument: string;
+  openingScanner: string;
+  blurryPhoto: string;
+  retakePhoto: string;
+  cameraTitle: string;
+  cameraCapture: string;
+  cameraCancel: string;
+  keepPhoto: string;
   removeImage: string;
   removeRecording: string;
   confirmReplaceRecording: string;
   confirmRemoveRecording: string;
   keepRecording: string;
+  replaceRecordingAction: string;
+  deleteRecordingAction: string;
   attachment: string;
   pdf: string;
   openingFiles: string;
   replaceAttachment: string;
+  openAttachment: string;
   chooseAttachment: string;
   removeAttachment: string;
   confirmRemoveAttachment: string;
@@ -274,20 +283,29 @@ export interface WhoVaUiMessages {
   openingImages: string;
   replaceImage: string;
   chooseImage: string;
-  hideImage: string;
-  viewImage: string;
   rotate: string;
-  zoomIn: string;
-  zoomOut: string;
+  viewFullScreen: string;
+  closeImage: string;
+  scanDocument: string;
+  openingScanner: string;
+  blurryPhoto: string;
+  retakePhoto: string;
+  cameraTitle: string;
+  cameraCapture: string;
+  cameraCancel: string;
+  keepPhoto: string;
   removeImage: string;
   removeRecording: string;
   confirmReplaceRecording: string;
   confirmRemoveRecording: string;
   keepRecording: string;
+  replaceRecordingAction: string;
+  deleteRecordingAction: string;
   attachment: string;
   pdf: string;
   openingFiles: string;
   replaceAttachment: (kind: string) => string;
+  openAttachment: (kind: string) => string;
   chooseAttachment: (kind: string) => string;
   removeAttachment: (kind: string) => string;
   confirmRemoveAttachment: (kind: string) => string;
@@ -429,20 +447,29 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   openingImages: "Opening images…",
   replaceImage: "Replace image",
   chooseImage: "Choose image",
-  hideImage: "Hide image",
-  viewImage: "View image",
   rotate: "Rotate",
-  zoomIn: "Zoom in",
-  zoomOut: "Zoom out",
+  viewFullScreen: "View full screen",
+  closeImage: "Close",
+  scanDocument: "Scan document",
+  openingScanner: "Opening scanner…",
+  blurryPhoto: "This photo looks blurry. Retake?",
+  retakePhoto: "Retake",
+  cameraTitle: "Take photo",
+  cameraCapture: "Capture",
+  cameraCancel: "Cancel",
+  keepPhoto: "Keep",
   removeImage: "Remove image",
   removeRecording: "Delete recording",
-  confirmReplaceRecording: "Record again? The current recording will be deleted.",
-  confirmRemoveRecording: "Delete this recording? It cannot be recovered.",
-  keepRecording: "Keep recording",
+  confirmReplaceRecording: "Replace the saved recording? The current recording will be deleted.",
+  confirmRemoveRecording: "Delete this recording? This cannot be undone.",
+  keepRecording: "Cancel",
+  replaceRecordingAction: "Replace",
+  deleteRecordingAction: "Delete",
   attachment: "attachment",
   pdf: "PDF",
   openingFiles: "Opening files…",
   replaceAttachment: "Replace {kind}",
+  openAttachment: "Open {kind}",
   chooseAttachment: "Choose {kind}",
   removeAttachment: "Remove {kind}",
   confirmRemoveAttachment: "Delete this {kind}? It cannot be recovered.",
@@ -511,6 +538,7 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
     invalidDate: (dateFormat, example) => format(templates.invalidDate, { format: dateFormat, example }),
     answeredQuestions: (count) => format(templates.answeredQuestions, { count }),
     replaceAttachment: (kind) => format(templates.replaceAttachment, { kind }),
+    openAttachment: (kind) => format(templates.openAttachment, { kind }),
     chooseAttachment: (kind) => format(templates.chooseAttachment, { kind }),
     removeAttachment: (kind) => format(templates.removeAttachment, { kind }),
     confirmRemoveAttachment: (kind) => format(templates.confirmRemoveAttachment, { kind }),

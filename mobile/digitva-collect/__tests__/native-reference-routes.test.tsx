@@ -201,6 +201,7 @@ jest.mock("../src/formDefinitionRuntime", () => ({
 }));
 jest.mock("../src/formDefinitions", () => jest.requireActual("../src/formDefinitions"));
 jest.mock("../src/auth", () => ({
+  takePickedHomeProject: jest.fn(() => undefined),
   refreshAccessSummaryForAction: jest.fn(async () => mockDeathRegistrationAccess),
   authedRawRequest: jest.fn(async () => ({
     status: 200,
@@ -366,7 +367,7 @@ jest.mock("../src/i18n", () => ({
     if (key === "otherCompleteInterviewNotice") {
       return "Another complete interview of this case is with the supervisor.";
     }
-    if (key === "otherDraftActiveAt") {
+    if (key === "otherDraftCheck") {
       return `${key} ${values?.date ?? ""}`;
     }
     return key;
@@ -1204,10 +1205,8 @@ describe("native project-aware routes", () => {
     });
     await settle();
     const rendered = dump(tree!);
-    expect(rendered).toContain(
-      `otherDraftActiveAt ${formatDisplayTimestamp(startedAt)}`,
-    );
-    expect(rendered).toContain("otherDraftSyncNotice");
+    expect(rendered).toContain("otherDraftCheck 2 Jan");
+    expect(rendered).not.toContain("otherDraftSyncNotice");
     expect(rendered).toContain("readyForCode");
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
@@ -1312,10 +1311,10 @@ describe("native project-aware routes", () => {
     const rendered = dump(tree!);
     expect(rendered).toContain("otherDraftActive");
     expect(rendered).toContain("readyForCode");
-    expect(rendered).toContain("otherDraftSyncNotice");
+    expect(rendered).not.toContain("otherDraftSyncNotice");
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
-    expect(rendered).not.toContain("otherDraftActiveAt");
+    expect(rendered).not.toContain("otherDraftCheck");
     await act(async () => tree!.unmount());
   });
 
@@ -1428,6 +1427,25 @@ describe("native project-aware routes", () => {
       mockDb,
       expect.objectContaining({ project_id: "P1" }),
     );
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps a queued registration's household fix when it is saved again offline", async () => {
+    Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
+    mockParams = { userId: "u1", projectId: "P1", clientDeathId: "local-1" };
+    (jest.requireMock("../src/cases").getRegistration as jest.Mock).mockResolvedValueOnce({
+      client_death_id: "local-1", project_id: "P1", site_id: "S1", org_unit_id: null, state: "pending",
+      created_at: "2026-10-03T00:00:00.000Z",
+      fields: { deceased_name: "Asha", deceased_sex: "female", date_of_death: "2026-09-30", date_of_birth: "1980-01-01", latitude: 12.5, longitude: 77.5, accuracy_m: 9 },
+    });
+    (saveRegistration as jest.Mock).mockClear();
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Register />); });
+    await settle();
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    expect(saveRegistration).toHaveBeenCalledWith(mockDb, expect.objectContaining({
+      fields: expect.objectContaining({ latitude: 12.5, longitude: 77.5, accuracy_m: 9 }),
+    }));
     await act(async () => tree!.unmount());
   });
 
@@ -1748,6 +1766,62 @@ describe("native project-aware routes", () => {
     await act(async () => pullRefresh(tree!));
     await settle();
     expect(fetchCasePage).toHaveBeenCalledWith("u1", "P1", { limit: 50 });
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps the picked project across a blur and a lock-version bump, and saves the pick per account", async () => {
+    const first = pack("both", "P1") as { bootstrap: { projects: unknown[] }; projects: unknown[] };
+    const second = pack("both", "P2") as { bootstrap: { projects: unknown[] }; projects: unknown[] };
+    mockReference = {
+      bootstrap: { ...first.bootstrap, projects: [...first.bootstrap.projects, ...second.bootstrap.projects] },
+      projects: [...first.projects, ...second.projects],
+    };
+    mockCachedReference = mockReference;
+    const saved = new Map<string, unknown>();
+    (setMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string, value: unknown) => { saved.set(key, value); });
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) => saved.get(key));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await act(async () => pressStarting(tree!, "P1 · Project P1"));
+    await act(async () => press(tree!, "Project P2"));
+    expect(setMeta as jest.Mock).toHaveBeenCalledWith(expect.anything(), "worklist.project.v1", "P2");
+    mockLockVersion += 1;
+    await act(async () => tree.update(<Worklist />));
+    await settle();
+    (fetchCasePage as jest.Mock).mockClear();
+    await act(async () => pullRefresh(tree!));
+    await settle();
+    expect(fetchCasePage).toHaveBeenCalledWith("u1", "P2", { limit: 50 });
+    (getMeta as jest.Mock).mockImplementation(async () => undefined);
+    (setMeta as jest.Mock).mockImplementation(async () => undefined);
+    await act(async () => tree!.unmount());
+  });
+
+  it("drops an enrolment pick that is not in the cached project list", async () => {
+    const first = pack("both", "P1") as { bootstrap: { projects: unknown[] }; projects: unknown[] };
+    const second = pack("both", "P2") as { bootstrap: { projects: unknown[] }; projects: unknown[] };
+    mockReference = {
+      bootstrap: { ...first.bootstrap, projects: [...first.bootstrap.projects, ...second.bootstrap.projects] },
+      projects: [...first.projects, ...second.projects],
+    };
+    mockCachedReference = mockReference;
+    const saved = new Map<string, unknown>();
+    (jest.requireMock("../src/auth").takePickedHomeProject as jest.Mock).mockReturnValueOnce("P9");
+    (setMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string, value: unknown) => { saved.set(key, value); });
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) => saved.get(key));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    expect(setMeta as jest.Mock).toHaveBeenCalledWith(expect.anything(), "worklist.project.v1", "P9");
+    expect(setMeta as jest.Mock).toHaveBeenCalledWith(expect.anything(), "worklist.project.v1", null);
+    expect(saved.get("worklist.project.v1")).toBeNull();
+    (fetchCasePage as jest.Mock).mockClear();
+    await act(async () => pullRefresh(tree!));
+    await settle();
+    expect(fetchCasePage).toHaveBeenCalledWith("u1", "P1", { limit: 50 });
+    (getMeta as jest.Mock).mockImplementation(async () => undefined);
+    (setMeta as jest.Mock).mockImplementation(async () => undefined);
     await act(async () => tree!.unmount());
   });
 

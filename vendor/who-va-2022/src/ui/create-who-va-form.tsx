@@ -68,7 +68,7 @@ import {
   splitQuestionCode
 } from "./form-presentation.js";
 
-export type { WhoVaPlatformServices } from "./question-controls.js";
+export type { WhoVaImageViewerProps, WhoVaPlatformServices } from "./question-controls.js";
 
 interface WhoVaFormCommonProps {
   locale?: string;
@@ -381,6 +381,7 @@ export function createWhoVaForm(
     Pressable,
     AudioPlayer: primitives.AudioPlayer,
     Image: primitives.Image,
+    Modal: primitives.Modal,
     Svg: primitives.Svg,
     SvgPath: primitives.SvgPath,
     platform: primitives.platform

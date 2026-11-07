@@ -17,8 +17,16 @@ function pickFile(accept, capture = false) {
     input.type = "file";
     input.accept = accept;
     if (capture) input.setAttribute("capture", "environment");
-    input.addEventListener("change", () => resolve(input.files?.[0]), { once: true });
-    input.addEventListener("cancel", () => resolve(undefined), { once: true });
+    const done = (file) => {
+      window.removeEventListener("focus", onFocus);
+      resolve(file);
+    };
+    // Browsers without the input "cancel" event give no signal on dismissal; the window regains focus
+    // when the dialog closes, and "change" (if any) fires before the grace period ends.
+    const onFocus = () => setTimeout(() => done(input.files?.[0]), 1000);
+    input.addEventListener("change", () => done(input.files?.[0]), { once: true });
+    input.addEventListener("cancel", () => done(undefined), { once: true });
+    window.addEventListener("focus", onFocus);
     input.click();
   });
 }
@@ -85,7 +93,10 @@ export function createAttachmentPlatform({ WhoVa, buffer, uploader, attachmentUr
       return { stop: () => session.stop().then(withoutFileName), cancel: () => session.cancel() };
     },
     captureImage: async () => {
-      const file = await pick("image/jpeg,image/png", true);
+      // Live camera first; null = none usable (no getUserMedia, denied, no device), so use the file input.
+      const live = WhoVa.captureWebCameraPhoto ? await WhoVa.captureWebCameraPhoto() : null;
+      if (live === undefined) return undefined;
+      const file = live ?? (await pick("image/jpeg,image/png", true));
       return file ? processImage(file) : undefined;
     },
     selectImage: async () => {
@@ -106,7 +117,12 @@ export function createAttachmentPlatform({ WhoVa, buffer, uploader, attachmentUr
       if (!attachment || typeof attachment !== "object" || typeof attachment.id !== "string") return undefined;
       let blob = await buffer.load(attachment.id).catch(() => undefined);
       if (!blob) {
-        const response = await fetchImpl(attachmentUrl(attachment.id), { credentials: "same-origin" }).catch(() => undefined);
+        // redirect "manual": with the S3 store the server answers 302 to a presigned bucket URL, which
+        // connect-src 'self' refuses to fetch (media-src/img-src name the bucket). The redirect is then
+        // not followed here; the element loads the server URL itself and the browser follows it.
+        const url = attachmentUrl(attachment.id);
+        const response = await fetchImpl(url, { credentials: "same-origin", redirect: "manual" }).catch(() => undefined);
+        if (response && response.type === "opaqueredirect") return url;
         if (!response || !response.ok) return undefined;
         blob = await response.blob();
       }

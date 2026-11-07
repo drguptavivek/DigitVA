@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # Field Data Collection Policy
@@ -359,8 +359,19 @@ variants offer the existing online coding queue and shared case workspace to
 signed-in users with coding access. The server remains authoritative for every
 case and preserves the self-collected-case restriction outside self-coding
 projects. Plus adds local coding only under the same-project self-coding and
-coder permission rule below. Review access retains its existing variant and
-permission checks. No separate app identifier or account migration is needed.
+coder permission rule below. Review access has the same online reach in both variants
+(see the Review tab below); offline review stays Plus-only. No separate app identifier or account migration is needed.
+
+Code (online) tab (owner 2026-11-07, `digitva-toyw`): in both variants an enrolled
+account with `coding_access` gets a bottom-tab "Code" that opens the online coding
+queue (`/coding`), not only the case rows on Home and Interviews. Offline coding
+stays Plus-only.
+
+Review (online) tab (owner decision 2026-11-07, `digitva-toyw.1`): in both variants an
+enrolled account with `reviewing_access` (not blocked, no sign-in pending) gets a
+bottom-tab "Review", after Code and before Sync, opening the online review queue
+(`/reviewing`). The server stays authoritative for who may review which case.
+Offline review stays Plus-only.
 
 **Multi-project devices** (owner, 2026-10-03; no older apps in the field,
 so no compatibility path, 2026-10-04). A native device may hold data for
@@ -883,6 +894,23 @@ Until decision C4 is settled the app is built unsigned, for development only.
 A debug-signed build is signed with a well-known shared key, so any party can
 produce an update that replaces it. **Debug builds must not be used to collect
 real interviews**, and must be pointed at a non-production DigitVA.
+
+## Collect Home and Interviews by role (`digitva-aivk`)
+
+Owner-approved simplification for CHO and ANM field users. Home shows one
+primary action per role and nothing else competing with it:
+
+- **Death reporter (ANM)**: "Register a death" and their reported deaths.
+- **Interviewer (CHO)**: "Start interview" or "Resume draft", plus "Register a
+  death" when the account also registers.
+- **Coder links** ("Online cases", "My coded cases") live only in the Code tab,
+  never on Home or in the Interviews header.
+- **Zero-count rows are hidden** (Unsent 0, Need a visit 0, Drafts 0).
+
+Interviews offers "To do" and "Drafts" as filters; "Sent" and "Revisions" sit
+behind "More". A case another interviewer started shows one plain line,
+"<Name> started this on <d MMM>. Check with them before you start." Tapping a
+case card opens its detail, Sent cases included.
 
 ## Phone clock
 

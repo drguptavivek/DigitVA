@@ -350,3 +350,29 @@ test("nothing the platform adapter returns carries the picked file's name", asyn
   assert.equal(JSON.stringify(audioRef).includes("ramesh"), false);
   assert.equal(audioRef.originalName, "aud-id.webm");
 });
+
+test("captureImage uses the live camera, falls back to the file input, and resets on cancel", async () => {
+  const { createAttachmentPlatform } = await import("../../../app/static/js/intake/attachment_platform.js");
+  const { buffer } = makeBuffer();
+  let live;
+  let picks = 0;
+  const WhoVa = {
+    WHO_VA_ATTACHMENT_POLICY: { image: { acceptedMimeTypes: ["image/jpeg"], maxInputBytes: 1 } },
+    captureWebCameraPhoto: async () => live,
+    processWebImageAttachment: async (file) => ({ id: "img-id", name: "img-id.jpg", originalName: file.name }),
+  };
+  const platform = createAttachmentPlatform({
+    WhoVa, buffer, uploader: { flush: async () => {} }, attachmentUrl: (id) => id,
+    pick: async () => { picks += 1; return Object.assign(new Blob(["x"]), { name: "picked.jpg" }); },
+  });
+
+  live = Object.assign(new Blob(["x"]), { name: "camera.jpg" });
+  assert.equal((await platform.captureImage()).id, "img-id");
+  assert.equal(picks, 0);
+  live = undefined; // cancelled in the live preview: no picker, nothing returned
+  assert.equal(await platform.captureImage(), undefined);
+  assert.equal(picks, 0);
+  live = null; // no camera usable: file input
+  assert.equal((await platform.captureImage()).id, "img-id");
+  assert.equal(picks, 1);
+});

@@ -7,7 +7,6 @@ import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
 import type { Db, DraftRow } from "../drafts";
 import { t, uiLanguageTag, type StringKey } from "../i18n";
-import { otherDraftWarning } from "./CaseCard";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
 import type { RevisionRow, SubmittedRevisionSummary } from "../revisions";
@@ -97,9 +96,17 @@ const flatLocal = (row: CaseDetail): FlatCase => ({
 });
 const flatOnline = (row: CaseRow): FlatCase => ({ ...row, name: row.deceased_name, sex: row.deceased_sex, age: row.age_years, died: row.date_of_death });
 
+/** "Asha started this on 5 Nov. Check with them before you start." in the phone's time zone; the undated line when the start time is unusable. */
+function otherDraftLine(startedAt: string | null | undefined, startedBy?: string | null): string {
+  const when = startedAt ? new Date(startedAt) : undefined;
+  if (!when || Number.isNaN(when.getTime())) return t("otherDraftActive");
+  const date = when.toLocaleDateString(uiLanguageTag(), { day: "numeric", month: "short" });
+  return startedBy ? t("otherDraftCheckBy", { name: startedBy, date }) : t("otherDraftCheck", { date });
+}
+
 function caseLines(row: FlatCase): InterviewItem["lines"] {
   return [
-    ...(row.other_draft_active === true ? [{ text: otherDraftWarning(row.other_draft_started_at, row.other_draft_started_by) }, { text: t("otherDraftSyncNotice") }] : []),
+    ...(row.other_draft_active === true ? [{ text: otherDraftLine(row.other_draft_started_at, row.other_draft_started_by) }] : []),
     ...(row.other_complete_interview === true ? [{ text: t("otherCompleteInterviewNotice") }] : []),
     ...(row.code_now === true ? [{ text: t("readyForCodeOnWeb") }] : []),
   ];
@@ -221,9 +228,13 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       search: [name, row.unique_id], updatedAt: row.updated_at,
     });
   }
+  // The server calls a refused case restartable (a contact-outcome refusal sets it too), so a refused case counts as
+  // Sent only once an interview was submitted for it, from this device or by the server's own record.
+  const submittedDeaths = new Set(src.submitted.map((row) => row.death_id).filter(Boolean));
   for (const row of cases.values()) {
     if (draftDeaths.has(row.death_id) || draftIds.has(row.unique_id) || row.my_draft_id && src.drafts.some((d) => d.server_draft_id === row.my_draft_id)) continue;
-    const terminal = TERMINAL_CASE_STATES.has(row.state);
+    const terminal = TERMINAL_CASE_STATES.has(row.state) ||
+      row.state === "refused" && (submittedDeaths.has(row.death_id) || row.other_complete_interview === true);
     const startable = !terminal && canStartDeathInterview(row.state);
     items.push({
       key: `case-${row.death_id}`, kind: terminal ? "sent" : "todo", title: row.name || row.unique_id,

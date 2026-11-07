@@ -53,6 +53,7 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import case_transition_service as cases
+from app.services import project_clock
 from app.services import death_identifier_service as death_identifiers
 from app.services import (
     collection_gate,
@@ -660,7 +661,15 @@ def _clean(raw: object, *, what: str, required: bool = False, max_len: int | Non
     return value
 
 
-def _clean_date(raw: object, *, what: str, required: bool = False) -> date | None:
+def _project_today(project_id: str) -> date:
+    """Today on the project's clock (its timezone, default Asia/Kolkata), the
+    day "not in the future" is judged by (owner, digitva-vz9f)."""
+    project = db.session.get(VaProjectMaster, project_id)
+    return project_clock.project_day(project.timezone if project else None).today
+
+
+def _clean_date(raw: object, *, what: str, required: bool = False, today: date | None = None) -> date | None:
+    """*today*: the project's day (``_project_today``); the server's date when not given."""
     value = _clean(raw, what=what, required=required)
     if value is None:
         return None
@@ -668,12 +677,12 @@ def _clean_date(raw: object, *, what: str, required: bool = False) -> date | Non
         parsed = date.fromisoformat(value)
     except ValueError as exc:
         raise WebIntakeError(f"{what} must be a date in YYYY-MM-DD form.") from exc
-    if parsed > date.today():
+    if parsed > (today or date.today()):
         raise WebIntakeError(f"{what} cannot be in the future.")
     return parsed
 
 
-def _clean_partial_birth(raw: object, date_of_death: date) -> str | None:
+def _clean_partial_birth(raw: object, date_of_death: date, today: date | None = None) -> str | None:
     """A partial birth date as ``YYYY`` or ``YYYY-MM``, or None if blank.
 
     Refused (400) when malformed, before PARTIAL_BIRTH_MIN_YEAR, or after
@@ -688,7 +697,7 @@ def _clean_partial_birth(raw: object, date_of_death: date) -> str | None:
         raise WebIntakeError("Partial date of birth must be YYYY-MM or YYYY.")
     if int(value[:4]) < PARTIAL_BIRTH_MIN_YEAR:
         raise WebIntakeError(f"Partial date of birth cannot be before {PARTIAL_BIRTH_MIN_YEAR}.")
-    if value > date.today().isoformat()[:len(value)]:
+    if value > (today or date.today()).isoformat()[:len(value)]:
         raise WebIntakeError("Partial date of birth cannot be in the future.")
     if value > date_of_death.isoformat()[:len(value)]:
         raise WebIntakeError("Date of birth cannot be after the date of death.")
@@ -792,21 +801,24 @@ def _require_age_info(cleaned: dict, current: dict | None = None) -> None:
     )
 
 
-def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset()) -> dict:
+def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset(),
+                        today: date | None = None) -> dict:
     """The register form's fields validated and normalised to ``VaDeathRegister``
     columns; the one validation path of ``register_death`` and ``update_death``.
     Raises 400 on the first bad value. A phone named in *keep_phones* is an
     unchanged stored value and passes as it is, so an older non-conforming
-    number never blocks an edit of another field."""
+    number never blocks an edit of another field. *today* is the project's day
+    for the not-in-the-future checks (``_project_today``)."""
     name = _clean(fields.get("deceased_name"), what="Deceased name", required=True)
     sex = (_clean(fields.get("deceased_sex"), what="Sex", required=True) or "").lower()
     if sex not in DEATH_SEX_VALUES:
         raise WebIntakeError("Sex must be one of " + ", ".join(DEATH_SEX_VALUES) + ".")
-    date_of_death = _clean_date(fields.get("date_of_death"), what="Date of death", required=True)
-    date_of_birth = _clean_date(fields.get("date_of_birth"), what="Date of birth")
+    date_of_death = _clean_date(fields.get("date_of_death"), what="Date of death", required=True,
+                               today=today)
+    date_of_birth = _clean_date(fields.get("date_of_birth"), what="Date of birth", today=today)
     if date_of_birth and date_of_birth > date_of_death:
         raise WebIntakeError("Date of birth cannot be after the date of death.")
-    date_of_birth_partial = _clean_partial_birth(fields.get("date_of_birth_partial"), date_of_death)
+    date_of_birth_partial = _clean_partial_birth(fields.get("date_of_birth_partial"), date_of_death, today)
     if date_of_birth and date_of_birth_partial:
         raise WebIntakeError("Give an exact or a partial date of birth, not both.")
     age_years = None
@@ -865,7 +877,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
     if enforce_collection_gate:
         collection_gate.require_open(user, project_id, site_id, org_unit_id)
     public_demo_service.check_new_registration(user, project_id)
-    cleaned = _clean_death_fields(fields)
+    cleaned = _clean_death_fields(fields, today=_project_today(project_id))
     _require_age_info(cleaned)
     unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
     number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
@@ -1288,15 +1300,16 @@ def _correct_register_fields(user: VaUsers, death: VaDeathRegister, changes: dic
     current = {name: opened[name] if name in opened else getattr(death, name) for name in REGISTER_FIELDS}
     # A phone is validated only when this edit changes it.
     keep_phones = frozenset(n for n in _PHONE_FIELDS if changes.get(n, current[n]) == current[n])
+    today = _project_today(death.project_id)
     try:
-        cleaned = _clean_death_fields({**current, **changes}, keep_phones=keep_phones)
+        cleaned = _clean_death_fields({**current, **changes}, keep_phones=keep_phones, today=today)
     except WebIntakeError as exc:
         # The whole record is re-validated, so a stored value that is no
         # longer valid (older free-text phone) must be corrected in this edit.
         if exc.status_code != 400:
             raise
         try:
-            _clean_death_fields(current, keep_phones=frozenset(_PHONE_FIELDS))
+            _clean_death_fields(current, keep_phones=frozenset(_PHONE_FIELDS), today=today)
         except WebIntakeError as stored:
             if str(stored) == str(exc):
                 raise WebIntakeError(f"{exc} The stored value is no longer valid; correct it in this edit.") from None

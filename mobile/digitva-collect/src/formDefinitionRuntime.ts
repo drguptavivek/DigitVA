@@ -300,13 +300,15 @@ export async function resolveSavedEnvelopeDefinition(
     composedVersion: pin.instrumentVersion,
     sha256: pin.definitionSha256,
   };
+  // A pin keeps the untagged markers; the cache and the server know tags only.
+  const tagExtensions = formTagExtensions(pin.definitionExtensions);
   const cached = await input.cache.get(identity);
   let value = cached;
-  if (value && !sameExtensions(readDefinitionExtensions(value), pin.definitionExtensions)) value = undefined;
+  if (value && !sameExtensions(readDefinitionExtensions(value), tagExtensions)) value = undefined;
   if (!value) {
     const downloaded = await downloadHistoricalDefinition({
       identity,
-      extensions: pin.definitionExtensions,
+      extensions: tagExtensions,
       request: input.request,
     });
     value = downloaded.value;

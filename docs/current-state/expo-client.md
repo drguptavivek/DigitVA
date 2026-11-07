@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # Expo Client Hosting And Access
@@ -281,6 +281,31 @@ fetched per card. Edit opens `/death-registration?deathId=`; a
 reporter-only row adds `registered=mine`, and the form then reads the
 registration from `GET /intake/deaths` (walking at most 20 pages), never the
 case detail.
+
+Native (Collect and Collect Plus) edits a registered death in its own
+register screen: Edit on a Reported deaths card (`src/nativeRoutes/RegisteredDeaths.tsx`)
+opens `/register?deathId=` with `registrationSource=mine` and the card's page
+cursor, prefilled from that page of `GET /intake/deaths` (or `GET /intake/cases/<id>`
+for an interviewer's case). Save sends only changed fields through
+`patchNativeDeathRegistration` (`PATCH /intake/deaths/<death_id>` with
+`if_updated_at`); `death_stale` reloads the latest values, `case_completed` and
+`details_pending` make the form read-only, as a pending-details or completed case
+is from the start. The web `/death-registration` route still redirects a phone to
+`/worklist`. Online only: a correction is never queued.
+
+Native household GPS (`src/NativeLocationCapture.tsx`, bead digitva-b3hl, policy
+[Native Location Capture](../policy/native-location-capture.md)): a "Capture
+location" control under the place fields of the native register form, with the
+web control's strings. `expo-location` asks for when-in-use permission only on
+the tap (the config plugin in `app.config.js` sets the iOS when-in-use string,
+drops the Always and motion strings, and blocks Android background location),
+reads one position (20 s bound) and shows its accuracy. The fix is sent as
+`latitude`, `longitude`, `accuracy_m`, the web's fields: spread into the queued
+registration's fields (so the offline upload carries it) or the online POST, and on
+an edit only when changed (`null` on all three clears it). It is withheld when the
+address is (consent not granted). The in-progress copy keeps it. The control
+is a secondary `Button` plus muted help text, the existing vocabulary; the frozen
+Collect register design (docs/design/collect-petrol-theme/README.md) needs a refreeze.
 
 The shared Project control (`src/ui/ProjectSelect.tsx`) sits top right on
 Collection (both tabs), Coding, Reviewing and Statistics. It is a button
@@ -583,7 +608,10 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   lists to reload (`AppState.dataChanged`). `Screen` leaves the status-bar and
   navigation-bar insets to the header and tabs while they show.
 - `navAdapter.ts` feeds the account's access summary to `src/web/navTabs.ts`
-  and keeps Home, Interviews, Register death; Sync opens a sheet. Home and
+  and keeps Home, Interviews, Register death and, for accounts with `coding_access`
+  (both variants, enrolled and not blocked), Code (`/coding`, online coding, `digitva-toyw`) and, for accounts with `reviewing_access`
+  (same gating), Review (`/reviewing`, online review, `digitva-toyw.1`);
+  Sync opens a sheet. Home and
   Interviews share the `/worklist` route (`view=interviews` marks the second;
   `filter=todo|drafts|sent|revisions` opens it on a chip). Home is the
   dashboard (next step, unsent, cases needing a visit, Register a death);
@@ -735,6 +763,36 @@ its README). Screens use these components instead of their own styles.
   ignored, the stepper's secondary control is tinted, the Sections drawer
   has a title and 48 dp rows, and the required asterisk follows a
   no-break space.
+
+## Document photos: scanner, blur check, photo viewer (digitva-lq5m)
+
+Rules: [Phone Attachments](../policy/phone-attachments.md), decision 9. The
+WHO form package stays free of native code: the phone supplies three more
+platform services in `src/attachmentServices.native.ts`, and the package's
+image and file controls use them when present.
+
+- `scanDocument`: `react-native-document-scanner-plugin` (VisionKit on iOS,
+  ML Kit on Android; an Expo config plugin in `app.json`), loaded lazily so a
+  build without it falls back to the camera. One page, base64, written to
+  `va-media` (`writeCaptureFile` in `src/mediaFiles.ts`), then `preScale` and
+  `processImage` as for a photo. The control offers it first on `imagenarr`,
+  `md_im*`, `ds_im*` and image-or-PDF uploads, and falls back to
+  `captureImage` when it rejects.
+- `checkSharpness`: a 512 px copy from `expo-image-manipulator`, decoded with
+  `jpeg-js` (typed arrays, no `Buffer`), variance of the Laplacian
+  (`src/sharpness.ts`, `BLUR_THRESHOLD` to be calibrated). The control calls
+  it on the raw capture before `processImage`, saves regardless, then offers
+  Retake / Keep.
+- `ImageViewer`: `src/AttachmentImageViewer.tsx`, a `Modal` with
+  `react-native-gesture-handler` and `react-native-reanimated` (pinch 1x-5x,
+  pan, double-tap, rotate, close). `app/_layout.tsx` wraps the app in
+  `GestureHandlerRootView`, and the viewer has its own inside the `Modal`
+  (Android). Without the service (web) the package shows a plain enlarged
+  view with rotate and close.
+- The image, file and audio controls now share one action row of
+  equal-height icon-and-label buttons (primary filled, Delete last); the
+  recorder shows a dot, the time, a bar toward the limit, Pause beside
+  "Stop and save recording", and "Cancel recording" as a text action.
 
 ## iOS
 

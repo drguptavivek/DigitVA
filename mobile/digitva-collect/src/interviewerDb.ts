@@ -67,6 +67,46 @@ export type UnlockResult =
   /** The Keystore secret survives but the database file is gone: nothing is opened or counted; the caller offers a reset. */
   | { ok: false; failures: 0; wipe: false; storeMissing: true };
 
+/** How long a close waits for statements already running before closing anyway. */
+const DRAIN_TIMEOUT_MS = 5000;
+
+/**
+ * Wrap a native handle so closing is safe (digitva-d9zg): expo-sqlite's native close can run concurrently
+ * with a statement on another thread and crash in sqlite3_mutex_enter. Every statement counts as in flight;
+ * closeAsync marks the handle closing (new statements reject StoreLockedError and never reach native), waits
+ * for the in-flight ones (bounded), then closes.
+ */
+function guardHandle(raw: Db): Db {
+  let closing: Promise<void> | undefined;
+  const inFlight = new Set<Promise<unknown>>();
+  const run = <T>(call: () => Promise<T>): Promise<T> => {
+    if (closing) return Promise.reject(new StoreLockedError());
+    const p = call();
+    inFlight.add(p);
+    const done = () => inFlight.delete(p);
+    p.then(done, done);
+    return p;
+  };
+  return {
+    execAsync: (source) => run(() => raw.execAsync(source)),
+    runAsync: (source, params) => run(() => raw.runAsync(source, params)),
+    getAllAsync: <T>(source: string, params: Parameters<Db["getAllAsync"]>[1]) => run(() => raw.getAllAsync<T>(source, params)),
+    getFirstAsync: <T>(source: string, params: Parameters<Db["getFirstAsync"]>[1]) => run(() => raw.getFirstAsync<T>(source, params)),
+    closeAsync() {
+      closing ??= (async () => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, DRAIN_TIMEOUT_MS); });
+        await Promise.race([Promise.allSettled([...inFlight]), timeout]);
+        clearTimeout(timer);
+        await raw.closeAsync();
+      })();
+      // A failed native close leaves the handle open: reopen it to statements so the caller can retry.
+      closing.catch(() => { closing = undefined; });
+      return closing;
+    }
+  };
+}
+
 const unlocked = new Map<string, Db>();
 /** Unlocks and PIN setups in flight: lockAll waits for them, so a store opening as it locks is closed too. */
 const opening = new Set<Promise<unknown>>();
@@ -149,7 +189,7 @@ async function openKeyed(name: string, passphrase: string): Promise<Db> {
     // Concurrent writers (poll, Refresh, focus effects) wait instead of failing with "database is locked".
     await handle.execAsync("PRAGMA busy_timeout = 5000;");
     await migrate(handle);
-    return handle;
+    return guardHandle(handle);
   } catch (error) {
     await handle.closeAsync().catch(() => undefined);
     throw error;
@@ -306,10 +346,12 @@ export async function lockAll(): Promise<void> {
   await Promise.allSettled([...opening]);
   const failures: unknown[] = [];
   await Promise.all([...unlocked.entries()].map(async ([userId, db]) => {
+    // Out of the map first: nobody can be handed a handle that is closing.
+    if (unlocked.get(userId) === db) unlocked.delete(userId);
     try {
       await db.closeAsync();
-      if (unlocked.get(userId) === db) unlocked.delete(userId);
     } catch (error) {
+      if (!unlocked.has(userId)) unlocked.set(userId, db); // still open: keep it so the next lock retries
       failures.push(error);
     }
   }));

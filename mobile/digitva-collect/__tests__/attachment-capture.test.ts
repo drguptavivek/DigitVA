@@ -319,4 +319,17 @@ describe("playback copy and removal", () => {
     expect(await draftAttachments(db, "draft-1")).toEqual([]);
     expect(await resolveStored(e, reference)).toBeUndefined();
   });
+
+  it("keeps the stored original through any number of resolve and release cycles (digitva-w80u)", async () => {
+    const e = env();
+    files.set("file:///cache/rec.m4a", new Uint8Array([7, 8, 9]));
+    const reference = await (await startAudioRecording(e, QUESTION)).stop();
+    for (let i = 0; i < 3; i += 1) {
+      const copy = await resolveStored(e, reference);
+      expect(copy).toBeDefined();
+      e.removeFile(copy); // what the control does when it lets go of the preview copy
+    }
+    expect(Array.from((await getAttachmentBytes(db, reference.id!))!)).toEqual([7, 8, 9]);
+    expect(await resolveStored(e, reference)).toBeDefined();
+  });
 });

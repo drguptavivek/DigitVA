@@ -81,10 +81,30 @@ describe("controls", () => {
     expect(controlText).toMatchObject({ includeFontPadding: false, textAlignVertical: "center", textAlign: "center" });
   });
 
+  it("highlights the More chip and names the picked filter in it", async () => {
+    await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onLoadMore={noop} initialFilter="revisions" />);
+    const more = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && n.props.accessibilityLabel === "More")[0];
+    // Assert the active state before the unselected one below.
+    expect(more.props.accessibilityState).toEqual({ selected: true });
+    expect(more.findAllByType(Text)[0].props.children).toBe("More: Revisions");
+    expect(more.findAllByType(Text)[0].props.style).toMatchObject({ fontWeight: "600" });
+    const todo = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && n.props.accessibilityLabel?.startsWith("To do"))[0];
+    expect(todo.props.accessibilityState).toEqual({ selected: false });
+    expect(todo.findAllByType(Text)[0].props.style).toMatchObject({ fontWeight: "400" });
+  });
+
+  it("leaves the More chip unselected and plain when no More filter is picked", async () => {
+    await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onLoadMore={noop} initialFilter="todo" />);
+    const more = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && n.props.accessibilityLabel === "More")[0];
+    expect(more.props.accessibilityState).toEqual({ selected: false });
+    expect(more.findAllByType(Text)[0].props.children).toBe("More");
+  });
+
   it("filter chips are single line, 44dp, with the centring style", async () => {
     await render(<InterviewsView loaded offline={false} items={[item()]} canRegister refreshing={false} busy={false} canRefresh hasMore={false} loadingMore={false} loadFailed={false} onAction={noop} onRetryDemo={noop} onRegister={noop} onRefresh={noop} onLoadMore={noop} />);
     const chips = tree.root.findAll((n) => n.props.accessibilityRole === "tab" && typeof n.props.onPress === "function");
-    expect(chips).toHaveLength(5);
+    // To do, Drafts and More; Sent and Revisions sit behind More.
+    expect(chips).toHaveLength(3);
     for (const chip of chips) {
       // A 36pt chip; its hit slop makes the target 44pt.
       expect(chip.props.style.minHeight + (chip.props.hitSlop?.top ?? 0) + (chip.props.hitSlop?.bottom ?? 0)).toBeGreaterThanOrEqual(44);

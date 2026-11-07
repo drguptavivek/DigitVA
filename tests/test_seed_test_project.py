@@ -188,8 +188,9 @@ class SeedTestProjectTests(BaseTestCase):
                 if local == "test.all" for r in roles}
         self.assertEqual(
             mine,
-            {(None, None, "coder"), (None, None, "reviewer"),
-             ("SC01", "ANM", "death_reporter"), ("PHC01", "MO", "interview_supervisor")},
+            {(None, None, "coder"), (None, None, "reviewer"), (None, None, "data_manager"),
+             ("SC01", "ANM", "death_reporter"), ("SC01", "ANM", "interviewer"),
+             ("PHC01", "MO", "interview_supervisor")},
         )
         self.assertEqual(
             {(unit, cadre) for unit, cadre, _r in mine if unit},
@@ -197,7 +198,7 @@ class SeedTestProjectTests(BaseTestCase):
         )
         # Every unit-scope entry is a (level, cadre) the template grid allows
         # for that role's flag.
-        flag = {"death_reporter": 3, "interview_supervisor": 2}
+        flag = {"death_reporter": 3, "interview_supervisor": 2, "interviewer": 0}
         level = {"SC01": "subcentre", "PHC01": "phc"}
         for unit, cadre, role in mine:
             if unit:
@@ -274,7 +275,7 @@ class SeedTestProjectTests(BaseTestCase):
         self._add_sademo()
         result = self.app.test_cli_runner().invoke(args=["seed", "test-project"])
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertEqual(self._sademo_grants(), [VaAccessRoles.coder])
+        self.assertCountEqual(self._sademo_grants(), [VaAccessRoles.coder, VaAccessRoles.reviewer])
         self.assertTrue(self._user("test.dm").check_password(TEST_PROJECT_PASSWORD))
         self.assertIsNotNone(self._user("testadmin"))
         self.assertIsNotNone(self._user("test.pi"))

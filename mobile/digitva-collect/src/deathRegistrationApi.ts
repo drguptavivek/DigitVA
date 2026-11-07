@@ -10,8 +10,16 @@ import {
 import { authedRequest, refreshAccessSummaryForAction } from "./auth";
 import type { ConsentRecordEnvelope } from "./consent";
 
-/** `consent`: the respondent's decision for informant details (contract 5.3, `client_draft_id` null). */
-export type RegistrationChanges = Partial<Omit<RegistrationInput, "project_id" | "site_id" | "org_unit_id">> & { consent?: ConsentRecordEnvelope };
+/**
+ * `consent`: the respondent's decision for informant details (contract 5.3, `client_draft_id` null).
+ * `latitude`/`longitude`/`accuracy_m`: the household GPS fix; null on all three clears it.
+ */
+export type RegistrationChanges = Partial<Omit<RegistrationInput, "project_id" | "site_id" | "org_unit_id">> & {
+  consent?: ConsentRecordEnvelope;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_m?: number | null;
+};
 
 export interface RegistrationCase {
   death_id: string;

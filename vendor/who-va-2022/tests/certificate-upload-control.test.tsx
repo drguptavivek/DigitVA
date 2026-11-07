@@ -68,12 +68,14 @@ describe("medical certificate upload (image or PDF)", () => {
     view.done();
   });
 
-  it("previews a saved image with the viewer actions, and asks before deleting it", async () => {
+  it("previews a saved image that opens full screen, and asks before deleting it", async () => {
     const removeAttachment = vi.fn().mockResolvedValue(undefined);
     const view = await render({ value: photo as never, platform: { removeAttachment, selectFile: vi.fn() } });
     expect(view.byTestId("question-death_certificate_upload-preview")).not.toBeNull();
+    expect(view.byTestId("question-death_certificate_upload-preview-open")).not.toBeNull();
+    expect(view.byTestId("question-death_certificate_upload-remove")).not.toBeNull();
     for (const label of ["Hide image", "Rotate", "Zoom in", "Zoom out"]) {
-      expect(view.container.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+      expect(view.container.querySelector(`[aria-label="${label}"]`)).toBeNull();
     }
     view.byTestId("question-death_certificate_upload-remove")!.click();
     await vi.waitFor(() => expect(view.byTestId("question-death_certificate_upload-confirm")).not.toBeNull());
@@ -85,6 +87,24 @@ describe("medical certificate upload (image or PDF)", () => {
     view.byTestId("question-death_certificate_upload-confirm-yes")!.click();
     await vi.waitFor(() => expect(view.onAnswer).toHaveBeenCalledWith(undefined));
     expect(removeAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: "cert" }));
+    view.done();
+  });
+
+  it("opens a saved PDF in a new tab through resolveAttachmentUri", async () => {
+    const pdf = { processed: true, mimeType: "application/pdf", id: "pdf1", uri: "idb:pdf1", name: "cert.pdf", size: 10 };
+    const resolveAttachmentUri = vi.fn().mockResolvedValue("blob:test");
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const view = await render({ value: pdf as never, platform: { resolveAttachmentUri, selectFile: vi.fn() } });
+    view.byTestId("question-death_certificate_upload-open")!.click();
+    await vi.waitFor(() => expect(open).toHaveBeenCalledWith("blob:test", "_blank", "noopener"));
+    expect(resolveAttachmentUri).toHaveBeenCalledWith(expect.objectContaining({ id: "pdf1" }));
+    open.mockRestore();
+    view.done();
+  });
+
+  it("offers no Open control for an image", async () => {
+    const view = await render({ value: photo as never, platform: { resolveAttachmentUri: vi.fn(), selectFile: vi.fn() } });
+    expect(view.byTestId("question-death_certificate_upload-open")).toBeNull();
     view.done();
   });
 });

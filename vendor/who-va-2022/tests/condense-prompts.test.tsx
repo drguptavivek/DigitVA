@@ -161,7 +161,7 @@ describe("deleting or replacing a saved recording", () => {
     await view.press("question-narr_audio");
     await vi.waitFor(() =>
       expect(view.container.querySelector('[data-testid="question-narr_audio-confirm"]')?.textContent).toContain(
-        "Record again?"
+        "Replace the saved recording?"
       )
     );
     expect(startAudioRecording).not.toHaveBeenCalled();

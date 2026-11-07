@@ -748,7 +748,7 @@ describe("queue layout", () => {
     await unmount(screen.renderer);
   });
 
-  test("the Available tab exists only in pick mode and random-only coders see their history", async () => {
+  test("random-only coders get the segmented control: Available is the random panel, My coded cases the filter and list", async () => {
     const pick = await render("coding", makeApi());
     expect(button(pick.renderer.root, "Available")).toBeDefined();
     expect(JSON.stringify(pick.renderer.toJSON())).toContain("2 ready");
@@ -758,16 +758,88 @@ describe("queue layout", () => {
     const randomOnly = await render("coding", api);
     await settle();
     expect(button(randomOnly.renderer.root, "Start a random case")).toBeDefined();
-    expect(button(randomOnly.renderer.root, "Available")).toBeUndefined();
+    expect(button(randomOnly.renderer.root, "Available")).toBeDefined();
     expect(button(randomOnly.renderer.root, "Pick case")).toBeUndefined();
+    expect(button(randomOnly.renderer.root, "Next")).toBeUndefined();
+    expect(api.getCodingHistory).not.toHaveBeenCalled();
+    await press(randomOnly.renderer, "My coded cases");
+    await settle();
     expect(api.getCodingHistory).toHaveBeenCalled();
-    expect(JSON.stringify(randomOnly.renderer.toJSON())).toContain("My coded cases");
+    expect(button(randomOnly.renderer.root, "Start a random case")).toBeUndefined();
+    expect(button(randomOnly.renderer.root, "Next")).toBeDefined();
+    expect(JSON.stringify(randomOnly.renderer.toJSON())).toContain("CODER-MASKED-1");
     await unmount(randomOnly.renderer);
+  });
+
+  test("the My coded cases deep link opens segment two for a random-only coder", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: false }) });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" initialView={{ allProjects: false, showHistory: true, offset: 0 }} onOpen={jest.fn()} />);
+    });
+    await settle();
+    expect(tabKind(renderer.root, "My coded cases")).toBe("primary");
+    expect(api.getCodingHistory).toHaveBeenCalled();
+    expect(JSON.stringify(renderer.toJSON())).toContain("CODER-MASKED-1");
+    await unmount(renderer);
+  });
+
+  test("random-only with pick_ready 0 (server shape): Available stays selectable, history only by deep link", async () => {
+    const stats = { random_ready: 3, pick_ready: 0, has_random_mode: true, has_pick_mode: false };
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue(stats) });
+    const screen = await render("coding", api);
+    await settle();
+    expect(tabKind(screen.renderer.root, "Available")).toBe("primary");
+    await press(screen.renderer, "My coded cases");
+    await settle();
+    expect(tabKind(screen.renderer.root, "My coded cases")).toBe("primary");
+    await press(screen.renderer, "Available");
+    await settle();
+    expect(tabKind(screen.renderer.root, "Available")).toBe("primary");
+    expect(button(screen.renderer.root, "Start a random case")).toBeDefined();
+    await unmount(screen.renderer);
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" initialView={{ allProjects: false, showHistory: true, offset: 0 }} onOpen={jest.fn()} />);
+    });
+    await settle();
+    expect(tabKind(renderer.root, "My coded cases")).toBe("primary");
+    await press(renderer, "Available");
+    await settle();
+    expect(tabKind(renderer.root, "Available")).toBe("primary");
+    await unmount(renderer);
+  });
+
+  test("changing project returns the segment to Available; empty My coded cases still shows the filter", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 3, pick_ready: 0, has_random_mode: true, has_pick_mode: false }) });
+    const screen = await render("coding", api);
+    await settle();
+    await press(screen.renderer, "My coded cases");
+    await settle();
+    expect(tabKind(screen.renderer.root, "My coded cases")).toBe("primary");
+    await pickProject(screen.renderer, "All projects");
+    await settle();
+    expect(tabKind(screen.renderer.root, "Available")).toBe("primary");
+    await unmount(screen.renderer);
+
+    const empty = makeApi({
+      getCodingStats: jest.fn().mockResolvedValue({ random_ready: 3, pick_ready: 0, has_random_mode: true, has_pick_mode: false }),
+      getCodingHistory: jest.fn().mockResolvedValue({ history: [], has_more: false }),
+    });
+    const e = await render("coding", empty);
+    await settle();
+    await press(e.renderer, "My coded cases");
+    await settle();
+    expect(e.renderer.root.findAll((n) => n.props.accessibilityLabel === "Filter cases").length).toBeGreaterThan(0);
+    await unmount(e.renderer);
   });
 
   test("a random-only coder never fetches the available page", async () => {
     const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: false }) });
     const screen = await render("coding", api);
+    await settle();
+    await press(screen.renderer, "My coded cases");
     await settle();
     expect(api.getCodingHistory).toHaveBeenCalled();
     expect(JSON.stringify(screen.renderer.toJSON())).toContain("CODER-MASKED-1");
@@ -780,7 +852,8 @@ describe("queue layout", () => {
     const api = makeApi({ getCodingStats } as Partial<WorkspaceApi>);
     const screen = await render("coding", api);
     await settle();
-    expect(button(screen.renderer.root, "Available")).toBeUndefined();
+    await press(screen.renderer, "My coded cases");
+    await settle();
     expect(api.getCodingHistory).toHaveBeenCalled();
     await pickProject(screen.renderer, "Project Two");
     await settle();
@@ -863,6 +936,8 @@ describe("queue layout", () => {
       getCodingStats: jest.fn().mockResolvedValue({ random_ready: 1, has_random_mode: true, has_pick_mode: false }),
       getCodingHistory: jest.fn().mockResolvedValue({ history: [], ...empty }),
     }));
+    await settle();
+    await press(history.renderer, "My coded cases");
     await settle();
     expect(JSON.stringify(history.renderer.toJSON())).toContain("No coded cases yet.");
     await unmount(history.renderer);
@@ -1053,6 +1128,8 @@ describe("offline station coding status", () => {
       }),
     });
     const { renderer } = await render("coding", api);
+    await press(renderer, "My coded cases");
+    await settle();
     const status = (sid: string) => renderer.root.findAll((n) => typeof n.type === "string" && n.props.testID === `coding-server-status-${sid}`).map((n) => n.props.children);
     expect(status("held")).toEqual(["Sent — waiting for the server's DORIS"]);
     expect(status("refused")).toEqual(["Refused by the server: the coding mode does not match the project's"]);

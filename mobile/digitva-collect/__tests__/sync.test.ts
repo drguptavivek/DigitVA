@@ -1431,6 +1431,27 @@ describe("sync upload ordering", () => {
     expect(await getDraftRow(db, DRAFT)).toBeNull();
   });
 
+  it("mirrors the case state the upload acknowledgement reports onto the cached case (registered -> refused)", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await upsertCase(db, detail());
+    expect(await getCase(db, DEATH)).toMatchObject({ state: "registered" });
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } });
+    await store.save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call, { case: { death_id: DEATH, unique_id: "U-1", status: "refused" } });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(500, { error: "unavailable" }); // no pull, so the cached state is the upload acknowledgement's
+    });
+
+    await syncInterviewer(USER, db).catch(() => undefined); // the failed pull ends the run after the upload
+    expect(calls.some((call) => call.url.endsWith("/submissions"))).toBe(true);
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await getCase(db, DEATH)).toMatchObject({ state: "refused" });
+  });
+
   it("holds a completed draft with a partial definition pin for attention before upload", async () => {
     const db = memoryDb();
     await migrate(db);

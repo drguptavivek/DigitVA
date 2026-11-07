@@ -141,7 +141,7 @@ describe("reusable question controls", () => {
     root.unmount();
   });
 
-  it("renders reusable image preview, rotate, zoom, view, camera, and library actions", async () => {
+  it("renders the image preview, camera and library actions, and opens the photo full screen on a tap", async () => {
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -167,34 +167,83 @@ describe("reusable question controls", () => {
     for (const action of ["Camera", "Replace image"]) {
       expect(container.textContent).toContain(action);
     }
-    // The viewer actions and Remove are icon buttons named by their label.
     const action = (label: string) =>
-      Array.from(container.querySelectorAll<HTMLElement>('[role="button"]')).find(
+      Array.from(document.querySelectorAll<HTMLElement>('[role="button"]')).find(
         (button) => button.textContent === label || button.getAttribute("aria-label") === label
       );
-    for (const label of ["Hide image", "Rotate", "Zoom in", "Zoom out", "Remove image"]) {
-      expect(action(label)).toBeDefined();
+    expect(action("Remove image")).toBeDefined();
+    // The preview is the way in now: no eye, zoom-in or zoom-out buttons beside it, and no rotate outside the viewer.
+    for (const label of ["Hide image", "View image", "Zoom in", "Zoom out", "Rotate"]) {
+      expect(action(label)).toBeUndefined();
     }
-    action("Rotate")?.click();
+    expect(document.querySelector('[data-testid="photo-viewer"]')).toBeNull();
+
+    container.querySelector<HTMLElement>('[data-testid="question-photo-preview-open"]')!.click();
+    await vi.waitFor(() => expect(document.querySelector('[data-testid="photo-viewer"]')).not.toBeNull());
+    document.querySelector<HTMLElement>('[data-testid="photo-viewer-rotate"]')!.click();
     await vi.waitFor(() =>
       expect(
-        container.querySelector<HTMLElement>('[data-testid="question-photo-preview"]')?.style.transform
+        document.querySelector<HTMLElement>('[data-testid="photo-viewer-image"]')?.style.transform
       ).toContain("rotate(90deg)")
     );
-    action("Zoom in")?.click();
-    await vi.waitFor(() =>
-      expect(
-        container.querySelector<HTMLElement>('[data-testid="question-photo-preview"]')?.style.transform
-      ).toContain("scale(1.25)")
+    // View-only: the inline preview is not rotated.
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="question-photo-preview"]')?.style.transform ?? ""
+    ).not.toContain("rotate");
+    document.querySelector<HTMLElement>('[data-testid="photo-viewer-close"]')!.click();
+    await vi.waitFor(() => expect(document.querySelector('[data-testid="photo-viewer"]')).toBeNull());
+    root.unmount();
+  });
+
+  it("hands a tapped preview to the host's ImageViewer with the localized labels", async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    function HostViewer(props: {
+      uri: string;
+      accessibilityLabel: string;
+      rotateLabel: string;
+      closeLabel: string;
+      onClose: () => void;
+    }) {
+      seen.push(props);
+      return (
+        <button data-testid="host-viewer" onClick={props.onClose}>
+          {props.uri}
+        </button>
+      );
+    }
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    root.render(
+      <WhoVaQuestionControls.Image
+        question={{
+          ...textQuestion,
+          name: "imagenarr",
+          sourceType: "image",
+          dataType: "attachment",
+          control: "image"
+        }}
+        value={{ uri: "data:image/png;base64,iVBORw0KGgo=", name: "narrative.png", mimeType: "image/png" }}
+        data={{}}
+        locale="en"
+        issues={[]}
+        platform={{ ImageViewer: HostViewer }}
+        onAnswer={vi.fn()}
+      />
     );
-    action("Hide image")?.click();
-    await vi.waitFor(() =>
-      expect(container.querySelector('[data-testid="question-photo-preview"]')).toBeNull()
-    );
-    action("View image")?.click();
-    await vi.waitFor(() =>
-      expect(container.querySelector('[data-testid="question-photo-preview"]')).not.toBeNull()
-    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(container.querySelector('[data-testid="host-viewer"]')).toBeNull();
+    container.querySelector<HTMLElement>('[data-testid="question-imagenarr-preview-open"]')!.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="host-viewer"]')).not.toBeNull());
+    expect(seen.at(-1)).toMatchObject({
+      uri: "data:image/png;base64,iVBORw0KGgo=",
+      accessibilityLabel: "narrative.png",
+      rotateLabel: "Rotate",
+      closeLabel: "Close"
+    });
+    expect(document.querySelector('[data-testid="photo-viewer"]')).toBeNull();
+    container.querySelector<HTMLElement>('[data-testid="host-viewer"]')!.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="host-viewer"]')).toBeNull());
     root.unmount();
   });
 

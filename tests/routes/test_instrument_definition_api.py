@@ -217,6 +217,13 @@ class InstrumentDefinitionApiTests(BaseTestCase):
         # The project need not enable it today (social autopsy is off here).
         self.assertEqual(self._old("abha").data, response.data)
 
+    def test_untagged_markers_from_an_old_pin_are_ignored_but_unknown_names_still_422(self):
+        self._old_version()
+        markers = "digitva_core,doris_support_whova_2022,geography,intake_screen"
+        self.assertEqual(self._old(f"abha,{markers}").data, self._old("abha").data)
+        self.assertEqual(self._old(markers).data, self._old("").data)
+        self.assertEqual(self._old(f"{markers},nope").status_code, 422)
+
     def test_the_historical_route_revalidates_with_the_etag_and_gzips(self):
         self._old_version()
         first = self._old("abha")

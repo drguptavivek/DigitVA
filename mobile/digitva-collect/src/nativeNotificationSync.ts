@@ -22,6 +22,23 @@ const syncs = new Map<string, {
   canCodeNowSubscribers: Set<(uniqueId: string) => void>;
 }>();
 
+/**
+ * The foreground poll runs every 30 s; /me/access changes rarely. A nonempty notification already
+ * triggers runNativeSync, which refreshes access, so the poll itself only refreshes this often
+ * (and on the first poll of a process, i.e. app start/unlock). Collection gate needs it at least daily.
+ */
+export const ACCESS_REFRESH_INTERVAL_MS = 15 * 60_000;
+const lastAccessRefresh = new Map<string, number>();
+
+/** Test hook: forget when each account's access was last refreshed. */
+export function resetAccessRefreshThrottle(): void {
+  lastAccessRefresh.clear();
+}
+
+function rememberAccessRefresh(userId: string, access: unknown): void {
+  if (access) lastAccessRefresh.set(userId, Date.now());
+}
+
 export interface NativeSyncResult {
   sync: SyncResult;
   reference: Awaited<ReturnType<typeof refreshReferenceData>>;
@@ -89,7 +106,7 @@ export function runNativeSync(
   const canCodeNowSubscribers = new Set<(uniqueId: string) => void>();
   if (callbacks.onCanCodeNow) canCodeNowSubscribers.add(callbacks.onCanCodeNow);
   pending = (async () => {
-    await refreshAccessSummary(userId);
+    rememberAccessRefresh(userId, await refreshAccessSummary(userId));
     const account = (await loadAccounts()).find(({ user_id }) => user_id === userId);
     if (account?.collection_access !== true) throw new ApiError(403, "no_collection_access");
     const before = await readNotificationState(userId);
@@ -127,7 +144,10 @@ export async function refreshNativeNotifications(
   userId: string,
   db?: Db,
 ): Promise<boolean> {
-  await refreshAccessSummary(userId);
+  const refreshedAt = lastAccessRefresh.get(userId);
+  if (refreshedAt === undefined || Date.now() - refreshedAt >= ACCESS_REFRESH_INTERVAL_MS) {
+    rememberAccessRefresh(userId, await refreshAccessSummary(userId));
+  }
   await pollAccountNotifications(userId);
   const account = (await loadAccounts()).find(({ user_id }) => user_id === userId);
   if (account?.collection_access !== true) return false;

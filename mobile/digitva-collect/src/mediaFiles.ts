@@ -61,11 +61,22 @@ export function writePlaybackCopy(id: string, ext: string, bytes: Uint8Array): s
   return file.uri;
 }
 
+/** A scanned page (the scanner hands it over as base64) as a plain cache file, until it is read into the store. */
+export function writeCaptureFile(id: string, base64: string): string {
+  const dir = new Directory(Paths.cache, MEDIA_DIR);
+  if (!dir.exists) dir.create({ intermediates: true });
+  const file = new File(dir, `${id}-scan.jpg`);
+  file.create({ overwrite: true });
+  file.write(base64, { encoding: "base64" });
+  return file.uri;
+}
+
 /**
- * The playback folder plus the folders the picker, manipulator and recorder libraries write their temporary
- * outputs to (their paths are fixed inside the app cache; they accept no output location).
+ * The playback folder plus the folders the picker, manipulator, recorder and Android document-scanner libraries
+ * write their temporary outputs to (their paths are fixed inside the app cache; they accept no output location).
+ * `mlkit_docscan_ui_client` is ML Kit's scan output folder; confirm the name on a phone (digitva-lq5m).
  */
-const SWEPT_DIRS = [MEDIA_DIR, "ImagePicker", "ImageManipulator", "DocumentPicker", "Audio"];
+const SWEPT_DIRS = [MEDIA_DIR, "ImagePicker", "ImageManipulator", "DocumentPicker", "Audio", "mlkit_docscan_ui_client"];
 
 /** Empty the playback and capture-temporary folders: on lock, sign-out, store deletion and start-up. */
 export function wipeMediaCache(): void {

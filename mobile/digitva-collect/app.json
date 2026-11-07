@@ -55,6 +55,12 @@
         }
       ],
       [
+        "react-native-document-scanner-plugin",
+        {
+          "cameraPermission": "Scan your enrolment QR code and photograph the written narrative and documents for an interview."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "DigitVA attaches photos you choose to a verbal autopsy interview.",
@@ -85,6 +91,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.causeofdeathindia.digitvacollect",
+      "userInterfaceStyle": "automatic",
       "infoPlist": {
         "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data.",
         "ITSAppUsesNonExemptEncryption": false

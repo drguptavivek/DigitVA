@@ -15,8 +15,9 @@ let mockServer: string | undefined = "https://digitvav3.causeofdeathindia.com";
 let mockUserId: string | undefined = "U";
 let mockOffline = false;
 let mockPlus = false;
+let mockLockVersion = 0;
 jest.mock("expo-router", () => ({ useFocusEffect: (effect: () => void) => require("react").useEffect(effect, [effect]) }));
-jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: [mockAccount], slot: mockSlot, lockVersion: 0 }) }));
+jest.mock("../src/AppState", () => ({ useAppState: () => ({ accounts: [mockAccount], slot: mockSlot, lockVersion: mockLockVersion }) }));
 jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ userId: mockUserId, server: mockServer, sync: { offline: mockOffline } }) }));
 jest.mock("../src/accessProfile", () => ({
   ...jest.requireActual("../src/accessProfile"), loadAccessProfile: (...args: unknown[]) => mockLoad(...args),
@@ -159,4 +160,14 @@ test("translates app labels while preserving project names and unknown server ro
   expect(rendered).toContain("Project One");
   expect(rendered).toContain("site_assistant_qa");
   expect(rendered).toContain("ICD11");
+});
+
+test("a lock-version bump (which a refresh itself causes) does not refetch the access answer", async () => {
+  const tree = await render();
+  expect(mockLoad).toHaveBeenCalledTimes(1);
+  mockLockVersion += 1;
+  await act(async () => { tree.update(<ProfileAccess />); });
+  expect(mockLoad).toHaveBeenCalledTimes(1);
+  expect(text(tree)).toContain("Project One");
+  mockLockVersion = 0;
 });

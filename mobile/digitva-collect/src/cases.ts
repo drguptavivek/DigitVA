@@ -207,6 +207,13 @@ export async function listCases(db: Db): Promise<CaseDetail[]> {
   return rows.map((r) => JSON.parse(r.row) as CaseDetail);
 }
 
+/** Mirror a server-acknowledged state onto the cached case, so an upload shows at once rather than at the next pull. */
+export async function setCachedCaseState(db: Db, deathId: string, state: string): Promise<void> {
+  const cached = await getCase(db, deathId);
+  if (!cached || cached.state === state) return;
+  await db.runAsync("UPDATE cases SET row = ? WHERE death_id = ?", [JSON.stringify({ ...cached, state }), deathId]);
+}
+
 export async function getCase(db: Db, deathId: string): Promise<CaseDetail | undefined> {
   const r = await db.getFirstAsync<{ row: string }>("SELECT row FROM cases WHERE death_id = ?", [deathId]);
   return r ? (JSON.parse(r.row) as CaseDetail) : undefined;

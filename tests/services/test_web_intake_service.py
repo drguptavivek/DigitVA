@@ -252,8 +252,42 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(first.status, "registered")
         self.assertEqual(first.registered_by, self.interviewer.user_id)
 
+    def _death_dates_at(self, now, timezone, dates):
+        """Which of *dates* (ISO) register as a date of death at instant *now*
+        for a project in *timezone* (digitva-vz9f)."""
+        from unittest import mock
+        db.session.get(VaProjectMaster, self.PROJECT_ID).timezone = timezone
+        db.session.flush()
+        ok = []
+        with mock.patch("app.services.project_clock._now", return_value=now):
+            for day in dates:
+                try:
+                    self._register_death(date_of_death=day)
+                    ok.append(day)
+                except intake_svc.WebIntakeError:
+                    pass
+        return ok
+
+    def test_register_death_judges_today_by_the_project_day(self):
+        # 20:00 UTC on 6 Nov is 01:30 IST on 7 Nov.
+        now = datetime(2026, 11, 6, 20, 0, tzinfo=UTC)
+        self.assertEqual(
+            self._death_dates_at(now, "Asia/Kolkata", ["2026-11-07", "2026-11-08"]), ["2026-11-07"])
+        # Honolulu (UTC-10) is still 10:00 on 6 Nov: the 7th is the future.
+        self.assertEqual(
+            self._death_dates_at(now, "Pacific/Honolulu", ["2026-11-06", "2026-11-07"]), ["2026-11-06"])
+
+    def test_correction_judges_today_by_the_project_day(self):
+        death = self._register_death()
+        db.session.get(VaProjectMaster, self.PROJECT_ID).timezone = "Asia/Kolkata"
+        from unittest import mock
+        with mock.patch("app.services.project_clock._now", return_value=datetime(2026, 11, 6, 20, 0, tzinfo=UTC)):
+            intake_svc.update_death(self.interviewer, death.death_id, {"date_of_death": "2026-11-07"})
+            with self.assertRaises(intake_svc.WebIntakeError):
+                intake_svc.update_death(self.interviewer, death.death_id, {"date_of_death": "2026-11-08"})
+
     def test_register_death_validates_dates_sex_and_age(self):
-        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        tomorrow = (date.today() + timedelta(days=2)).isoformat()  # future in any zone
         with self.assertRaises(intake_svc.WebIntakeError):
             self._register_death(date_of_death=tomorrow)
         with self.assertRaises(intake_svc.WebIntakeError):

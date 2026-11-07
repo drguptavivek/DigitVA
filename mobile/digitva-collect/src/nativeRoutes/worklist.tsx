@@ -17,9 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState } from "react-native";
 
 import { useAppState } from "../AppState";
-import { isPlusVariant } from "../appVariant";
-import { SessionRevokedError, SignInRequiredError } from "../auth";
-import { canUseOfflineCoding } from "../codingCapabilities";
+import { SessionRevokedError, SignInRequiredError, takePickedHomeProject } from "../auth";
 import {
   listActions,
   listCases,
@@ -30,7 +28,7 @@ import {
   type Registration,
 } from "../cases";
 import { sendRefusals, type SendRefusal } from "../unsentWork";
-import { deleteUnsentDraft, listDrafts, reopenCompletedDraft, retryHeldDraft, type Db, type DraftRow } from "../drafts";
+import { deleteUnsentDraft, getMeta, listDrafts, setMeta, reopenCompletedDraft, retryHeldDraft, type Db, type DraftRow } from "../drafts";
 import { codingNotices, dismissCodingNotices, type CodingNotice } from "../codingUploadNotices";
 import { codingNoticeText } from "../standalone/adopt";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -60,7 +58,6 @@ import { useToast } from "../toast";
 import { icons } from "../Icon";
 import { displayProjectName } from "../projectName";
 import { Button, Card, errorText, ListRow, Screen, Separator } from "../ui";
-import { CodingCaseChips } from "../ui/CodingCaseChips";
 import { buildInterviewItems, interviewCounts, listDraftNames, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
@@ -68,13 +65,16 @@ import type { PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
 import { HomeView, InterviewsView, Notice, ProjectLine, ProjectSheet, SitePickerSheet } from "./worklistParts";
 
+/** Per-account meta key for the project the user chose on Interviews. */
+const PICKED_PROJECT_KEY = "worklist.project.v1";
+
 export default function Worklist() {
   const { userId, registeredMine, view, filter } = useLocalSearchParams<{ userId: string; registeredMine?: string; view?: string; filter?: string }>();
   const { accounts } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
   const reporterOnly = account?.collection_access !== true && account?.registration_access === true;
   if (reporterOnly || (registeredMine === "1" && account?.registered_deaths_access === true)) {
-    return <RegisteredDeaths userId={userId} registeredMine={!reporterOnly} />;
+    return <RegisteredDeaths userId={userId} registeredMine />;
   }
   return <InterviewWorklist interviews={(Array.isArray(view) ? view[0] : view) === "interviews"} filter={filter} />;
 }
@@ -85,7 +85,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     userId: string;
     refresh?: string;
   }>();
-  const { accounts, reload, lockVersion, syncAccount, offline } = useAppState();
+  const { accounts, device, reload, lockVersion, syncAccount, offline } = useAppState();
   const shell = useShell();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
@@ -99,6 +99,13 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const [submittedRevisionsError, setSubmittedRevisionsError] = useState<string | undefined>();
   const [cases, setCases] = useState<CaseDetail[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>();
+  // The user's own pick (kept in this account's database) survives blur and reference refreshes, unlike the state above.
+  const pickedProjectRef = useRef<string | undefined>(undefined);
+  const deviceProjectRef = useRef<string | undefined>(undefined);
+  deviceProjectRef.current = device?.project_id;
+  // Keep the current project while authorized, else the saved pick, else the project this phone was enrolled on, else the first.
+  const defaultProject = useCallback((ids: string[], current?: string) =>
+    [current, pickedProjectRef.current, deviceProjectRef.current].find((id) => id && ids.includes(id)) ?? ids[0], []);
   const [onlineCases, setOnlineCases] = useState<CaseRow[]>([]);
   const [onlineCursor, setOnlineCursor] = useState<string | null>(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
@@ -159,15 +166,13 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         setSubmittedRevisionsLoaded(false);
         setSubmittedRevisionsError(undefined);
         setSelectedProjectId((selected) =>
-          selected && authorizedProjects.has(selected)
-            ? selected
-            : next?.projects[0]?.project.project_id,
+          defaultProject(next?.projects.map(({ project }) => project.project_id) ?? [], selected),
         );
       }
       referenceDataRef.current = next;
       setReferenceData(next);
     },
-    [],
+    [defaultProject],
   );
 
   const isCurrent = useCallback(
@@ -306,10 +311,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       if (!current()) return;
       setReference(latest);
       setSelectedProjectId((selected) =>
-        selected &&
-        latest?.projects.some(({ project }) => project.project_id === selected)
-          ? selected
-          : latest?.projects[0]?.project.project_id,
+        defaultProject(latest?.projects.map(({ project }) => project.project_id) ?? [], selected),
       );
       setOnlineCases([]);
       setOnlineCursor(null);
@@ -412,6 +414,11 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           if (!active) return;
           dbRef.current = handle;
           setDb(handle);
+          // A home project picked at enrolment (src/nativeRoutes/enrol.tsx) seeds the remembered pick once.
+          const enrolPick = takePickedHomeProject(account.user_id);
+          if (enrolPick) await setMeta(handle, PICKED_PROJECT_KEY, enrolPick).catch(() => undefined);
+          pickedProjectRef.current = (await getMeta<string>(handle, PICKED_PROJECT_KEY).catch(() => undefined)) || undefined;
+          if (!active) return;
           await loadLocal(handle, () => active && isCurrent());
           const cached = await getCachedReferenceData(handle);
           if (!active) return;
@@ -424,15 +431,12 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
             new Set(cached?.projects.map(({ project }) => project.project_id) ?? []),
             () => active && isCurrent(),
           );
-          const firstProject = cached?.projects[0]?.project.project_id;
-          setSelectedProjectId((current) =>
-            current &&
-            cached?.projects.some(
-              ({ project }) => project.project_id === current,
-            )
-              ? current
-              : firstProject,
-          );
+          const cachedIds = cached?.projects.map(({ project }) => project.project_id) ?? [];
+          if (pickedProjectRef.current && cached && !cachedIds.includes(pickedProjectRef.current)) {
+            pickedProjectRef.current = undefined;
+            void setMeta(handle, PICKED_PROJECT_KEY, null).catch(() => undefined);
+          }
+          setSelectedProjectId((current) => defaultProject(cachedIds, current));
           try {
             const fresh = forceRefresh
               ? await refreshReferenceData(account.user_id, handle, {
@@ -447,12 +451,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
                 fresh?.projects.map(({ project }) => project.project_id) ?? [],
               );
               setSelectedProjectId((current) =>
-                current &&
-                fresh?.projects.some(
-                  ({ project }) => project.project_id === current,
-                )
-                  ? current
-                  : fresh?.projects[0]?.project.project_id,
+                defaultProject(fresh?.projects.map(({ project }) => project.project_id) ?? [], current),
               );
               void loadSubmittedInterviews(
                 authorizedProjectIds,
@@ -497,6 +496,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       refreshDefinitions,
       loadLocal,
       recoverAfterRefreshFailure,
+      defaultProject,
       refreshCases,
       refreshOnFocus,
       router,
@@ -820,10 +820,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     ) : null,
   ].filter((row) => row !== null);
   // Each row is followed by a separator when another row comes after it in the same card.
-  const homeRows = goRows.length ? goRows.flatMap((row, index) => (index < goRows.length - 1 || account.coding_access ? [row, <Separator key={`sep-${index}`} icon />] : [row])) : undefined;
-  const codingChips = account.coding_access ? (
-    <CodingCaseChips userId={account.user_id} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={isOffline} />
-  ) : null;
+  const homeRows = goRows.length ? goRows.flatMap((row, index) => (index < goRows.length - 1 ? [row, <Separator key={`sep-${index}`} icon />] : [row])) : undefined;
 
   function startInterview(target: PickerTarget) {
     setPicking(false);
@@ -999,6 +996,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           setChoosingProject(false);
           onlineRequestGenerationRef.current += 1;
           setSelectedProjectId(projectId);
+          pickedProjectRef.current = projectId;
+          if (db) void setMeta(db, PICKED_PROJECT_KEY, projectId).catch(() => undefined);
           setOnlineCases([]);
           setOnlineCursor(null);
         }}
@@ -1028,7 +1027,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           onRegister={openRegister}
           onRefresh={() => void refresh()}
           onLoadMore={() => void loadOnlineMore()}
-          header={<>{projectLine}{codingChips}</>}
+          header={projectLine}
           footer={notices}
         />
         {sheets}
@@ -1052,10 +1051,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         onViewTodo={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "todo" } })}
         onViewDrafts={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "drafts" } })}
       >
-        {/* One card of "go somewhere" rows: Register a death and My registered deaths, then the coding case lists. */}
-        {account.coding_access ? (
-          <CodingCaseChips userId={account.user_id} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={isOffline} leading={homeRows} />
-        ) : homeRows ? <Card grouped testID="home-go-rows">{homeRows}</Card> : null}
+        {/* One card of "go somewhere" rows: Register a death and My registered deaths. Coder lists live in the Code tab. */}
+        {homeRows ? <Card grouped testID="home-go-rows">{homeRows}</Card> : null}
         {notices}
       </HomeView>
       {sheets}

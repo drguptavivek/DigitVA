@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # Sign-in by Mobile Number
@@ -88,6 +88,30 @@ device's administrative home. This home does not grant or narrow data
 access: every request still checks its named project and scope. Server
 addresses use the existing trusted-origin validation, with existing exact
 debug-only local exceptions; credentials are never sent to a rejected URL.
+
+### Choosing the device's home project (owner 2026-11-07, `digitva-kspl`)
+
+Owner decision: "ask to select a project rather than have a silent default".
+
+- When the person signing in (email/mobile password or sign-in QR) has more
+  than one eligible project, the app asks them to pick one before it goes
+  on; there is no silent default in the new app. Exactly one eligible
+  project is chosen without a prompt.
+- Eligible: every active project where the person may interview, register
+  a death, or code/review natively (the same reach that opens the app).
+- The enrolment reply keeps `project` (the lowest eligible id across interviewing and death register, else native coding/review; always one of `projects` when that is non-empty) so older
+  APKs behave exactly as before, and adds `projects: [{project_id, name}]`.
+- The app sets its choice with `POST /api/v1/auth/devices/current/project
+  {project_id}` on the bearer session. A project outside the caller's
+  eligible list is refused 403 `project_not_eligible`; a change is audited
+  as `device_project_changed`. Choosing the device's current project is a
+  no-op 200. A device that holds station state (a signing key, signing-key
+  history, station config or custodian, an ingested bundle, or outstanding
+  work a session reported) is refused 409 `device_project_locked` when the
+  project would change, because its project binds offline-station trust.
+  The same call may later back a Settings
+  change; the app's worklist project switcher remains the in-app way to
+  change the working project.
 
 ## 3. Server-generated password, released by a one-time code
 

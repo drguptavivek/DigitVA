@@ -276,6 +276,31 @@ class ReviewingApiPhase3bTests(BaseTestCase):
             400, "invalid_cod",
         )
 
+    def test_other_conditions_accepts_text_or_a_list_on_initial_and_final(self):
+        """The phone sends a list, the web text; both reach the service as one text."""
+        self._as(self.reviewer)
+        sid = self._case()
+        for path, target, body in (
+            ("initial", "submit_reviewer_initial_cod", {"immediate_cod": "A00", "antecedent_cod": "A00"}),
+            ("finalize", "submit_reviewer_final_cod", {"conclusive_cod": "A00"}),
+        ):
+            for sent, stored in ((["Anaemia", "Malaria"], "Anaemia | Malaria"), ("Anaemia", "Anaemia"), ("", None)):
+                with self.subTest(path=path, sent=sent), patch(
+                    f"app.routes.api.reviewing.{target}"
+                ) as service:
+                    response = self._post(f"{_API}/{path}/{sid}", json={**body, "other_conditions": sent})
+                    self.assertEqual(response.status_code, 200, response.get_json())
+                    self.assertEqual(service.call_args.kwargs["other_conditions"], stored)
+            with self.subTest(path=path, sent="bad"):
+                self._flat(
+                    self._post(f"{_API}/{path}/{sid}", json={**body, "other_conditions": [1]}),
+                    400, "invalid_request",
+                )
+                self._flat(
+                    self._post(f"{_API}/{path}/{sid}", json={**body, "other_conditions": 5}),
+                    400, "invalid_request",
+                )
+
     def test_final_icd11_confirmation_flags_are_typed_and_age_refusal_carries_its_restriction(self):
         """digitva-oh7j / digitva-xmpx request fields on the reviewer final."""
         from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired

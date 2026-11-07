@@ -6,21 +6,23 @@
  * The header strip is brand blue in both colour modes, so the light tokens apply.
  */
 import { useEffect } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, Text, View, useWindowDimensions } from "react-native";
 
 import { isDemoServer } from "./enrolment";
 import { t } from "./i18n";
 import { spacing, typography, ui } from "./theme";
 
 export default function DemoBadge({ server }: { server: string | undefined }) {
+  // A runtime text-size change leaves stale text measurements, so remount the label on fontScale.
+  const { fontScale } = useWindowDimensions();
   if (!isDemoServer(server, __DEV__, process.env.EXPO_PUBLIC_DEMO_SERVER)) return null;
   return (
     <View
       accessible
       accessibilityLabel={t("demoBadge")}
-      style={{ backgroundColor: ui.light.warning, borderColor: ui.light.warningBorder, borderWidth: 1, borderRadius: 6, paddingHorizontal: spacing.xs, paddingVertical: 2 }}
+      style={{ backgroundColor: ui.light.warning, borderColor: ui.light.warningBorder, borderWidth: 1, borderRadius: 6, paddingHorizontal: spacing.xs, paddingVertical: 2, flexShrink: 0 }}
     >
-      <Text style={{ ...typography.caption, fontWeight: "700", color: ui.light.warningForeground }}>{t("demoHeaderBadge")}</Text>
+      <Text key={fontScale} numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, fontWeight: "700", color: ui.light.warningForeground }}>{t("demoHeaderBadge")}</Text>
     </View>
   );
 }

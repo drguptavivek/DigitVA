@@ -254,6 +254,49 @@ export const questionControlStyles = {
   // The gap keeps adjacent buttons apart; without it they touched on the phone.
   actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginTop: 8 },
   buttonCompact: { alignSelf: "flex-start" as const },
+  // An attachment action row: equal-width, equal-height buttons on one line (no wrapping into mixed widths).
+  actionRow: { flexDirection: "row" as const, alignItems: "stretch" as const, gap: 8, marginTop: 8 },
+  actionButton: {
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    alignItems: "center" as const
+  },
+  actionButtonText: { flexShrink: 1, textAlign: "center" as const },
+  // The recorder: a red dot and the time while a take is open, a thin bar toward the limit.
+  recordingStatus: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginTop: 8 },
+  recordingDot: withWebTheme(
+    { width: 12, height: 12, borderRadius: 6, backgroundColor: T.danger },
+    { backgroundColor: "danger" }
+  ),
+  recordingDotPaused: withWebTheme({ backgroundColor: T.textMuted }, { backgroundColor: "muted" }),
+  recordingTrack: withWebTheme(
+    { height: 4, borderRadius: 2, backgroundColor: T.border, marginTop: 6, overflow: "hidden" as const },
+    { backgroundColor: "border" }
+  ),
+  recordingFill: withWebTheme({ height: 4, backgroundColor: T.primary }, { backgroundColor: "brand" }),
+  // "Cancel recording": a text-style destructive action under the row, still a 48-tall target.
+  textDangerButton: { minHeight: 48, justifyContent: "center" as const, alignSelf: "flex-start" as const, marginTop: 4 },
+  // The plain full-screen photo view (a host without its own viewer), on the modal backdrop.
+  viewerOverlay: withWebTheme(
+    {
+      position: "absolute" as const,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      zIndex: 1000,
+      flex: 1,
+      backgroundColor: T.scrim,
+      justifyContent: "center" as const
+    },
+    {},
+    { backgroundColor: "scrim" }
+  ),
+  viewerImage: { width: "100%", height: "80%", resizeMode: "contain" as const },
+  viewerBar: { flexDirection: "row" as const, justifyContent: "flex-end" as const, gap: 12, padding: 16 },
   audioTimer: withWebTheme({ color: T.textMuted, fontSize: 14, marginTop: 6 }, { color: "muted" }),
   button: withWebTheme(
     {

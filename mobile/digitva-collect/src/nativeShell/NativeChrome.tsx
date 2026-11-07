@@ -7,7 +7,7 @@
  */
 import { useGlobalSearchParams, useNavigationContainerRef, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, BackHandler, Image, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 
@@ -120,6 +120,7 @@ export function NativeHeader() {
 }
 
 function HeaderBar() {
+  const { fontScale } = useWindowDimensions();
   const shell = useShell();
   const router = useRouter();
   const { accounts, device } = useAppState();
@@ -148,21 +149,21 @@ function HeaderBar() {
   return (
     <View style={{ backgroundColor: barBackground(tokens.page), paddingTop: insets.top, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: tokens.border }}>
       <BarFill />
-      <View style={{ height: HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.sm, paddingRight: spacing.xxs }}>
+      <View style={{ minHeight: HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.sm, paddingRight: spacing.xxs }}>
         {back ? (
           <>
             <Pressable accessibilityRole="button" accessibilityLabel={t("back")} onPress={goBack} style={{ width: 48, height: 48, marginLeft: -spacing.sm, alignItems: "center", justifyContent: "center" }}>
               <Icon name={icons.back} color={tokens.primary} size={22} />
             </Pressable>
             {/* The screen's title (Screen publishes it); one line, shrinking so the sync chip and account stay on the bar. */}
-            <Text ref={titleRef} accessibilityRole="header" numberOfLines={1} ellipsizeMode="tail" style={{ ...typography.headline, color: tokens.foreground, flex: 1, flexShrink: 1 }}>
+            <Text ref={titleRef} accessibilityRole="header" maxFontSizeMultiplier={1.3} numberOfLines={1} ellipsizeMode="tail" style={{ ...typography.headline, color: tokens.foreground, flex: 1, flexShrink: 1 }}>
               {shell.screenTitle ?? ""}
             </Text>
           </>
         ) : (
           <>
             <Image source={require("../../assets/icon.png")} accessibilityLabel={t("appName")} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: tokens.card }} />
-            <Text accessibilityRole="header" numberOfLines={1} style={{ ...typography.headline, color: tokens.foreground, flex: 1 }}>DigitVA</Text>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.3} numberOfLines={1} style={{ ...typography.headline, color: tokens.foreground, flex: 1, paddingVertical: spacing.xxs }}>DigitVA</Text>
           </>
         )}
         <DemoBadge server={device?.server} />
@@ -175,7 +176,7 @@ function HeaderBar() {
             style={{ height: 32, paddingHorizontal: spacing.sm, borderRadius: 16, backgroundColor: tokens.muted, flexDirection: "row", alignItems: "center", gap: spacing.xxs }}
           >
             {chip.busy ? <ActivityIndicator size="small" color={tokens.primary} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tokens.warningBorder }} />}
-            {chip.busy ? null : <Text style={{ ...typography.caption, color: tokens.foreground }}>{chip.label}</Text>}
+            {chip.busy ? null : <Text maxFontSizeMultiplier={1.3} style={{ ...typography.caption, color: tokens.foreground }}>{chip.label}</Text>}
           </Pressable>
         ) : null}
         {/* Signed in, Help and the language are in the Account sheet; before sign-in there is no sheet. */}
@@ -188,7 +189,7 @@ function HeaderBar() {
         {account && !preLogin ? (
           <Pressable accessibilityRole="button" accessibilityLabel={t("accountMenu")} onPress={() => shell.openSheet("account")} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
             <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: tokens.accent, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ ...typography.caption, fontWeight: "700", color: tokens.accentForeground }}>{initials(account.name)}</Text>
+              <Text key={fontScale} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, fontWeight: "700", color: tokens.accentForeground }}>{initials(account.name)}</Text>
             </View>
           </Pressable>
         ) : null}
@@ -203,11 +204,13 @@ export function NativeTabs() {
 }
 
 function TabBar() {
+  // adjustsFontSizeToFit measures once; a runtime text-size change leaves stale labels, so remount them on fontScale.
+  const { fontScale } = useWindowDimensions();
   const shell = useShell();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const pathname = usePathname().replace(/\/$/, "") || "/";
-  const params = useGlobalSearchParams<{ view?: string | string[] }>();
+  const params = useGlobalSearchParams<{ view?: string | string[]; mode?: string | string[] }>();
   const { accounts } = useAppState();
   const { ui: tokens } = useTheme();
   const insets = useSafeAreaInsets();
@@ -262,7 +265,7 @@ function TabBar() {
                 </View>
               ) : null}
             </View>
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.92} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, ...controlText, lineHeight: 18, alignSelf: "stretch", paddingHorizontal: 2, fontWeight: on ? "600" : "400", color }}>{t(tab.labelKey)}</Text>
+            <Text key={fontScale} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.92} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, ...controlText, lineHeight: 18, alignSelf: "stretch", paddingHorizontal: 2, fontWeight: on ? "600" : "400", color }}>{t(tab.labelKey)}</Text>
           </Pressable>
         );
       })}

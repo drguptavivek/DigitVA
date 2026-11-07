@@ -3,6 +3,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, Dimensions, Platform, Text, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
@@ -90,18 +91,21 @@ export default function RootLayout() {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
     }
   }, []);
+  // The gesture root wraps everything so the photo viewer's pinch and pan (src/AttachmentImageViewer.tsx) work.
   return (
-    <SafeAreaProvider>
-      <AppStateProvider>
-        <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
-        <ToastProvider>
-          <ShellRoot>
-            <NativeIcd11DorisFirstLaunchGate>
-              <ActivityRoot />
-            </NativeIcd11DorisFirstLaunchGate>
-          </ShellRoot>
-        </ToastProvider>
-      </AppStateProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppStateProvider>
+          <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
+          <ToastProvider>
+            <ShellRoot>
+              <NativeIcd11DorisFirstLaunchGate>
+                <ActivityRoot />
+              </NativeIcd11DorisFirstLaunchGate>
+            </ShellRoot>
+          </ToastProvider>
+        </AppStateProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

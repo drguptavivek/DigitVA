@@ -119,6 +119,19 @@ describe("interview items", () => {
     expect(items.map((item) => item.kind)).toEqual(["drafts", "revisions", "todo", "sent", "sent"]);
   });
 
+  it("lists a refused case as Sent only once an interview was submitted for it", () => {
+    const submitted = { draft_id: "s1", project_id: "P1", site_id: "S1", death_id: "C1", va_sid: "v", unique_id: "AAM01-C1", deceased_name: "Name C1", updated_at: "2026-10-02T00:00:00Z" };
+    const items = buildInterviewItems(sources({
+      cases: [caseRow("C1", { state: "refused" }), caseRow("C2", { state: "refused" }), caseRow("C3", { state: "refused", other_complete_interview: true })],
+      submitted: [submitted],
+    }));
+    const byKey = Object.fromEntries(items.map((item) => [item.key, item]));
+    expect(byKey["case-C1"]).toMatchObject({ kind: "sent", action: { label: "View details" } });
+    expect(byKey["case-C3"]).toMatchObject({ kind: "sent" });
+    expect(byKey["case-C2"]).toMatchObject({ kind: "todo", action: { label: "Start" } });
+    expect(items.filter((item) => item.key.startsWith("sent-"))).toHaveLength(0);
+  });
+
   it("offers Reopen only on a ready, unsent draft, and the ID alone when no name is known", () => {
     const [ready] = buildInterviewItems(sources({ drafts: [draft("d2", { completed: 1, unique_id: "VA-9" })] }));
     expect(ready.action).toMatchObject({ type: "reopen", label: "Reopen" });

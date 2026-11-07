@@ -136,3 +136,16 @@ class TestSmartvaPrepdataEmitsOnlyColumnsSmartvaReads(TestCase):
             sorted(["Id10019", "Id10013", "Id10120_1", "ageInDays", "age_neonate_days", "isNeonatal1", "sid"]),
         )
         self.assertGreater(ratio, 0.8)
+
+
+class TestSmartvaStringify(TestCase):
+    def test_whole_number_floats_are_written_as_integers(self):
+        from app.utils.va_smartva.va_smartva_02_prepdata import _stringify
+
+        self.assertEqual(_stringify(5.0), "5")
+        self.assertEqual(_stringify(0.0), "0")
+        self.assertEqual(_stringify(2.5), "2.5")
+        self.assertEqual(_stringify(5), "5")
+        self.assertEqual(_stringify("5.0"), "5.0")
+        self.assertEqual(_stringify(float("nan")), "")
+        self.assertEqual(_stringify(None), "")

@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { Text } from "react-native";
 
-import { isPlusVariant } from "./appVariant";
 import { t } from "./i18n";
 import { PlusCoding, PlusReviewing, PlusWorkspace } from "./nativeRoutes/plusWorkspace";
 import { Button, Screen, useUiStyles } from "./ui";
@@ -37,8 +36,7 @@ export function CodingOnWeb() {
   </Screen>;
 }
 
-// Online coding is the same server-backed workspace in plain and Plus builds.
+// Online coding and review are the same server-backed workspace in plain and Plus builds.
 export const Coding = PlusCoding;
-const plus = isPlusVariant();
-export const Reviewing = plus ? PlusReviewing : CodingOnWeb;
+export const Reviewing = PlusReviewing;
 export const Workspace = PlusWorkspace;

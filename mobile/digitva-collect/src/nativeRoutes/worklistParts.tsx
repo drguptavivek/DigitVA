@@ -139,10 +139,11 @@ export function HomeView(p: HomeViewProps) {
   // disabled, and the next step (which works from the cached reference data) stays the filled button.
   const offerSend = waiting || p.unsent === undefined;
   const nextKind = offerSend && !p.offline ? "secondary" : "primary";
-  return (
-    <View style={{ gap: spacing.md }}>
-      {p.offline ? <OfflineNotice /> : null}
-      <Card grouped chevronSlot testID="home-counts">
+  // A count of zero is not a row (nothing to look at); an uncounted unsent queue still shows its dash.
+  const countRows = [
+    ...(p.unsent === undefined || waiting ? [{
+      key: "unsent",
+      node: (
         <ListRow
           label={t("homeUnsent")}
           secondary={p.unsentFiles ? t("homeUnsentFiles", { count: p.unsentFiles }) : undefined}
@@ -151,7 +152,11 @@ export function HomeView(p: HomeViewProps) {
           tone={waiting ? "attention" : undefined}
           badge={waiting}
         />
-        <Separator />
+      ),
+    }] : []),
+    ...(p.summary.needVisit > 0 ? [{
+      key: "visit",
+      node: (
         <ListRow
           label={asRowLabel(t("homeNeedVisit"))}
           value={String(p.summary.needVisit)}
@@ -159,7 +164,11 @@ export function HomeView(p: HomeViewProps) {
           accessibilityLabel={`${p.summary.needVisit} ${t("homeNeedVisit")}. ${t("homeView")}`}
           onPress={p.onViewTodo}
         />
-        <Separator />
+      ),
+    }] : []),
+    ...(count > 0 ? [{
+      key: "drafts",
+      node: (
         <ListRow
           label={t("homeDraftsInProgress")}
           value={String(count)}
@@ -167,7 +176,22 @@ export function HomeView(p: HomeViewProps) {
           accessibilityLabel={p.onViewDrafts ? `${count} ${t("homeDraftsInProgress")}. ${t("homeView")}` : undefined}
           onPress={p.onViewDrafts}
         />
-      </Card>
+      ),
+    }] : []),
+  ];
+  return (
+    <View style={{ gap: spacing.md }}>
+      {p.offline ? <OfflineNotice /> : null}
+      {countRows.length > 0 ? (
+        <Card grouped chevronSlot testID="home-counts">
+          {countRows.map((row, index) => (
+            <View key={row.key}>
+              {index ? <Separator /> : null}
+              {row.node}
+            </View>
+          ))}
+        </Card>
+      ) : null}
       {offerSend ? <Button testID="home-send-now" label={t("homeSendNow")} onPress={p.onSend} disabled={p.busy || p.offline} loading={p.busy} /> : null}
       <View style={{ gap: spacing.xs }}>
         <SectionLabel>{t("homeNextStep")}</SectionLabel>
@@ -225,15 +249,37 @@ function HomeSkeleton() {
 }
 
 const CHIPS: Array<{ key: InterviewFilter; label: () => string }> = [
-  { key: "all", label: () => t("filterAll") },
-  { key: "drafts", label: () => t("filterDrafts") },
   { key: "todo", label: () => t("filterTodo") },
+  { key: "drafts", label: () => t("filterDrafts") },
+];
+// Behind "More": rarely needed lists. "All" is the state with no chip picked, and the sheet's way back to it.
+const MORE_FILTERS: Array<{ key: InterviewFilter; label: () => string }> = [
   { key: "sent", label: () => t("filterSent") },
   { key: "revisions", label: () => t("filterRevisions") },
+  { key: "all", label: () => t("filterAll") },
 ];
 
 function FilterChips({ value, counts, onChange }: { value: InterviewFilter; counts: Record<InterviewFilter, number>; onChange(filter: InterviewFilter): void }) {
   const { ui, typography, textScale } = useTheme();
+  const [more, setMore] = useState(false);
+  // "All" counts as picked here too: the sheet's way back to it leaves the chip reading "More: All", not plain "More".
+  const activeMore = MORE_FILTERS.find((chip) => chip.key === value);
+  const moreOn = activeMore !== undefined;
+  const moreText = activeMore ? t("filterMoreActive", { label: activeMore.label() }) : t("filterMore");
+  const build = useCallback((): ChoiceList => ({
+    sections: [{
+      key: "more",
+      rows: MORE_FILTERS.map((chip) => {
+        const count = chip.key !== "all" && counts[chip.key] > 0 ? counts[chip.key] : undefined;
+        return {
+          key: chip.key,
+          label: count === undefined ? chip.label() : t("filterCount", { label: chip.label(), count }),
+          selected: chip.key === value,
+          onPick: () => { setMore(false); onChange(chip.key); },
+        };
+      }),
+    }],
+  }), [counts, value, onChange]);
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
       {CHIPS.map((chip) => {
@@ -246,7 +292,7 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
             accessibilityRole="tab"
             accessibilityLabel={text}
             accessibilityState={{ selected: on }}
-            onPress={() => onChange(chip.key)}
+            onPress={() => onChange(on ? "all" : chip.key)}
             // 36pt chips; the slop makes the 44pt target.
             hitSlop={{ top: 4, bottom: 4 }}
             style={{ minHeight: controls.compactHeight * Math.max(1, textScale), paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, backgroundColor: on ? ui.primaryTint : ui.card }}
@@ -255,6 +301,17 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
           </Pressable>
         );
       })}
+      <Pressable
+        accessibilityRole="tab"
+        accessibilityLabel={t("filterMore")}
+        accessibilityState={{ selected: moreOn }}
+        onPress={() => setMore(true)}
+        hitSlop={{ top: 4, bottom: 4 }}
+        style={{ minHeight: controls.compactHeight * Math.max(1, textScale), paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, backgroundColor: moreOn ? ui.primaryTint : ui.card }}
+      >
+        <Text numberOfLines={1} style={{ ...typography.subhead, ...controlText, lineHeight: 22 * textScale, fontWeight: moreOn ? "600" : "400", color: moreOn ? ui.primary : ui.foreground }}>{moreText}</Text>
+      </Pressable>
+      <ChoiceSheet visible={more} title={t("filterMore")} searchLabel={t("pickerSearch")} searchable={false} onClose={() => setMore(false)} build={build} />
     </View>
   );
 }
@@ -264,7 +321,7 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
 export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void }) {
   const { colors, typography } = useTheme();
   const styles = useUiStyles();
-  return (
+  const card = (
     <CaseCard
       idBelowTitle
       testID={`interview-${item.key}`}
@@ -284,13 +341,20 @@ export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item:
         </>
       )}
     >
-      {item.timeText ? <Text testID="time-line" style={{ ...typography.subhead, color: colors.textMuted }}>{item.timeText}</Text> : null}
+      {item.timeText ? <Text testID="time-line" style={{ ...typography.caption, color: colors.textMuted }}>{item.timeText}</Text> : null}
       {item.lines.map((line, index) => (
-        <Text key={index} style={line.tone === "error" ? styles.error : { ...typography.subhead, color: colors.textMuted }}>{line.text}</Text>
+        <Text key={index} style={line.tone === "error" ? styles.error : { ...typography.caption, color: colors.textMuted }}>{line.text}</Text>
       ))}
       {item.retryDemo ? <Button kind="secondary" size="sm" label={item.retryLabel ?? t("demoDraftRetry")} onPress={() => onRetryDemo(item)} /> : null}
     </CaseCard>
   );
+  // Any case-backed card (to do, sent, or a sent/revision row whose interview belongs to a death) opens the case
+  // detail from anywhere on the card; its own button (Start, View details, Revise) stays the one accessible control.
+  const a = item.action;
+  const open: InterviewAction | undefined = a?.type === "case" ? a
+    : a?.type === "revise" && a.source.death_id ? { type: "case", deathId: a.source.death_id, projectId: a.source.project_id, label: a.label } : undefined;
+  if (!open) return card;
+  return <Pressable accessible={false} accessibilityRole="button" style={{ minHeight: controls.minTouchTarget }} testID={`open-${item.key}`} onPress={() => onAction(open)}>{card}</Pressable>;
 }
 
 export interface InterviewsViewProps {

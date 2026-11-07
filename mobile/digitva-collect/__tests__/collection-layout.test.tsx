@@ -86,3 +86,12 @@ it("keeps a role-only back-stack route gated while home uses another account", a
   expect(output).toContain("codingReviewPending");
   await act(async () => tree.unmount());
 });
+
+it("wraps the whole app in the gesture-handler root, so the photo viewer's pinch and pan work", async () => {
+  const { GestureHandlerRootView } = jest.requireActual("react-native-gesture-handler") as typeof import("react-native-gesture-handler");
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<RootLayout />); });
+  const outermost = tree.root.children[0] as { type: unknown };
+  expect(outermost.type).toBe(GestureHandlerRootView);
+  await act(async () => tree.unmount());
+});

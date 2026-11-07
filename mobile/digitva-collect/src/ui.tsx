@@ -1,5 +1,5 @@
 /** Shared screen chrome and controls. */
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, ActivityIndicator, findNodeHandle, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions, type StyleProp, type SwitchProps, type TextInputProps, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,7 +27,8 @@ export function Screen({
   footer,
   lead,
   variant = "standard",
-  wide = false
+  wide = false,
+  scrollRef
 }: {
   title: string;
   children: ReactNode;
@@ -43,9 +44,13 @@ export function Screen({
   variant?: "standard" | "immersive";
   /** Lift the 720px reading width so a table can use the whole page (the Users list). */
   wide?: boolean;
+  /** The page scroller (the phone layout), for a form that scrolls its first error into view. */
+  scrollRef?: Ref<ScrollView>;
 }) {
   const theme = useTheme();
   const screenStyles = useUiStyles();
+  // A runtime text-size change leaves the dev banner measured at the old size; remount its text on fontScale.
+  const { fontScale } = useWindowDimensions();
   // The phone header (or, without it, the mode bar) and tabs pad the status and navigation bars themselves; Screen must not pad them again.
   const shell = useShell();
   const edges = (["top", "bottom", "left", "right"] as const).filter((edge) => !(edge === "top" && (shell.header || shell.modeBar)) && !(edge === "bottom" && shell.tabs));
@@ -114,7 +119,7 @@ export function Screen({
     </View>
   ) : scroll ? (
     // The title row scrolls with the fields (a pinned title clipped the form under it on phones).
-    <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       {lead}
       {titleNode}
       <View style={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>{children}</View>
@@ -126,6 +131,7 @@ export function Screen({
     <SafeAreaView edges={edges} style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
       {__DEV__ ? (
         <Text
+          key={fontScale}
           style={[screenStyles.debug, { backgroundColor: theme.colors.warning, color: theme.colors.onAccent }]}
           accessibilityRole="alert"
         >

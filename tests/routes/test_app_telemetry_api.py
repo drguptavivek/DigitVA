@@ -65,6 +65,11 @@ class AppTelemetryApiTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(native.get_json(), {"accepted": True, "duplicate": False})
         ingest.assert_called_once()
 
+    def test_ios_platform_is_accepted_and_unknown_platform_refused(self):
+        self.assertEqual(telemetry.validate_batch(self._body(platform="ios", manufacturer="apple"))["platform"], "ios")
+        with self.assertRaises(telemetry.AppTelemetryError):
+            telemetry.validate_batch(self._body(platform="web"))
+
     def test_declared_oversize_body_is_refused_without_reading_stream(self):
         with patch.object(Request, "stream", new_callable=PropertyMock) as stream:
             with patch.object(telemetry, "ingest") as ingest:

@@ -77,6 +77,20 @@ def _seed_languages():
         click.echo("  [skip] languages already seeded")
 
 
+def _seed_password(documented: str):
+    """Return (password, show_once).
+
+    The documented dev passwords apply only on a debug or testing app; any
+    other app (staging, production) gets a random one, so a publicly reachable
+    deployment never carries a password written in the docs.
+    """
+    from flask import current_app
+
+    if current_app.debug or current_app.testing:
+        return documented, False
+    return secrets.token_urlsafe(16), True
+
+
 def _seed_admin():
     """Create the default admin user if it doesn't exist."""
     from app.models import VaUsers, VaUserAccessGrants, VaAccessRoles, VaAccessScopeTypes, VaStatuses
@@ -99,7 +113,8 @@ def _seed_admin():
         email_verified=True,
         other=creation_other("seed"),
     )
-    user.set_password("Admin@123")
+    password, show_once = _seed_password("Admin@123")
+    user.set_password(password)
     db.session.add(user)
     db.session.flush()
 
@@ -112,6 +127,9 @@ def _seed_admin():
     db.session.add(grant)
     db.session.commit()
     click.echo(f"  [ok]   created admin user: {email}")
+    if show_once:
+        # Terminal only, never logged; same as `flask users reset-password`.
+        click.echo(f"  password (shown once): {password}")
 
 
 def _seed_form_types():
@@ -285,7 +303,8 @@ def _seed_test_users():
             email_verified=True,
             other=creation_other("seed"),
         )
-        user.set_password("Aiims@123")
+        # Random and not shown off dev; the operator uses `flask users reset-password`.
+        user.set_password(_seed_password("Aiims@123")[0])
         db.session.add(user)
         db.session.flush()
 
@@ -356,18 +375,19 @@ _TST_USERS = (
     # the web landing page falls through to the home page.
     ("test.anm.sc01", "intake", "SC01", "ANM", ("death_reporter",)),
     ("test.mpw.sc04", "intake", "SC04", "MPW", ("death_reporter",)),
-    # One login for every surface: project-scope coder and reviewer (pick and
-    # choose coding), a unit-scope death reporter (SC01 ANM) and supervisor
-    # (PHC01 MO), since those two roles need a cadre the grid permits. The
+    # One login for every surface: project-scope coder, reviewer and data
+    # manager (pick and choose coding, Data, Users), a unit-scope death
+    # reporter and interviewer (SC01 ANM: its grid row permits both) and
+    # supervisor (PHC01 MO), since those roles need a cadre the grid permits. The
     # same person repeats across rows; the first row sets the landing page.
-    ("test.all", "coder", None, None, ("coder", "reviewer")),
-    ("test.all", "coder", "SC01", "ANM", ("death_reporter",)),
+    ("test.all", "coder", None, None, ("coder", "reviewer", "data_manager")),
+    ("test.all", "coder", "SC01", "ANM", ("death_reporter", "interviewer")),
     ("test.all", "coder", "PHC01", "MO", ("interview_supervisor",)),
 )
 
 #: (email local part, existing classical project, role): project-scope grants
 #: in sites projects, written when the project exists (e.g. SADEMO in dev).
-_TST_CLASSICAL_GRANTS = (("test.all", "SADEMO", "coder"),)
+_TST_CLASSICAL_GRANTS = (("test.all", "SADEMO", "coder"), ("test.all", "SADEMO", "reviewer"))
 
 
 def _tst_email(local: str) -> str:

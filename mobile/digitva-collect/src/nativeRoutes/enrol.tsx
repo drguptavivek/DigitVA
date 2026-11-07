@@ -17,7 +17,7 @@ import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
-import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr } from "../auth";
+import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr, setDeviceHomeProject, type EnrolledAccount } from "../auth";
 import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
 import { isPlusVariant } from "../appVariant";
 import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
@@ -50,7 +50,33 @@ export default function Enrol() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const busyRef = useRef(false);
+  /** Signed in with more than one eligible project: the owner's rule is to ask, never pick silently (mobile-sign-in.md). */
+  const [choice, setChoice] = useState<EnrolledAccount>();
   useEffect(() => () => setPassword(""), []);
+
+  /** Go on to PIN setup, or first ask for the home project when there is more than one. */
+  function afterSignIn(enrolled: EnrolledAccount) {
+    if (enrolled.projects.length > 1) setChoice(enrolled);
+    // Unlock sends a person without a PIN yet to PIN setup (then the unlock-options offer).
+    else router.replace({ pathname: "/unlock", params: { userId: enrolled.account.user_id, refresh: "1" } });
+  }
+
+  async function pickProject(projectId: string) {
+    if (!choice || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError("code", "");
+    try {
+      await setDeviceHomeProject(choice.account.user_id, projectId);
+      await reload();
+      router.replace({ pathname: "/unlock", params: { userId: choice.account.user_id, refresh: "1" } });
+    } catch (caught) {
+      setError("code", errorText(caught));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
 
   /** Lock local work before enrolling; credentials stay in this form only and are cleared after every attempt. */
   async function submitPassword() {
@@ -68,9 +94,9 @@ export default function Enrol() {
         setError("login", t("errGeneric"));
         return;
       }
-      const account = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
+      const enrolled = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
       await reload();
-      router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
+      afterSignIn(enrolled);
     } catch (caught) {
       setError("login", caught instanceof EnrolmentError ? t(caught.key)
         : caught instanceof ApiError && caught.status === 404 ? t("errPasswordEnrolUnsupported") : errorText(caught));
@@ -106,10 +132,10 @@ export default function Enrol() {
       }
       const deviceName = Constants.deviceName ?? deviceFamilyLabel();
       if (payload.kind === "sign_in") {
-        const account = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
+        const enrolled = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
+        setPending(undefined);
         await reload();
-        // Unlock sends a person without a PIN yet to PIN setup (then the unlock-options offer).
-        router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
+        afterSignIn(enrolled);
       } else {
         await enrolDevice(payload.server, payload.code, deviceName, APP_VERSION);
         await reload();
@@ -132,6 +158,25 @@ export default function Enrol() {
   const tryDemo = () => void switchSlot?.("demo").catch((caught) => setError("demo", errorText(caught)));
   const cancel = <TextLink label={t("cancel")} disabled={busy} onPress={() => { setView("menu"); setError("code", ""); }} />;
   const working = busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null;
+
+  // Home project (digitva-kspl): one grouped card of the projects, the welcome screen's own row vocabulary.
+  if (choice) {
+    return (
+      <Screen title={t("chooseProject")}>
+        <Text style={styles.muted}>{t("enrolChooseProjectHint")}</Text>
+        <Card grouped>
+          {choice.projects.map((project, index) => (
+            <View key={project.project_id}>
+              {index > 0 ? <Separator /> : null}
+              <ListRow label={project.name} secondary={project.project_id} disabled={busy} onPress={() => void pickProject(project.project_id)} />
+            </View>
+          ))}
+        </Card>
+        {errorAt("code")}
+        {working}
+      </Screen>
+    );
+  }
 
   // Confirm server (design sheet 11): its own view, one primary action and a text Cancel, nothing else offered.
   if (pending) {

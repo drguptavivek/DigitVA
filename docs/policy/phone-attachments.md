@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # Phone Attachments
@@ -144,6 +144,46 @@ is the phone's side. Server caps and accepted types are not restated here:
 8. **Wipe.** Deleting the draft, sign-out, revocation and the PIN wipe all
    remove the files with the store. The media cache folder is emptied with
    them. Files are never copied to another account's store.
+
+9. **Document photos: scanner, blur check and full-screen view** (owner,
+   2026-11-06, `digitva-lq5m`).
+   - **Scan document.** On the document questions (`imagenarr`, `md_im1`..,
+     `ds_im1`.., and the image-or-PDF `custom_medical_certificate_upload`) the
+     first button is "Scan document": the phone's own scanner finds the page's
+     edges, crops it and straightens it (perspective correction), one page per
+     question. Camera and Gallery / Choose file stay as the other buttons; every
+     other image question keeps Camera first. iOS uses VisionKit; Android uses
+     the ML Kit document scanner, which needs Google Play services and fetches
+     its scanner module on first use. Where there is no scanner (no Play
+     services, the module not yet fetched, a build without it, the web form) or
+     the scanner fails, the plain camera opens instead; a cancel is a cancel.
+   - **Same path as a photo.** The scanned page comes back to the app as
+     JPEG bytes, is written to the app's private cache (never the iOS
+     Documents folder the plugin's own file mode uses) and then goes through
+     the existing pre-scale and `processImage` limits, re-encode and encrypted
+     store unchanged (decisions 2 and 3). Its plain file is deleted once it is
+     stored, like a camera frame; the `va-media` folder and ML Kit's
+     `mlkit_docscan_ui_client` cache folder are in the sweep (`wipeMediaCache`).
+   - **Blur check.** After a camera photo, a scan, a gallery image or an image
+     file is picked, and before it is processed, the phone scores its sharpness
+     (variance of the Laplacian of a grey copy about 512 px wide; the copy is
+     deleted at once). Below the threshold the control says "This photo looks
+     blurry. Retake?" with Retake and Keep. The photo is already saved: the
+     warning never blocks saving, Keep keeps it, Retake opens the same source
+     again and replaces it. A failed check counts as sharp. The threshold is a
+     first guess to be calibrated on real phones.
+   - **On the phone only.** The scanner, the edge correction and the blur
+     check run on the phone; no image, score or page leaves it for them.
+   - **Full-screen view.** Tapping a stored photo opens it full screen: pinch
+     to zoom (1x to 5x), pan, double-tap to zoom or fit, rotate, close. Rotation
+     and zoom are view-only; the stored image never changes. The viewer shows
+     the control's short-lived preview copy (decision 3). The hide, zoom-in and
+     zoom-out buttons beside the preview are gone.
+   - **Permissions.** On iOS the scanner asks for the camera after the same
+     explanation as the camera button. The Android ML Kit scanner runs in Play
+     services' own screen and needs no camera permission from the app.
+
+- Web interview (2026-11-07): "Take photo" opens a live camera preview (`getUserMedia`, rear camera, Capture/Cancel/Esc) and falls back to the `capture` file input when no camera is available or permission is denied; the captured JPEG goes through the usual sharpness and size processing.
 
 ## Not decided here
 

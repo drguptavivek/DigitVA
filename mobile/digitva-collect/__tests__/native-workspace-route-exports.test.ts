@@ -22,13 +22,13 @@ import WorkspaceRoute from "../app/workspace";
 import * as NativeScreens from "../src/nativeRouteScreens.native";
 import { isPlusVariant } from "../src/appVariant";
 
-test("plain build: online coding uses the shared native workspace while review stays web-only", () => {
+test("plain build: online coding uses the shared native workspace and review too", () => {
   expect(NativeScreens.CodingOnWeb).toBeDefined();
   expect(NativeScreens.Coding).not.toBe(NativeScreens.CodingOnWeb);
-  expect(NativeScreens.Reviewing).toBe(NativeScreens.CodingOnWeb);
+  expect(NativeScreens.Reviewing).not.toBe(NativeScreens.CodingOnWeb);
   expect(NativeScreens.Workspace).not.toBe(NativeScreens.CodingOnWeb);
   expect(CodingRoute).toBe(NativeScreens.Coding);
-  expect(ReviewingRoute).toBe(NativeScreens.CodingOnWeb);
+  expect(ReviewingRoute).toBe(NativeScreens.Reviewing);
   expect(typeof WorkspaceRoute).toBe("function");
 });
 

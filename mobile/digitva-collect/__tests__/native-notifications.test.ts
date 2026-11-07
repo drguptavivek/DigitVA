@@ -37,7 +37,13 @@ jest.mock("../src/sync", () => ({
   refreshReferenceData: (...args: unknown[]) => mockRefresh(...args),
 }));
 
-import { pollAccountNotifications, refreshNativeNotifications, runNativeSync } from "../src/nativeNotificationSync";
+import {
+  ACCESS_REFRESH_INTERVAL_MS,
+  pollAccountNotifications,
+  refreshNativeNotifications,
+  resetAccessRefreshThrottle,
+  runNativeSync,
+} from "../src/nativeNotificationSync";
 import { runNativeNotificationTask } from "../src/notificationTask";
 import {
   clearNotificationState,
@@ -65,6 +71,7 @@ const page = (notifications: unknown[], next_cursor?: number) => ({
 });
 
 beforeEach(() => {
+  resetAccessRefreshThrottle();
   mockSecure.clear();
   mockAuthedRequest.mockReset();
   mockSync.mockReset();
@@ -283,4 +290,34 @@ it("does not let an old sync clear metadata after the same account signs back in
   resolvers[1]({ sent: 0, failed: 0, remaining: 0, supersededUniqueIds: [] });
   await newSync;
   expect(await readNotificationState(userId)).toMatchObject({ cursor: 9, pendingSync: false });
+});
+
+it("foreground polls refresh access once per interval, and a notification forces it via sync", async () => {
+  const userId = "throttled-account";
+  mockAuthedRequest.mockResolvedValue({ body: page([]) });
+  await recordNotificationPoll(userId, 0, false);
+  const revision = (await readNotificationState(userId))!.pendingRevision;
+  await finishNotificationSync(userId, revision, Date.now());
+  const now = jest.spyOn(Date, "now");
+  const start = Date.now();
+
+  now.mockReturnValue(start);
+  await refreshNativeNotifications(userId, {} as never);
+  now.mockReturnValue(start + 30_000);
+  await refreshNativeNotifications(userId, {} as never);
+  now.mockReturnValue(start + 60_000);
+  await refreshNativeNotifications(userId, {} as never);
+  expect(mockRefreshAccessSummary).toHaveBeenCalledTimes(1);
+  expect(mockAuthedRequest).toHaveBeenCalledTimes(3);
+
+  now.mockReturnValue(start + 90_000);
+  mockAuthedRequest.mockResolvedValue({ body: page([notification(1)]) });
+  expect(await refreshNativeNotifications(userId, {} as never)).toBe(true);
+  expect(mockRefreshAccessSummary).toHaveBeenCalledTimes(2);
+
+  now.mockReturnValue(start + 90_000 + ACCESS_REFRESH_INTERVAL_MS);
+  mockAuthedRequest.mockResolvedValue({ body: page([], 1) });
+  await refreshNativeNotifications(userId, {} as never);
+  expect(mockRefreshAccessSummary.mock.calls.length).toBeGreaterThanOrEqual(3);
+  now.mockRestore();
 });

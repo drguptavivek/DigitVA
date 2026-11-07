@@ -1,7 +1,8 @@
 /**
- * The phone's attachment controls for the questionnaire: record, photograph, pick, play, remove. Capture logic is
- * in src/attachmentCapture.ts; this file binds it to expo-audio, expo-image-picker, expo-image-manipulator and
- * expo-document-picker, and owns the permission dialogs. Rules: docs/policy/phone-attachments.md.
+ * The phone's attachment controls for the questionnaire: record, photograph, scan, pick, view, play, remove. Capture
+ * logic is in src/attachmentCapture.ts; this file binds it to expo-audio, expo-image-picker, expo-image-manipulator,
+ * expo-document-picker and the document scanner, and owns the permission dialogs. Rules:
+ * docs/policy/phone-attachments.md.
  */
 import {
   RecordingPresets,
@@ -12,11 +13,12 @@ import {
   type RecordingOptions,
 } from "expo-audio";
 import { randomUUID } from "expo-crypto";
+import * as Device from "expo-device";
 import * as DocumentPicker from "expo-document-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useMemo } from "react";
-import { Alert, AppState, Linking, Platform } from "react-native";
+import { Alert, AppState, Image, Linking, Platform } from "react-native";
 import {
   WHO_VA_ATTACHMENT_POLICY,
   type AttachmentCandidate,
@@ -25,6 +27,7 @@ import {
 } from "@drguptavivek/who-2022-va";
 
 import { AttachmentAudioPlayer } from "./AttachmentAudioPlayer";
+import { AttachmentImageViewer } from "./AttachmentImageViewer";
 import {
   notAllowed,
   removeStored,
@@ -36,7 +39,8 @@ import {
 } from "./attachmentCapture";
 import type { AttachmentServicesContext } from "./attachmentServices";
 import { t } from "./i18n";
-import { fileSize, readBytes, removeFile, writePlaybackCopy } from "./mediaFiles";
+import { fileSize, readBytes, removeFile, writeCaptureFile, writePlaybackCopy } from "./mediaFiles";
+import { SHARPNESS_SAMPLE_WIDTH, jpegSharpness } from "./sharpness";
 
 export type { AttachmentServicesContext };
 
@@ -89,7 +93,16 @@ export function watchInterruptions(onInterrupt: () => void): () => void {
   return () => subscription.remove();
 }
 
+/**
+ * False on the iOS simulator: UIImagePickerController raises an uncatchable NSInvalidArgumentException for a
+ * camera source there, so this must run before launchCameraAsync. (expo-camera's isAvailableAsync is web-only.)
+ * An Android emulator has a virtual camera, so only iOS is gated.
+ */
 export async function ensureCamera(): Promise<boolean> {
+  if (Platform.OS === "ios" && !Device.isDevice) {
+    Alert.alert(t("attachCameraUnavailableTitle"), t("attachCameraUnavailableBody"));
+    return false;
+  }
   let permission = await ImagePicker.getCameraPermissionsAsync();
   if (!permission.granted && permission.canAskAgain) {
     if (!(await confirm(t("attachCameraTitle"), t("attachCameraBody"), t("attachContinue"), t("cancel")))) return false;
@@ -157,6 +170,57 @@ async function preScale(candidate: AttachmentCandidate): Promise<AttachmentCandi
 }
 
 /**
+ * Scan one page with the phone's document scanner: VisionKit on iOS, ML Kit on Android (needs Google Play services
+ * and fetches its module on first use). It finds the edges, crops and straightens the page on the phone. Throws when
+ * there is no scanner (no Play services, a build without the module), so the control falls back to the camera; a
+ * cancel is undefined. The page comes back as base64 and is written to the app cache by us: the plugin's file mode
+ * writes to the iOS Documents folder, which the media sweep cannot reach. Then it is pre-scaled like a camera frame.
+ */
+export async function scanDocument(): Promise<AttachmentCandidate | undefined> {
+  // VisionKit asks for the camera itself; ask first with our explanation, as the camera button does.
+  if (Platform.OS === "ios" && !(await ensureCamera())) return undefined;
+  // Loaded here, not at the top: a build without the native module throws on load, and that must mean "use the camera".
+  const scanner = require("react-native-document-scanner-plugin") as typeof import("react-native-document-scanner-plugin");
+  const result = await scanner.default.scanDocument({
+    maxNumDocuments: 1,
+    croppedImageQuality: 90,
+    responseType: scanner.ResponseType.Base64,
+  });
+  const page = result.status === scanner.ScanDocumentResponseStatus.Cancel ? undefined : result.scannedImages?.[0];
+  if (!page) return undefined;
+  const uri = writeCaptureFile(randomUUID(), page);
+  try {
+    const { width, height } = await Image.getSize(uri);
+    return await preScale({ uri, name: "scan.jpg", mimeType: "image/jpeg", width, height });
+  } catch (error) {
+    removeFile(uri);
+    throw error;
+  }
+}
+
+/**
+ * Sharpness of a just-captured image (src/sharpness.ts) from a ~512 px copy, which is deleted at once. On the phone
+ * only; nothing is sent anywhere.
+ */
+export async function checkSharpness(uri: string): Promise<{ score: number; blurry: boolean }> {
+  const context = ImageManipulator.manipulate(uri);
+  let sample: string | undefined;
+  try {
+    context.resize({ width: SHARPNESS_SAMPLE_WIDTH });
+    const image = await context.renderAsync();
+    try {
+      sample = (await image.saveAsync({ compress: 0.9, format: SaveFormat.JPEG })).uri;
+    } finally {
+      image.release();
+    }
+    return jpegSharpness(await readBytes(sample));
+  } finally {
+    context.release();
+    removeFile(sample);
+  }
+}
+
+/**
  * The platform services for one interview. Capture needs an unlocked store; without it no service is offered and
  * the questionnaire keeps its "not available" notes. Direct starts (no case) attach too: the upload names the server
  * draft by the interview's id (src/attachmentUpload.ts).
@@ -171,6 +235,9 @@ export function useAttachmentServices(context: AttachmentServicesContext): WhoVa
     };
     return {
       AudioPlayer: AttachmentAudioPlayer,
+      ImageViewer: AttachmentImageViewer,
+      scanDocument,
+      checkSharpness,
       startAudioRecording: (question) =>
         startAudioRecording({
           ...env,

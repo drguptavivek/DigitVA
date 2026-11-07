@@ -47,6 +47,7 @@ jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => true,
   lockAll: (...args: unknown[]) => mockLockAll(...args),
   openInterviewerDb: (...args: unknown[]) => mockOpenDb(...args),
+  StoreLockedError: jest.requireActual("../src/interviewerDb").StoreLockedError,
 }));
 jest.mock("../src/sync", () => ({
   refreshReferenceData: (...args: unknown[]) => mockRefresh(...args),

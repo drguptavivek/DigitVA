@@ -3,7 +3,7 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-11-07
 ---
 
 # Account Onboarding and Password Policy
@@ -215,6 +215,15 @@ an existing user resets or changes their password, they get a generated
 one under this policy. Existing user-chosen password paths (profile change,
 admin password edit, reset form with a password box, CLI password prompt)
 are replaced by the generated flows above.
+
+### Seeded accounts
+
+`flask seed run` and `flask seed run --test` use the documented dev passwords
+(`Admin@123`, `Aiims@123`) only on a debug or testing app. On any other app
+(staging, production) a newly seeded admin gets a random password printed
+once to the terminal and never logged, and seeded test coders get a random
+password that is not shown (use `flask users reset-password`). Existing users
+are never changed.
 
 ## 9. Audit and privacy
 

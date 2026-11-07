@@ -1,6 +1,6 @@
 /**
- * A full-height bottom sheet with a search box and a virtualised list of 52dp rows: the site/unit picker and
- * the project chooser. The caller supplies `build(query)` (so grouping and matching stay pure and testable);
+ * A full-height bottom sheet with a search box (off with `searchable={false}`, for a short fixed list) and a
+ * virtualised list of 52dp rows: the site/unit picker, the project chooser and the Interviews "More" filters. The caller supplies `build(query)` (so grouping and matching stay pure and testable);
  * the sheet only lays rows out and never keeps a selection of its own.
  */
 import { useMemo, useState } from "react";
@@ -19,12 +19,12 @@ export interface ChoiceList { recent?: ChoiceRow; sections: ChoiceSection[]; not
 type Entry = { kind: "cap"; key: string; text: string } | { kind: "row"; key: string; row: ChoiceRow };
 
 /** Mounted only while open, so a closed sheet costs nothing and its search box starts empty next time. */
-export function ChoiceSheet(props: { visible: boolean; title: string; searchLabel: string; onClose(): void; build(query: string): ChoiceList }) {
+export function ChoiceSheet(props: { visible: boolean; title: string; searchLabel: string; searchable?: boolean; onClose(): void; build(query: string): ChoiceList }) {
   return props.visible ? <OpenChoiceSheet {...props} /> : null;
 }
 
-function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
-  visible: boolean; title: string; searchLabel: string; onClose(): void; build(query: string): ChoiceList;
+function OpenChoiceSheet({ visible, title, searchLabel, searchable = true, onClose, build }: {
+  visible: boolean; title: string; searchLabel: string; searchable?: boolean; onClose(): void; build(query: string): ChoiceList;
 }) {
   const { ui, typography } = useTheme();
   const [query, setQuery] = useState("");
@@ -42,15 +42,17 @@ function OpenChoiceSheet({ visible, title, searchLabel, onClose, build }: {
   }, [query, list]);
   return (
     <BottomSheet visible={visible} title={title} onClose={onClose} full>
-      <TextInput
-        accessibilityLabel={searchLabel}
-        placeholder={searchLabel}
-        placeholderTextColor={ui.mutedForeground}
-        value={query}
-        onChangeText={setQuery}
-        autoCorrect={false}
-        style={{ minHeight: 48, borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, paddingHorizontal: spacing.sm, ...typography.body, color: ui.foreground, backgroundColor: ui.background }}
-      />
+      {searchable ? (
+        <TextInput
+          accessibilityLabel={searchLabel}
+          placeholder={searchLabel}
+          placeholderTextColor={ui.mutedForeground}
+          value={query}
+          onChangeText={setQuery}
+          autoCorrect={false}
+          style={{ minHeight: 48, borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, paddingHorizontal: spacing.sm, ...typography.body, color: ui.foreground, backgroundColor: ui.background }}
+        />
+      ) : null}
       <FlatList keyboardDismissMode="on-drag"
         data={entries}
         keyExtractor={(entry) => entry.key}

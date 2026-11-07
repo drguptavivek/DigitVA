@@ -55,6 +55,7 @@ import {
   type WhoVaFormProps
 } from "./ui/create-who-va-form.js";
 import { createLocalStorageDraftStore } from "./draft.js";
+import { captureWebCameraPhoto } from "./web-camera.js";
 import { createWhoVaQuestionControls, type WhoVaPlatformServices } from "./ui/question-controls.js";
 import type { AttachmentCandidate, InstrumentDefinition, WhoVaDraftStore } from "./types.js";
 import {
@@ -512,7 +513,10 @@ export function cleanupWhoVaWebAttachments(references: Iterable<unknown>): Promi
 }
 
 async function selectAndProcessWebImage(capture = false): Promise<AttachmentCandidate | undefined> {
-  const file = await selectWebFile("image/jpeg,image/png", capture);
+  // Live camera first; null means none is usable, so keep the `capture` file input (phones, denied, no device).
+  const live = capture ? await captureWebCameraPhoto() : null;
+  if (live === undefined) return undefined;
+  const file = live ?? (await selectWebFile("image/jpeg,image/png", capture));
   return file ? processWebImageAttachment(file, { store: webAttachmentStore }) : undefined;
 }
 
@@ -620,6 +624,7 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   Pressable,
   AudioPlayer: WebAudioPlayer,
   Image,
+  Modal: WebModal,
   Svg,
   SvgPath
 });

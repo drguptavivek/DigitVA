@@ -7,7 +7,7 @@ const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
 const mockReload = jest.fn();
 const mockLockNow = jest.fn();
 const mockAccounts = [mockAccount];
-let mockParams: { userId: string; projectId?: string; deathId?: string } = {
+let mockParams: { userId: string; projectId?: string; deathId?: string; clientDeathId?: string } = {
   userId: "u1",
   projectId: "P1",
   deathId: "d1",
@@ -99,6 +99,9 @@ jest.mock("../src/cases", () => {
     visitAt: (value: string) => `${value}T09:00:00.000Z`,
   };
 });
+jest.mock("../src/unsentWork", () => ({
+  sendRefusal: jest.fn(async () => undefined),
+}));
 jest.mock("../src/sync", () => ({
   fetchCaseDetail: jest.fn(async () => mockDetail),
   getCachedReferenceData: jest.fn(async () => ({
@@ -107,6 +110,7 @@ jest.mock("../src/sync", () => ({
   })),
   refreshReferenceData: jest.fn(async () => undefined),
 }));
+jest.mock("../src/revisions", () => ({ fetchSubmittedRevisions: jest.fn().mockResolvedValue([]) }));
 jest.mock("../src/draftSync", () => ({
   reconcileCaseDraft: jest.fn(async (_user: string, _db: unknown, _detail: unknown, local: unknown) => ({
     draft: local,
@@ -190,6 +194,21 @@ describe("native case detail workflow", () => {
     await settle();
     expect(tree!.root.findByProps({ children: "+919876543210" })).toBeDefined();
     expect(tree!.root.findAllByProps({ "data-label": "startInterview" })).toHaveLength(0);
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows the server's reason on a registration it refused", async () => {
+    mockParams = { userId: "u1", projectId: "P1", clientDeathId: "c1" };
+    (jest.requireMock("../src/cases").getRegistration as jest.Mock).mockResolvedValueOnce({
+      client_death_id: "c1", project_id: "P1", state: "needs_edit", fields: {}, created_at: "2026-11-07T00:00:00Z",
+    });
+    (jest.requireMock("../src/unsentWork").sendRefusal as jest.Mock).mockResolvedValueOnce({
+      ref: "x", at: "", status: 422, message: "Date of death cannot be in the future.",
+    });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Case />); });
+    await settle();
+    expect(tree!.root.findAllByProps({ children: "refusalNotAccepted" }).length).toBeGreaterThan(0);
     await act(async () => tree!.unmount());
   });
 
@@ -290,6 +309,30 @@ describe("native case detail workflow", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("shows a refused case with a submitted refusal as sent, not startable", async () => {
+    (jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock).mockResolvedValue({ ...mockDetail, state: "refused", prefill: {} });
+    (jest.requireMock("../src/revisions").fetchSubmittedRevisions as jest.Mock).mockResolvedValueOnce([{ draft_id: "x", death_id: "d1" }]);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Case />); });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).toContain("badgeSent");
+    expect(tree!.root.findAllByProps({ "data-label": "startInterview" })).toHaveLength(0);
+    // The server takes no contact attempt or visit on a refused case: neither button is offered.
+    expect(tree!.root.findAllByProps({ "data-label": "logAttempt" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-label": "setVisit" })).toHaveLength(0);
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps a refused case without a submitted refusal startable and labelled refused", async () => {
+    (jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock).mockResolvedValue({ ...mockDetail, state: "refused", prefill: {} });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Case />); });
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("badgeSent");
+    expect(tree!.root.findByProps({ "data-label": "startInterview" })).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
+
   it("keeps terminal cases unavailable for a new interview", async () => {
     (
       jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock
@@ -372,6 +415,19 @@ describe("native case detail workflow", () => {
       (jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock).mock.calls
         .length,
     ).toBeGreaterThan(1);
+    await act(async () => tree!.unmount());
+  });
+
+  it("says the network is down, not that the case is gone, when offline and never downloaded", async () => {
+    (jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock).mockRejectedValueOnce(new TypeError("Network request failed"));
+    (jest.requireMock("../src/cases").getCase as jest.Mock).mockResolvedValueOnce(undefined);
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Case />);
+    });
+    await settle();
+    expect(tree!.root.findAllByProps({ children: "TypeError: Network request failed" }).length).toBeGreaterThan(0);
+    expect(tree!.root.findAllByProps({ children: "deathNotFound" })).toHaveLength(0);
     await act(async () => tree!.unmount());
   });
 

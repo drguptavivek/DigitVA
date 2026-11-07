@@ -67,6 +67,7 @@ export function useCaseCardStyles() {
     factList: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: spacing.md, rowGap: spacing.xxs },
     factLine: { flexGrow: 1, justifyContent: "flex-start" },
     fact: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
+    factSmall: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
     caseId: { ...typography.subhead, color: colors.text, fontFamily: MONOSPACE },
     caseIdMuted: { ...typography.caption, color: colors.textMuted, fontFamily: MONOSPACE },
     badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
@@ -93,13 +94,13 @@ type CaseFact = { key: string; text: string; a11y?: string };
 export type CaseBadge = { label: string; tone?: "neutral" | "accent" | "warning" };
 
 /** A row of facts as a list (role list / listitem), so a screen reader hears each as one named item. */
-function FactList({ facts, style }: { facts: CaseFact[]; style?: object }) {
+function FactList({ facts, style, small = false }: { facts: CaseFact[]; style?: object; small?: boolean }) {
   const c = useCaseCardStyles();
   if (facts.length === 0) return null;
   return (
     <View role="list" style={[c.factList, style]}>
       {facts.map((fact) => (
-        <Text key={fact.key} role="listitem" accessibilityLabel={fact.a11y} style={c.fact} testID={`case-fact-${fact.key}`}>{fact.text}</Text>
+        <Text key={fact.key} role="listitem" accessibilityLabel={fact.a11y} style={small ? c.factSmall : c.fact} testID={`case-fact-${fact.key}`}>{fact.text}</Text>
       ))}
     </View>
   );
@@ -143,7 +144,6 @@ export function CaseCard({
     ...(sexText ? [{ key: "sex", text: sexText, a11y: t("metaSexA11y", { value: sexText }) }] : []),
   ];
   const death: CaseFact[] = [
-    ...(idBelowTitle ? identity : []),
     ...(dateOfDeath ? [{ key: "died", text: t("metaDied", { value: dateOfDeath }), a11y: t("metaDiedA11y", { value: dateOfDeath }) }] : []),
     ...(area ? [{ key: "area", text: t("metaArea", { value: area }) }] : []),
   ];
@@ -160,7 +160,13 @@ export function CaseCard({
             <Text style={c.cardTitle} testID={titleTestID}>{title}</Text>
             {idBelowTitle ? null : <FactList facts={identity} />}
           </View>
-          {idBelowTitle && caseId ? <Text style={c.caseIdMuted} accessibilityLabel={t("metaCaseIdA11y", { value: caseId })} testID="case-id-line">{caseId}</Text> : null}
+          {/* Phone list: name, date of death and area stay prominent; the ID, age and sex sit small under the name. */}
+          {idBelowTitle && (caseId || identity.length > 0) ? (
+            <View style={c.factList}>
+              {caseId ? <Text style={c.caseIdMuted} accessibilityLabel={t("metaCaseIdA11y", { value: caseId })} testID="case-id-line">{caseId}</Text> : null}
+              <FactList facts={identity} small />
+            </View>
+          ) : null}
         </View>
         {badges.length > 0 ? (
           <View style={c.badgeRow}>

@@ -15,6 +15,7 @@ from app import db, limiter
 from app.models import (
     AuthDevice,
     AuthDeviceSession,
+    AuthSecurityEvent,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
@@ -91,10 +92,15 @@ class PasswordEnrolTests(BaseTestCase):
         self.assertEqual(response.status_code, 201, response.get_json())
         body = response.get_json()
         self.assertEqual(set(body), {
-            "device_id", "device_secret", "project", "server_time", "access_token", "access_expires_at",
+            "device_id", "device_secret", "project", "projects", "server_time", "access_token",
+            "access_expires_at",
             "refresh_token", "refresh_expires_at", "user", "terms_required", "access",
         })
         self.assertEqual(body["project"], {"project_id": self.PROJECT_ID, "name": "Device PWE01"})
+        self.assertEqual(body["projects"], [
+            {"project_id": self.PROJECT_ID, "name": "Device PWE01"},
+            {"project_id": self.OTHER_PROJECT_ID, "name": "Device PWE02"},
+        ])
         self.assertTrue(body["server_time"])
         device = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
         self.assertEqual(device.client_device_uuid, client_uuid)
@@ -120,6 +126,49 @@ class PasswordEnrolTests(BaseTestCase):
             "refresh_token": body["refresh_token"],
         })
         self.assertEqual(refreshed.status_code, 200, refreshed.get_json())
+
+    def _set_project(self, body, project_id):
+        return self.client.post("/api/v1/auth/devices/current/project", json={"project_id": project_id},
+                                headers={"Authorization": f"Bearer {body['access_token']}"})
+
+    def test_choosing_an_eligible_project_moves_the_device_home_and_is_audited(self):
+        body = self._enrol().get_json()
+        response = self._set_project(body, self.OTHER_PROJECT_ID)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json(), {"project": {"project_id": self.OTHER_PROJECT_ID,
+                                                           "name": "Device PWE02"}})
+        device = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
+        db.session.refresh(device)
+        self.assertEqual(device.project_id, self.OTHER_PROJECT_ID)
+        details = db.session.scalars(sa.select(AuthSecurityEvent.detail).where(
+            AuthSecurityEvent.event_type == "device_project_changed")).all()
+        self.assertIn({"device_id": body["device_id"], "from": self.PROJECT_ID,
+                       "project_id": self.OTHER_PROJECT_ID}, details)
+
+    def test_choosing_a_project_outside_the_users_grants_is_refused(self):
+        self._make_project("PWE03", "PW03", datetime.now(UTC))
+        db.session.commit()
+        body = self._enrol().get_json()
+        for bad in ("PWE03", "NOPE99", "", None):
+            with self.subTest(project_id=bad):
+                response = self._set_project(body, bad)
+                self.assertIn(response.status_code, (400, 403), response.get_json())
+        device = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
+        db.session.refresh(device)
+        self.assertEqual(device.project_id, self.PROJECT_ID)
+        refused = self._set_project(body, "PWE03")
+        self.assertEqual(refused.get_json()["code"], "project_not_eligible")
+
+    def test_single_project_user_gets_one_listed_project(self):
+        user = self._worker(VaAccessRoles.coder, [self.PROJECT_ID])
+        body = self._enrol(identifier=user.email).get_json()
+        self.assertEqual(body["projects"], [{"project_id": self.PROJECT_ID, "name": "Device PWE01"}])
+        self.assertEqual(body["project"]["project_id"], self.PROJECT_ID)
+
+    def test_browser_cookie_cannot_set_a_device_project(self):
+        self._login(str(self.base_admin_user.user_id))
+        response = self.client.post("/api/v1/auth/devices/current/project", json={"project_id": self.PROJECT_ID})
+        self.assertEqual(response.status_code, 403)
 
     def test_wrong_unknown_inactive_and_empty_credentials_share_one_401_without_rows(self):
         before = self._counts()
@@ -211,6 +260,55 @@ class PasswordEnrolTests(BaseTestCase):
                 body = response.get_json()
                 self.assertEqual(body["project"]["project_id"], self.PROJECT_ID)
                 self.assertEqual(body["access"]["roles"], [role.value])
+
+    @staticmethod
+    def _entry(project_id):
+        return {"project_id": project_id, "site_id": "XX01", "site_name": "Site",
+                "web_intake_mode": "both", "org_units": []}
+
+    def test_default_is_lowest_across_interviewing_and_register(self):
+        """Old APKs: min over interviewing and register together, as before the picker."""
+        with mock.patch("app.services.web_intake_service.interviewer_context",
+                        return_value=[self._entry(self.OTHER_PROJECT_ID)]), \
+             mock.patch("app.services.web_intake_service.register_death_context",
+                        return_value=[self._entry(self.PROJECT_ID)]):
+            response = self._enrol()
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["project"]["project_id"], self.PROJECT_ID)
+
+    def test_register_project_is_home_when_no_interviewing_project(self):
+        with mock.patch("app.services.web_intake_service.interviewer_context", return_value=[]), \
+             mock.patch("app.services.web_intake_service.register_death_context",
+                        return_value=[self._entry(self.OTHER_PROJECT_ID)]), \
+             mock.patch.object(devices, "has_device_access", return_value=True):
+            response = self._enrol()
+        self.assertEqual(response.get_json()["project"]["project_id"], self.OTHER_PROJECT_ID)
+
+    def test_inactive_default_falls_to_a_listed_project(self):
+        with mock.patch("app.services.web_intake_service.interviewer_context",
+                        return_value=[self._entry("ZZZ000"), self._entry(self.OTHER_PROJECT_ID)]), \
+             mock.patch("app.services.web_intake_service.register_death_context", return_value=[]):
+            body = self._enrol().get_json()
+        listed = {p["project_id"] for p in body["projects"]}
+        self.assertIn(body["project"]["project_id"], listed)
+        self.assertEqual(body["project"]["project_id"], self.OTHER_PROJECT_ID)
+
+    def test_same_project_choice_is_a_no_op_even_for_a_station(self):
+        body = self._enrol().get_json()
+        device = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
+        device.signing_key_id = "abcd1234abcd1234"
+        db.session.commit()
+        self.assertEqual(self._set_project(body, self.PROJECT_ID).status_code, 200)
+
+    def test_device_with_station_state_cannot_change_project(self):
+        body = self._enrol().get_json()
+        device = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
+        device.signing_key_id = "abcd1234abcd1234"
+        db.session.commit()
+        response = self._set_project(body, self.OTHER_PROJECT_ID)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "device_project_locked"))
+        db.session.refresh(device)
+        self.assertEqual(device.project_id, self.PROJECT_ID)
 
     def test_collection_home_wins_over_a_lower_coding_project(self):
         user = self._worker(VaAccessRoles.coder, [self.PROJECT_ID])

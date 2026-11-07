@@ -77,6 +77,7 @@ vi.mock("react-native", () => {
   );
 
   return {
+    Platform: { OS: "android" },
     Image: primitive("img"),
     Modal,
     Pressable: primitive("button"),

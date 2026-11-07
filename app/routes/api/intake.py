@@ -585,18 +585,22 @@ def list_deaths():
     rights, the deaths they registered across their reach: optional
     ``project_id``, ``site_id``, ``limit``, ``cursor``; replies ``{"deaths",
     "next_cursor"}`` (``web_intake_service.reported_deaths_page``). A user who
-    holds both roles asks for that list with ``registered=mine``. A row's GPS
+    holds both roles gets that list with ``registered=mine`` or without
+    ``project_id``/``site_id``. A row's GPS
     fix follows ``intake_svc.shows_gps``; otherwise its keys are absent."""
     training_scope.resolve("interview")
     registered = request.args.get("registered")
     if registered not in (None, "", "mine"):
         return error("registered must be mine.", "invalid_request", 400)
-    if _reporter_only() or (registered == "mine" and current_user.is_death_reporter()):
-        return jsonify(intake_svc.reported_deaths_page(current_user, request.args))
     project_id = request.args.get("project_id", "")
     site_id = request.args.get("site_id", "")
+    # A reporter who also holds an interviewer grant (old APKs send no
+    # parameters) gets their own list rather than the register's 400.
+    no_register = not project_id or not site_id
+    if _reporter_only() or (current_user.is_death_reporter() and (registered == "mine" or no_register)):
+        return jsonify(intake_svc.reported_deaths_page(current_user, request.args))
     status = request.args.get("status") or None
-    if not project_id or not site_id:
+    if no_register:
         return error("project_id and site_id are required.", "invalid_request", 400)
     deaths = intake_svc.list_deaths(current_user, project_id=project_id, site_id=site_id, status=status)
     visible = intake_svc.gps_projects(current_user, {project_id}) if deaths else set()

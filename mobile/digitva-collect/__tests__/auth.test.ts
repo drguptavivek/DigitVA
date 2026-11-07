@@ -45,6 +45,8 @@ import {
   redeemSignInQr,
   refreshAccessSummary,
   setActiveSlot,
+  setDeviceHomeProject,
+  takePickedHomeProject,
   SessionRevokedError,
   signIn,
   SignInRequiredError,
@@ -975,8 +977,10 @@ describe("redeemSignInQr", () => {
 
   it("posts the token once, then stores the device and the session as enrolment plus sign-in do", async () => {
     mockServer(() => json(201, reply));
-    const account = await redeemSignInQr(SERVER, TOKEN, "Pixel", "1.2.3");
+    const { account, projects } = await redeemSignInQr(SERVER, TOKEN, "Pixel", "1.2.3");
     expect(account).toMatchObject({ user_id: USER, name: "Asha" });
+    // An older server lists no projects: no choice to offer.
+    expect(projects).toEqual([]);
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/sign-in-qr/redeem`);
     expect(JSON.parse(calls[0].body!)).toMatchObject({ token: TOKEN, device_name: "Pixel", app_version: "1.2.3" });
@@ -1091,7 +1095,7 @@ describe("passwordEnrolAndSignIn", () => {
     mockSecure.set("accounts", JSON.stringify([{ user_id: "local-user", name: "Local", standalone: true }]));
     expect(await standaloneModeAvailable()).toBe(true);
     mockServer(() => json(201, reply));
-    const account = await passwordEnrolAndSignIn(`${SERVER}/`, " asha@example.org ", "private-password", "Pixel", "1.2.3");
+    const { account } = await passwordEnrolAndSignIn(`${SERVER}/`, " asha@example.org ", "private-password", "Pixel", "1.2.3");
     expect(account).toMatchObject({ user_id: USER, name: "Asha", terms_required: true, server: SERVER });
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/password-enroll`);
@@ -1106,6 +1110,29 @@ describe("passwordEnrolAndSignIn", () => {
     expect(await standaloneModeAvailable()).toBe(false);
     expect([...mockSecure.values()].some((value) => value.includes("private-password"))).toBe(false);
     expect(mockDeleteDb).not.toHaveBeenCalled();
+  });
+
+  it("lists the eligible projects, drops malformed entries, and a pick posts to the device and waits for the worklist", async () => {
+    const projects = [{ project_id: "P1", name: "One" }, { project_id: "", name: "Blank" }, { name: "No id" }, { project_id: "P2", name: "Two" }];
+    mockServer(() => json(201, { ...reply, projects }));
+    const enrolled = await passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3");
+    expect(enrolled.projects).toEqual([{ project_id: "P1", name: "One" }, { project_id: "P2", name: "Two" }]);
+    mockServer(() => json(200, { project: { project_id: "P2", name: "Two" } }));
+    expect(takePickedHomeProject(USER)).toBeUndefined();
+    await setDeviceHomeProject(USER, "P2");
+    expect(calls.at(-1)!.url).toBe(`${SERVER}/api/v1/auth/devices/current/project`);
+    expect(JSON.parse(calls.at(-1)!.body!)).toEqual({ project_id: "P2" });
+    expect(takePickedHomeProject(USER)).toBe("P2");
+    expect(takePickedHomeProject(USER)).toBeUndefined();
+    expect(JSON.parse(mockSecure.get("device")!)).toMatchObject({ project_id: "P2", project_name: "Two" });
+  });
+
+  it("keeps no pick when the server refuses the project", async () => {
+    mockServer(() => json(201, reply));
+    await passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3");
+    mockServer(() => json(403, { error: "no", code: "project_not_eligible" }));
+    await expect(setDeviceHomeProject(USER, "PX")).rejects.toBeTruthy();
+    expect(takePickedHomeProject(USER)).toBeUndefined();
   });
 
   it("rejects a retained same-server Demo identity before persisting the Active device or tokens", async () => {

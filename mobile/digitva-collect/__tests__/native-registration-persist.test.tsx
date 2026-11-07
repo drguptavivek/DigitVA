@@ -26,6 +26,13 @@ function memoryDb(): Db {
   };
 }
 
+let mockResolvePosition: ((value: unknown) => void) | undefined;
+jest.mock("expo-location", () => ({
+  Accuracy: { High: 4, Balanced: 3 },
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ status: "granted" })),
+  getCurrentPositionAsync: jest.fn(() => new Promise((resolve) => { mockResolvePosition = resolve; })),
+  getLastKnownPositionAsync: jest.fn(async () => null),
+}));
 const mockNavigation = { addListener: () => () => undefined, dispatch: () => undefined };
 jest.mock("expo-router", () => ({
   useNavigation: () => mockNavigation,
@@ -173,4 +180,19 @@ it("removes the copy only after a confirmed discard", async () => {
 
   expect(await savedCopy()).toBeUndefined();
   expect(field("deceased_name").props["data-value"]).toBe("");
+});
+
+it("keeps a fix that arrives while the app resumes from the permission dialog", async () => {
+  await type("deceased_name", "Meera");
+  await press("locationCapture");
+  await act(async () => { await Promise.resolve(); });
+  await appState("inactive");
+  // The fix lands while the reload that the resume started is still loading the draft.
+  await act(async () => {
+    appStateListener?.("active");
+    mockResolvePosition?.({ coords: { latitude: 12, longitude: 77, accuracy: 9 } });
+  });
+  await settle();
+  expect(tree.root.findAll((node) => node.type === "button" && node.props.label === "locationRetake")).toHaveLength(1);
+  expect(field("deceased_name").props["data-value"]).toBe("Meera");
 });

@@ -1,7 +1,7 @@
 /**
- * Collect Plus only (APP_VARIANT=plus, src/appVariant.ts): the coding queue, the review queue and the case workspace
+ * Online coding (both variants) and review (Plus only; src/appVariant.ts): the coding queue, the review queue and the case workspace
  * on the phone, the same QueueScreen and CaseWorkspaceScreen the web app renders, over the signed-in account's
- * bearer session. The plain build keeps CodingOnWeb for these routes (src/nativeRouteScreens.native.tsx).
+ * bearer session. The plain build uses it for coding only; review stays Plus (src/nativeRouteScreens.native.tsx).
  * DORIS still goes to the server here; the offline engine is wired in by phase B.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";

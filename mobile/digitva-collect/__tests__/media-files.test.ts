@@ -19,9 +19,9 @@ it("deletes a cache file and leaves any other path alone", () => {
   expect(mockDelete).toHaveBeenCalledWith("file:///data/user/0/app/cache/va-media/a.m4a");
 });
 
-it("empties the playback folder and the picker, manipulator, document and recorder temporaries", () => {
+it("empties the playback folder and the picker, manipulator, document, recorder and scanner temporaries", () => {
   wipeMediaCache();
-  expect(mockDirDelete).toHaveBeenCalledTimes(5);
+  expect(mockDirDelete).toHaveBeenCalledTimes(6);
 });
 
 it("accepts a cache path and fails closed on traversal, encoded traversal and other roots", () => {

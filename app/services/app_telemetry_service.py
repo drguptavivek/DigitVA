@@ -33,7 +33,7 @@ _ROOT_KEYS = frozenset({
 _METRIC_KEYS = frozenset({"foreground_ms", "launches", "crashes", "errors"})
 _ENUMS = {
     "variant": frozenset({"collect", "plus"}),
-    "platform": frozenset({"android"}),
+    "platform": frozenset({"android", "ios"}),
     "device_type": frozenset({"phone", "tablet", "emulator", "other"}),
     "ram_bucket": frozenset({"unknown", "lt2", "2_3", "4_5", "6_7", "8_11", "12plus"}),
     "core_bucket": frozenset({"unknown", "1_2", "3_4", "5_8", "9plus"}),

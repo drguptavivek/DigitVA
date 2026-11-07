@@ -30,6 +30,7 @@ import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
+import { stableAccessJson } from "./accessKey";
 import { allowPinReset } from "./pinResetGrant";
 import {
   accessCapabilities,
@@ -395,7 +396,7 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
     access.roles.some((role) => role === "coder" || role === "coding_tester"),
     access.roles.includes("reviewer"),
     offlineCodingProjectIds(access),
-    await digestStringAsync(CryptoDigestAlgorithm.SHA256, JSON.stringify({ roles: access.roles, projects: access.projects })),
+    await digestStringAsync(CryptoDigestAlgorithm.SHA256, stableAccessJson({ roles: access.roles, projects: access.projects })),
   );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
@@ -436,6 +437,8 @@ interface EnrolReply {
   device_id: string;
   device_secret: string;
   project: { project_id: string; name: string };
+  /** Password and sign-in QR replies: every eligible home (newer servers only). */
+  projects?: unknown;
 }
 
 /** Throws AlreadyEnrolledError when `slot` holds a device: only re-enrolment (src/reEnrolConfirm.ts) empties it. */
@@ -601,7 +604,7 @@ export async function passwordEnrolAndSignIn(
   password: string,
   deviceName: string,
   appVersion: string,
-): Promise<Account> {
+): Promise<EnrolledAccount> {
   const origin = acceptedServerOrigin(server, __DEV__);
   if (!origin || origin === DEMO_SERVER) throw new EnrolmentError("errServerNotAllowed");
   const snapshot = await selectedSlotSnapshot();
@@ -632,7 +635,8 @@ export async function passwordEnrolAndSignIn(
   }
   const access = parseAccessSummary(body.access);
   if (access.user.user_id !== body.user.user_id) throw new ApiError(200, "malformed_response");
-  return storeEnrolledSession("active", origin, { ...body, access }, snapshot);
+  const account = await storeEnrolledSession("active", origin, { ...body, access }, snapshot);
+  return { account, projects: enrolProjects(body.projects) };
 }
 
 /**
@@ -646,7 +650,7 @@ export async function redeemSignInQr(
   token: string,
   deviceName: string,
   appVersion: string,
-): Promise<Account> {
+): Promise<EnrolledAccount> {
   const snapshot = await selectedSlotSnapshot();
   // Before the request, so a refusal does not spend the one-time token.
   await refuseEnrolled("active");
@@ -660,7 +664,45 @@ export async function redeemSignInQr(
       ...(await clientDeviceUuid()),
     },
   });
-  return storeEnrolledSession("active", server, body, snapshot);
+  const account = await storeEnrolledSession("active", server, body, snapshot);
+  return { account, projects: enrolProjects(body.projects) };
+}
+
+/** A home project the enrolment reply offers (docs/policy/mobile-sign-in.md, home project). */
+export type EnrolProject = { project_id: string; name: string };
+/** The enrolled account and every project it may make this phone's home; an older server lists none. */
+export type EnrolledAccount = { account: Account; projects: EnrolProject[] };
+
+/** Keep only well-formed `projects` entries; anything else (or an older server's absent list) is no choice. */
+function enrolProjects(value: unknown): EnrolProject[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is EnrolProject =>
+    typeof item?.project_id === "string" && !!item.project_id && typeof item.name === "string");
+}
+
+/** The project picked at enrolment, kept until the worklist opens the account's store and saves it. */
+const pickedHomeProjects = new Map<string, string>();
+
+/** Hand the enrolment pick to the worklist once; undefined when none is waiting. */
+export function takePickedHomeProject(userId: string): string | undefined {
+  const projectId = pickedHomeProjects.get(userId);
+  pickedHomeProjects.delete(userId);
+  return projectId;
+}
+
+/** POST /auth/devices/current/project: make the picked project this phone's home on the server, then hand it to the worklist. */
+export async function setDeviceHomeProject(userId: string, projectId: string): Promise<void> {
+  const reply = await authedRequest(
+    userId, `${AUTH_API}/devices/current/project`, { method: "POST", body: { project_id: projectId } });
+  // The stored device record names the home project on Home, sign-in and settings.
+  const slot = await loadActiveSlot();
+  const device = await loadDevice(slot);
+  if (device) {
+    await writeJson(slotKey(slot, DEVICE_KEY), {
+      ...device, project_id: projectId, project_name: (reply.body as { project?: { name?: string } } | undefined)?.project?.name ?? device.project_name,
+    });
+  }
+  pickedHomeProjects.set(userId, projectId);
 }
 
 /**

@@ -55,7 +55,11 @@ from app.models import (
     AuthDevice,
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
+    AuthDeviceSigningKey,
+    AuthStationConfig,
+    AuthStationCustodian,
     VaAccessRoles,
+    VaBundleIngest,
     VaProjectMaster,
     VaStatuses,
     VaUsers,
@@ -396,6 +400,100 @@ def enrol_device(
     return _add_device(consumed.project_id, name, platform, version, consumed.id, client_device_uuid)
 
 
+def _coding_projects(resolved) -> set[str]:
+    return {
+        grant.project_id for grant in resolved.of(_DEVICE_CODING_ROLES, virtual=False)
+        if grant.opens_gate
+    }
+
+
+def _eligible_projects(context, register_context, resolved) -> list[dict]:
+    ids = {e["project_id"] for e in context} | {e["project_id"] for e in register_context}
+    ids |= _coding_projects(resolved)
+    if not ids:
+        return []
+    rows = db.session.execute(
+        sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name)
+        .where(VaProjectMaster.project_id.in_(ids), VaProjectMaster.project_status == VaStatuses.active)
+        .order_by(VaProjectMaster.project_id)
+    ).all()
+    return [{"project_id": r.project_id, "name": r.project_name} for r in rows]
+
+
+def _default_home_project(context, register_context, resolved, eligible: list[dict]) -> str:
+    """The home an app that sends no choice gets (old APKs): the lowest
+    project id across interviewing and death register, else across native
+    coding/review. Kept to the active *eligible* projects when there are any,
+    so the default is always one the picker lists."""
+    pool = {e["project_id"] for e in context + register_context} or _coding_projects(resolved)
+    active = {p["project_id"] for p in eligible}
+    if active:
+        pool = (pool & active) or active
+    return min(pool)
+
+
+def eligible_device_projects(user: VaUsers) -> list[dict]:
+    """Every active project *user* may make a device's home
+    (docs/policy/mobile-sign-in.md, home project): interviewing, death
+    register or native coding/review. ``[{project_id, name}]`` sorted by id;
+    the app asks the user to pick when there is more than one."""
+    from app.services.web_intake_service import interviewer_context, register_death_context
+
+    resolved = resolve_grants(user)
+    context = interviewer_context(user, _grants=resolved)
+    return _eligible_projects(context, register_death_context(user, context, _grants=resolved), resolved)
+
+
+def _station_state(device: AuthDevice) -> bool:
+    """True when *device* holds offline-station trust or work bound to its
+    project: a signing key, a station config or custodian, an ingested or
+    held bundle, or outstanding work reported by a session."""
+    did = device.device_id
+    if device.signing_public_key is not None or device.signing_key_id is not None:
+        return True
+    exists = lambda *where: db.session.scalar(sa.select(sa.exists().where(*where)))  # noqa: E731
+    return bool(
+        exists(AuthDeviceSigningKey.device_id == did)
+        or exists(AuthStationConfig.device_id == did)
+        or exists(AuthStationCustodian.device_id == did)
+        or exists(VaBundleIngest.device_id == did)
+        or exists(AuthDeviceSession.device_id == did, AuthDeviceSession.outstanding_count > 0)
+    )
+
+
+def set_device_project(device_id: uuid.UUID, user: VaUsers, project_id) -> AuthDevice:
+    """``POST /auth/devices/current/project``: make *project_id* the home of
+    the caller's device (*device_id* from the bearer session). Refused 403
+    ``project_not_eligible`` unless it is one of the session user's
+    eligible projects, and 409 ``device_project_locked`` when the device holds
+    station state (``_station_state``) and the project would change: its
+    project binds offline-station trust. Audited as ``device_project_changed``.
+    Caller commits."""
+    if not isinstance(project_id, str) or not project_id.strip():
+        raise DeviceAuthError("project_id is required.", "invalid_request", 400, fields=["project_id"])
+    project_id = project_id.strip()
+    if project_id not in {p["project_id"] for p in eligible_device_projects(user)}:
+        raise DeviceAuthError("You cannot use this project on a phone.", "project_not_eligible", 403)
+    device = db.session.scalar(
+        sa.select(AuthDevice).where(AuthDevice.device_id == device_id).with_for_update()
+    )
+    if device is None:
+        raise DeviceAuthError("Device is not recognised.", "device_invalid", 401)
+    if device.revoked_at is not None:
+        raise DeviceAuthError("This device has been revoked.", "device_revoked", 403)
+    previous = device.project_id
+    if previous != project_id:
+        if _station_state(device):
+            raise DeviceAuthError("This device is a registered station; its project cannot change.",
+                                  "device_project_locked", 409)
+        device.project_id = project_id
+        record_security_event(
+            user_id=user.user_id, event_type="device_project_changed",
+            detail={"device_id": str(device.device_id), "from": previous, "project_id": project_id},
+        )
+    return device
+
+
 def enrol_with_password(
     *, identifier, password, device_name, platform, app_version, client_device_uuid=None
 ) -> tuple[AuthDevice, str, IssuedTokens, VaUsers]:
@@ -403,8 +501,8 @@ def enrol_with_password(
 
     The optional install UUID is parsed before writes. The home is the first
     accessible collection project, otherwise the first native coding/review
-    project. Raises DeviceAuthError before creating rows on credential,
-    eligibility or device-cap refusal. Session issuance never commits, so a
+    project (``_default_home_project``). Raises DeviceAuthError before
+    creating rows on credential, eligibility or device-cap refusal. Session issuance never commits, so a
     later failure rolls the new device back with it. Invalid credentials
     commit only their audit event before any device/session is created.
     """
@@ -431,13 +529,8 @@ def enrol_with_password(
     register_context = register_death_context(user, context, _grants=resolved)
     if not has_device_access(user, context, register_context, _grants=resolved):
         raise _no_access_error(user, resolved)
-    projects = {entry["project_id"] for entry in context + register_context}
-    if not projects:
-        projects = {
-            grant.project_id for grant in resolved.of(_DEVICE_CODING_ROLES, virtual=False)
-            if grant.opens_gate
-        }
-    project_id = min(projects)
+    project_id = _default_home_project(
+        context, register_context, resolved, _eligible_projects(context, register_context, resolved))
     # Hold the account lock through creation and issuance; no phone is evicted.
     check_device_slot(user)
     device, secret = _add_device(project_id, name, platform, version, None, client_uuid)

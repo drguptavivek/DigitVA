@@ -33,6 +33,7 @@ import {
 import { draftForCase, type Db, type DraftRow } from "../drafts";
 import { t, type StringKey } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
+import { sendRefusal } from "../unsentWork";
 import {
   canFollowUpDeath,
   canStartDeathInterview,
@@ -40,6 +41,7 @@ import {
 } from "../deathWorkflow";
 import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
+import { fetchSubmittedRevisions } from "../revisions";
 import { Button, Card, ChoiceRow, errorText, Notice, Row, Screen, Separator, stateLabel, useUiStyles } from "../ui";
 import { otherDraftWarning } from "../ui/CaseCard";
 
@@ -81,6 +83,8 @@ export default function Case() {
   const [db, setDb] = useState<Db | undefined>();
   const [found, setFound] = useState<CaseDetail | undefined>();
   const [registration, setRegistration] = useState<Registration | undefined>();
+  // The server's reason a queued registration was refused (422), so the interviewer sees why it needs editing.
+  const [registrationRefusal, setRegistrationRefusal] = useState("");
   const [draft, setDraft] = useState<DraftRow | null>(null);
   const [actions, setActions] = useState<CaseAction[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -90,6 +94,9 @@ export default function Case() {
   const [date, setDate] = useState("");
   const [message, setMessage] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
+  // The server records no submission id on a refused case, so a refusal sent from this device is known only by the
+  // submitted-interview list (same rule as the interviews list).
+  const [refusalSent, setRefusalSent] = useState(false);
   const { deathId, clientDeathId } = params;
   const requestGeneration = useRef(0);
   const routeIdentityRef = useRef("");
@@ -99,8 +106,9 @@ export default function Case() {
     async (handle: Db, isCurrent: () => boolean = () => true) => {
       const [row, reg, local, queued, referenceData] = await Promise.all([
         deathId
-          ? fetchCaseDetail(accountId ?? "", handle, deathId).catch((error) => {
-              if (error instanceof TypeError) return getCase(handle, deathId);
+          ? fetchCaseDetail(accountId ?? "", handle, deathId).catch(async (error) => {
+              // Offline and never downloaded: say the network is down, not that the case is gone.
+              if (error instanceof TypeError) return (await getCase(handle, deathId)) ?? Promise.reject(error);
               throw error;
             })
           : Promise.resolve(undefined),
@@ -133,9 +141,21 @@ export default function Case() {
           if (!(error instanceof TypeError) || !local) throw error;
         }
       }
+      let sentRefusal = false;
+      if (row?.state === "refused" && row.other_complete_interview !== true) {
+        try {
+          sentRefusal = (await fetchSubmittedRevisions(accountId ?? "")).some((r) => r.death_id === row.death_id);
+        } catch {
+          // Offline: the case stays as the server last described it.
+        }
+      }
+      const refusalMessage =
+        reg?.state === "needs_edit" && clientDeathId ? ((await sendRefusal(handle, clientDeathId))?.message ?? "") : "";
       if (!isCurrent()) return;
       setFound(row);
+      setRefusalSent(sentRefusal);
       setRegistration(reg);
+      setRegistrationRefusal(refusalMessage);
       setDraft(currentDraft);
       setActions(
         queued.filter(
@@ -194,6 +214,7 @@ export default function Case() {
         routeIdentityRef.current = "";
         setDb(undefined);
         setFound(undefined);
+        setRefusalSent(false);
         setRegistration(undefined);
         setDraft(null);
         setActions([]);
@@ -215,8 +236,7 @@ export default function Case() {
   if (loaded && !found && !registration) {
     return (
       <Screen title={t("deathDetails")}>
-        <Text style={styles.text}>{t("deathNotFound")}</Text>
-        {message ? <Notice tone="error">{message}</Notice> : null}
+        {message ? <Notice tone="error">{message}</Notice> : <Text style={styles.text}>{t("deathNotFound")}</Text>}
       </Screen>
     );
   }
@@ -225,8 +245,12 @@ export default function Case() {
   const followUpAllowed = found
     ? canFollowUpDeath(found.state)
     : registration?.state === "pending";
+  const refusedAndSent =
+    found?.state === "refused" && (found.other_complete_interview === true || refusalSent);
   const startAllowed = found
     ? !TERMINAL_DEATH_STATES.has(found.state) &&
+      // A refused case whose interview is submitted is Sent, not restartable.
+      !refusedAndSent &&
       ((Boolean(found.prefill) && canStartDeathInterview(found.state)) || Boolean(draft))
     : registration?.state === "pending";
 
@@ -452,7 +476,7 @@ export default function Case() {
             ),
             detailLine(t("fieldPlaceOfDeath"), found.deceased.place_of_death),
             detailLine(t("chooseUnit"), found.unit_name),
-            detailLine(t("deathStatus"), stateLabel(found.state)),
+            detailLine(t("deathStatus"), refusedAndSent ? t("badgeSent") : stateLabel(found.state)),
             found.last_contact_at
               ? `${t("lastContact")}: ${displayDate(found.last_contact_at) ?? found.last_contact_at}`
               : undefined,
@@ -514,6 +538,11 @@ export default function Case() {
               ? t("needsEdit")
               : t("pendingSend")}
           </Text>
+          {registration.state === "needs_edit" && registrationRefusal ? (
+            <Text style={styles.error} accessibilityRole="alert">
+              {t("refusalNotAccepted", { reason: registrationRefusal })}
+            </Text>
+          ) : null}
           <Row>
             <Button
               kind="secondary"
@@ -655,7 +684,8 @@ export default function Case() {
             />
           </Row>
         </View>
-      ) : (
+      ) : followUpAllowed ? (
+        // The server takes a contact attempt or visit only on a case waiting for a visit (409 otherwise), so none are offered elsewhere.
         <Row>
           <Button
             kind="secondary"
@@ -670,7 +700,7 @@ export default function Case() {
             onPress={() => openForm("visit")}
           />
         </Row>
-      )}
+      ) : null}
       {message ? <Text style={styles.text}>{message}</Text> : null}
       {actions.map((action) => (
         <View key={action.client_id} style={styles.card}>

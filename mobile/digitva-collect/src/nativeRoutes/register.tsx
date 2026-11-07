@@ -12,7 +12,7 @@
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, Pressable, Text, View } from "react-native";
+import { Alert, AppState, Pressable, ScrollView, Text, View } from "react-native";
 import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
 import {
   FormThemeContext,
@@ -88,7 +88,7 @@ import {
   type ReferenceData,
   type Target,
 } from "../sync";
-import { Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
+import { announce, Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
 import { radius, spacing, useTheme } from "../theme";
 import { useWhoFormTheme } from "../whoWebTheme";
 import { rowLabel } from "../ui/sitePicker";
@@ -98,6 +98,8 @@ import { ConfirmDialog } from "../ConfirmDialog";
 import { useLeaveGuard } from "../leaveGuard";
 import { MultilineInput } from "../MultilineInput";
 import { PhoneNumbers } from "../PhoneInput";
+import { NativeLocationCapture } from "../NativeLocationCapture";
+import type { GpsFix } from "../web/LocationCapture";
 
 type Field = Exclude<keyof RegistrationFields, "identifiers">;
 type BirthMode = "exact" | "month-year" | "year" | "unknown";
@@ -146,6 +148,26 @@ function registrationFieldsFromCase(value: RegistrationCase | CaseRow): Registra
     remarks: text(value.remarks),
     identifiers: identifierValues(source.identifiers as CaseIdentifier[] | undefined),
   };
+}
+
+/**
+ * The GPS fix held by a server case (household_address), a register row or a queued registration's fields
+ * (flat latitude/longitude/accuracy_m); null without a full fix. Never logged (docs/policy/native-location-capture.md).
+ */
+function fixFrom(value: unknown): GpsFix | null {
+  if (!isRecord(value)) return null;
+  const source = isRecord(value.household_address) && "latitude" in value.household_address ? value.household_address : value;
+  const { latitude, longitude, accuracy_m: accuracy } = source;
+  if (typeof latitude !== "number" || typeof longitude !== "number" || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude, accuracy_m: typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null };
+}
+
+const sameFix = (a: GpsFix | null, b: GpsFix | null) =>
+  a === b || (!!a && !!b && a.latitude === b.latitude && a.longitude === b.longitude && a.accuracy_m === b.accuracy_m);
+
+/** Registration fields plus the fix, as the web sends them; the queue's upload spreads these into its POST. */
+function withFix(fields: RegistrationFields, fix: GpsFix | null): RegistrationFields {
+  return (fix ? { ...fields, latitude: fix.latitude, longitude: fix.longitude, accuracy_m: fix.accuracy_m } : fields) as RegistrationFields;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -204,6 +226,7 @@ interface InProgressRegistration {
   siteId?: string;
   orgUnitId?: string | null;
   fields: RegistrationFields;
+  location?: GpsFix | null;
   birthMode: BirthMode;
   ageConfirmationPending: boolean;
   ageConfirmationStartAfter: boolean;
@@ -426,6 +449,9 @@ export default function Register() {
   const [projectId, setProjectId] = useState<string | undefined>(
     params.projectId,
   );
+  // The project picked on screen: a reload on resume keeps it when no saved copy exists (name and sex still empty).
+  const projectIdRef = useRef(projectId);
+  projectIdRef.current = projectId;
   const [target, setTarget] = useState<Target | undefined>();
   const [fields, setFields] = useState<RegistrationFields>({
     deceased_name: "",
@@ -433,8 +459,16 @@ export default function Register() {
     date_of_death: "",
   });
   const [birthMode, setBirthMode] = useState<BirthMode>("exact");
+  // Optional household GPS fix: kept beside the text fields, sent as latitude/longitude/accuracy_m.
+  const [location, setLocation] = useState<GpsFix | null>(null);
+  const locationBase = useRef<GpsFix | null>(null);
+  // Set when the user's capture lands; a reload (iOS permission dialog resume) must not overwrite it.
+  const locationEdited = useRef(false);
+  const [screenFocused, setScreenFocused] = useState(false);
+  const [appActive, setAppActive] = useState(true);
   const [errors, setErrors] = useState<Partial<Record<Field, StringKey>>>({});
   const [message, setMessage] = useState("");
+  const scroller = useRef<ScrollView>(null);
   // Registration numbers: the project's cached types and, per code, the server's refusal of a value.
   const [idTypes, setIdTypes] = useState<IdentifierType[]>([]);
   const [idErrors, setIdErrors] = useState<Record<string, string>>({});
@@ -523,6 +557,7 @@ export default function Register() {
     serverBase.current = undefined;
     serverUpdatedAt.current = undefined;
     setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
+    setLocation(null);
     setBusy(false);
   }, [flushInProgress]);
 
@@ -530,9 +565,11 @@ export default function Register() {
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
+    setScreenFocused(true);
     if (blurred.current && persistableRef.current) setResumeVersion((version) => version + 1);
     return () => {
       focused.current = false;
+      setScreenFocused(false);
       blurred.current = true;
       hideFields();
     };
@@ -542,6 +579,7 @@ export default function Register() {
     const subscription = AppState.addEventListener("change", (next) => {
       const previous = appState.current;
       appState.current = next;
+      setAppActive(next === "active");
       if (next !== "active") hideFields();
       else if (previous !== "active" && persistableRef.current) setResumeVersion((version) => version + 1);
     });
@@ -557,6 +595,9 @@ export default function Register() {
     const loadGeneration = operationGeneration.current;
     let active = true;
     setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
+    setLocation(null);
+    locationBase.current = null;
+    locationEdited.current = false;
     setServerReadOnly(false);
     hydrated.current = false;
     serverBase.current = undefined;
@@ -623,6 +664,8 @@ export default function Register() {
           setIdEditable(!isBadgeOnly(serverSource.identifiers as CaseIdentifier[] | undefined) || serverSource.can_edit_identifiers === true);
           if (pending || completed) setMessage(t("registerSaveFailed"));
           setFields(serverFields);
+          locationBase.current = fixFrom(serverExisting);
+          setLocation(locationBase.current);
           setBirthMode(birthModeFor(serverFields));
         }
         const serverProjectId = serverExisting && typeof serverExisting.project_id === "string" ? serverExisting.project_id : undefined;
@@ -632,17 +675,22 @@ export default function Register() {
         if (restored) {
           registrationId.current = restored.clientDeathId;
           setFields(restored.fields);
+          if (!locationEdited.current) setLocation(restored.location ?? null);
           setBirthMode(restored.birthMode ?? birthModeFor(restored.fields));
           setAgeConfirmationPending(restored.ageConfirmationPending === true);
           setAgeConfirmationStartAfter(restored.ageConfirmationStartAfter === true);
         }
         if (persistable) hydrated.current = true;
         setConsent(serverDeathId ? undefined : await getRegistrationConsent(handle, editing ?? registrationId.current));
+        // The worklist passes projectId="" when no project is picked yet, and a saved copy or an earlier pick may name a
+        // project this account can no longer register in: neither may stand in for "no project chosen".
+        const pickable = (id?: string) => (id && registerProjects.some((project) => project.project_id === id) ? id : undefined);
         const nextProjectId =
           serverProjectId ??
           existing?.project_id ??
-          restored?.projectId ??
-          params.projectId ??
+          pickable(restored?.projectId) ??
+          pickable(params.projectId) ??
+          pickable(projectIdRef.current) ??
           (registerProjects.length === 1
             ? registerProjects[0].project_id
             : undefined);
@@ -669,6 +717,7 @@ export default function Register() {
             if (last?.message) setMessage(last.message);
           }
           setFields(existing.fields);
+          setLocation(fixFrom(existing.fields));
           setBirthMode(birthModeFor(existing.fields));
           setTarget(
             selectedChoices.find(
@@ -711,13 +760,14 @@ export default function Register() {
       ...(projectId ? { projectId } : {}),
       ...(target ? { siteId: target.siteId, orgUnitId: target.orgUnitId ?? null } : {}),
       fields,
+      location,
       birthMode,
       ageConfirmationPending,
       ageConfirmationStartAfter,
     };
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => void flushInProgress(), 400);
-  }, [persistable, db, projectId, target, fields, birthMode, ageConfirmationPending, ageConfirmationStartAfter, flushInProgress]);
+  }, [persistable, db, projectId, target, fields, location, birthMode, ageConfirmationPending, ageConfirmationStartAfter, flushInProgress]);
 
   useEffect(() => () => {
     if (copyTimer.current) clearTimeout(copyTimer.current);
@@ -919,6 +969,8 @@ export default function Register() {
     serverBase.current = nextFields;
     serverUpdatedAt.current = "updated_at" in fresh && typeof fresh.updated_at === "string" ? fresh.updated_at : undefined;
     setFields(nextFields);
+    locationBase.current = fixFrom(fresh);
+    setLocation(locationBase.current);
     setBirthMode(birthModeFor(nextFields));
     const source = fresh as unknown as Record<string, unknown>;
     const state = typeof source.state === "string" ? source.state : typeof source.status === "string" ? source.status : "";
@@ -945,6 +997,9 @@ export default function Register() {
       setAgeConfirmationPending(false);
       setAgeConfirmationStartAfter(false);
       setMessage(t("registerFixErrors"));
+      // The message sits at the end of the form, below the fold on a phone: bring it up and say it.
+      announce(t("registerFixErrors"));
+      setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 0);
       return;
     }
     if (needsConsent) {
@@ -962,6 +1017,8 @@ export default function Register() {
     const clientDeathId = editing ?? registrationId.current;
     // A refusal (or no decision) never saves the informant's details.
     const registrationToSave = decision === "granted" || serverDeathId ? fields : withoutCovered(fields, covered);
+    // The fix locates the household, so it is withheld whenever the address is (consent not granted).
+    const fixToSave = registrationToSave === fields || !covered.includes("address") ? location : null;
     const operation = ++operationGeneration.current;
     const current = () => operationIsCurrent(operation, account.user_id);
     setBusy(true);
@@ -976,6 +1033,13 @@ export default function Register() {
         }
         const idChanges = idShown ? identifierChanges(serverBase.current.identifiers, fields.identifiers) : {};
         if (Object.keys(idChanges).length) changes.identifiers = idChanges;
+        // Absent keeps the stored fix, null clears it, a fix replaces it (as the web correction does).
+        const locationChanged = !sameFix(location, locationBase.current);
+        if (locationChanged) {
+          changes.latitude = location?.latitude ?? null;
+          changes.longitude = location?.longitude ?? null;
+          changes.accuracy_m = location?.accuracy_m ?? null;
+        }
         if (!Object.keys(changes).length) {
           dirty.current = false;
           router.back();
@@ -985,6 +1049,7 @@ export default function Register() {
         const corrected = await patchNativeDeathRegistration(account.user_id, serverDeathId, changes, serverUpdatedAt.current);
         if (!current()) return;
         serverBase.current = registrationFieldsFromCase(corrected);
+        locationBase.current = location;
         serverUpdatedAt.current = corrected.updated_at;
         dirty.current = false;
         router.back();
@@ -995,7 +1060,7 @@ export default function Register() {
           project_id: projectId,
           site_id: target.siteId,
           ...(target.orgUnitId ? { org_unit_id: target.orgUnitId } : {}),
-          ...cleanRegistration(registrationToSave),
+          ...withFix(cleanRegistration(registrationToSave), fixToSave),
           client_death_id: clientDeathId,
           ...(consent ? { consent: consent.envelope } : {}),
         });
@@ -1020,7 +1085,7 @@ export default function Register() {
         client_death_id: clientDeathId,
         site_id: target.siteId,
         org_unit_id: target.orgUnitId ?? null,
-        fields: cleanRegistration(registrationToSave),
+        fields: withFix(cleanRegistration(registrationToSave), fixToSave),
       });
       if (persistable) {
         await clearInProgress(db);
@@ -1075,6 +1140,7 @@ export default function Register() {
     setConsent(undefined);
     await clearInProgress(handle);
     setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
+    setLocation(null);
     setBirthMode("exact");
     setErrors({});
     setIdErrors({});
@@ -1177,7 +1243,7 @@ export default function Register() {
   const canDiscard = persistable && db && hasContent(fields);
 
   return (
-    <Screen title={t("registerDeath")} footer={footer}>
+    <Screen title={t("registerDeath")} footer={footer} scrollRef={scroller}>
       <FormThemeContext.Provider value={whoTheme}>
       <View style={{ gap: spacing.md, paddingBottom: spacing.xs }}>
       {!serverDeathId && registerProjects.length > 1 ? (
@@ -1276,7 +1342,7 @@ export default function Register() {
         <View style={{ gap: 4 }}>
           <FieldLabel label={t("chooseSite")} />
           {targets.length === 0 && !target ? (
-            <Text style={styles.muted}>{t("noSites")}</Text>
+            <Text style={styles.muted}>{t(registerProjects.length > 1 && !projectId ? "chooseProject" : "noSites")}</Text>
           ) : null}
           {editing && target ? (
             <Text style={styles.muted}>{target.label}</Text>
@@ -1296,6 +1362,7 @@ export default function Register() {
           )}
         </View>
         {groupFields(PLACE_FIELDS).map(renderTextField)}
+        <NativeLocationCapture value={location} watching={screenFocused && appActive} disabled={busy || serverReadOnly} onChange={(fix) => { dirty.current = true; locationEdited.current = true; setLocation(fix); }} />
       </Card>
       <SitePickerSheet
         visible={pickingSite}

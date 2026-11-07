@@ -115,8 +115,30 @@ module.exports = ({ config = appJson.expo } = {}) => {
     scheme: isDev ? `${config.scheme}dev` : isPlus ? `${config.scheme}plus` : config.scheme,
     // Plus wears the DigitVA icon with a "+" badge, so it is told apart from the plain app on the home screen.
     ...(isPlus ? { icon: "./assets/icon-plus.png" } : {}),
+    // Optional death-site GPS on the register form: when-in-use only, never background
+    // (docs/policy/native-location-capture.md). The plugin adds fine and coarse location on Android.
+    plugins: [
+      ...(config.plugins || []),
+      [
+        "expo-location",
+        {
+          locationWhenInUsePermission: "DigitVA records the household's location on a death registration when you tap Capture location.",
+          // false drops the plugin's default Always and motion strings: the app never asks for them.
+          locationAlwaysAndWhenInUsePermission: false,
+          locationAlwaysPermission: false,
+          motionUsagePermission: false,
+          isIosBackgroundLocationEnabled: false,
+          isAndroidBackgroundLocationEnabled: false,
+          isAndroidForegroundServiceEnabled: false,
+        },
+      ],
+    ],
     android: {
       ...config.android,
+      blockedPermissions: [
+        ...((config.android && config.android.blockedPermissions) || []),
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+      ],
       ...(isPlus
         ? { adaptiveIcon: { ...config.android.adaptiveIcon, foregroundImage: "./assets/adaptive-icon-plus.png" } }
         : {}),

@@ -15,7 +15,7 @@ import { Button, Notice, Screen, useUiStyles } from "../ui";
 export default function ProfileAccess() {
   const styles = useUiStyles();
   const shell = useShell();
-  const { accounts, slot = "active", lockVersion, uiLocale = "en" } = useAppState();
+  const { accounts, slot = "active", uiLocale = "en" } = useAppState();
   const preference = useIcd11DorisPreference();
   const account = accounts.find((entry) => entry.user_id === shell.userId);
   const available = profileAccountAvailable(account) && isUnlocked(account.user_id);
@@ -35,7 +35,7 @@ export default function ProfileAccess() {
       if (active) setFailed(true);
     });
     return () => { active = false; };
-  }, [available, userId, slot, server, shell.sync.offline, lockVersion, attempt]));
+  }, [available, userId, slot, server, shell.sync.offline, attempt]));
   const visible = available && loaded && (loaded.kind === "standalone" ? account?.standalone && loaded.userId === userId && loaded.slot === slot :
     loaded.profile.slot === slot && loaded.profile.server === server && loaded.profile.userId === userId &&
       loaded.profile.accessDigest === account?.coding_history_access) ? loaded : undefined;

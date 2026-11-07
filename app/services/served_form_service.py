@@ -172,13 +172,19 @@ def served_definition(enabled_extensions: Iterable[str]) -> ServedDefinition:
     return _serve_current(frozenset(enabled_extensions) & _tag_vocabulary())
 
 
+_UNTAGGED_EXTENSIONS = frozenset(
+    {"digitva_core", "doris_support_whova_2022", "geography", "intake_screen"}
+)
+
+
 def historical_definition(version: str, extensions: Iterable[str]) -> ServedDefinition:
     """The slice (*version*, *extensions*) exactly as it was served, for a
     client that lost its copy. Raises :class:`UnknownVersion` for a version not
     recorded and :class:`InvalidExtensions` for extensions the version does not
     contain. The current version is served from the file (the same cache entry
     as :func:`served_definition`), older ones from their recorded definition."""
-    chosen = frozenset(extensions)
+    # Old APKs sent the untagged markers from their pin; they are never tags.
+    chosen = frozenset(extensions) - _UNTAGGED_EXTENSIONS
     vocabulary = _tag_vocabulary() if version == composed_version() else _stored_definition(version)[1]
     if not chosen <= vocabulary:
         raise InvalidExtensions(", ".join(sorted(chosen - vocabulary)))

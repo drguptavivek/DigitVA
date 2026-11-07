@@ -25,6 +25,9 @@
       "node_modules",
       "<rootDir>/node_modules"
     ],
+    "setupFiles": [
+      "./node_modules/react-native-gesture-handler/jestSetup.js"
+    ],
     "setupFilesAfterEnv": [
       "<rootDir>/jest.setup.js"
     ],
@@ -45,6 +48,7 @@
     "expo-camera": "~57.0.6",
     "expo-constants": "^57.0.6",
     "expo-crypto": "~57.0.3",
+    "expo-device": "~57.0.2",
     "expo-document-picker": "~57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-image-manipulator": "~57.0.21",
@@ -53,6 +57,7 @@
     "expo-linking": "^57.0.3",
     "expo-local-authentication": "~57.0.3",
     "expo-localization": "~57.0.2",
+    "expo-location": "~57.0.23",
     "expo-network": "~57.0.3",
     "expo-router": "~57.0.7",
     "expo-screen-capture": "~57.0.3",
@@ -64,9 +69,12 @@
     "expo-status-bar": "^57.0.1",
     "expo-symbols": "~57.0.3",
     "expo-task-manager": "~57.0.21",
+    "jpeg-js": "0.4.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "^0.86.0",
+    "react-native-document-scanner-plugin": "2.0.4",
+    "react-native-gesture-handler": "~2.32.0",
     "react-native-paper": "5.15.3",
     "react-native-paper-dates": "0.23.16",
     "react-native-reanimated": "4.5.1",

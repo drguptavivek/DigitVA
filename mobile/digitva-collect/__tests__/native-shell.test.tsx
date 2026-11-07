@@ -118,7 +118,7 @@ beforeEach(() => {
 
 describe("navigation adapter", () => {
   const keys = (account: Parameters<typeof nativeTabs>[0]) => nativeTabs(account).map((tab) => tab.key);
-  it("offers Interviews and Register death by access, never coding or review", () => {
+  it("offers Interviews, Register death, Code and Review by access", () => {
     expect(keys({ collection_access: true, registration_access: true })).toEqual(["home", "interviews", "register", "sync"]);
     expect(keys({ collection_access: true })).toEqual(["home", "interviews", "sync"]);
     expect(keys({ registration_access: true })).toEqual(["home", "register", "sync"]);
@@ -127,6 +127,32 @@ describe("navigation adapter", () => {
     for (const tab of nativeTabs({ collection_access: true, registration_access: true, registered_deaths_access: true })) {
       expect(`${tab.route ?? ""}`).not.toMatch(/coding|review|workspace/);
     }
+  });
+  it("adds a Code tab before Sync for coders who can sign in, not for others", () => {
+    expect(keys({ collection_access: true, coding_access: true })).toEqual(["home", "interviews", "code", "sync"]);
+    expect(keys({ coding_access: true })).toEqual(["home", "code", "sync"]);
+    expect(keys({ coding_access: false })).toEqual(["home", "sync"]);
+    expect(keys({ coding_access: true, needs_sign_in: true })).toEqual(["home", "sync"]);
+    expect(keys({ coding_access: true, access_blocked: "maintenance" })).toEqual(["home", "sync"]);
+    expect(keys({ coding_access: true, standalone: true })).toEqual(["home", "interviews"]);
+    expect(nativeTabs({ coding_access: true }).find((tab) => tab.key === "code")?.route).toBe("/coding");
+    expect(activeNativeTab("/coding", {})).toBe("code");
+    expect(activeNativeTab("/workspace", { mode: "coding" })).toBe("code");
+    expect(isNativeTabRoot("/coding", { coding_access: true })).toBe(true);
+    expect(isNativeTabRoot("/coding", { coding_access: false })).toBe(false);
+  });
+  it("adds a Review tab after Code and before Sync for reviewers who can sign in", () => {
+    expect(keys({ collection_access: true, coding_access: true, reviewing_access: true })).toEqual(["home", "interviews", "code", "review", "sync"]);
+    expect(keys({ reviewing_access: true })).toEqual(["home", "review", "sync"]);
+    expect(keys({ reviewing_access: false })).toEqual(["home", "sync"]);
+    expect(keys({ reviewing_access: true, needs_sign_in: true })).toEqual(["home", "sync"]);
+    expect(keys({ reviewing_access: true, access_blocked: "maintenance" })).toEqual(["home", "sync"]);
+    expect(keys({ reviewing_access: true, standalone: true })).toEqual(["home", "interviews"]);
+    expect(nativeTabs({ reviewing_access: true }).find((tab) => tab.key === "review")?.route).toBe("/reviewing");
+    expect(activeNativeTab("/reviewing", {})).toBe("review");
+    expect(activeNativeTab("/workspace", { mode: "reviewing" })).toBe("review");
+    expect(isNativeTabRoot("/reviewing", { reviewing_access: true })).toBe(true);
+    expect(isNativeTabRoot("/reviewing", { reviewing_access: false })).toBe(false);
   });
   it("keeps standalone Home and Interviews local and omits enrolled tabs", () => {
     const tabs = nativeTabs({ standalone: true });
@@ -312,7 +338,7 @@ describe("header and tabs", () => {
     expect(mockRouter.replace).not.toHaveBeenCalled();
     await press(tree, "Sync, 3 unsent");
     expect(value.openSheet).toHaveBeenCalledWith("sync");
-    expect(texts(tree)).not.toMatch(/coding|review/i);
+    expect(texts(tree)).toMatch(/Review/);
   });
   it("goes back to the Home already in the stack from Register or a case, never remounting it", async () => {
     mockPathname = "/register";

@@ -112,11 +112,21 @@ describe("Home", () => {
     expect(unsentRow.props).toMatchObject({ "data-tone": "attention", "data-badge": true });
     expect(labelled(tree, "Drafts in progress")).toHaveLength(1);
     await act(async () => tree.unmount());
-    await render(<HomeView {...base} unsent={0} />);
-    const idle = labelled(tree, "Unsent")[0];
-    expect(idle).toBeDefined();
-    expect(idle.props["data-tone"]).toBeUndefined();
-    expect(idle.props["data-badge"]).toBe(false);
+  });
+
+  it("hides zero-count rows: Unsent 0, Need a visit 0, Drafts 0 (and the card when all are zero)", async () => {
+    await render(<HomeView {...base} unsent={1} />);
+    expect(labelled(tree, "Unsent")).toHaveLength(1);
+    expect(labelled(tree, "Drafts in progress")).toHaveLength(1);
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={0} summary={homeSummary([], interviewCounts([]))} />);
+    expect(labelled(tree, "Unsent")).toHaveLength(0);
+    expect(labelled(tree, "Need a visit")).toHaveLength(0);
+    expect(labelled(tree, "Drafts in progress")).toHaveLength(0);
+    expect(tree.root.findAllByProps({ testID: "home-counts" })).toHaveLength(0);
+    // The one primary action stays.
+    expect(labelled(tree, "Start an interview")).toHaveLength(1);
+    expect(text(tree)).not.toContain("Online cases");
   });
 
   it("shows attached files beside the record count, not inside it", async () => {
@@ -221,16 +231,72 @@ describe("Interviews", () => {
     await render(<InterviewsView {...interviewsProps(items)} />);
     expect(pressable(tree, "Drafts 1")).toBeDefined();
     expect(pressable(tree, "To do 1")).toBeDefined();
-    expect(pressable(tree, "Sent 1")).toBeDefined();
+    expect(pressable(tree, "More")).toBeDefined();
+    expect(pressable(tree, "Sent 1")).toBeUndefined();
     await act(async () => pressable(tree, "To do 1").props.onPress());
     expect(cards()).toHaveLength(1);
     expect(text(tree)).toContain("Sunita Devi");
+    // Tapping the picked chip again clears it (all interviews).
+    await act(async () => pressable(tree, "To do 1").props.onPress());
+    expect(cards()).toHaveLength(3);
+    // Sent is behind More.
+    await act(async () => pressable(tree, "More").props.onPress());
+    await act(async () => pressable(tree, "Sent 1").props.onPress());
+    expect(cards()).toHaveLength(1);
+    expect(text(tree)).toContain("SENT-1");
+    await act(async () => pressable(tree, "More").props.onPress());
     await act(async () => pressable(tree, "All").props.onPress());
     await act(async () => tree.root.findByProps({ accessibilityLabel: "Search interviews" }).props.onChangeText("mohan"));
     expect(cards()).toHaveLength(1);
     await act(async () => tree.root.findByProps({ accessibilityLabel: "Search interviews" }).props.onChangeText("nobody"));
     expect(cards()).toHaveLength(0);
     expect(text(tree)).toContain("No interviews match your search.");
+  });
+
+  it("opens the More filters without a search box, and names the picked filter on the chip", async () => {
+    await render(<InterviewsView {...interviewsProps(items)} />);
+    await act(async () => pressable(tree, "More").props.onPress());
+    // Assert the three options are present before asserting the search box is absent.
+    expect(pressable(tree, "Sent 1")).toBeDefined();
+    expect(pressable(tree, "Revisions")).toBeDefined();
+    expect(pressable(tree, "All")).toBeDefined();
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Search units")).toHaveLength(0);
+    await act(async () => pressable(tree, "Sent 1").props.onPress());
+    expect(pressable(tree, "More")).toBeDefined();
+    expect(shown(tree)).toContain("More: Sent");
+    await act(async () => pressable(tree, "More").props.onPress());
+    expect(pressable(tree, "Revisions")).toBeDefined();
+    await act(async () => pressable(tree, "Revisions").props.onPress());
+    expect(shown(tree)).toContain("More: Revisions");
+    await act(async () => pressable(tree, "More").props.onPress());
+    await act(async () => pressable(tree, "All").props.onPress());
+    expect(shown(tree)).toContain("More: All");
+  });
+
+  it("opens the case detail when a Sent case card is tapped anywhere on its body", async () => {
+    const onAction = jest.fn();
+    const sent = buildInterviewItems(sources({ cases: [caseRow("C9", "Geeta Devi", { state: "completed" })] }));
+    expect(sent[0].kind).toBe("sent");
+    await render(<InterviewsView {...interviewsProps(sent, { onAction })} />);
+    await act(async () => tree.root.findByProps({ testID: `open-${sent[0].key}` }).props.onPress());
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ type: "case", deathId: "C9" }));
+  });
+
+  it("opens the case detail from the body of a Sent card whose button is Revise", async () => {
+    const onAction = jest.fn();
+    const submitted = [{ draft_id: "D1", project_id: "P1", site_id: "S1", death_id: "C7", va_sid: "V1", unique_id: "SC01-000173", updated_at: "2026-10-23T13:40:00.000Z" }] as never;
+    const sent = buildInterviewItems(sources({ submitted }));
+    expect(sent[0].action?.type).toBe("revise");
+    await render(<InterviewsView {...interviewsProps(sent, { onAction })} />);
+    await act(async () => tree.root.findByProps({ testID: `open-${sent[0].key}` }).props.onPress());
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ type: "case", deathId: "C7", projectId: "P1" }));
+    expect(labelled(tree, "Revise")).toHaveLength(1);
+  });
+
+  it("keeps the chip counts of the whole list while a filter is active", async () => {
+    await render(<InterviewsView {...interviewsProps(items)} initialFilter="sent" />);
+    expect(pressable(tree, "To do 1")).toBeDefined();
+    expect(pressable(tree, "Drafts 1")).toBeDefined();
   });
 
   it("opens on the chip named by the route", async () => {
@@ -248,7 +314,7 @@ describe("Interviews", () => {
     expect(text(tree)).toContain("Sunita Devi");
     expect(text(tree)).not.toContain("SENT-1");
     // A chip tap still wins until the route names a different filter.
-    await act(async () => pressable(tree, "All").props.onPress());
+    await act(async () => pressable(tree, "To do 1").props.onPress());
     await act(async () => tree.update(<InterviewsView {...interviewsProps(items)} initialFilter="todo" />));
     expect(cards()).toHaveLength(3);
   });
@@ -443,12 +509,12 @@ describe("Another interviewer's open draft", () => {
     buildInterviewItems(sources({ cases: [caseRow("C1", "Ramesh Kumar", { other_draft_active: true, other_draft_started_at: startedAt, ...extra })] }))[0].lines.map((l) => l.text);
 
   it("names the interviewer from a cached case when the server sent the name", () => {
-    expect(lines({ other_draft_started_by: "Asha Verma" })).toContain(`Asha Verma started this interview on ${formatDisplayTimestamp(startedAt)}.`);
+    expect(lines({ other_draft_started_by: "Asha Verma" })).toContain(`Asha Verma started this on 4 Oct. Check with them before you start.`);
   });
 
   it("falls back to the unnamed text without the name, and the undated one without a usable time", () => {
     const unnamed = lines({ other_draft_started_by: null });
-    expect(unnamed).toContain(`Another interviewer started this interview on ${formatDisplayTimestamp(startedAt)}.`);
+    expect(unnamed).toContain(`Another interviewer started this on 4 Oct. Check with them before you start.`);
     expect(unnamed.join(" ")).not.toContain("null");
     expect(lines({ other_draft_started_at: "invalid", other_draft_started_by: "Asha Verma" })).toContain("Another interviewer has started this interview.");
   });

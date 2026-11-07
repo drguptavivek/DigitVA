@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-07
 ---
 
 # Test Project TST001 (Intake Test)
@@ -113,19 +113,20 @@ On staging), email verified, onboarded, Asia/Kolkata, English. Unit-scoped grant
 | test.cho.sc01 .. sc06 | SC01 .. SC06 CHO | interviewer | intake |
 | test.anm.sc01 | SC01 ANM | death_reporter | intake |
 | test.mpw.sc04 | SC04 MPW | death_reporter | intake |
-| test.all | project (TST001), SC01 ANM, PHC01 MO; plus SADEMO project scope | coder + reviewer (project), death_reporter (SC01 ANM), interview_supervisor (PHC01 MO), coder in SADEMO | coder |
+| test.all | project (TST001), SC01 ANM, PHC01 MO; plus SADEMO project scope | coder + reviewer + data_manager (project), death_reporter + interviewer (SC01 ANM), interview_supervisor (PHC01 MO), coder + reviewer in SADEMO | coder |
 
 ANM and MPW hold only a `death_reporter` grant at their sub-centre: they register
 deaths in the app and do not interview (`digitva-t6q`). Their grid row permits
-Fill VA since 2026-10-12, so an `interviewer` grant could be added.
+Fill VA since 2026-10-12; only `test.all` also holds `interviewer` there.
 
 `test.all` is the one login for every surface. The unit-scope roles need a cadre
-the grid permits: `death_reporter` needs `can_report_deaths` (SC01 ANM),
-`interview_supervisor` needs `can_supervise_interviews` (PHC01 MO); coder and
-reviewer are project-scope grants (no cadre). No single (unit, cadre) permits
-all four roles, hence three roster rows for the same person; the first row sets
-the landing page and the unit-placed worker is SC01 ANM. It also holds a
-project-scope `coder` grant in SADEMO (classical, sites, random allocation; dev only),
+the grid permits: `death_reporter` needs `can_report_deaths` and `interviewer`
+needs `can_fill_va_form` (both SC01 ANM),
+`interview_supervisor` needs `can_supervise_interviews` (PHC01 MO); coder,
+reviewer and data_manager are project-scope grants (no cadre). No single (unit, cadre) permits
+all the roles, hence three roster rows for the same person; the first row sets
+the landing page and the unit-placed worker is SC01 ANM. It also holds
+project-scope `coder` and `reviewer` grants in SADEMO (classical, sites, random allocation; dev only),
 written by the seed directly because the user import is organization-only.
 The SADEMO grant is skipped when that project does not exist.
 

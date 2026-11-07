@@ -53,6 +53,7 @@ import {
   setRegistrationRefusal,
   setRegistrationState,
   upsertCase,
+  setCachedCaseState,
   type CaseDetail,
   type CaseRow
 } from "./cases";
@@ -680,6 +681,11 @@ export async function uploadQueuedWork(
         throw new Error("invalid_upload_ack");
       }
       acknowledgedUploadCase(responseBody, item.death_id);
+      if (item.death_id) {
+        const ack = (responseBody as { case?: { state?: unknown; status?: unknown } }).case;
+        const ackState = ack?.state ?? ack?.status;
+        if (typeof ackState === "string" && isActiveCaseState(ackState)) await setCachedCaseState(db, item.death_id, ackState);
+      }
       // pending, applied and refused are all receipt of the coding; a refusal is kept for the user to read.
       if (codingSent) {
         const outcome = codingOutcome(responseBody as { offline_coding?: unknown }, item.id, codingDigest!);

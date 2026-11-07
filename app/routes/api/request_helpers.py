@@ -206,3 +206,18 @@ def request_project_id(p: dict | None = None, *, required: bool = True, roles: f
     if not isinstance(raw, str):
         raise devices.DeviceAuthError("project_id must be text.", "invalid_request", 400)
     return require_project(raw.strip(), roles)
+
+
+def other_conditions_list(body: dict) -> list[str] | None:
+    """Step 1 ``other_conditions``: a list of choices, or one text split on ``|``.
+
+    Raises ValueError for any other type. Shared by coding and reviewing so
+    the web (text) and the phone (list) send the same field either way."""
+    value = body.get("other_conditions")
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [part.strip() for part in value.split("|") if part.strip()]
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return value
+    raise ValueError("other_conditions must be text or a list of text.")

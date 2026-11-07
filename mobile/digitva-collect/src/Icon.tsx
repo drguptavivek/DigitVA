@@ -20,6 +20,8 @@ export const icons = {
   // The phone shell (src/nativeShell/NativeChrome.tsx): tabs, back, Help, app language.
   home: { ios: "house", android: "home" },
   interviews: { ios: "list.bullet.rectangle", android: "list_alt" },
+  code: { ios: "checkmark.seal", android: "verified" },
+  review: { ios: "checkmark.circle", android: "task_alt" },
   register: { ios: "plus.circle", android: "add_circle" },
   sync: { ios: "arrow.triangle.2.circlepath", android: "sync" },
   back: { ios: "chevron.left", android: "arrow_back_ios_new" },
@@ -34,6 +36,8 @@ export const icons = {
   atSign: { ios: "at", android: "alternate_email" },
   phoneOnly: { ios: "iphone", android: "phone_android" },
   play: { ios: "play.fill", android: "play_arrow" },
+  // The full-screen photo viewer (src/AttachmentImageViewer.tsx).
+  rotate: { ios: "rotate.right", android: "rotate_right" },
   accepted: { ios: "checkmark", android: "check" },
   settings: { ios: "gearshape", android: "settings" },
   lock: { ios: "lock", android: "lock" },

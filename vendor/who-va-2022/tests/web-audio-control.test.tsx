@@ -164,6 +164,31 @@ describe("web audio control", () => {
     root.unmount();
   });
 
+  it("clears a stale load error once a later resolve succeeds", async () => {
+    const value = { uri: "who-va-attachment:saved", id: "saved", mimeType: "audio/webm" };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const render = (resolveAttachmentUri: () => Promise<string | undefined>) =>
+      root.render(
+        <WhoVaQuestionControls.Audio
+          question={audioQuestion}
+          value={value}
+          data={{}}
+          locale="en"
+          issues={[]}
+          platform={{ resolveAttachmentUri }}
+          onAnswer={() => undefined}
+        />
+      );
+    render(() => Promise.reject(new Error("offline")));
+    await vi.waitFor(() => expect(container.textContent).toContain("could not be loaded"));
+    render(() => Promise.resolve("blob:saved"));
+    await vi.waitFor(() => expect(container.querySelector("audio")).not.toBeNull());
+    expect(container.textContent).not.toContain("could not be loaded");
+    root.unmount();
+  });
+
   it("normalizes an opaque string answer before resolving saved playback", async () => {
     const resolveAttachmentUri = vi.fn().mockResolvedValue("blob:resolved");
     const container = document.createElement("div");
@@ -198,6 +223,40 @@ describe("web audio control", () => {
     await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce());
     expect(onAnswer).not.toHaveBeenCalled();
     expect(container.querySelector("audio")?.getAttribute("src")).toContain("blob:old");
+    root.unmount();
+  });
+
+  it("asks before replacing and before deleting; Cancel keeps the recording", async () => {
+    const oldAnswer: AttachmentReference = { uri: "blob:old", id: "old", mimeType: "audio/webm" };
+    const startAudioRecording = vi.fn().mockResolvedValue({ stop: vi.fn(), cancel: vi.fn() });
+    const removeAttachment = vi.fn().mockResolvedValue(undefined);
+    const onAnswer = vi.fn();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = renderAudio(container, { value: oldAnswer, platform: { startAudioRecording, removeAttachment }, onAnswer });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const q = (id: string) => container.querySelector<HTMLElement>(`[data-testid="question-narrative_audio-${id}"]`);
+
+    container.querySelector<HTMLElement>('[role="button"]')?.click();
+    await vi.waitFor(() => expect(q("confirm")).not.toBeNull());
+    expect(q("confirm")!.textContent).toContain("Replace the saved recording? The current recording will be deleted.");
+    q("confirm-cancel")!.click();
+    await vi.waitFor(() => expect(q("confirm")).toBeNull());
+    expect(startAudioRecording).not.toHaveBeenCalled();
+
+    q("remove")!.click();
+    await vi.waitFor(() => expect(q("confirm")).not.toBeNull());
+    expect(q("confirm")!.textContent).toContain("Delete this recording? This cannot be undone.");
+    q("confirm-cancel")!.click();
+    await vi.waitFor(() => expect(q("confirm")).toBeNull());
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(removeAttachment).not.toHaveBeenCalled();
+
+    q("remove")!.click();
+    await vi.waitFor(() => expect(q("confirm-yes")).not.toBeNull());
+    q("confirm-yes")!.click();
+    await vi.waitFor(() => expect(onAnswer).toHaveBeenCalledWith(undefined));
+    expect(removeAttachment).toHaveBeenCalledWith(oldAnswer);
     root.unmount();
   });
 

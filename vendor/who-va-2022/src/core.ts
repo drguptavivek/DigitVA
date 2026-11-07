@@ -58,7 +58,12 @@ export type {
 } from "./prefill.js";
 export { defaultFormTheme, FormThemeContext } from "./ui/theme.js";
 export type { FormTheme } from "./ui/theme.js";
-export type { WhoVaDraftController, WhoVaFormProps, WhoVaPlatformServices } from "./ui/create-who-va-form.js";
+export type {
+  WhoVaDraftController,
+  WhoVaFormProps,
+  WhoVaImageViewerProps,
+  WhoVaPlatformServices
+} from "./ui/create-who-va-form.js";
 export {
   AttachmentProcessingError,
   WHO_VA_ATTACHMENT_POLICY,

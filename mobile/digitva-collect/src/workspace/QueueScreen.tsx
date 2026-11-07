@@ -346,26 +346,33 @@ export function QueueScreen({
           if (!isCurrent(requestGeneration, requestScope)) return;
           if ((first as { has_pick_mode?: boolean }).has_pick_mode === false) {
             lastPickMode.current = false;
-            setOffset(0);
-            setShowHistory(true);
-            return;
+            if ((first as { has_random_mode?: boolean }).has_random_mode !== true) {
+              setOffset(0);
+              setShowHistory(true);
+              return;
+            }
           }
         }
-        const [stats, page] = await Promise.all([
-          api.getCodingStats(projectId),
-          showHistory
-            ? api.getCodingHistory({ projectId, limit: PAGE_SIZE, offset })
-            : api.getCodingAvailable({ projectId, limit: PAGE_SIZE, offset }),
-        ]);
-        next = {
-          api,
-          mode,
-          projectId,
-          offset,
-          showHistory,
-          stats,
-          ...(showHistory ? { coderHistory: page as CoderHistory } : { coderAvailable: page as CoderQueue }),
-        };
+        if (!showHistory && lastPickMode.current === false) {
+          // Random-only: the Available segment is the random panel, so there is no pick list to fetch.
+          next = { api, mode, projectId, offset, showHistory, stats: await api.getCodingStats(projectId) };
+        } else {
+          const [stats, page] = await Promise.all([
+            api.getCodingStats(projectId),
+            showHistory
+              ? api.getCodingHistory({ projectId, limit: PAGE_SIZE, offset })
+              : api.getCodingAvailable({ projectId, limit: PAGE_SIZE, offset }),
+          ]);
+          next = {
+            api,
+            mode,
+            projectId,
+            offset,
+            showHistory,
+            stats,
+            ...(showHistory ? { coderHistory: page as CoderHistory } : { coderAvailable: page as CoderQueue }),
+          };
+        }
       } else {
         const [stats, page] = await Promise.all([
           api.getReviewerStats(projectId),
@@ -707,6 +714,8 @@ export function QueueScreen({
   const pickMode = coderStats ? coderStats.has_pick_mode === true : lastPickMode.current === true;
   if (coderStats) lastRandomMode.current = coderStats.has_random_mode === true;
   const randomMode = coderStats ? coderStats.has_random_mode === true : lastRandomMode.current !== false;
+  // Random-only: Available is the random panel; the list, filters and pager belong to My coded cases.
+  const showList = showHistory || pickMode || !randomMode;
   const pickReady = typeof coderStats?.pick_ready === "number" ? coderStats.pick_ready : undefined;
   let readyText = "Availability is loading.";
   if (typeof randomReady === "number" || pickReady !== undefined) {
@@ -714,7 +723,7 @@ export function QueueScreen({
     else readyText = `${(randomMode ? randomReady : pickReady) ?? 0} ready`;
   }
   useEffect(() => {
-    if (coderStats && (!pickMode || (pickReady === 0 && randomMode && typeof randomReady === "number" && randomReady > 0)) && !showHistory) {
+    if (coderStats && ((!pickMode && !randomMode) || (pickMode && pickReady === 0 && randomMode && typeof randomReady === "number" && randomReady > 0)) && !showHistory) {
       setOffset(0);
       setShowHistory(true);
     }
@@ -830,7 +839,7 @@ export function QueueScreen({
     : filteredReviewerRows.length;
 
   function renderFilterControls() {
-    if (activeItems.length === 0) return null;
+    if (activeItems.length === 0 && !(mode === "coding" && showHistory)) return null;
     return (
       <View style={q.filterBox}>
         {phone ? (
@@ -1057,7 +1066,14 @@ export function QueueScreen({
             projects={projects.project_options.map((option) => ({ id: option.project_id, name: option.project_name }))}
             value={projectId ? [projectId] : []}
             disabled={busy}
-            onChange={(next) => { clearMessage(); setOffset(0); setProjectId(next[0]); }}
+            onChange={(next) => {
+              clearMessage();
+              setOffset(0);
+              // A new project starts on its default segment; its pick mode is not known until its stats arrive.
+              setShowHistory(initialView?.showHistory ?? false);
+              lastPickMode.current = null;
+              setProjectId(next[0]);
+            }}
             fieldRow={phone}
           />
         </View>
@@ -1116,12 +1132,12 @@ export function QueueScreen({
               ) : null}
             </View>
           ) : null}
-          {randomMode && !currentData?.cachedHistoryAt ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
-          {pickMode ? tabs("My coded cases") : <Text style={styles.muted}>My coded cases</Text>}
+          {randomMode && (pickMode || !showHistory) && !currentData?.cachedHistoryAt ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
+          {pickMode || randomMode ? tabs("My coded cases") : <Text style={styles.muted}>My coded cases</Text>}
           {currentData?.cachedHistoryAt ? <Text style={styles.muted} testID="cached-coding-history">Saved on this phone · last updated {formatDisplayTimestamp(currentData.cachedHistoryAt)} · read only</Text> : null}
-          {renderFilterControls()}
+          {showList ? renderFilterControls() : null}
           </>)}
-          {showHistory ? filteredCoderHistory.map((item) => (
+          {!showList ? null : showHistory ? filteredCoderHistory.map((item) => (
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
@@ -1153,13 +1169,13 @@ export function QueueScreen({
             </View>
           ))}
           {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
-          {coderCount === 0 ? <Text style={styles.muted}>{showHistory ? "No coded cases yet." : pickMode ? "No cases to pick right now." : "No available cases on this page."}</Text> : null}
+          {showList && coderCount === 0 ? <Text style={styles.muted}>{showHistory ? "No coded cases yet." : pickMode ? "No cases to pick right now." : "No available cases on this page."}</Text> : null}
           {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
-          <View style={q.pager}>
+          {showList ? <View style={q.pager}>
             <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
             <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
-          </View>
+          </View> : null}
         </View>
       ) : (
         <View style={phone ? { gap: controls.gap } : styles.card}>

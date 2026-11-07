@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 
 from flask import Blueprint, abort, g, jsonify, request
 from flask_limiter.util import get_remote_address
-from flask_login import login_required
+from flask_login import current_user, login_required
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import csrf, db, limiter
@@ -184,7 +184,8 @@ def password_enroll():
     """Enrol and sign in with an email/mobile identifier and password.
 
     Accepts ``identifier, password, device_name, platform, app_version?`` and
-    ``client_device_uuid?``. Returns the combined QR enrolment/session body;
+    ``client_device_uuid?``. Returns the combined QR enrolment/session body
+    plus ``projects`` (every eligible home; ``project`` stays the default);
     any refusal rolls back both device and session (mobile-sign-in.md).
     404 on the public-demo deployment, which has its own enrolment flow.
     """
@@ -201,6 +202,7 @@ def password_enroll():
         "device_id": str(device.device_id),
         "device_secret": secret,
         "project": {"project_id": project.project_id, "name": project.project_name},
+        "projects": devices.eligible_device_projects(user),
         "server_time": datetime.now(UTC).isoformat(),
         **_session_body(issued, user),
     }
@@ -236,6 +238,7 @@ def redeem_sign_in_qr():
     body = {
         **reply,
         "project": {"project_id": project.project_id, "name": project.project_name},
+        "projects": devices.eligible_device_projects(user),
         "server_time": datetime.now(UTC).isoformat(),
         **_session_body(issued, user),
     }
@@ -378,6 +381,23 @@ def set_device_signing_key():
     key_id = signing.set_current_device_key(session.device_id, _body().get("signing_public_key"))
     db.session.commit()
     return jsonify({"signing_key_id": key_id}), 200
+
+
+@bp.post("/devices/current/project")
+@login_required
+@limiter.limit("10 per minute")
+def set_device_project():
+    """Set the calling device's home project: ``{project_id}``, one of the
+    ``projects`` the enrolment reply listed (docs/policy/mobile-sign-in.md).
+    200 ``{project: {project_id, name}}``; 403 ``project_not_eligible``; a
+    browser cookie has no device: 403 ``device_session_required``."""
+    session = g.get("device_session")
+    if session is None:
+        return _error("Only a device session sets a home project.", "device_session_required", 403)
+    device = devices.set_device_project(session.device_id, current_user, _body().get("project_id"))
+    project = db.session.get(VaProjectMaster, device.project_id)
+    db.session.commit()
+    return jsonify({"project": {"project_id": project.project_id, "name": project.project_name}}), 200
 
 
 @bp.delete("/sessions/current")

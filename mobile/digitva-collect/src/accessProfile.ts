@@ -1,6 +1,7 @@
 /** Read-only account/project display. Saved metadata is never an authorization source. */
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 
+import { stableAccessJson } from "./accessKey";
 import { ApiError, parseAccessSummary, type AccessSummary } from "./api";
 import { loadAccounts, loadActiveSlot, loadDevice, refreshAccessSummaryForAction, type Account, type Slot } from "./auth";
 import { offlineCodingProjectIds } from "./codingCapabilities";
@@ -190,7 +191,7 @@ export async function loadAccessProfile(userId: string, slot: Slot, server: stri
   const scope = { slot, server: server!, userId, accessDigest: account.coding_history_access! };
   let profile: AccessProfile | undefined;
   if (access) {
-    const digest = await digestStringAsync(CryptoDigestAlgorithm.SHA256, JSON.stringify({ roles: access.roles, projects: access.projects }));
+    const digest = await digestStringAsync(CryptoDigestAlgorithm.SHA256, stableAccessJson({ roles: access.roles, projects: access.projects }));
     if (digest !== scope.accessDigest) throw new Error("profile_access_unavailable");
     profile = projectAccessProfile(access, scope);
     if (!parseSavedAccessProfile(profile, scope)) {

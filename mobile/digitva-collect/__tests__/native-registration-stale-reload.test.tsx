@@ -10,6 +10,11 @@ let mockPatch: jest.Mock;
 const mockRouter = { back: jest.fn(), replace: jest.fn() };
 const mockAccount = { user_id: "u1", collection_access: true, registered_deaths_access: true };
 
+jest.mock("expo-location", () => ({
+  Accuracy: { High: 4 },
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ status: "granted" })),
+  getCurrentPositionAsync: jest.fn(async () => ({ coords: { latitude: 12.97, longitude: 77.59, accuracy: 8 } })),
+}));
 const mockNavigation = { addListener: () => () => undefined, dispatch: () => undefined };
 jest.mock("expo-router", () => ({
   useNavigation: () => mockNavigation,
@@ -148,5 +153,44 @@ it("orders the core fields as the browser form: name, date of death, then birth 
     .findAll((node) => node.type === "input" && typeof node.props["data-field"] === "string")
     .map((node) => node.props["data-field"]);
   expect(fields.slice(0, 3)).toEqual(["deceased_name", "date_of_death", "date_of_birth"]);
+  await act(async () => tree.unmount());
+});
+
+it("sends a captured household fix in the correction, as the web does", async () => {
+  mockPatch.mockResolvedValue({ ...death, updated_at: "2026-10-06T12:05:00+00:00" });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<Register />); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => tree.root.findByProps({ label: "locationCapture" }).props.onPress());
+  await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
+  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { latitude: 12.97, longitude: 77.59, accuracy_m: 8 }, "2026-10-06T12:00:00+00:00");
+  await act(async () => tree.unmount());
+});
+
+it("clears a stored fix with nulls and leaves an untouched fix out of the correction", async () => {
+  mockLoad = jest.fn().mockResolvedValue({ deaths: [{ ...death, latitude: 10, longitude: 20 }], next_cursor: null });
+  mockPatch.mockResolvedValue({ ...death, updated_at: "2026-10-06T12:05:00+00:00" });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<Register />); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  expect(tree.root.findAll((node) => node.type === "button" && node.props.label === "locationClear")).toHaveLength(1);
+  await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
+  expect(mockPatch).not.toHaveBeenCalled();
+  await act(async () => tree.root.find((node) => node.type === "button" && node.props.label === "locationClear").props.onPress());
+  await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
+  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { latitude: null, longitude: null, accuracy_m: null }, "2026-10-06T12:00:00+00:00");
+  await act(async () => tree.unmount());
+});
+
+it("turns the form read-only when the server says the interview completed", async () => {
+  mockPatch.mockRejectedValue(new ApiError(409, "case_completed"));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<Register />); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  await act(async () => tree.root.findByProps({ label: "locationCapture" }).props.onPress());
+  await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
+  expect(mockPatch).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(tree.toJSON())).toContain("registerSaveFailed");
+  expect(mockRouter.back).not.toHaveBeenCalled();
   await act(async () => tree.unmount());
 });

@@ -26,6 +26,7 @@ from app.routes.api.request_helpers import (
 from app.routes.api.request_helpers import (
     error as api_error,
 )
+from app.routes.api.request_helpers import other_conditions_list as _other_conditions_list
 from app.utils import va_user_timezone_name
 from app.services import smartva_service, training_scope
 from app.services.authz import Action, Reason, can
@@ -507,18 +508,6 @@ def _doris_fields(body: dict) -> dict:
         "doris_result_digest": _text(body, "doris_result_digest"),
         "doris_client_revision": body.get("doris_client_revision", 0),
     }
-
-
-def _other_conditions_list(body: dict) -> list[str] | None:
-    """Step 1 ``other_conditions``: a list of choices, or one text joined by ``|``."""
-    value = body.get("other_conditions")
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return [part.strip() for part in value.split("|") if part.strip()]
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        return value
-    raise ValueError("other_conditions must be text or a list of text.")
 
 
 @bp.post("/initial/<va_sid>")

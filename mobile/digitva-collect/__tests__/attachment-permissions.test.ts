@@ -19,11 +19,14 @@ jest.mock("expo-image-picker", () => ({
   getMediaLibraryPermissionsAsync: () => mockGal.get(),
   requestMediaLibraryPermissionsAsync: () => mockGal.request(),
 }));
+const mockDevice = { isDevice: true };
+jest.mock("expo-device", () => ({ get isDevice() { return mockDevice.isDevice; } }));
 jest.mock("expo-document-picker", () => ({}));
 jest.mock("expo-image-manipulator", () => ({ ImageManipulator: {}, SaveFormat: {} }));
 jest.mock("expo-crypto", () => ({ randomUUID: () => "id" }));
 jest.mock("../src/mediaFiles", () => ({}));
 jest.mock("../src/AttachmentAudioPlayer", () => ({ AttachmentAudioPlayer: () => null }));
+jest.mock("../src/AttachmentImageViewer", () => ({ AttachmentImageViewer: () => null }));
 
 import { ensureCamera, ensureGallery, ensureMicrophone, setRecordingMode, watchInterruptions } from "../src/attachmentServices.native";
 
@@ -38,16 +41,39 @@ beforeEach(() => {
   jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
   (Alert.alert as jest.Mock).mockClear();
   (Linking.openSettings as jest.Mock).mockClear();
+  mockDevice.isDevice = true;
+  Platform.OS = "ios";
   for (const mock of [mockMic.get, mockMic.request, mockCam.get, mockCam.request, mockGal.get, mockGal.request]) mock.mockReset();
 });
 
 describe("camera", () => {
+  it("refuses without prompting on the iOS simulator", async () => {
+    mockDevice.isDevice = false;
+    await expect(ensureCamera()).resolves.toBe(false);
+    expect(mockCam.get).not.toHaveBeenCalled();
+    expect(mockCam.request).not.toHaveBeenCalled();
+    expect(Alert.alert).toHaveBeenCalledTimes(1);
+  });
+
+  it("proceeds on a real iOS device", async () => {
+    mockCam.get.mockResolvedValue({ granted: true });
+    await expect(ensureCamera()).resolves.toBe(true);
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
+  it("proceeds on an Android emulator (virtual camera)", async () => {
+    mockDevice.isDevice = false;
+    Platform.OS = "android";
+    mockCam.get.mockResolvedValue({ granted: true });
+    await expect(ensureCamera()).resolves.toBe(true);
+    expect(Alert.alert).not.toHaveBeenCalled();
+  });
+
   it("explains why before the first request, then asks", async () => {
     mockCam.get.mockResolvedValue({ granted: false, canAskAgain: true });
     mockCam.request.mockResolvedValue({ granted: true });
     const done = ensureCamera();
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
     expect((Alert.alert as jest.Mock).mock.calls[0][0]).toBe("Allow the camera?");
     expect(mockCam.request).not.toHaveBeenCalled();
     press("Continue");
@@ -58,8 +84,7 @@ describe("camera", () => {
   it("does not ask when the explanation is declined, and asks nothing when already allowed", async () => {
     mockCam.get.mockResolvedValue({ granted: false, canAskAgain: true });
     const done = ensureCamera();
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setImmediate(resolve));
     press("Cancel");
     await expect(done).resolves.toBe(false);
     expect(mockCam.request).not.toHaveBeenCalled();

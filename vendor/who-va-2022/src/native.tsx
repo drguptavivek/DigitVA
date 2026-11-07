@@ -266,6 +266,7 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   TextInput,
   Pressable,
   Image,
+  Modal,
   PartialSelect: NativeSelect,
   Svg,
   SvgPath

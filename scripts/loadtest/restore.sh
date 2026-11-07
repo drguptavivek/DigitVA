@@ -14,6 +14,16 @@ docker run --rm --volumes-from minerva_app --network digitva_default --entrypoin
   && echo RESTORE_OK || echo RESTORE_FAILED_ROLLED_BACK
 docker start minerva_app >/dev/null; sleep 15
 docker exec minerva_app uv run --no-sync flask db upgrade 2>&1 | tail -1
+# The restored va_sessions holds old copies of live sessions (signed in, but without the CSRF token
+# the open page expects: every save answers 400 until a reload). Clear them so users sign in afresh.
+docker exec -i minerva_app uv run --no-sync python - <<'PY' 2>&1 | tail -1
+from app import create_app, db
+import sqlalchemy as sa
+with create_app().app_context():
+    n = db.session.execute(sa.text("delete from va_sessions")).rowcount
+    db.session.commit()
+    print("sessions cleared", n)
+PY
 docker exec minerva_app uv run --no-sync celery -A make_celery:celery_app purge -f 2>&1 | tail -1
 docker start minerva_celery_worker minerva_celery_beat >/dev/null && echo started
 docker exec -i minerva_app uv run --no-sync python - <<'PY' 2>&1 | tail -2

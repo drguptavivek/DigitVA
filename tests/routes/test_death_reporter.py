@@ -622,8 +622,12 @@ class DeathReporterTests(BaseTestCase):
         reported = self._register(self.both, self.sca, deceased_name="Reported")["death_id"]
         interviewed = self._register(self.both, self.scb, deceased_name="Interviewed")["death_id"]
         self._login(str(self.both.user_id))
-        # Without the parameter: the interviewer list (project and site required).
-        self.assertEqual(self.client.get(f"{API}/deaths").status_code, 400)
+        # No parameters (an old APK's Home): the reporter's own list, not a 400.
+        bare = self.client.get(f"{API}/deaths?limit=50")
+        self.assertEqual(bare.status_code, 200, bare.get_json())
+        self.assertEqual([d["death_id"] for d in bare.get_json()["deaths"]], [reported])
+        # With a project and site the interviewer register list stays.
+        self.assertEqual(self.client.get(f"{API}/deaths?project_id={PROJECT}&site_id={SITE}").status_code, 200)
         response = self.client.get(f"{API}/deaths?registered=mine")
         self.assertEqual(response.status_code, 200, response.get_json())
         body = response.get_json()

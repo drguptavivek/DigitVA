@@ -39,10 +39,11 @@ import {
   type Device,
   type Slot,
 } from "./auth";
+import { stableAccessJson } from "./accessKey";
 import { createAutoLock, type AutoLock } from "./autoLock";
 import { requestedUiLocale, setUiLocale, subscribeUiLanguages, uiLocale as resolvedUiLocale } from "./i18n";
 import { offerBundledUiLanguagesOnly, syncUiPacks } from "./uiPacks";
-import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interviewerDb";
+import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb, StoreLockedError } from "./interviewerDb";
 import { errorText } from "./ui";
 import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline } from "./network";
 import { accountServerChanged, lacksServer } from "./accountServer";
@@ -60,9 +61,9 @@ const RECONNECT_DEBOUNCE_MS = 2_000;
 const POLL_MAX_MS = 600_000;
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-/** A refusal for a user the chosen slot no longer serves (a switch or wipe landed mid-pass) is skipped, not reported. */
+/** A refusal for a user the chosen slot no longer serves (a switch or wipe landed mid-pass), or a store locked mid-pass, is skipped, not reported. */
 const skipNotInSlot = (error: unknown) => {
-  if (!(error instanceof NotInSlotError)) throw error;
+  if (!(error instanceof NotInSlotError || error instanceof StoreLockedError)) throw error;
 };
 
 interface AppState {
@@ -300,7 +301,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1]) => {
     if (!isUnlocked(userId)) return;
-    const key = JSON.stringify(access);
+    const key = stableAccessJson(access);
     if (lastAccess.current.get(userId) === key) return;
     await flushBeforeRefresh();
     const handle = await openInterviewerDb(userId);

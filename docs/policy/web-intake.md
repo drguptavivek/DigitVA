@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # Web Intake Policy
@@ -70,7 +70,10 @@ submission enters the workflow. Plan:
   (YYYY-MM or YYYY), mutually exclusive with the exact date (both is
   refused). A partial value must be well formed, from 1900, and not after
   today or the date of death at the precision given (the month or year of
-  death itself is accepted). Missing day or month is never fabricated in the
+  death itself is accepted). "Today" for every not-in-the-future check
+  of the register (dates of death and birth) is the project's day, in the
+  project's timezone (default Asia/Kolkata), not the server's UTC date
+  (owner, `digitva-vz9f`). Missing day or month is never fabricated in the
   register. Age may accompany a partial
   birth date or stand alone when birth date is unknown. WHO prefill uses
   `dob_precision`, `dob_month_year` or `dob_year` for partial values; WHO

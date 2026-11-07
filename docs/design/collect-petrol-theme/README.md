@@ -3,7 +3,7 @@ title: DigitVA Collect Petrol theme (design references)
 doc_type: design
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 ---
 
 # DigitVA Collect Petrol theme
@@ -101,7 +101,7 @@ reference screenshots live in `frozen/`.
 | Profiles on this phone | 2026-11-06 | `frozen/profiles.png` |
 | Unlock | 2026-11-06 | `frozen/unlock.png` (ink gaps 12.2 / 24.0 / 24.4 dp) |
 | Sync sheet | 2026-11-06 | `frozen/sync-sheet.png` |
-| Register a death | 2026-11-06 | `frozen/register.png`, `frozen/register-2.png` |
+| Register a death | 2026-11-06 (refrozen 2026-11-07) | `frozen/register.png`, `frozen/register-2.png`; with the location control (Android, Test CHO SC01, project chooser shown): `frozen/register-multi-project.png`, `frozen/register-location.png`, `frozen/register-location-captured.png`; light, dark, high contrast and Large text (in-app Large) each in `frozen/dark/`, `frozen/high-contrast/`, `frozen/large-text/` as `register-multi-project.png` and `register-location.png`; iOS (Test ALL): `frozen/ios/register*.png`, `frozen/ios/high-contrast/register*.png` |
 | Account sheet | 2026-11-06 | `frozen/account-sheet.png` |
 | Settings | 2026-11-06 | `frozen/settings.png` to `frozen/settings-5.png` |
 | Public demo gate | 2026-11-06 | `frozen/demo-gate.png` |
@@ -112,6 +112,7 @@ reference screenshots live in `frozen/`.
 | Home with a draft | 2026-11-06 | `frozen/home-with-draft.png` |
 | Interviews list with cases | 2026-11-06 | `frozen/interviews-list.png` |
 | Local cases, case view | 2026-11-06 | `frozen/cases/` |
+| Coding and Review queues (iOS, Test ALL, SADEMO) | 2026-11-07 | `frozen/ios/coding/` (`code-random-available.png`, `code-my-coded.png`, `review-queue.png`, `tabbar-6.png`); light, with `dark/` and `large-text/` variants |
 | Help sheet, Common questions | 2026-11-06 | `frozen/help/` |
 | Try DORIS, Offline engine check | 2026-11-06 | `frozen/collect-plus/` |
 | Dark mode (Sign in, Profiles, Unlock, Home, Interviews, Register, Account sheet, Settings) | 2026-11-06 | `frozen/dark/` |
@@ -121,7 +122,15 @@ reference screenshots live in `frozen/`.
 | Register date picker (dark) | 2026-11-06 | `frozen/dark/register-date-picker.png` (header year 5.5:1) |
 | Consent dialog | 2026-11-06 | `frozen/form/form-consent-dialog.png` |
 | Interviews list with a registration-only card | 2026-11-06 | `frozen/interviews-list-2.png` |
+| Home and Interviews list (iOS, Test CHO SC01, TST001; More sheet not refrozen) | 2026-11-07 | `frozen/ios/home-interviews/` (`home.png`, `interviews-list.png`); `dark/` and `large-text/` variants |
 | Case view: SmartVA and workflow history (light and dark) | 2026-11-06 | `frozen/cases/case-view-4.png`, `-5.png`; `frozen/dark/case-view-4.png`, `-5.png` |
+| Tab bar with Code and Review | 2026-11-07 | Test ALL, five tabs (iOS only; no Test ALL profile on the Android emulator): `frozen/ios/tabbar-coder.png`, `frozen/ios/high-contrast/tabbar-coder.png`. Test CHO SC01, four tabs: `frozen/tabbar-cho.png`, `frozen/dark/tabbar-cho.png`, `frozen/high-contrast/tabbar-cho.png`, `frozen/large-text/tabbar-cho.png`, `frozen/ios/tabbar-cho.png` |
+| iOS dark (Register top, Place card idle and captured, tab bars) | 2026-11-07 | Test CHO SC01 (project chooser shown): `frozen/ios/dark/register-multi-project.png`, `register.png`, `register-location.png`, `register-location-captured.png`, `tabbar-cho.png`; Test ALL five tabs: `frozen/ios/dark/tabbar-coder.png` |
+
+| Android Place card, location captured (Test CHO SC01, Site and unit stays visible), light, dark, high contrast, Large text | 2026-11-07 | `frozen/register-location-captured.png`, `frozen/dark/register-location-captured.png`, `frozen/high-contrast/register-location-captured.png`, `frozen/large-text/register-location-captured.png` |
+| Android five-tab bar (Test ALL: Home, Register, Code, Review, Sync), light, dark, high contrast, Large text | 2026-11-07 | `frozen/tabbar-test-all.png`, `frozen/dark/tabbar-test-all.png`, `frozen/high-contrast/tabbar-test-all.png`, `frozen/large-text/tabbar-test-all.png` |
+| iOS Large text (accessibility-large; Test ALL: Home, five-tab bar, Register, Place card), light and dark | 2026-11-07 | `frozen/ios/large-text/{home,tabbar-coder,register,register-location}.png`, `frozen/ios/large-text/dark/` (same four); Debug banner wraps in full, DEMO chip and avatar initials fit, tab labels fit |
+| Coding tab: Available / My coded cases segmented control, Review queue, six-tab bar (Test ALL, SADEMO: Home, Interviews, Register, Code, Review, Sync), light, dark, high contrast, Large text | 2026-11-07 | `frozen/coding/code-random-available.png`, `frozen/coding/code-my-coded.png`, `frozen/review-queue.png`, `frozen/tabbar-6.png`; the same four names in `frozen/dark/`, `frozen/high-contrast/`, `frozen/large-text/` |
 
 ## Owner decisions (2026-11-06)
 

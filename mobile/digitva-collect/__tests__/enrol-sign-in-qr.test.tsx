@@ -7,10 +7,11 @@ const TOKEN = "SignInTokenSignInTokenSignInToken123";
 const SERVER = "https://digitva.causeofdeathindia.com";
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
-const mockRedeem = jest.fn<Promise<{ user_id: string; name: string }>, unknown[]>();
+const mockRedeem = jest.fn<Promise<{ account: { user_id: string; name: string }; projects: Array<{ project_id: string; name: string }> }>, unknown[]>();
 const mockEnrol = jest.fn(async (..._args: unknown[]) => undefined);
-const mockPasswordEnrol = jest.fn<Promise<{ user_id: string; name: string }>, unknown[]>();
+const mockPasswordEnrol = jest.fn<Promise<{ account: { user_id: string; name: string }; projects: Array<{ project_id: string; name: string }> }>, unknown[]>();
 const mockErrorText = jest.fn(() => "generic error");
+const mockSetHome = jest.fn(async (..._args: unknown[]) => undefined);
 
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
 jest.mock("expo-constants", () => ({ __esModule: true, default: { deviceName: "Pixel", expoConfig: { version: "1.0.0" } } }));
@@ -24,6 +25,7 @@ jest.mock("../src/auth", () => ({
   redeemSignInQr: (...args: unknown[]) => mockRedeem(...args),
   enrolDevice: (...args: unknown[]) => mockEnrol(...args),
   passwordEnrolAndSignIn: (...args: unknown[]) => mockPasswordEnrol(...args),
+  setDeviceHomeProject: (...args: unknown[]) => mockSetHome(...args),
 }));
 jest.mock("../src/api", () => ({
   ApiError: class ApiError extends Error {
@@ -106,7 +108,7 @@ it("shows the server and waits for confirmation before redeeming a sign-in QR", 
 });
 
 it("redeems on confirm, then goes to PIN setup through unlock with the refresh flag", async () => {
-  mockRedeem.mockResolvedValue({ user_id: "u1", name: "Asha" });
+  mockRedeem.mockResolvedValue({ account: { user_id: "u1", name: "Asha" }, projects: [] });
   const tree = await render();
   await enterServer(tree);
   scan(tree, signInQr);
@@ -163,7 +165,7 @@ it("names expiry, prior use and another server in the invalid-QR message", () =>
 });
 
 it("redeems for a coder-only account the same way and goes to unlock, where the gate picks the coding screens", async () => {
-  mockRedeem.mockResolvedValue({ user_id: "coder1", name: "Coder" });
+  mockRedeem.mockResolvedValue({ account: { user_id: "coder1", name: "Coder" }, projects: [] });
   const tree = await render();
   await enterServer(tree);
   scan(tree, signInQr);
@@ -213,7 +215,7 @@ async function fillManual(tree: ReactTestRenderer, password = "private-password"
 }
 
 it("enrols manually, clears the password and follows the QR unlock journey", async () => {
-  mockPasswordEnrol.mockResolvedValueOnce({ user_id: "u1", name: "Asha" });
+  mockPasswordEnrol.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: [] });
   const tree = await render();
   await fillManual(tree);
   await press(tree, "enrolManualSubmit");
@@ -255,7 +257,7 @@ it("clears manual credentials when locking fails and when the form unmounts", as
 });
 
 it("uses the existing canonical mobile identifier in the manual form", async () => {
-  mockPasswordEnrol.mockResolvedValueOnce({ user_id: "u1", name: "Asha" });
+  mockPasswordEnrol.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: [] });
   const tree = await render();
   await enterManual(tree);
   await press(tree, "mobile");
@@ -305,4 +307,46 @@ it("shows a login error right under the login button", async () => {
   const items = order(tree);
   expect(items).toContain("generic error");
   expect(items.indexOf("generic error")).toBe(items.indexOf("enrolManualSubmit") + 1);
+});
+
+const TWO_PROJECTS = [{ project_id: "P1", name: "Project One" }, { project_id: "P2", name: "Project Two" }];
+
+it("asks a person with several projects to pick one, sets it, then goes to unlock", async () => {
+  mockPasswordEnrol.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: TWO_PROJECTS });
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+  expect(text(tree)).toContain("enrolChooseProjectHint");
+  expect(text(tree)).toContain("Project One");
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  await press(tree, "Project Two");
+  expect(mockSetHome).toHaveBeenCalledWith("u1", "P2");
+  expect(mockReload).toHaveBeenCalledTimes(2); // after enrolment, then after the pick
+  expect(mockSetHome.mock.invocationCallOrder[0]).toBeLessThan(mockReload.mock.invocationCallOrder[1]);
+  expect(mockReload.mock.invocationCallOrder[1]).toBeLessThan(mockRouter.replace.mock.invocationCallOrder[0]);
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+});
+
+it("asks after a sign-in QR too, and keeps the picker with an error when setting the project fails", async () => {
+  mockRedeem.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: TWO_PROJECTS });
+  mockSetHome.mockRejectedValueOnce(new Error("offline"));
+  const tree = await render();
+  await enterServer(tree);
+  scan(tree, signInQr);
+  await press(tree, "enrolConfirm");
+  await press(tree, "Project One");
+  expect(mockSetHome).toHaveBeenCalledWith("u1", "P1");
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(text(tree)).toContain("generic error");
+  expect(text(tree)).toContain("Project Two");
+});
+
+it("does not ask when exactly one project is eligible", async () => {
+  mockPasswordEnrol.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: [TWO_PROJECTS[0]] });
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+  expect(text(tree)).not.toContain("enrolChooseProjectHint");
+  expect(mockSetHome).not.toHaveBeenCalled();
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
 });

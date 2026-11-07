@@ -203,6 +203,9 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.auth_api.set_device_signing_key": "Own device's bundle-signing key, set once: "
                                               "the device is the caller's bearer session's, "
                                               "never named in the body; reads no data.",
+    "api_v1.auth_api.set_device_project": "Own device's home project: the device is the "
+                                          "caller's bearer session's; the project must be "
+                                          "one of the caller's own eligible projects.",
     "api_v1.station_config_api.device_station_config": "Own station's signed config: the "
                                                        "device is the caller's bearer session's, "
                                                        "never named in the request.",

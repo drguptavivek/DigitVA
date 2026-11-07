@@ -165,14 +165,15 @@ it("never hides a corrupt current definition or uses the bundle for a saved pinn
   input.canUseBundledFallback.mockResolvedValue(true);
   await expect(resolveNewInterviewDefinition(input)).rejects.toMatchObject({ code: "definition_hash_mismatch" });
 
+  const tagged = await verified(["social_autopsy"]);
   const pin = {
     instrumentVersion: version,
-    definitionSha256: value.identity.sha256,
-    definitionExtensions: ["geography"],
+    definitionSha256: tagged.identity.sha256,
+    definitionExtensions: ["social_autopsy"],
   };
   const request = jest.fn(async (path: string) => {
-    expect(path).toContain(`version=${encodeURIComponent(version)}&extensions=geography`);
-    return response(value);
+    expect(path).toContain(`version=${encodeURIComponent(version)}&extensions=social_autopsy`);
+    return response(tagged);
   });
   const saved = await resolveSavedEnvelopeDefinition({
     accountId,
@@ -194,6 +195,27 @@ it("never hides a corrupt current definition or uses the bundle for a saved pinn
     narrationLanguageCodes: ["hindi"],
     bundledLegacyDefinitions: [],
   })).rejects.toBeInstanceOf(FormDefinitionHistoryError);
+});
+
+it("requests only tag extensions for a pin that also lists untagged markers, and keeps the full pin", async () => {
+  const value = await verified([]);
+  const pin = {
+    instrumentVersion: version,
+    definitionSha256: value.identity.sha256,
+    definitionExtensions: ["digitva_core", "doris_support_whova_2022", "geography", "intake_screen"],
+  };
+  const request = jest.fn(async (path: string) => {
+    expect(path).toContain(`version=${encodeURIComponent(version)}&extensions=`);
+    expect(path).not.toMatch(/digitva_core|intake_screen|geography|doris_support/);
+    return response(value);
+  });
+  const saved = await resolveSavedEnvelopeDefinition({
+    accountId, projectId,
+    envelope: { instrumentId: "WHO_2022_VA", ...pin, data: {} },
+    request: jest.fn(request), cache: cache(), narrationLanguageCodes: ["hindi"], bundledLegacyDefinitions: [],
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(saved.pin?.definitionExtensions).toEqual(pin.definitionExtensions);
 });
 
 it("uses an unpinned legacy bundle only for its saved version and saved extensions", async () => {

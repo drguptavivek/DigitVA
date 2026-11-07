@@ -5,6 +5,7 @@ from flask_login import current_user
 
 from app.decorators import role_required
 from app.models import VaAllocation
+from app.routes.api.request_helpers import other_conditions_list
 from app.services import coding_search_telemetry_service
 from app.services import reviewer_dashboard_service as _svc
 from app.services import training_scope
@@ -229,7 +230,7 @@ def finalize(va_sid):
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _error("A JSON object is required.", 400, code="invalid_request")
-    for name in ("conclusive_cod", "remark", "immediate_cod", "other_conditions"):
+    for name in ("conclusive_cod", "remark", "immediate_cod"):
         if body.get(name) is not None and not isinstance(body[name], str):
             return _error(f"{name} must be text.", 400, code="invalid_request")
     # Optional ICD-11 confirmations (digitva-oh7j, digitva-xmpx); absent is False.
@@ -239,7 +240,10 @@ def finalize(va_sid):
     conclusive_cod = (body.get("conclusive_cod") or "").strip()
     remark = (body.get("remark") or "").strip() or None
     immediate_cod = (body.get("immediate_cod") or "").strip() or None
-    other_conditions = (body.get("other_conditions") or "").strip() or None
+    try:
+        other_conditions = " | ".join(other_conditions_list(body) or []) or None
+    except ValueError as exc:
+        return _error(str(exc), 400, code="invalid_request")
     if not conclusive_cod:
         return _error("conclusive_cod is required.", 400, code="invalid_request")
     try:
@@ -295,7 +299,7 @@ def initial(va_sid):
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return _error("A JSON object is required.", 400, code="invalid_request")
-    for name in ("immediate_cod", "antecedent_cod", "other_conditions"):
+    for name in ("immediate_cod", "antecedent_cod"):
         if body.get(name) is not None and not isinstance(body[name], str):
             return _error(f"{name} must be text.", 400, code="invalid_request")
     # Optional ICD-11 confirmation of the underlying cause (digitva-oh7j).
@@ -303,7 +307,10 @@ def initial(va_sid):
         return _error("age_restriction_confirmed must be true or false.", 400, code="invalid_request")
     immediate_cod = (body.get("immediate_cod") or "").strip()
     antecedent_cod = (body.get("antecedent_cod") or "").strip()
-    other_conditions = (body.get("other_conditions") or "").strip() or None
+    try:
+        other_conditions = " | ".join(other_conditions_list(body) or []) or None
+    except ValueError as exc:
+        return _error(str(exc), 400, code="invalid_request")
     # Masked DORIS derives the immediate cause from the certificate.
     if not immediate_cod and not masked_doris:
         return _error("immediate_cod is required.", 400, code="invalid_request")

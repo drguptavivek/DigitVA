@@ -1105,6 +1105,27 @@ class BundleIngestApiTests(BaseTestCase):
         self.assertEqual(again[coding["client_id"]]["outcome"], "duplicate")
         self.assertEqual(self._final(draft.va_sid).va_finassess_id, final.va_finassess_id)
 
+    def test_a_coding_result_for_a_held_case_stays_pending_until_the_dm_releases_it(self):
+        from app.models import VaBundlePendingCoding
+
+        interview, draft = self._interviewed_case()
+        self._ready(draft.va_sid)
+        draft.collection_hold = "held"
+        db.session.commit()
+        coding = self._coding(interview, kind="not_codeable")
+        records = self._by_id(self._post(self._bundle([coding], bundle_seq=2)))
+        self.assertEqual((records[coding["client_id"]]["outcome"], records[coding["client_id"]]["code"]),
+                         ("pending", "collection_held"))
+        self.assertEqual(service.apply_pending_coding()["applied"], 0)
+        row = db.session.get(VaBundlePendingCoding, uuid.UUID(coding["client_id"]))
+        self.assertEqual((row.status, row.code), ("pending", "collection_held"))
+        # The data manager releases it: the retained result applies.
+        draft.collection_hold = "released"
+        db.session.commit()
+        with mock.patch.dict(self.app.config, {"BUNDLE_SERVER_SIGNING_KEY_FILE": ""}):
+            self.assertEqual(service.apply_pending_coding()["applied"], 1)
+        self.assertEqual(db.session.get(VaBundlePendingCoding, row.client_id).status, "applied")
+
     def test_an_icd10_result_held_for_a_case_not_ready_is_applied_by_the_task(self):
         from app.models import VaBundlePendingCoding
 

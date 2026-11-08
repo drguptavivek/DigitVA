@@ -49,6 +49,7 @@ window.DM_DASHBOARD_CONFIG = {
 <script src="{{ url_for('static', filename='js/data_manager_workflow_guide.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 
 {% include 'va_frontpages/data_manager_partials/_coder_daily_stats.html' %}
+{% include 'va_frontpages/data_manager_partials/_collection_holds.html' %}
 {% include 'va_frontpages/data_manager_partials/_workflow_guide.html' %}
 
 {% endblock %}

@@ -28,6 +28,8 @@ class VaSubmissionsAuditlog(db.Model):
     va_audit_entityid: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
         sa.Uuid(as_uuid=True), nullable=True
     )
+    # A data manager's optional note on the action (collection hold release/reject).
+    va_audit_note: so.Mapped[Optional[str]] = so.mapped_column(sa.String(500), nullable=True)
     va_audit_createdat: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),

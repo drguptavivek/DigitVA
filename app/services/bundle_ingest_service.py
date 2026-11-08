@@ -1442,7 +1442,7 @@ def _held_again(ingest: _Ingest, line: _Line, draft, held: VaBundlePendingCoding
 PENDING_BATCH = 50
 #: Allocation refusals that leave a result pending: the case is not ready
 #: yet, or the coder holds another case on the web for now.
-_STILL_PENDING = frozenset({"not_ready", "allocation_exists"})
+_STILL_PENDING = frozenset({"not_ready", "allocation_exists", "collection_held"})
 #: Coder save refusals that leave a held DORIS final pending: the WHO
 #: service it is reprocessed with is down or not configured.
 _WHO_DOWN = frozenset({"who_unavailable", "who_not_configured"})

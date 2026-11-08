@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-08
 ---
 
 # Device Collection API (Path B server side)
@@ -506,7 +506,9 @@ Policy: [Project Clock and Gates](../policy/project-clock-and-gates.md)
   the interview of a registered death (`POST /drafts` with `death_id`), edits
   (`PATCH /deaths/<id>`, identifiers) and revisions. The server cannot tell a
   phone's online start from a later push of offline work, so the phone
-  enforces the gate itself from `/me/access`. ODK Collect sync is not gated.
+  enforces the gate itself from `/me/access`. The phone applies it only when online and the
+  stored answer came from a successful `/me/access` within the last 15
+  minutes; otherwise it never blocks a new start. ODK Collect sync is not gated.
 - **Refusal body** (the usual `{"error", "code"}` plus the gate):
 
 ```json
@@ -574,6 +576,50 @@ Policy: [Project Clock and Gates](../policy/project-clock-and-gates.md)
   gate's (if one applies) or the site's. The app adds its own starts since
   the response to `today_count`. At most six queries for all projects together
   (`collection_gate.resolve`), however many units.
+
+## Uploads outside the collection period are held (`digitva-nuy9`)
+
+Policy: [Project Clock and Gates](../policy/project-clock-and-gates.md)
+("Uploads outside the collection period are accepted and held"). Code:
+`app/services/collection_hold.py`; migration `e5c1h7d3k9a2`.
+
+- **Every upload is accepted** and no reply changes shape (`POST
+  /submissions`, the browser submit, any app version). The only visible effect
+  is `can_code_now` false for a held interview.
+- **Decided once, at the first upload** (`web_intake_service.submit_draft`, the
+  funnel of web and device submits; resends, corrections and revisions do not
+  re-enter it), for a completed interview with valid consent (a refused or
+  incomplete one is already out of coding): the start date on the project clock
+  is `draft.startedAt` (with an offset), else the draft's `created_at` (when the
+  server first received it, an older APK). Held when, at upload,
+  `collection_gate.resolve` (site and unit, stricter wins, `counts=False`) says
+  switched off, or the start date is before its start date or after its end
+  date. The daily limit never holds.
+- **Held** sets `va_web_intake_drafts.collection_hold = 'held'` with
+  `collection_hold_reason` (`collection_paused`, `collection_not_started`,
+  `collection_ended`) and an audit row `collection_hold_held`. SmartVA is not
+  queued; the shared exclusion predicate keeps the interview out of
+  allocation, pick lists, coding and review queues, SmartVA, dashboards, KPIs,
+  analytics and exports (`duplicate_exclusion.not_confirmed_duplicate_condition`).
+- **Clears by itself** when an admin saves the site gate (`PUT
+  /admin/api/project-sites/<p>/<s>/collection-settings`) or sets or clears a
+  unit gate (`/admin/api/organization/<p>/units/<u>/collection-gate`): the
+  `held` rows of that site, or of that unit's subtree, whose start date is now
+  covered become `released` (audit `collection_hold_cleared`). No trigger is
+  needed: the SmartVA sweep and allocation read them on their next pass.
+- **Data manager** (`/api/v1/data-management`, role data_manager or admin):
+  `GET collection-holds?status=held|rejected&project_id=&site_id=&limit=&cursor=`
+  lists the caller's scope (`dm_grant_scope`: project, project-site, unit
+  subtree; admin all), newest first, `limit` clamped to 1..200 (default 50),
+  `next_cursor` for the next page; items carry ids, site, reason and times
+  only, no personal data. `POST submissions/<va_sid>/collection-hold/release`
+  (held or rejected to `released`) and `.../reject` (held to `rejected`), body
+  `{"note"}` optional (500 characters), authz TRIAGE on the submission (403 out
+  of scope, 409 wrong state), CSRF `X-CSRFToken`. Each writes a
+  `va_submissions_auditlog` row (`collection_hold_released` /
+  `collection_hold_rejected`, who, when, `va_audit_note`). The data-manager
+  dashboard shows the list with Release and Reject buttons.
+- **ODK Collect** submissions (no intake draft) are never held.
 
 ## Draft sync (`digitva-xz83` part B)
 

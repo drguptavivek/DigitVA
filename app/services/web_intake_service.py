@@ -57,6 +57,7 @@ from app.services import project_clock
 from app.services import death_identifier_service as death_identifiers
 from app.services import (
     collection_gate,
+    collection_hold,
     notification_service,
     org_grant_service,
     public_demo_service,
@@ -80,7 +81,7 @@ from app.services.coding_release_service import (
     release_coding_for_changed_payload,
     reopen_coding_after_revision,
 )
-from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
+from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS, EXCLUDED_HOLDS
 from app.services.register_duplicate_service import DUPLICATE_CANDIDATES_MAX
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
@@ -516,6 +517,7 @@ def can_code_now(user: VaUsers, draft: VaWebIntakeDraft) -> bool:
         draft.status == "submitted"
         and draft.va_sid is not None
         and (draft.meta or {}).get("interviewOutcome") == "completed"
+        and draft.collection_hold not in EXCLUDED_HOLDS
         and draft.project_id in self_coding_project_ids(user)
         and consent_is_valid(db.session.get(VaSubmissions, draft.va_sid).va_consent)
     )
@@ -2980,6 +2982,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     # is the only existing state that is outside coding *and* blocked from
     # SmartVA (SMARTVA_BLOCKED_WORKFLOW_STATES); no new workflow state.
     enters_coding = outcome == "completed" and consent_is_valid(consent)
+    # Outside the collection period at this first upload: kept, but held out
+    # of coding and reports (collection_hold); SmartVA waits for the release.
+    held = enters_coding and collection_hold.hold_at_upload(user, draft, va_sid, submitted_at)
     route_synced_submission(
         va_sid,
         consent_valid=enters_coding,
@@ -2990,7 +2995,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         mark_attachment_sync_completed(
             va_sid, reason="web_intake_no_attachments", actor=system_actor()
         )
-        smartva_service.queue_smartva_after_commit(va_sid, "web_intake_submit")
+        if not held:
+            smartva_service.queue_smartva_after_commit(va_sid, "web_intake_submit")
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,

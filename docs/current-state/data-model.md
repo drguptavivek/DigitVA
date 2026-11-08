@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-08
 ---
 
 # Current Data Model
@@ -321,6 +321,18 @@ rows here keep the Project > Site > Form model.
   `created_at`) serves the gate's daily count of a user's new starts
 - rules: [Project Clock and Gates](../policy/project-clock-and-gates.md),
   [Device Collection API](device-collection-api.md) "Collection gate"
+
+### Collection hold (`digitva-nuy9`, migration `e5c1h7d3k9a2`)
+
+- `va_web_intake_drafts.collection_hold` (null = not held, `held`,
+  `released`, `rejected`; check `ck_va_web_intake_drafts_collection_hold`),
+  `collection_hold_reason` (the gate reason code), `collection_hold_at`
+- `ix_va_web_intake_drafts_collection_hold` (`project_id`, `site_id`,
+  `org_unit_id`) where held or rejected: the data-manager list and the
+  gate-save clear
+- `va_submissions_auditlog.va_audit_note`: a data manager's optional note
+- rules: [Device Collection API](device-collection-api.md) "Uploads outside
+  the collection period are held"
 
 ### Mentoring institutes
 

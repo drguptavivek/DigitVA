@@ -249,15 +249,20 @@ it("keeps every access answer's collection gate, even an unchanged one and one t
   const open = { projects: [{ project_id: "P", collection_gate: { sites: [{ enabled: true }] } }] };
   const tree = await renderProbe();
   await act(async () => { await mockAccessListener?.("worker", paused); });
-  expect(mockRememberGate).toHaveBeenLastCalledWith(expect.anything(), paused);
+  expect(mockRememberGate).toHaveBeenLastCalledWith(expect.anything(), paused, expect.any(Number));
   // Locked at launch: the answer is held, then applied on PIN unlock (the 15-minute throttle refetches nothing).
   mockUnlocked = false;
+  const receivedAt = Date.now();
   await act(async () => { await mockAccessListener?.("worker", open); });
   expect(mockRememberGate).toHaveBeenCalledTimes(1);
   mockUnlocked = true;
   await act(async () => { latest.unlocked(); });
   await SETTLE();
-  expect(mockRememberGate).toHaveBeenLastCalledWith(expect.anything(), open);
+  // The gate is stamped with when the answer arrived, not when the PIN was entered.
+  const [, , stamped] = mockRememberGate.mock.calls[mockRememberGate.mock.calls.length - 1];
+  expect(mockRememberGate).toHaveBeenLastCalledWith(expect.anything(), open, expect.any(Number));
+  expect(stamped).toBeGreaterThanOrEqual(receivedAt);
+  expect(stamped).toBeLessThanOrEqual(Date.now());
   // Sync Refresh may store a newer gate directly; a repeat of an earlier answer still rewrites it.
   await act(async () => { await mockAccessListener?.("worker", open); });
   expect(mockRememberGate).toHaveBeenCalledTimes(3);

@@ -18,7 +18,7 @@ from app import db, limiter
 from app.decorators import role_required
 from app.models import MapOrgLevelCadre, MasCadre, MasOrgUnit, VaUsers
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
-from app.services import org_grant_service
+from app.services import collection_hold, org_grant_service
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
 from app.services import worker_enrolment_service as enrolment
@@ -371,6 +371,8 @@ def admin_org_set_unit_collection_gate(project_id, org_unit_id):
         return err
     try:
         gate = org.set_unit_collection_gate(project_id, org_unit_id, _payload())
+        # Held interviews in this subtree that the gates now cover clear by themselves.
+        collection_hold.clear_covered(current_user, project_id, org_unit_id=org_unit_id)
     except org.OrganizationError as exc:
         db.session.rollback()
         return _json_error(str(exc), 400)
@@ -385,6 +387,8 @@ def admin_org_clear_unit_collection_gate(project_id, org_unit_id):
         return err
     try:
         cleared = org.clear_unit_collection_gate(project_id, org_unit_id)
+        # Held interviews in this subtree that the gates now cover clear by themselves.
+        collection_hold.clear_covered(current_user, project_id, org_unit_id=org_unit_id)
     except org.OrganizationError as exc:
         db.session.rollback()
         return _json_error(str(exc), 400)

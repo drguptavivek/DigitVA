@@ -3,16 +3,20 @@
  * "Data-collection gate"; payload: docs/current-state/device-collection-api.md,
  * "Collection gate"). The server refuses a new start only for the browser; a phone
  * checks before a new registration or a new interview with no registration, from
- * the gate in its last /me/access answer plus its own starts since. Finishing,
- * drafts and uploads are never checked. No gate in the answer (older server) allows.
+ * the gate in its last /me/access answer plus its own starts since, and only when it
+ * is online and that answer is under 15 minutes old ("The phone applies the gate only
+ * online"); otherwise a new start is never blocked. Finishing, drafts and uploads are
+ * never checked. No gate in the answer (older server) allows.
  */
 import type { AccessSummary } from "./api";
 import { getMeta, setMeta, type Db } from "./drafts";
 import { t } from "./i18n";
+import { isOffline } from "./network";
 import { correctedNow } from "./phoneClock";
 
 const KEY = "collection_gate";
 const MAX_STARTS = 2000;
+export const FRESH_MS = 15 * 60 * 1000;
 
 export type GateReason = "collection_paused" | "collection_not_started" | "collection_ended" | "collection_daily_limit";
 
@@ -38,7 +42,7 @@ interface ProjectGate {
 
 interface Start { project_id: string; site_id: string; org_unit_id: string | null; day: string; at: number }
 
-interface StoredGates { projects: ProjectGate[]; starts: Start[] }
+interface StoredGates { projects: ProjectGate[]; starts: Start[]; fetched_at?: number }
 
 export type GateDecision =
   | { open: true }
@@ -97,15 +101,14 @@ export function projectToday(project: Pick<ProjectGate, "timezone" | "project_to
 
 /**
  * Pure gate check. `localStarts` are this phone's new starts for the same target on `today` since the
- * answer; `today_count` only counts when `today` is still the answer's day. Dates are inclusive.
+ * answer, added to the answer's `today_count`, which counts `answerDay` (the answer's project day,
+ * default `today`) and is 0 on a later day. Dates are inclusive.
  */
-export function evaluateGate(entry: GateEntry | undefined, answerDay: string, today: string, localStarts: number): GateDecision {
+export function evaluateGate(entry: GateEntry | undefined, today: string, localStarts: number, answerDay: string = today): GateDecision {
   if (!entry) return { open: true };
   const closed = (reason: GateReason, date: string | null = null, limit: number | null = null): GateDecision =>
     ({ open: false, reason, displayName: entry.display_name, date, limit });
-  // Fail safe: a pause is only trusted on the answer's own project day. Dates are absolute and the
-  // limit resets, so only a pause could otherwise refuse forever when later answers fail to arrive.
-  if (!entry.enabled && today === answerDay) return closed("collection_paused");
+  if (!entry.enabled) return closed("collection_paused");
   if (entry.start_date && today < entry.start_date) return closed("collection_not_started", entry.start_date);
   if (entry.end_date && today > entry.end_date) return closed("collection_ended", entry.end_date);
   const limit = entry.daily_interviewer_limit;
@@ -134,15 +137,15 @@ async function load(db: Db): Promise<StoredGates> {
   return { projects: [], starts: [] };
 }
 
-/** Keep the gate of a fresh /me/access answer; starts older than every answer's server time stop counting. */
-export async function rememberCollectionGate(db: Db, access: AccessSummary): Promise<void> {
+/** Keep the gate of a /me/access answer received at `receivedAt` (ms; a deferred answer passes its arrival time); starts older than every answer's server time stop counting. */
+export async function rememberCollectionGate(db: Db, access: AccessSummary, receivedAt: number = Date.now()): Promise<void> {
   const { starts } = await load(db);
   const projects = gatesFromAccess(access);
   const kept = starts.filter((start) => {
     const project = projects.find((p) => p.project_id === start.project_id);
     return project && start.at > Date.parse(project.server_time);
   });
-  await setMeta(db, KEY, { projects, starts: kept });
+  await setMeta(db, KEY, { projects, starts: kept, fetched_at: receivedAt });
 }
 
 const sameTarget = (start: Start, projectId: string, siteId: string, orgUnitId: string | null) =>
@@ -150,7 +153,10 @@ const sameTarget = (start: Start, projectId: string, siteId: string, orgUnitId: 
 
 /** Check the stored gate for one new start at a site, or a unit within it. */
 export async function checkCollectionGate(db: Db, projectId: string, siteId: string, orgUnitId?: string | null): Promise<GateDecision> {
+  if (isOffline()) return { open: true };
   const stored = await load(db);
+  const age = Date.now() - (stored.fetched_at ?? -Infinity);
+  if (!(age >= 0 && age <= FRESH_MS)) return { open: true };
   const project = stored.projects.find((p) => p.project_id === projectId);
   if (!project) return { open: true };
   const unit = orgUnitId ? project.units.find((e) => e.site_id === siteId && e.org_unit_id === orgUnitId) : undefined;
@@ -158,7 +164,7 @@ export async function checkCollectionGate(db: Db, projectId: string, siteId: str
   const today = projectToday(project, correctedNow());
   const since = Date.parse(project.server_time);
   const local = stored.starts.filter((s) => sameTarget(s, projectId, siteId, unit ? orgUnitId! : null) && s.day === today && s.at > since).length;
-  return evaluateGate(entry, project.project_today, today, local);
+  return evaluateGate(entry, today, local, project.project_today);
 }
 
 /** Count one new start made on this phone, until the next /me/access answer covers it. */
@@ -169,5 +175,5 @@ export async function recordCollectionStart(db: Db, projectId: string, siteId: s
   const now = correctedNow();
   const unitGated = !!orgUnitId && project.units.some((e) => e.site_id === siteId && e.org_unit_id === orgUnitId);
   const starts = [...stored.starts, { project_id: projectId, site_id: siteId, org_unit_id: unitGated ? orgUnitId! : null, day: projectToday(project, now), at: now.getTime() }];
-  await setMeta(db, KEY, { projects: stored.projects, starts: starts.slice(-MAX_STARTS) });
+  await setMeta(db, KEY, { projects: stored.projects, starts: starts.slice(-MAX_STARTS), fetched_at: stored.fetched_at });
 }

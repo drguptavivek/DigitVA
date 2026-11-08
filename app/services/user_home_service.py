@@ -26,7 +26,7 @@ from app.models import (
 from app.services.authz import role_flags
 from app.services.authz.consulted import mark_consulted
 from app.services.authz.grants import resolve_grants
-from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+from app.services.duplicate_exclusion import not_confirmed_duplicate_condition, not_duplicate_condition
 from app.services.workflow.definition import (
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
@@ -98,7 +98,7 @@ def get_user_activity_summary(user, *, project_ids=None) -> dict:
     )
 
     # 2. Web/device intake drafts submitted or in progress ("draft") by this user.
-    # Aliased so not_confirmed_duplicate_condition's own VaDeathRegister subquery
+    # Aliased so not_duplicate_condition's own VaDeathRegister subquery
     # is not auto-correlated to this outer join.
     draft_case = sa.orm.aliased(VaDeathRegister, name="draft_case")
     draft_metric = sa.case(
@@ -124,7 +124,8 @@ def get_user_activity_summary(user, *, project_ids=None) -> dict:
             ),
             sa.or_(
                 VaWebIntakeDraft.va_sid.is_(None),
-                not_confirmed_duplicate_condition(VaWebIntakeDraft.va_sid),
+                # The author's own held/rejected interviews still count.
+                not_duplicate_condition(VaWebIntakeDraft.va_sid),
             ),
         )
     )

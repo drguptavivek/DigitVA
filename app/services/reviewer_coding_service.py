@@ -43,7 +43,7 @@ from app.services.doris_process_proof import (
     verify_process_submission,
 )
 from app.services.doris_processing import process_certificate
-from app.services.duplicate_exclusion import DUPLICATE_MESSAGE, is_confirmed_duplicate
+from app.services.duplicate_exclusion import excluded_message, is_confirmed_duplicate
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
 from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
@@ -406,7 +406,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
             code="forbidden",
         )
     if is_confirmed_duplicate(va_sid):
-        raise ReviewerCodingError(DUPLICATE_MESSAGE, 409, code="conflict")
+        raise ReviewerCodingError(excluded_message(va_sid), 409, code="conflict")
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_ELIGIBLE:
         raise ReviewerCodingError(

@@ -70,7 +70,7 @@ def _closed(enabled, start, end, limit, count, name, today) -> tuple | None:
 
 
 def resolve(user, targets: Iterable[tuple[str, str, uuid.UUID | None]],
-            now: datetime | None = None) -> dict[tuple, dict]:
+            now: datetime | None = None, *, counts: bool = True) -> dict[tuple, dict]:
     """The effective collection gate for *user* at each ``(project_id, site_id, org_unit_id)``.
 
     *org_unit_id* is None for a site with no unit (a project with no tree).
@@ -89,6 +89,9 @@ def resolve(user, targets: Iterable[tuple[str, str, uuid.UUID | None]],
     gate with the fewest starts left). ``reason``/``date``/``message`` are
     None while open; ``display_name`` is the deciding gate's name when
     closed, else the unit's gate (if one applies) or the site's.
+
+    *counts* False skips the two count queries (every ``today_count`` is 0),
+    for callers that read only the switch and the dates (collection_hold).
     """
     targets = {(p, s, uuid.UUID(str(u)) if u else None) for p, s, u in targets}
     if not targets:
@@ -136,7 +139,7 @@ def resolve(user, targets: Iterable[tuple[str, str, uuid.UUID | None]],
         VaDeathRegister.created_at >= min(d.midnight for d in days.values()).replace(tzinfo=UTC),
         since_midnight(VaDeathRegister.project_id),
     )
-    site_counts = {
+    site_counts = {} if not counts else {
         (r.project_id, r.site_id): r.cnt
         for r in db.session.execute(
             sa.select(VaDeathRegister.project_id, VaDeathRegister.site_id, sa.func.count().label("cnt"))
@@ -145,7 +148,7 @@ def resolve(user, targets: Iterable[tuple[str, str, uuid.UUID | None]],
         )
     }
     unit_counts = {}
-    if gate_unit_ids:
+    if gate_unit_ids and counts:
         start_unit = sa.orm.aliased(MasOrgUnit, name="start_unit")
         gate_unit = sa.orm.aliased(MasOrgUnit, name="gate_unit")
         unit_counts = dict(db.session.execute(

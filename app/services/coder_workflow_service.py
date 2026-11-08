@@ -50,7 +50,9 @@ from app.services.demo_project_service import (
     should_use_demo_actiontype_for_submission,
 )
 from app.services.duplicate_exclusion import (
-    DUPLICATE_MESSAGE,
+    HELD_MESSAGE,
+    excluded_message,
+    is_held,
     is_confirmed_duplicate,
     not_confirmed_duplicate_condition,
 )
@@ -193,6 +195,15 @@ class AllocationError(Exception):
         self.code = code
         self.workflow_state = workflow_state
         super().__init__(message)
+
+
+def _excluded_error(va_sid: str) -> "AllocationError":
+    """Refusal for an excluded *va_sid*. A held interview carries
+    ``collection_held`` so a phone coding result stays pending until the
+    data manager releases it; a duplicate stays a plain refusal."""
+    if is_held(va_sid):
+        return AllocationError(HELD_MESSAGE, 409, code="collection_held")
+    return AllocationError(excluded_message(va_sid), 409)
 
 
 def _demo_recode_reset_message() -> str:
@@ -984,7 +995,7 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
     if is_submission_retired(va_sid):
         raise AllocationError(RETIRED_MESSAGE, 409)
     if is_confirmed_duplicate(va_sid):
-        raise AllocationError(DUPLICATE_MESSAGE, 409)
+        raise _excluded_error(va_sid)
 
     # The pick list filters on the narration language; so does the pick (F16).
     languages = _normalized_vacode_languages(user)
@@ -1168,7 +1179,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     if is_submission_retired(va_sid):
         raise AllocationError(RETIRED_MESSAGE, 409)
     if is_confirmed_duplicate(va_sid):
-        raise AllocationError(DUPLICATE_MESSAGE, 409)
+        raise _excluded_error(va_sid)
 
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_CODER_FINALIZED:
@@ -1240,7 +1251,7 @@ def admin_override_to_recode(user, va_sid: str) -> None:
     _require_submission_exists(va_sid)
     lock_coding_submission(va_sid)
     if is_confirmed_duplicate(va_sid):
-        raise AllocationError(DUPLICATE_MESSAGE, 409)
+        raise _excluded_error(va_sid)
     current_state = get_submission_workflow_state(va_sid)
     if current_state not in (WORKFLOW_CODER_FINALIZED, WORKFLOW_REVIEWER_ELIGIBLE):
         raise AllocationError(

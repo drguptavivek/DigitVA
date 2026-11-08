@@ -418,6 +418,18 @@ class VaWebIntakeDraft(db.Model):
             unique=True,
             postgresql_where=sa.text("status = 'draft' AND death_id IS NOT NULL"),
         ),
+        # Held and rejected interviews per site (data-manager list, gate-save clear).
+        sa.Index(
+            "ix_va_web_intake_drafts_collection_hold",
+            "project_id",
+            "site_id",
+            "org_unit_id",
+            postgresql_where=sa.text("collection_hold IN ('held', 'rejected')"),
+        ),
+        sa.CheckConstraint(
+            "collection_hold IS NULL OR collection_hold IN ('held', 'released', 'rejected')",
+            name="collection_hold",
+        ),
     )
 
     draft_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -471,6 +483,11 @@ class VaWebIntakeDraft(db.Model):
     client_valid: so.Mapped[bool | None] = so.mapped_column(sa.Boolean, nullable=True)
     client_issue_count: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     submitted_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    # Outside the collection period at first upload (app.services.collection_hold):
+    # NULL not held, 'held', 'released' (cleared or released), 'rejected'.
+    collection_hold: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
+    collection_hold_reason: so.Mapped[str | None] = so.mapped_column(sa.String(32), nullable=True)
+    collection_hold_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )

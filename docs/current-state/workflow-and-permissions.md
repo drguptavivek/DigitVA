@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-08
 ---
 
 # Workflow And Permissions
@@ -80,6 +80,13 @@ Data-collection gate (`digitva-jeyy`, `app/services/collection_gate.py`):
 - the daily limit counts the user's `va_death_register` rows with `source`
   `register` or `direct` created since project midnight (site, or the gated
   unit's subtree)
+- an upload whose start date was outside the gate (switched off, or before
+  or after its dates) at first upload is accepted and held
+  (`va_web_intake_drafts.collection_hold`, `app/services/collection_hold.py`):
+  no workflow state changes, but the shared exclusion predicate keeps it out
+  of coding, review, SmartVA, analytics and exports until a gate save covers
+  it or a data manager (TRIAGE scope) releases it; reject keeps it out
+  (`device-collection-api.md`, "Uploads outside the collection period are held")
 - edited by an admin on the Project Sites panel (`PUT
   /admin/api/project-sites/<p>/<s>/collection-settings`) and by an admin or
   project PI on the organisation units panel (`GET`/`PUT`/`DELETE

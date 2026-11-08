@@ -22,7 +22,7 @@ from flask_wtf.csrf import generate_csrf
 
 from app import db, limiter
 from app.decorators import role_required
-from app.services import collection_gate
+from app.services import collection_gate, collection_hold
 from app.services.odk_case_service import ODK_SYNC_USER_ID
 from app.services.project_country_service import parse_project_country, project_country
 from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries as _SMARTVA_COUNTRIES
@@ -2326,6 +2326,9 @@ def admin_update_project_site_collection_settings(project_id, site_id):
         return _json_error("Active project-site mapping not found.", 404)
     for name, value in values.items():
         setattr(ps, name, value)
+    db.session.flush()
+    # Held interviews this site's gate now covers clear by themselves.
+    collection_hold.clear_covered(current_user, ps.project_id, site_id=ps.site_id)
     db.session.commit()
     return jsonify({
         "project_site_id": str(ps.project_site_id),

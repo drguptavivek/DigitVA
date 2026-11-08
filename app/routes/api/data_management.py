@@ -6,6 +6,8 @@ Resources:
   GET  sync/runs                   — recent sync run history
   GET  project-site-submissions    — submission stats per project/site
   POST submissions/<sid>/sync      — trigger individual submission refresh
+  GET  collection-holds            — interviews held outside the collection period
+  POST submissions/<sid>/collection-hold/<release|reject>
 """
 
 from __future__ import annotations
@@ -56,7 +58,7 @@ from app.services.data_management_service import (
     write_dm_smartva_input_export_csv,
     write_dm_submissions_export_csv,
 )
-from app.services import smartva_service
+from app.services import collection_hold, smartva_service
 from app.services.authz import Action, AuthzError, can, require, scope_filter
 from app.services.viewer_pii_service import pii_scope
 from app.utils import va_user_timezone_name
@@ -793,6 +795,51 @@ def screening_pass(va_sid: str):
         db.session.rollback()
         log.error("screening_pass failed for %s", va_sid, exc_info=True)
         return api_error("Operation failed. Check server logs.", status_code=500)
+
+
+@bp.get("/collection-holds")
+@role_required("data_manager", "admin")
+def collection_holds():
+    """Interviews held outside the collection period (``status=held``, the
+    default) or rejected, in the caller's data-manager scope; keyset paged
+    (``limit`` <= 200, ``cursor``), optional ``project_id`` / ``site_id``."""
+    try:
+        page = collection_hold.list_held(
+            current_user, status=request.args.get("status") or collection_hold.HELD,
+            project_id=request.args.get("project_id") or None, site_id=request.args.get("site_id") or None,
+            limit=request.args.get("limit"), cursor=request.args.get("cursor"),
+        )
+    except ValueError as exc:
+        return api_error(str(exc), status_code=400)
+    return jsonify(page)
+
+
+@bp.post("/submissions/<va_sid>/collection-hold/<action>")
+@role_required("data_manager", "admin")
+def collection_hold_decide(va_sid: str, action: str):
+    """``release`` (enter coding now) or ``reject`` (stay out; data kept) a
+    held interview, with an optional ``note`` (audited)."""
+    if action not in ("release", "reject"):
+        return api_error("Not found.", status_code=404)
+    body = request.get_json(silent=True)
+    note = body.get("note") if isinstance(body, dict) else None
+    try:
+        collection_hold.decide(current_user, va_sid, action, note)
+        db.session.commit()
+    except PermissionError as exc:
+        db.session.rollback()
+        return api_error(str(exc), status_code=403)
+    except ValueError as exc:
+        db.session.rollback()
+        return api_error(str(exc), status_code=404 if str(exc) == "Submission not found." else 400)
+    except LookupError as exc:
+        db.session.rollback()
+        return api_error(str(exc), status_code=409)
+    try:
+        cache.clear()
+    except Exception as exc:  # noqa: BLE001 - a stale cached count is not a failed action
+        log.warning("Cache clear failed after collection hold %s: %s", action, exc)
+    return jsonify({"va_sid": va_sid, "collection_hold": "released" if action == "release" else "rejected"})
 
 
 @bp.post("/submissions/<va_sid>/screening-reject")

@@ -1,0 +1,85 @@
+{# Interviews held outside the collection period (docs/policy/project-clock-and-gates.md).
+   Ids, site, reason and times only; no personal data. #}
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="dm-chart-card">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="dm-chart-title mb-0">
+          <i class="fa-solid fa-hand me-1 text-primary"></i>Held outside the collection period
+          <small class="text-muted fw-normal ms-2">Kept out of coding and reports until released</small>
+        </div>
+        <select class="form-select form-select-sm w-auto" id="dm-holds-status" aria-label="Hold status">
+          <option value="held">Held</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div id="dm-holds-empty" class="text-center text-muted py-3">No interviews.</div>
+      <div class="table-responsive" id="dm-holds-wrap" style="display:none;">
+        <table class="table table-sm table-striped align-middle mb-0">
+          <thead><tr><th>ID</th><th>Project</th><th>Site</th><th>Reason</th><th>Started</th><th>Held</th><th></th></tr></thead>
+          <tbody id="dm-holds-body"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="dm-holds-more" style="display:none;">More</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var cfg = window.DM_DASHBOARD_CONFIG || {};
+  var base = "/api/v1/data-management";
+  var REASONS = {collection_paused: "Collection switched off", collection_not_started: "Before start date",
+                 collection_ended: "After end date"};
+  var statusEl = document.getElementById("dm-holds-status");
+  var body = document.getElementById("dm-holds-body");
+  var more = document.getElementById("dm-holds-more");
+  var cursor = null;
+
+  function cell(tr, text) { var td = document.createElement("td"); td.textContent = text || ""; tr.appendChild(td); return td; }
+  function day(iso) { return iso ? new Date(iso).toLocaleDateString() : ""; }
+
+  function decide(sid, action, tr) {
+    var note = window.prompt(action === "release" ? "Release into coding. Note (optional):" : "Reject. Note (optional):", "");
+    if (note === null) return;
+    fetch(base + "/submissions/" + encodeURIComponent(sid) + "/collection-hold/" + action, {
+      method: "POST", credentials: "same-origin",
+      headers: {"Content-Type": "application/json", "X-CSRFToken": cfg.csrfToken},
+      body: JSON.stringify({note: note})
+    }).then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
+      .then(function (res) { if (res[0]) { tr.remove(); } else { window.alert(res[1].error || "Failed."); } });
+  }
+
+  function load(reset) {
+    if (reset) { cursor = null; body.textContent = ""; }
+    var q = "?status=" + encodeURIComponent(statusEl.value) + (cursor ? "&cursor=" + encodeURIComponent(cursor) : "");
+    fetch(base + "/collection-holds" + q, {credentials: "same-origin"})
+      .then(function (r) { return r.ok ? r.json() : {items: [], next_cursor: null}; })
+      .then(function (page) {
+        page.items.forEach(function (it) {
+          var tr = document.createElement("tr");
+          cell(tr, it.unique_id || it.va_sid); cell(tr, it.project_id); cell(tr, it.site_id);
+          cell(tr, REASONS[it.reason] || it.reason); cell(tr, day(it.started_at)); cell(tr, day(it.held_at));
+          var td = cell(tr, "");
+          if (!cfg.viewOnly) {
+            [["release", "Release", "btn-outline-success"], ["reject", "Reject", "btn-outline-danger"]].forEach(function (a) {
+              if (a[0] === "reject" && it.collection_hold !== "held") return;
+              var b = document.createElement("button");
+              b.type = "button"; b.className = "btn btn-sm me-1 " + a[2]; b.textContent = a[1];
+              b.addEventListener("click", function () { decide(it.va_sid, a[0], tr); });
+              td.appendChild(b);
+            });
+          }
+          body.appendChild(tr);
+        });
+        cursor = page.next_cursor;
+        more.style.display = cursor ? "" : "none";
+        var any = body.children.length > 0;
+        document.getElementById("dm-holds-wrap").style.display = any ? "" : "none";
+        document.getElementById("dm-holds-empty").style.display = any ? "none" : "";
+      });
+  }
+  statusEl.addEventListener("change", function () { load(true); });
+  more.addEventListener("click", function () { load(false); });
+  load(true);
+})();
+</script>

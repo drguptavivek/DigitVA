@@ -1758,7 +1758,8 @@ class IntakeApiTests(BaseTestCase):
     # Statements one device upload of a registered case issues (digitva-anzv):
     # 77 before the interviewer context and the locked case were passed down;
     # 72 with the project-country stamp on the web form and the submission.
-    DEVICE_SUBMIT_MAX_STATEMENTS = 76  # Includes the locked consent lookup and checking existing draft answers.
+    # 80 with the collection-hold check at first upload (gate rows and project clock, digitva-nuy9).
+    DEVICE_SUBMIT_MAX_STATEMENTS = 80  # Includes the locked consent lookup and checking existing draft answers.
 
     def test_a_device_submit_issues_no_more_statements_than_the_recorded_ceiling(self):
         death_id = self._case()

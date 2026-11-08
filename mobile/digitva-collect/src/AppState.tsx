@@ -148,7 +148,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const holds = useRef(0);
   const refreshPending = useRef(false);
   const lastAccess = useRef(new Map<string, string>());
-  const pendingAccess = useRef(new Map<string, AccessSummary>());
+  const pendingAccess = useRef(new Map<string, { access: AccessSummary; receivedAt: number }>());
   const reloadVersion = useRef(0);
 
   // A refresh that changed data bumps lockVersion; with a form open it waits.
@@ -302,16 +302,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (clockLevel === "block") void flushBeforeRefresh().catch(() => undefined);
   }, [clockLevel, flushBeforeRefresh]);
 
-  const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1]) => {
+  const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1], receivedAt: number = Date.now()) => {
     // An answer that arrives while locked (the first poll at launch, before the PIN) is held for unlock:
     // the 15-minute access throttle would otherwise keep the stale collection gate until the next refetch.
-    pendingAccess.current.set(userId, access);
+    pendingAccess.current.set(userId, { access, receivedAt });
     if (!isUnlocked(userId)) return;
     const handle = await openInterviewerDb(userId);
     pendingAccess.current.delete(userId);
     // Every answer's gate is kept, before the unchanged-answer shortcut and anything that can throw:
     // Sync Refresh stores gates too, so "same as last reconciled" does not mean "same as stored".
-    await rememberCollectionGate(handle, access);
+    await rememberCollectionGate(handle, access, receivedAt);
     const key = stableAccessJson(access);
     if (lastAccess.current.get(userId) === key) return;
     await flushBeforeRefresh();
@@ -417,8 +417,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // An unlock (lockVersion bump) applies an access answer that arrived while that store was locked.
   useEffect(() => {
-    for (const [userId, access] of [...pendingAccess.current]) {
-      if (isUnlocked(userId)) void reconcileAccess(userId, access).catch(reportBackgroundError);
+    for (const [userId, { access, receivedAt }] of [...pendingAccess.current]) {
+      if (isUnlocked(userId)) void reconcileAccess(userId, access, receivedAt).catch(reportBackgroundError);
     }
   }, [lockVersion, reconcileAccess, reportBackgroundError]);
 

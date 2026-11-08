@@ -42,6 +42,7 @@ import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { codingReceiptSha256 } from "../src/codingReceipt";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
+import { checkCollectionGate } from "../src/collectionGate";
 import { computeUtf8Sha256HexSync, type ConsentRecordEnvelope } from "../src/consent";
 import { consentForDraft, getConsentConfig, inheritedConsentRefused, loadConsents, refreshConsentConfig, saveDraftConsent, saveRegistrationConsent, type StoredConsent } from "../src/consentStore";
 import { pendingErrors, resetErrorLog } from "../src/errorLog";
@@ -101,7 +102,8 @@ const access = (projects = [project()]): AccessSummary => ({
     })), register_death: [] },
     sites: item.sites.map((site) => ({ site_id: site.site_id, site_name: site.site_name ?? site.site_id, roles: ["interviewer"] })),
     levels: [],
-    units: [{ org_unit_id: item.project_id === "P2" ? "U2" : "U1", unit_code: "U", unit_name: "Unit", level_code: "phc", path: "U", is_active: true, selectable: true, roles: ["interviewer"], can_code: false }]
+    units: [{ org_unit_id: item.project_id === "P2" ? "U2" : "U1", unit_code: "U", unit_name: "Unit", level_code: "phc", path: "U", is_active: true, selectable: true, roles: ["interviewer"], can_code: false }],
+    ...(item as { access_extra?: object }).access_extra,
   }))
 });
 
@@ -274,6 +276,22 @@ describe("project scoped reference data", () => {
       : json(200, { scoped: false, levels: [], units: [] }));
     await refreshReferenceData(USER, db, { force: true });
     expect(restoreProject).toHaveBeenCalledWith("P1");
+  });
+
+  it("keeps the collection gate of the access answer a Sync Refresh fetches", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const gate = (enabled: boolean) => ({
+      project_today: "2026-11-06", server_time: "2026-11-06T06:00:00Z",
+      collection_gate: { sites: [{ site_id: "S1", enabled, start_date: null, end_date: null, daily_interviewer_limit: null, today_count: 0, display_name: "Site 1" }], units: [] },
+    });
+    for (const enabled of [false, true]) {
+      server((call) => call.url.endsWith("/fixture-reference")
+        ? json(200, referenceFixture([{ ...project("P1"), access_extra: gate(enabled) } as never]))
+        : json(200, { scoped: false, levels: [], units: [] }));
+      await refreshReferenceData(USER, db, { force: true });
+      expect((await checkCollectionGate(db, "P1", "S1")).open).toBe(enabled);
+    }
   });
 
   it("fetches every project and keeps units isolated by project", async () => {

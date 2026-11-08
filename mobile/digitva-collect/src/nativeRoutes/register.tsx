@@ -50,6 +50,7 @@ import {
   validateRegistration,
   type RegistrationFields,
 } from "../cases";
+import { checkCollectionGate, gateMessage, recordCollectionStart } from "../collectionGate";
 import { getMeta, setMeta, type Db } from "../drafts";
 import type { ProjectConsentConfig } from "../consent";
 import {
@@ -1055,6 +1056,15 @@ export default function Register() {
         router.back();
         return;
       }
+      // A new registration is a new start; editing one already saved on this phone is not (digitva-dj29).
+      if (!editing) {
+        const gate = await checkCollectionGate(db, projectId, target.siteId, target.orgUnitId);
+        if (!current()) return;
+        if (!gate.open) {
+          setMessage(gateMessage(gate));
+          return;
+        }
+      }
       if (!canStartInterview) {
         const registered = await postNativeDeathRegistration(account.user_id, {
           project_id: projectId,
@@ -1066,6 +1076,7 @@ export default function Register() {
         });
         // Its interviews reuse the decision (as acknowledgeRegistration does for a queued registration).
         await keepRegistrationConsentForCase(db, clientDeathId, registered.death_id);
+        if (!editing) await recordCollectionStart(db, projectId, target.siteId, target.orgUnitId);
         if (persistable) {
           await clearInProgress(db);
           hydrated.current = false;
@@ -1087,6 +1098,7 @@ export default function Register() {
         org_unit_id: target.orgUnitId ?? null,
         fields: withFix(cleanRegistration(registrationToSave), fixToSave),
       });
+      if (!editing) await recordCollectionStart(db, projectId, target.siteId, target.orgUnitId);
       if (persistable) {
         await clearInProgress(db);
         hydrated.current = false;

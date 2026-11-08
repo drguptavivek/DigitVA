@@ -177,3 +177,45 @@ it("labels the date-of-birth field only by the chosen precision row, never by a 
     if (mode === "dobYear") expect(shown("dobYearField")).toBe(0);
   }
 });
+
+describe("collection gate (digitva-dj29)", () => {
+  const access = (unitGate: Record<string, unknown>) => ({
+    projects: [{
+      project_id: "P1", project_today: "2026-11-06", server_time: "2026-11-06T09:00:00Z",
+      collection_gate: {
+        sites: [],
+        units: [{ site_id: "S1", org_unit_id: "U1", enabled: true, start_date: null, end_date: null,
+          daily_interviewer_limit: null, today_count: 0, display_name: "Ward 1", ...unitGate }],
+      },
+    }],
+  }) as unknown as import("../src/api").AccessSummary;
+  const fill = async () => {
+    await type("deceased_name", "Asha");
+    await type("date_of_death", "2026-01-15");
+    await type("date_of_birth", "1980-01-01");
+    await press("sexFemale");
+  };
+
+  it("refuses a new registration at a closed unit and names the reason", async () => {
+    await open([unit("S1", "Hamirpur", "U1", "Ward 1")]);
+    const { rememberCollectionGate } = jest.requireActual("../src/collectionGate") as typeof import("../src/collectionGate");
+    await rememberCollectionGate(mockDb, access({ enabled: false }));
+    await fill();
+    await press("save");
+    await settle();
+    expect(tree.root.findAll((node) => (node.type as unknown) === "notice" && JSON.stringify(node.props.children ?? "").includes("collectionPaused")).length).toBeGreaterThan(0);
+    expect(await mockDb.getAllAsync("SELECT site_id FROM registrations", [])).toEqual([]);
+  });
+
+  it("saves at an open unit and counts the start against the daily limit", async () => {
+    await open([unit("S1", "Hamirpur", "U1", "Ward 1")]);
+    const gate = jest.requireActual("../src/collectionGate") as typeof import("../src/collectionGate");
+    await gate.rememberCollectionGate(mockDb, access({ daily_interviewer_limit: 1 }));
+    expect((await gate.checkCollectionGate(mockDb, "P1", "S1", "U1")).open).toBe(true);
+    await fill();
+    await press("save");
+    await settle();
+    expect(await mockDb.getAllAsync("SELECT site_id FROM registrations", [])).toEqual([{ site_id: "S1" }]);
+    expect(await gate.checkCollectionGate(mockDb, "P1", "S1", "U1")).toMatchObject({ open: false, reason: "collection_daily_limit", limit: 1 });
+  });
+});

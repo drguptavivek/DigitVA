@@ -49,9 +49,11 @@ import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline }
 import { accountServerChanged, lacksServer } from "./accountServer";
 import { NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
+import type { AccessSummary } from "./api";
 import type { ClientBootstrap } from "./client/api";
 import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, type NativeSyncResult } from "./nativeNotificationSync";
 import type { Db } from "./drafts";
+import { rememberCollectionGate } from "./collectionGate";
 import { loadPhoneClock, usePhoneClock } from "./phoneClock";
 
 const UI_LOCALE_KEY = "ui_locale";
@@ -146,6 +148,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const holds = useRef(0);
   const refreshPending = useRef(false);
   const lastAccess = useRef(new Map<string, string>());
+  const pendingAccess = useRef(new Map<string, AccessSummary>());
   const reloadVersion = useRef(0);
 
   // A refresh that changed data bumps lockVersion; with a form open it waits.
@@ -300,11 +303,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [clockLevel, flushBeforeRefresh]);
 
   const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1]) => {
+    // An answer that arrives while locked (the first poll at launch, before the PIN) is held for unlock:
+    // the 15-minute access throttle would otherwise keep the stale collection gate until the next refetch.
+    pendingAccess.current.set(userId, access);
     if (!isUnlocked(userId)) return;
+    const handle = await openInterviewerDb(userId);
+    pendingAccess.current.delete(userId);
+    // Every answer's gate is kept, before the unchanged-answer shortcut and anything that can throw:
+    // Sync Refresh stores gates too, so "same as last reconciled" does not mean "same as stored".
+    await rememberCollectionGate(handle, access);
     const key = stableAccessJson(access);
     if (lastAccess.current.get(userId) === key) return;
     await flushBeforeRefresh();
-    const handle = await openInterviewerDb(userId);
     await reconcileReferenceAccess(handle, access);
     lastAccess.current.set(userId, key);
     bumpRefresh();
@@ -404,6 +414,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }),
     [reload, reportBackgroundError],
   );
+
+  // An unlock (lockVersion bump) applies an access answer that arrived while that store was locked.
+  useEffect(() => {
+    for (const [userId, access] of [...pendingAccess.current]) {
+      if (isUnlocked(userId)) void reconcileAccess(userId, access).catch(reportBackgroundError);
+    }
+  }, [lockVersion, reconcileAccess, reportBackgroundError]);
 
   useEffect(
     () => subscribeAccessChanges((userId, access) =>

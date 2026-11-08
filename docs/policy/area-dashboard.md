@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-08
 ---
 
 # Area Dashboard Policy
@@ -81,8 +81,9 @@ and no subject data.
   not yet interviewed (reported, interview pending or in progress) more than
   60 days after its date of death, or after the date reported when the date
   of death is missing; an interview not yet coded (awaiting coding or in
-  coding) more than 15 days after its submission date. "Today" is the
-  server's UTC date. Shown as a fill plus text, never colour alone.
+  coding) more than 15 days after its submission date. "Today" and the days
+  counted are on the project clock (owner, 2026-11-08, `digitva-at68`; see
+  "Project clock" below). Shown as a fill plus text, never colour alone.
 - **Deaths statuses**: Pending, Interviewed, Coded, Refused, Not codeable,
   each its own chip; duplicates and cancelled cases are hidden.
 - Rows open the existing case page only where the viewer's role already
@@ -142,6 +143,17 @@ with children (a district data manager on the district unit) opens that unit at
 once, so the first level shows the units below it; the breadcrumb then starts
 at that unit, with no "All areas" step that would only reopen it
 (`digitva-7amd.17`, owner acceptance 2026-10-29).
+
+### Project clock
+
+Owner, 2026-11-08 (`digitva-at68`), as for every other dashboard
+([Project Clock and Gates](project-clock-and-gates.md)): the last 7 and 30
+days (today included, by the case's registration day), the interviews waiting
+over 7 and 30 days, and the overdue interview and coding rules take their days
+on the case's project clock, not the server's UTC date. The same rules serve
+the case list's overdue filter and the data manager outcome KPIs, so they
+agree. The submission day in the analytics snapshot, and so the COD snapshot's
+`submission_date`, has been on the project clock since `d8a4c6e2f1b3`.
 
 ### Period
 

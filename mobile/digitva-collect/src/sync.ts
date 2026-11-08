@@ -105,6 +105,7 @@ import {
 } from "./formDefinitions";
 import { FormDefinitionHistoryError, readDefinitionExtensions } from "./formDefinitionHistory";
 import { questionnaireLocales } from "./i18n";
+import { rememberCollectionGate } from "./collectionGate";
 import type { Translations } from "./translations";
 
 export interface SyncResult {
@@ -1283,6 +1284,8 @@ async function fetchTranslation(
 
 async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack> {
   const access = parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body);
+  // This answer bypasses the access listeners, so it must carry its own collection gate to the store.
+  await rememberCollectionGate(db, access);
   const accessProjects = access.projects.filter((project) => project.actions.interview.length > 0);
   const authorized = new Set(accessProjects.map((project) => project.project_id));
   const retainedProjectIds = new Set(access.projects

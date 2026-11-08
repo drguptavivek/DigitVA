@@ -3,15 +3,15 @@ title: Project Clock and Collection and Coding Gates
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-08
 ---
 
 # Project Clock and Collection and Coding Gates
 
 Owner decisions, 2026-11-06 (beads `digitva-fkec`, `digitva-g7xq` and the
 beads named below). The project clock (stage 1), the coding gate on the project
-clock, the server side of the data-collection gate and dashboard bucketing
-(stage 2) are built; the app's start check is not. Payload and error
+clock, the data-collection gate (server and the Collect app's start check,
+`digitva-dj29`) and dashboard bucketing (stage 2) are built. Payload and error
 shapes: `docs/current-state/device-collection-api.md`, "Collection gate".
 
 ## Project clock
@@ -74,7 +74,10 @@ A second gate, built the same way as the coding gate.
   declined the interview) does not count and is never refused (owner
   2026-11-06). On a phone that is offline
   the app enforces the limit from the gate it last downloaded and its own
-  count; the server does not refuse an upload that went over it.
+  count; the server does not refuse an upload that went over it. A phone
+  trusts a downloaded pause only on that answer's project day: if no newer
+  /me/access answer has reached it by the next day, it allows (dates and the
+  limit still apply), so a stale gate never blocks for good.
 - **Waivers:** none by role; a data manager or admin opens the gate.
 - **The app's copy (shape agreed with the app work, 2026-11-06):** the gate travels in
   `GET /api/v1/me/access`, additive fields only. A closed gate never removes

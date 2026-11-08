@@ -1297,6 +1297,21 @@ class AreaDistrictWidgetTests(AreaDeathsReportedTests):
         self.assertEqual(unit["deaths_reported"] - base_unit["deaths_reported"], 2)
         self.assertEqual(unit["deaths_7_days"] - base_unit["deaths_7_days"], 1)
 
+    def test_last_7_days_count_days_on_the_project_clock(self):
+        """01:30 IST on Nov 9 is still Nov 8 in UTC. A case registered at 02:00
+        UTC on Nov 2 is on Nov 2 in both zones: inside UTC's last 7 days (Nov 2
+        to 8) but outside IST's (Nov 3 to 9)."""
+        key = str(self.chc_a.org_unit_id)
+        base = self._counts(self.unit_user, key)
+        case = self._aged_case(990521, "submitted", self.phc_a1, 0)
+        case.created_at = datetime(2026, 11, 2, 2, 0, tzinfo=UTC)
+        db.session.commit()
+        now = datetime(2026, 11, 8, 20, 0, tzinfo=UTC)
+        with mock.patch("app.services.project_clock._now", return_value=now):
+            counts = self._counts(self.unit_user, key)
+        self.assertEqual(counts["deaths_7_days"], base["deaths_7_days"])
+        self.assertEqual(counts["deaths_30_days"] - base["deaths_30_days"], 1)
+
     def test_period_filters_submitted_but_not_the_backlog(self):
         """CHC A: submissions 2, 20 and 60 days old; two awaiting coding."""
         key = str(self.chc_a.org_unit_id)

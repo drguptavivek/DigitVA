@@ -416,22 +416,24 @@ def _reported_deaths(project_id: str):
 def _case_count_columns(since) -> list:
     """The death-register counts as labelled ``count FILTER`` columns: cases
     registered in the period (all when *since* is None) and in the last 7 and
-    30 days, open cases waiting for an interview, also those waiting over 7
-    and 30 days since registration, and the overdue interviews and codings
+    30 days (days on the project clock, today included), open cases waiting
+    for an interview, also those waiting over 7 and 30 days since
+    registration, and the overdue interviews and codings
     (``case_list_service.waiting``, live, never period-filtered). Needs
     ``_with_case_state`` on the statement."""
-    now = datetime.now(UTC)
+    tz = project_clock.tz_of(VaDeathRegister.project_id)
+    today = project_clock.sql_today(tz)
+    created_day = project_clock.sql_day(VaDeathRegister.created_at, tz)
     overdue = waiting(combined_status_case())
     counted = sa.func.count(VaDeathRegister.death_id)
-    created = VaDeathRegister.created_at
     pending = VaDeathRegister.status.in_(OPEN_CASE_STATES)
     return [
-        (counted if since is None else counted.filter(created >= since)).label("deaths_reported"),
-        counted.filter(created >= now - timedelta(days=7)).label("deaths_7_days"),
-        counted.filter(created >= now - timedelta(days=30)).label("deaths_30_days"),
+        (counted if since is None else counted.filter(VaDeathRegister.created_at >= since)).label("deaths_reported"),
+        counted.filter(created_day > today - 7).label("deaths_7_days"),
+        counted.filter(created_day > today - 30).label("deaths_30_days"),
         counted.filter(pending).label("interviews_pending"),
-        counted.filter(pending, created < now - timedelta(days=7)).label("pending_over_7_days"),
-        counted.filter(pending, created < now - timedelta(days=30)).label("pending_over_30_days"),
+        counted.filter(pending, created_day <= today - 7).label("pending_over_7_days"),
+        counted.filter(pending, created_day <= today - 30).label("pending_over_30_days"),
         counted.filter(overdue.interview).label("overdue_interview"),
         counted.filter(overdue.coding).label("overdue_coding"),
     ]

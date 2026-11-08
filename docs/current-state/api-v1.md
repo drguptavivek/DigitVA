@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-08
 ---
 
 # API v1 Reference
@@ -297,7 +297,7 @@ Query (every value validated; a bad one is 400 `invalid_request` that never repe
 | `project_id`, `site_id`, `org_unit_id` | Narrow only; `org_unit_id` takes its whole subtree. An id outside the caller's scope yields no rows and is never echoed. `project_id` is repeatable (`project_id=A&project_id=B`) or a comma list, any of them (`IN`), at most 100; one value behaves as before. |
 | `source` (repeatable, or comma list) | `register` (reported on the register form), `direct` (an interview started directly), `odk` (an ODK-only interview from the sync): `VaDeathRegister.source IN (...)`; `counts` follow it. Any other value is 400. The Statistics Deaths tab asks Reported = `register`, Direct = `direct,odk`. |
 | `submitted_from`, `submitted_to` | ISO dates, ends inclusive, UTC days of the submission date (`va_submissions.va_submission_date`); a case with no submission is left out once either is set. A start after its end is 400. |
-| `overdue` | `interview`: combined status `reported`, `interview_pending` or `interview_in_progress` and the date of death (the UTC day reported when missing) more than `OVERDUE_INTERVIEW_DAYS` (60) days before today (UTC). `coding`: `submitted_awaiting_coding` or `in_coding` and the submission day more than `OVERDUE_CODING_DAYS` (15) days before today. Exactly 60 / 15 days is not overdue. `counts` honour it like the other filters. Any other value is 400. |
+| `overdue` | `interview`: combined status `reported`, `interview_pending` or `interview_in_progress` and the date of death (the project-clock day reported when missing) more than `OVERDUE_INTERVIEW_DAYS` (60) days before today (the case's project clock). `coding`: `submitted_awaiting_coding` or `in_coding` and the submission day more than `OVERDUE_CODING_DAYS` (15) days before today. Exactly 60 / 15 days is not overdue. `counts` honour it like the other filters. Any other value is 400. |
 | `status` (repeatable, or comma list) | Combined status (below). When present it replaces the preset's default statuses, so `status=duplicate` reaches duplicates in any preset. |
 | `state` (repeatable) | The register state (`VaDeathRegister.status`: `registered`, `scheduled`, `in_progress`, `paused`, `not_reachable`, ...), for the supervisor's state chips. |
 | `dod_from`, `dod_to`, `reported_from`, `reported_to` | ISO dates `YYYY-MM-DD`, ends inclusive, UTC days (`reported_*` filter `created_at`, which is the report time only for `source = 'register'`, see `reported_at`). A start after its end is 400. |

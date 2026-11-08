@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-08
 ---
 
 # Expo Client Hosting And Access
@@ -472,6 +472,32 @@ sign-in recovery retains the current `/app/` route and query. Pending terms
 setup redirect.
 
 Login, onboarding and device sign-in endpoints: [Authentication, Login and Onboarding](authentication-and-onboarding.md).
+
+## Collection gate on the phone (digitva-dj29)
+
+Policy: [Project Clock and Gates](../policy/project-clock-and-gates.md),
+"Data-collection gate"; payload: `device-collection-api.md`, "Collection gate".
+Code: `src/collectionGate.ts`.
+
+- Every validated `/me/access` answer (the `AppState` access listener) stores
+  each project's `collection_gate`, `project_today`, `server_time` and
+  `timezone` in the encrypted DB meta key `collection_gate`. A project with
+  no gate, or a malformed one (older server), is not stored, so it is allowed.
+- Checked before a new start only: Register Save and Save & start for a new
+  registration (not an edit of one already on the phone, not a correction of
+  a server registration), and New interview from the worklist site picker.
+  Starting the interview of a registered death, drafts, finishing and uploads
+  are never checked.
+- The unit entry (`site_id` + `org_unit_id`) is used when present, else the
+  site entry. Dates are inclusive; "today" is the phone's corrected clock
+  (`correctedNow`) in the project timezone, never earlier than the answer's
+  `project_today`. The daily limit is `today_count` (only while today is the
+  answer's day) plus this phone's starts recorded after `server_time`; the
+  next answer drops starts it already covers.
+- A refusal shows `collectionPaused` / `collectionNotStarted` /
+  `collectionEnded` / `collectionDailyLimit` (en, hi) with the site or unit
+  name and the date or limit, from `reason`, not the server's English
+  `message`.
 
 ## Training menu (digitva-r2pf)
 

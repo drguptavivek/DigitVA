@@ -2087,5 +2087,9 @@
   "caseStatus_refused": "मना किया",
   "caseStatus_not_codeable": "कोड योग्य नहीं",
   "caseStatus_duplicate": "डुप्लिकेट",
-  "caseStatus_cancelled": "रद्द"
+  "caseStatus_cancelled": "रद्द",
+  "collectionPaused": "{name} के लिए डेटा संग्रह रोका गया है।",
+  "collectionNotStarted": "{name} के लिए डेटा संग्रह {date} को शुरू होगा।",
+  "collectionEnded": "{name} के लिए डेटा संग्रह {date} को समाप्त हो गया।",
+  "collectionDailyLimit": "आप {name} के लिए आज की {limit} नए साक्षात्कारों की सीमा तक पहुँच गए हैं।"
 }

@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-08
 ---
 
 # Submission Analytics Materialized Views
@@ -242,8 +242,11 @@ beads `digitva-stc`, `digitva-qfh8`). Code:
   `period_start` is midnight that many days back on the project's clock
   (aware, one query for the zone; none for `all`), so it equals the data
   manager's `date_from` on the project-local `submission_date`. The last 7
-  and 30 days columns, the register counts and the overdue "today" are still
-  rolling from now / UTC (not yet on the project clock). It filters deaths reported (case `created_at`),
+  and 30 days columns, the waiting-over-7/30 columns and the overdue "today"
+  also take their days on the case's project clock (`project_clock.tz_of`,
+  `sql_today`, `sql_day`; a correlated zone lookup per row, so mixed-project
+  scopes such as the data manager outcome KPIs are right too; owner
+  2026-11-08, `digitva-at68`). It filters deaths reported (case `created_at`),
   submitted (`submission_at`) and causes (date of death); nothing else.
 - Rows are the grant roots (or the project's top-level units when the scope
   is project-wide, plus an "Unrouted" row), or the direct children of a
@@ -257,7 +260,7 @@ beads `digitva-stc`, `digitva-qfh8`). Code:
     and cancelled cases out): `deaths_reported` in the period,
     `deaths_7_days`, `deaths_30_days`, `interviews_pending` (status in
     `user_home_service.OPEN_CASE_STATES`), `pending_over_7_days` /
-    `_30_days` by `created_at`, and `overdue_interview` / `overdue_coding`
+    `_30_days` by the `created_at` project day, and `overdue_interview` / `overdue_coding`
     (`case_list_service.waiting`, the same SQL as `GET /api/v1/cases?overdue=`:
     60 days from date of death, else date reported; 15 days from submission;
     live, never period-filtered; the case's workflow and submission are

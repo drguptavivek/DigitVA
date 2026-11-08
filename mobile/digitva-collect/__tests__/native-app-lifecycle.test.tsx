@@ -12,6 +12,8 @@ const mockOpenDb = jest.fn(async (..._args: unknown[]) => ({}) as never);
 const mockRefresh = jest.fn(async (..._args: unknown[]) => undefined);
 const mockNotificationRefresh = jest.fn(async (..._args: unknown[]) => false);
 const mockReconcile = jest.fn(async (..._args: unknown[]) => undefined);
+const mockRememberGate = jest.fn(async (..._args: unknown[]) => undefined);
+let mockUnlocked = true;
 let mockAutoLockCallback: (() => void) | undefined;
 let mockAccessListener: ((userId: string, access: unknown) => Promise<void> | void) | undefined;
 
@@ -44,7 +46,7 @@ jest.mock("../src/auth", () => ({
 }));
 jest.mock("../src/interviewerDb", () => ({
   anyUnlocked: () => true,
-  isUnlocked: () => true,
+  isUnlocked: () => mockUnlocked,
   lockAll: (...args: unknown[]) => mockLockAll(...args),
   openInterviewerDb: (...args: unknown[]) => mockOpenDb(...args),
   StoreLockedError: jest.requireActual("../src/interviewerDb").StoreLockedError,
@@ -52,6 +54,9 @@ jest.mock("../src/interviewerDb", () => ({
 jest.mock("../src/sync", () => ({
   refreshReferenceData: (...args: unknown[]) => mockRefresh(...args),
   reconcileReferenceAccess: (...args: unknown[]) => mockReconcile(...args),
+}));
+jest.mock("../src/collectionGate", () => ({
+  rememberCollectionGate: (...args: unknown[]) => mockRememberGate(...args),
 }));
 jest.mock("../src/nativeNotificationSync", () => ({
   refreshNativeNotifications: (...args: unknown[]) => mockNotificationRefresh(...args),
@@ -94,6 +99,8 @@ beforeEach(() => {
   mockRefresh.mockClear();
   mockNotificationRefresh.mockClear();
   mockReconcile.mockClear();
+  mockRememberGate.mockClear();
+  mockUnlocked = true;
   mockAppStateListeners.clear();
   mockAutoLockCallback = undefined;
   mockAccessListener = undefined;
@@ -234,6 +241,26 @@ it("a changed access result waits for the open form to be left", async () => {
   expect(latest.lockVersion).toBe(before);
   await act(async () => release());
   expect(latest.lockVersion).toBe(before + 1);
+  await act(async () => tree.unmount());
+});
+
+it("keeps every access answer's collection gate, even an unchanged one and one that arrived while locked", async () => {
+  const paused = { projects: [{ project_id: "P", collection_gate: { sites: [{ enabled: false }] } }] };
+  const open = { projects: [{ project_id: "P", collection_gate: { sites: [{ enabled: true }] } }] };
+  const tree = await renderProbe();
+  await act(async () => { await mockAccessListener?.("worker", paused); });
+  expect(mockRememberGate).toHaveBeenLastCalledWith(expect.anything(), paused);
+  // Locked at launch: the answer is held, then applied on PIN unlock (the 15-minute throttle refetches nothing).
+  mockUnlocked = false;
+  await act(async () => { await mockAccessListener?.("worker", open); });
+  expect(mockRememberGate).toHaveBeenCalledTimes(1);
+  mockUnlocked = true;
+  await act(async () => { latest.unlocked(); });
+  await SETTLE();
+  expect(mockRememberGate).toHaveBeenLastCalledWith(expect.anything(), open);
+  // Sync Refresh may store a newer gate directly; a repeat of an earlier answer still rewrites it.
+  await act(async () => { await mockAccessListener?.("worker", open); });
+  expect(mockRememberGate).toHaveBeenCalledTimes(3);
   await act(async () => tree.unmount());
 });
 

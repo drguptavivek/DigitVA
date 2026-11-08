@@ -31,6 +31,7 @@ import { sendRefusals, type SendRefusal } from "../unsentWork";
 import { deleteUnsentDraft, getMeta, listDrafts, setMeta, reopenCompletedDraft, retryHeldDraft, type Db, type DraftRow } from "../drafts";
 import { codingNotices, dismissCodingNotices, type CodingNotice } from "../codingUploadNotices";
 import { codingNoticeText } from "../standalone/adopt";
+import { checkCollectionGate, gateMessage, recordCollectionStart } from "../collectionGate";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { FirstDownloadModal } from "../FirstDownloadModal";
 import { t } from "../i18n";
@@ -822,9 +823,18 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   // Each row is followed by a separator when another row comes after it in the same card.
   const homeRows = goRows.length ? goRows.flatMap((row, index) => (index < goRows.length - 1 ? [row, <Separator key={`sep-${index}`} icon />] : [row])) : undefined;
 
-  function startInterview(target: PickerTarget) {
+  /** A new interview with no registration is a new start, checked against the collection gate (digitva-dj29). */
+  async function startInterview(target: PickerTarget) {
     setPicking(false);
-    if (db) void writeRecentTarget(db, target.projectId, { siteId: target.siteId, orgUnitId: target.orgUnitId });
+    if (db) {
+      const gate = await checkCollectionGate(db, target.projectId, target.siteId, target.orgUnitId);
+      if (!gate.open) {
+        setMessage(gateMessage(gate));
+        return;
+      }
+      await recordCollectionStart(db, target.projectId, target.siteId, target.orgUnitId);
+      void writeRecentTarget(db, target.projectId, { siteId: target.siteId, orgUnitId: target.orgUnitId });
+    }
     router.push({
       pathname: "/form",
       params: {

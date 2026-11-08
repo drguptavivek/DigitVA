@@ -2087,5 +2087,9 @@
   "caseStatus_refused": "Refused",
   "caseStatus_not_codeable": "Not codeable",
   "caseStatus_duplicate": "Duplicate",
-  "caseStatus_cancelled": "Cancelled"
+  "caseStatus_cancelled": "Cancelled",
+  "collectionPaused": "Data collection for {name} is paused.",
+  "collectionNotStarted": "Data collection for {name} starts on {date}.",
+  "collectionEnded": "Data collection for {name} ended on {date}.",
+  "collectionDailyLimit": "You have reached today's limit of {limit} new interviews for {name}."
 }

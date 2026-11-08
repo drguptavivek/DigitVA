@@ -85,10 +85,11 @@ numbers, each a tab's total, from the same conditions.
 Waiting and overdue (``waiting``, shared with ``area_dashboard_service``):
 a death waits for its interview (combined status ``reported``,
 ``interview_pending``, ``interview_in_progress``) since its date of death, or
-the UTC day it was reported when that is missing; an interview waits for its
+the day it was reported when that is missing; an interview waits for its
 coding (``submitted_awaiting_coding``, ``in_coding``) since its submission day.
 More than ``OVERDUE_INTERVIEW_DAYS`` / ``OVERDUE_CODING_DAYS`` before the
-server's UTC today is overdue (exactly the threshold is not).
+today is overdue (exactly the threshold is not). Days are on the case's
+project clock.
 """
 from __future__ import annotations
 
@@ -126,7 +127,7 @@ from app.models import (
 )
 from app.models.va_selectives import VaAllocation
 from app.models.va_web_intake import CASE_SOURCES, CASE_STATES, DEATH_SEX_VALUES
-from app.services import org_grant_service, register_pii_accessor, training_scope
+from app.services import org_grant_service, project_clock, register_pii_accessor, training_scope
 from app.services.authz import (
     Action,
     Lens,
@@ -237,39 +238,45 @@ def combined_status_case(register=VaDeathRegister.status):
     )
 
 
-def waiting(status, today: date | None = None, *, submission=CASE_SUBMISSION,
-            registered: bool = True) -> SimpleNamespace:
+def waiting(status, *, submission=CASE_SUBMISSION, registered: bool = True) -> SimpleNamespace:
     """``(interview, coding, days_waiting)`` as SQL for the overdue rules
     (module docstring) over the combined *status* CASE: the two overdue
     conditions and the whole days waited (NULL when the case waits for
     neither, or has no submission date). Needs *submission* (``CASE_SUBMISSION``
     unless given) and the workflow, for *status*, outer-joined on ``va_sid``.
-    *today*: the server's UTC date unless given. *registered* False: a
+    "Today" and the days counted are on the case's project clock
+    (docs/policy/area-dashboard.md, "Overdue"). *registered* False: a
     submission with no register row, which never waits for an interview;
     nothing then reads ``VaDeathRegister``, so it is not cross-joined in."""
-    today = today or datetime.now(UTC).date()
-    coding_since = sa.cast(submission.va_submission_date, sa.Date)
+    form = aliased(VaForms)
+    project = (VaDeathRegister.project_id if registered else
+               sa.select(form.project_id).where(form.form_id == submission.va_form_id).correlate_except(form).scalar_subquery())
+    tz = project_clock.tz_of(project)
+    today = project_clock.sql_today(tz)
+    coding_since = project_clock.sql_day(submission.va_submission_date, tz, naive_utc=True)
     awaiting_coding = status.in_(_AWAITING_CODING)
-    day = sa.literal(today, sa.Date)
-    # The same test as ``coding_since < day``, kept sargable on the submission-date index.
-    coding = sa.and_(awaiting_coding, submission.va_submission_date
-                     < datetime.combine(today - timedelta(days=OVERDUE_CODING_DAYS), datetime.min.time()))
-    coding_days = (sa.and_(awaiting_coding, coding_since.is_not(None)), sa.func.greatest(day - coding_since, 0))
+    # The raw-column bound keeps the scan on the submission-date index: a
+    # local day 16+ days back is at least 14 days back in UTC, whatever the zone.
+    coding = sa.and_(
+        awaiting_coding,
+        submission.va_submission_date < project_clock._now().replace(tzinfo=None) - timedelta(days=OVERDUE_CODING_DAYS - 1),
+        coding_since < today - OVERDUE_CODING_DAYS,
+    )
+    coding_days = (sa.and_(awaiting_coding, coding_since.is_not(None)), sa.func.greatest(today - coding_since, 0))
     if not registered:
         return SimpleNamespace(interview=sa.false(), coding=coding,
                                days_waiting=sa.type_coerce(sa.case(coding_days), sa.Integer))
-    reported_day = sa.cast(sa.func.timezone("UTC", VaDeathRegister.created_at), sa.Date)
+    reported_day = project_clock.sql_day(VaDeathRegister.created_at, tz)
     interview_since = sa.func.coalesce(VaDeathRegister.date_of_death, reported_day)
     awaiting_interview = status.in_(_AWAITING_INTERVIEW)
     return SimpleNamespace(
-        interview=sa.and_(awaiting_interview,
-                          interview_since < today - timedelta(days=OVERDUE_INTERVIEW_DAYS)),
+        interview=sa.and_(awaiting_interview, interview_since < today - OVERDUE_INTERVIEW_DAYS),
         coding=coding,
         # date - date is an integer in PostgreSQL. Never negative (a date of
         # death in the future waits 0 days); GREATEST per branch, since
         # GREATEST(NULL, 0) is 0 and a case waiting for neither stays NULL.
         days_waiting=sa.type_coerce(sa.case(
-            (awaiting_interview, sa.func.greatest(day - interview_since, 0)),
+            (awaiting_interview, sa.func.greatest(today - interview_since, 0)),
             coding_days,
         ), sa.Integer),
     )

@@ -12,6 +12,7 @@ from typing import NamedTuple
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 import sqlalchemy as sa
+import sqlalchemy.orm as so
 
 from app import db
 from app.models import VaProjectMaster
@@ -83,3 +84,24 @@ def project_days(project_ids: Iterable[str], now: datetime | None = None) -> dic
     ).all()
     zones = dict(rows)
     return {project_id: project_day(zones.get(project_id), now) for project_id in ids}
+
+
+def tz_of(project_id):
+    """SQL expression: the zone name of the project *project_id* (a column or
+    expression), the default when the project has no row. A correlated scalar
+    subquery on an alias, so it never captures the caller's own tables."""
+    master = so.aliased(VaProjectMaster)
+    zone_name = sa.select(master.timezone).where(master.project_id == project_id).correlate_except(master).scalar_subquery()
+    return sa.func.coalesce(zone_name, DEFAULT_PROJECT_TIMEZONE)
+
+
+def sql_today(tz):
+    """SQL date: today on the clock of the zone expression *tz* (``tz_of``)."""
+    return sa.cast(sa.func.timezone(tz, sa.literal(_now(), sa.DateTime(timezone=True))), sa.Date)
+
+
+def sql_day(column, tz, *, naive_utc: bool = False):
+    """SQL date of *column* on the clock of *tz*. *column* is a timestamptz,
+    or with *naive_utc* a naive-UTC timestamp (``va_submissions`` dates)."""
+    instant = sa.func.timezone("UTC", column) if naive_utc else column
+    return sa.cast(sa.func.timezone(tz, instant), sa.Date)

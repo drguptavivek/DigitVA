@@ -77,7 +77,9 @@ export default function Home() {
   useEffect(() => {
     if (emptyDemo) void switchSlot?.("active");
   }, [emptyDemo, switchSlot]);
-  if (!ready || emptyDemo) return <ActivityIndicator style={{ flex: 1 }} />;
+  // The native splash covers startup (src/startupGate.ts): nothing to draw until ready.
+  if (!ready) return null;
+  if (emptyDemo) return <ActivityIndicator style={{ flex: 1 }} />;
   const standaloneAccount = accounts.find((account) => account.standalone);
   const standalone = standaloneAccount !== undefined;
   if (!device && !standalone) return <Redirect href="/enrol" />;

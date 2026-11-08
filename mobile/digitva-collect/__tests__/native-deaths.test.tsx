@@ -383,6 +383,31 @@ describe("native case detail workflow", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("keeps the case on screen while it reloads on return, and starts blank for another case (digitva-2g59)", async () => {
+    const fetchDetail = jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Case />); });
+    await settle();
+    await settle();
+    expect(tree!.root.findAllByProps({ children: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
+    const calls = fetchDetail.mock.calls.length;
+
+    // Blur and focus again: the focus effect runs again (a new account object re-creates its callback).
+    const original = mockAccounts[0];
+    mockAccounts[0] = { ...original };
+    let release!: (value: unknown) => void;
+    fetchDetail.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+    await act(async () => { tree!.update(<Case />); });
+    expect(fetchDetail.mock.calls.length).toBe(calls + 1);
+    // The reload is still in flight and the detail is still there.
+    expect(tree!.root.findAllByProps({ children: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
+    await act(async () => { release(mockDetail); });
+    await settle();
+    expect(tree!.root.findAllByProps({ children: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
+    mockAccounts[0] = original;
+    await act(async () => tree!.unmount());
+  });
+
   it("queues contact attempts with the detail project and refetches by id", async () => {
     let tree: ReturnType<typeof create>;
     await act(async () => {

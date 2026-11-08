@@ -232,3 +232,19 @@ it("shows the newest mounted screen's title, and the one underneath again when i
   act(() => shell.publishTitle(home, undefined));
   expect(shell.screenTitle).toBeUndefined();
 });
+
+it("recounts unsent work entering or leaving a screen that saves work, but not between list tabs (digitva-q76c)", async () => {
+  const counted = jest.spyOn(require("../src/interviewerDb"), "unsentWork");
+  mockPathname = "/worklist";
+  await mount();
+  const base = counted.mock.calls.length;
+  mockPathname = "/coding";
+  await act(async () => { tree.update(<ShellProvider><Probe /></ShellProvider>); });
+  expect(counted.mock.calls.length).toBe(base); // Home to Code: nothing could have changed
+  mockPathname = "/case";
+  await act(async () => { tree.update(<ShellProvider><Probe /></ShellProvider>); });
+  expect(counted.mock.calls.length).toBe(base + 1);
+  mockPathname = "/worklist";
+  await act(async () => { tree.update(<ShellProvider><Probe /></ShellProvider>); });
+  expect(counted.mock.calls.length).toBe(base + 2);
+});

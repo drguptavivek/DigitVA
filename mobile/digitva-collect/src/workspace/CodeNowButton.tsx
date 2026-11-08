@@ -7,6 +7,7 @@ import { t } from "../i18n";
 import { controls } from "../theme";
 import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
+import { shortCaseNumber } from "./caseLabel";
 
 const RETRY_DELAY_MS = 2_000;
 const MAX_NOT_READY_RETRIES = 2;
@@ -33,7 +34,7 @@ export function CodeNowButton({
   const [releaseRequired, setReleaseRequired] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [message, setMessage] = useState("");
-  const [confirming, setConfirming] = useState<{ api: WorkspaceApi; vaSid: string } | null>(null);
+  const [confirming, setConfirming] = useState<{ context: { api: WorkspaceApi; vaSid: string }; message: string } | null>(null);
   const busyRef = useRef(false);
   const contextRef = useRef({ api, vaSid });
   const retryRef = useRef<{ timer: ReturnType<typeof setTimeout>; resolve: (active: boolean) => void } | undefined>(undefined);
@@ -165,15 +166,20 @@ export function CodeNowButton({
     }
   }
 
-  function confirmRelease(context: { api: WorkspaceApi; vaSid: string }) {
+  /** Name the case being given up, so the coder sees what is lost; the safe choice ("Keep my case") comes first. */
+  async function confirmRelease(context: { api: WorkspaceApi; vaSid: string }) {
     if (!isCurrent(context) || busyRef.current) return;
+    const held = await Promise.resolve().then(() => context.api.getCodingAllocation()).catch(() => null);
+    if (!isCurrent(context) || busyRef.current) return;
+    const number = shortCaseNumber(held?.va_uniqueid_masked);
+    const message = number ? t("codeNowReleaseConfirm", { number }) : t("codeNowReleaseConfirmNoNumber");
     const proceed = () => void releaseAndAllocate(context);
     if (Platform.OS === "web") {
-      setConfirming(context);
+      setConfirming({ context, message });
       return;
     }
-    Alert.alert(t("codeNowReleaseTitle"), t("codeNowReleaseConfirm"), [
-      { text: t("cancel"), style: "cancel" },
+    Alert.alert(t("codeNowReleaseTitle"), message, [
+      { text: t("codeNowKeepCase"), style: "cancel" },
       { text: t("codeNowReleaseConfirmAction"), style: "destructive", onPress: proceed },
     ]);
   }
@@ -181,16 +187,17 @@ export function CodeNowButton({
   return <>
     {!unavailable ? <Button label={t("codeNow")} loading={busy} disabled={busy || disabled} style={touchTarget} onPress={() => void start()} /> : null}
     {retrying ? <Button kind="secondary" label={t("cancel")} style={touchTarget} onPress={cancel} /> : null}
-    {releaseRequired ? <Button kind="danger" label={t("codeNowReleaseAction")} style={touchTarget} onPress={() => confirmRelease(contextRef.current)} /> : null}
+    {releaseRequired ? <Button kind="danger" label={t("codeNowReleaseAction")} style={touchTarget} onPress={() => void confirmRelease(contextRef.current)} /> : null}
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
     {confirming ? <ConfirmDialog
       destructive
       title={t("codeNowReleaseTitle")}
-      message={t("codeNowReleaseConfirm")}
+      message={confirming.message}
+      cancelLabel={t("codeNowKeepCase")}
       confirmLabel={t("codeNowReleaseConfirmAction")}
       onCancel={() => setConfirming(null)}
       onConfirm={() => {
-        const context = confirming;
+        const { context } = confirming;
         setConfirming(null);
         void releaseAndAllocate(context);
       }}

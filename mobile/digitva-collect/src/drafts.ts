@@ -571,6 +571,16 @@ export function listDrafts(db: Db): Promise<DraftRow[]> {
   return db.getAllAsync<DraftRow>(`SELECT ${ROW_COLUMNS}, json_extract(envelope, '$.startedAt') AS started_at, json_extract(envelope, '$.completedAt') AS completed_at FROM drafts ORDER BY updated_at DESC`, []);
 }
 
+/** listDrafts plus the deceased's name from the answers (Id10017 + Id10018), in one scan instead of two. */
+export async function listDraftsNamed(db: Db): Promise<Array<DraftRow & { deceased_name: string | null }>> {
+  const rows = await db.getAllAsync<DraftRow & { given: unknown; surname: unknown }>(
+    `SELECT ${ROW_COLUMNS}, json_extract(envelope, '$.startedAt') AS started_at, json_extract(envelope, '$.completedAt') AS completed_at, json_extract(envelope, '$.data.Id10017') AS given, json_extract(envelope, '$.data.Id10018') AS surname FROM drafts ORDER BY updated_at DESC`, []);
+  return rows.map(({ given, surname, ...row }) => ({
+    ...row,
+    deceased_name: [given, surname].map((part) => (typeof part === "string" ? part.trim() : "")).filter(Boolean).join(" ") || null,
+  }));
+}
+
 export async function getDraftRow(db: Db, id: string): Promise<DraftRow | null> {
   return db.getFirstAsync<DraftRow>(`SELECT ${ROW_COLUMNS} FROM drafts WHERE id = ?`, [id]);
 }

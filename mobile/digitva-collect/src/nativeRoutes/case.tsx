@@ -12,7 +12,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
-import { Fragment, useCallback, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -77,7 +77,7 @@ export default function Case() {
     deathId?: string;
     clientDeathId?: string;
   }>();
-  const { accounts } = useAppState();
+  const { accounts, lockVersion } = useAppState();
   const account = accounts.find((a) => a.user_id === params.userId);
   const accountId = account?.user_id;
   const [db, setDb] = useState<Db | undefined>();
@@ -100,6 +100,7 @@ export default function Case() {
   const { deathId, clientDeathId } = params;
   const requestGeneration = useRef(0);
   const routeIdentityRef = useRef("");
+  const loadedIdentityRef = useRef("");
   const routeIdentity = `${account?.user_id ?? ""}|${deathId ?? ""}|${clientDeathId ?? ""}`;
 
   const load = useCallback(
@@ -170,6 +171,20 @@ export default function Case() {
     [accountId, deathId, clientDeathId],
   );
 
+  // A lock drops the decrypted rows held here; the next focus then starts blank.
+  useEffect(() => {
+    if (!account || isUnlocked(account.user_id)) return;
+    loadedIdentityRef.current = "";
+    setDb(undefined);
+    setFound(undefined);
+    setRefusalSent(false);
+    setRegistration(undefined);
+    setRegistrationRefusal("");
+    setDraft(null);
+    setActions([]);
+    setLoaded(false);
+  }, [account, lockVersion]);
+
   useFocusEffect(
     useCallback(() => {
       if (!account) return;
@@ -181,12 +196,18 @@ export default function Case() {
         active &&
         requestGeneration.current === generation &&
         routeIdentityRef.current === routeIdentity;
-      setDb(undefined);
-      setFound(undefined);
-      setRegistration(undefined);
-      setDraft(null);
-      setActions([]);
-      setLoaded(false);
+      // Coming back to the case already on screen reloads it in place; only another case or account starts blank.
+      if (loadedIdentityRef.current !== routeIdentity) {
+        loadedIdentityRef.current = routeIdentity;
+        setDb(undefined);
+        setFound(undefined);
+        setRefusalSent(false);
+        setRegistration(undefined);
+        setRegistrationRefusal("");
+        setDraft(null);
+        setActions([]);
+        setLoaded(false);
+      }
       setMode(undefined);
       setMessage("");
       setActionBusy(false);
@@ -205,22 +226,6 @@ export default function Case() {
       })();
       return () => {
         active = false;
-        if (
-          requestGeneration.current !== generation ||
-          routeIdentityRef.current !== routeIdentity
-        )
-          return;
-        requestGeneration.current += 1;
-        routeIdentityRef.current = "";
-        setDb(undefined);
-        setFound(undefined);
-        setRefusalSent(false);
-        setRegistration(undefined);
-        setDraft(null);
-        setActions([]);
-        setLoaded(false);
-        setMode(undefined);
-        setActionBusy(false);
       };
     }, [account, load, routeIdentity]),
   );

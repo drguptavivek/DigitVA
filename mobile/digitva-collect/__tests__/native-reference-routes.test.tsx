@@ -212,7 +212,7 @@ jest.mock("../src/auth", () => ({
   SignInRequiredError: class SignInRequiredError extends Error {},
 }));
 jest.mock("../src/drafts", () => ({
-  listDrafts: jest.fn(async () => []),
+  listDraftsNamed: jest.fn(async () => []),
   listActions: jest.fn(async () => []),
   listCases: jest.fn(async () => []),
   listRegistrations: jest.fn(async () => []),
@@ -555,7 +555,7 @@ beforeEach(() => {
     .mockImplementation(async (...args: unknown[]) => mockResolvedDefinition);
   (jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition as jest.Mock)
     .mockImplementation(async (...args: unknown[]) => mockResolvedDefinition);
-  (jest.requireMock("../src/drafts").listDrafts as jest.Mock).mockImplementation(
+  (jest.requireMock("../src/drafts").listDraftsNamed as jest.Mock).mockImplementation(
     async () => [],
   );
   (jest.requireMock("../src/revisions").fetchSubmittedRevisions as jest.Mock).mockImplementation(
@@ -759,14 +759,15 @@ describe("native project-aware routes", () => {
     await settle();
     await settle();
 
-    expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
+    // The reference refresh after the cached read asks for the same projects while the first fetch is in flight: one request.
+    expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(1);
     expect(dump(tree!)).not.toContain("VA-REVOKED");
     mockReference = pack("both", "P2");
     await act(async () => pullRefresh(tree!));
     await settle();
     await settle();
 
-    expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(3);
+    expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
     expect(dump(tree!)).toContain("VA-CURRENT");
     expect(dump(tree!)).not.toContain("VA-REVOKED");
     await act(async () => {
@@ -1359,18 +1360,18 @@ describe("native project-aware routes", () => {
   it("builds Home from local data: resumes the latest draft, counts unsent, and opens Interviews filtered to to-do", async () => {
     mockParams = { userId: "u1" };
     mockCachedCases = [{ death_id: "C1", unique_id: "VA-C1", project_id: "P1", site_id: "S1", state: "registered", unit_name: null, my_draft_id: null, deceased: { name: "Asha Rao" }, updated_at: "2026-10-01T00:00:00Z" }];
-    (jest.requireMock("../src/drafts").listDrafts as jest.Mock).mockResolvedValue([
+    (jest.requireMock("../src/drafts").listDraftsNamed as jest.Mock).mockResolvedValue([
       { id: "draft-1", project_id: "P1", completed: 0, updated_at: "2026-10-04T00:00:00.000Z", unique_id: "VA-X", death_id: null },
     ]);
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<Worklist />); });
     await settle();
     const out = dump(tree!);
-    expect(out).toContain("homeDraftsInProgress");
+    expect(out).toContain("filterDrafts");
     expect(out).toContain('"1"'); // one unsent (the draft); one case needs a visit
     await act(async () => tree!.root.findByProps({ "data-label": "homeResumeDraft" }).props.onClick());
     expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/form", params: { userId: "u1", draftId: "draft-1", projectId: "P1" } });
-    await act(async () => tree!.root.findByProps({ "data-label": "1 homeNeedVisit. homeView" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "1 filterTodo. homeView" }).props.onClick());
     expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "todo" } });
     await act(async () => tree!.unmount());
   });
@@ -1479,7 +1480,7 @@ describe("native project-aware routes", () => {
       upload_issue_unique_id: null,
     }];
     (
-      jest.requireMock("../src/drafts").listDrafts as jest.Mock
+      jest.requireMock("../src/drafts").listDraftsNamed as jest.Mock
     ).mockResolvedValue(drafts);
     let tree: ReturnType<typeof create>;
     await act(async () => {
@@ -1584,7 +1585,7 @@ describe("native project-aware routes", () => {
       upload_issue_unique_id: null,
     };
     (
-      jest.requireMock("../src/drafts").listDrafts as jest.Mock
+      jest.requireMock("../src/drafts").listDraftsNamed as jest.Mock
     ).mockResolvedValue([draft]);
     let tree: ReturnType<typeof create>;
     await act(async () => {
@@ -2549,6 +2550,89 @@ describe("respondent consent in the interview form", () => {
       expect(mockRouter.replace).not.toHaveBeenCalled();
       await act(async () => tree.unmount());
     });
+  });
+
+  describe("no flashing on return (digitva-k1su, cj4l, 7t4s)", () => {
+    const submitted = { draft_id: "sd-1", project_id: "P1", site_id: "S1", death_id: null, va_sid: "va-1", unique_id: "VA-KEPT", status: "submitted", updated_at: "2026-10-05T00:00:00Z" };
+
+    it("keeps the list on screen when the data-changed bump arrives, then rereads it in place", async () => {
+      mockSubmittedRevisions = [submitted];
+      const { fetchSubmittedRevisions } = jest.requireMock("../src/revisions") as { fetchSubmittedRevisions: jest.Mock };
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<Worklist />); });
+      await settle();
+      await settle();
+      expect(dump(tree!)).toContain("VA-KEPT");
+      expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(1);
+
+      mockSubmittedRevisions = [submitted, { ...submitted, draft_id: "sd-2", va_sid: "va-2", unique_id: "VA-NEW" }];
+      mockLockVersion += 1;
+      await act(async () => { tree!.update(<Worklist />); });
+      // Straight after the bump, before anything reloads: the rows are still there and no skeleton replaced them.
+      expect(dump(tree!)).toContain("VA-KEPT");
+      expect(tree!.root.findAllByProps({ testID: "state-loading" })).toHaveLength(0);
+      await settle();
+      await settle();
+      expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
+      expect(dump(tree!)).toContain("VA-NEW");
+      await act(async () => tree!.unmount());
+    });
+
+    it("keeps the list when the focus effect runs again, and asks the server once a minute at most", async () => {
+      mockSubmittedRevisions = [submitted];
+      const { fetchSubmittedRevisions } = jest.requireMock("../src/revisions") as { fetchSubmittedRevisions: jest.Mock };
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<Worklist />); });
+      await settle();
+      await settle();
+      expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(1);
+
+      // Blur and focus again (the mock re-runs the effect when its inputs change).
+      mockParams = { ...mockParams, refresh: "1" };
+      await act(async () => { tree!.update(<Worklist />); });
+      expect(dump(tree!)).toContain("VA-KEPT");
+      expect(tree!.root.findAllByProps({ testID: "state-loading" })).toHaveLength(0);
+      await settle();
+      await settle();
+      expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(1);
+
+      const later = Date.now() + 61_000;
+      const now = jest.spyOn(Date, "now").mockReturnValue(later);
+      mockParams = { ...mockParams, refresh: "again" };
+      await act(async () => { tree!.update(<Worklist />); });
+      await settle();
+      await settle();
+      expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
+      now.mockRestore();
+      await act(async () => tree!.unmount());
+    });
+  });
+
+  it("disables the start buttons and shows a banner when the collection gate is closed for every site (digitva-0pb7)", async () => {
+    mockParams = { userId: "u1" };
+    const today = new Date().toISOString().slice(0, 10);
+    const gate = {
+      projects: [{ project_id: "P1", project_today: today, server_time: new Date().toISOString(), units: [], sites: [{ site_id: "S1", enabled: false, start_date: null, end_date: null, daily_interviewer_limit: null, today_count: 0, display_name: "Site 1" }] }],
+      starts: [],
+      fetched_at: Date.now(),
+    };
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) => (key === "collection_gate" ? gate : undefined));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+    expect(dump(tree!)).toContain("collectionPaused");
+    expect(tree!.root.findAllByProps({ "data-label": "homeStartInterview" })[0].props.disabled).toBe(true);
+    // Open gate (no stored answer): enabled and no banner.
+    (getMeta as jest.Mock).mockImplementation(async () => undefined);
+    await act(async () => { tree!.update(<Worklist />); });
+    await act(async () => { await tree!.unmount(); });
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+    expect(dump(tree!)).not.toContain("collectionPaused");
+    expect(tree!.root.findAllByProps({ "data-label": "homeStartInterview" })[0].props.disabled).toBeFalsy();
+    await act(async () => tree!.unmount());
   });
 
 });

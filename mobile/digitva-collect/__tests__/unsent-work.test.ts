@@ -2,10 +2,9 @@
 import { DatabaseSync } from "node:sqlite";
 import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
 
-import { createDraftStore, markCompleted, migrate, type Db } from "../src/drafts";
+import { createDraftStore, listDraftsNamed, markCompleted, migrate, type Db } from "../src/drafts";
 import { pendingErrors, resetErrorLog } from "../src/errorLog";
 import { ApiError } from "../src/api";
-import { listDraftNames } from "../src/ui/interviewRows";
 import { clearSendError, MAX_ITEMS, noteSendError, summariseWork } from "../src/unsentWork";
 
 function memoryDb(): Db {
@@ -99,5 +98,5 @@ it("reads the deceased's name from each draft's Id10017 + Id10018 in one query",
   await save("both", undefined, { Id10017: "Mohan", Id10018: "Testcase" });
   await save("given", undefined, { Id10017: " Sunita " });
   await save("none");
-  expect(await listDraftNames(db)).toEqual(new Map([["both", "Mohan Testcase"], ["given", "Sunita"]]));
+  expect(new Map((await listDraftsNamed(db)).map((row) => [row.id, row.deceased_name]))).toEqual(new Map([["both", "Mohan Testcase"], ["given", "Sunita"], ["none", null]]));
 });

@@ -23,7 +23,7 @@ jest.mock("../src/web/LocationCapture", () => ({ MapsPinButton: () => null }));
 
 import { CaseCard as SharedCaseCard } from "../src/ui/CaseCard";
 import { CaseCard as WebCaseCard, formatDisplayTimestamp, sexLabel } from "../src/web/DeathsList";
-import { HomeView, InterviewsView, ProjectLine, SitePickerSheet } from "../src/nativeRoutes/worklistParts";
+import { HomeView, InterviewCard, InterviewsView, ProjectLine, SitePickerSheet } from "../src/nativeRoutes/worklistParts";
 import { OfflineNotice, SkeletonCards, StateView } from "../src/ui/StateView";
 import { buildInterviewItems, interviewCounts } from "../src/ui/interviewRows";
 import { homeSummary } from "../src/ui/homeSummary";
@@ -92,9 +92,40 @@ describe("Home", () => {
   it("wires Resume, Send now and View; Register lives in the go rows, not in Home's own content", async () => {
     const calls: string[] = [];
     await render(<HomeView {...base} onResume={() => calls.push("resume")} onSend={() => calls.push("send")} onViewTodo={() => calls.push("view")} />);
-    for (const label of ["Resume draft", "Send now", "2 need a visit. View"]) await act(async () => labelled(tree, label)[0].props.onClick());
+    for (const label of ["Resume draft", "Send now", "2 To do. View"]) await act(async () => labelled(tree, label)[0].props.onClick());
     expect(calls).toEqual(["resume", "send", "view"]);
     expect(labelled(tree, "Register a death")).toHaveLength(0);
+  });
+
+  it("uses the Interviews words and counts: To do and Drafts, each row opening its own filter (digitva-pwi9)", async () => {
+    const counts = interviewCounts(items);
+    const seen: string[] = [];
+    await render(<HomeView {...base} onViewTodo={() => seen.push("todo")} onViewDrafts={() => seen.push("drafts")} />);
+    await act(async () => labelled(tree, `${counts.todo} To do. View`)[0].props.onClick());
+    await act(async () => labelled(tree, `${counts.drafts} Drafts. View`)[0].props.onClick());
+    expect(seen).toEqual(["todo", "drafts"]);
+    expect(text(tree)).not.toContain("need a visit");
+  });
+
+  it("opens the Sync sheet from the Unsent row, and says why Send now is off when offline (digitva-0esm)", async () => {
+    const calls: string[] = [];
+    await render(<HomeView {...base} unsent={3} onOpenSync={() => calls.push("sync")} />);
+    await act(async () => labelled(tree, "3 Unsent. View")[0].props.onClick());
+    expect(calls).toEqual(["sync"]);
+    expect(tree.root.findAllByProps({ testID: "home-send-offline" })).toHaveLength(0);
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} unsent={3} offline />);
+    expect(labelled(tree, "Send now")[0].props.disabled).toBe(true);
+    expect(shown(tree)).toContain(en.offlineSendNow);
+  });
+
+  it("disables the start buttons while the collection gate is closed, but never Resume (digitva-0pb7)", async () => {
+    await render(<HomeView {...base} startClosed />);
+    expect(labelled(tree, "New interview")[0].props.disabled).toBe(true);
+    expect(labelled(tree, "Resume draft")[0].props.disabled).toBeFalsy();
+    await act(async () => tree.unmount());
+    await render(<HomeView {...base} summary={homeSummary([], interviewCounts([]))} startClosed />);
+    expect(labelled(tree, "Start an interview")[0].props.disabled).toBe(true);
   });
 
   it("offers Start an interview when no draft is in progress, and the offline notice when offline", async () => {
@@ -110,19 +141,19 @@ describe("Home", () => {
     expect(tree.root.findAllByProps({ testID: "home-counts" }).length).toBeGreaterThan(0);
     const unsentRow = labelled(tree, "Unsent")[0];
     expect(unsentRow.props).toMatchObject({ "data-tone": "attention", "data-badge": true });
-    expect(labelled(tree, "Drafts in progress")).toHaveLength(1);
+    expect(labelled(tree, "Drafts")).toHaveLength(1);
     await act(async () => tree.unmount());
   });
 
   it("hides zero-count rows: Unsent 0, Need a visit 0, Drafts 0 (and the card when all are zero)", async () => {
     await render(<HomeView {...base} unsent={1} />);
     expect(labelled(tree, "Unsent")).toHaveLength(1);
-    expect(labelled(tree, "Drafts in progress")).toHaveLength(1);
+    expect(labelled(tree, "Drafts")).toHaveLength(1);
     await act(async () => tree.unmount());
     await render(<HomeView {...base} unsent={0} summary={homeSummary([], interviewCounts([]))} />);
     expect(labelled(tree, "Unsent")).toHaveLength(0);
     expect(labelled(tree, "Need a visit")).toHaveLength(0);
-    expect(labelled(tree, "Drafts in progress")).toHaveLength(0);
+    expect(labelled(tree, "Drafts")).toHaveLength(0);
     expect(tree.root.findAllByProps({ testID: "home-counts" })).toHaveLength(0);
     // The one primary action stays.
     expect(labelled(tree, "Start an interview")).toHaveLength(1);
@@ -517,5 +548,12 @@ describe("Another interviewer's open draft", () => {
     expect(unnamed).toContain(`Another interviewer started this on 4 Oct. Check with them before you start.`);
     expect(unnamed.join(" ")).not.toContain("null");
     expect(lines({ other_draft_started_at: "invalid", other_draft_started_by: "Asha Verma" })).toContain("Another interviewer has started this interview.");
+  });
+});
+
+describe("list rows (digitva-ydui)", () => {
+  it("InterviewCard is memoised and only re-renders for a new item or handler", async () => {
+    expect((InterviewCard as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for("react.memo"));
+    const items = buildInterviewItems(sources({ cases: [caseRow("C1", "Ramesh Kumar")] }));
   });
 });

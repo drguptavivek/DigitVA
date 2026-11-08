@@ -42,6 +42,8 @@ interface StoredPack {
 /** Validated WHO form labels per language; read by formUiTranslations(). */
 const formPacks: Record<string, Record<string, string>> = {};
 let formRevision = 0;
+/** Version of the pack last laid over each language: syncing an unchanged pack must not re-render the whole app. */
+const appliedVersions: Record<string, string> = {};
 
 // --- storage ---------------------------------------------------------------
 
@@ -77,7 +79,11 @@ function parsePack(value: unknown): StoredPack | undefined {
 }
 
 /** Lay a pack over the bundled text of `code`, app strings and form labels both checked key by key. */
-export function applyUiPack(code: string, pack: { strings?: unknown; form?: unknown }): void {
+export function applyUiPack(code: string, pack: { strings?: unknown; form?: unknown; version?: unknown }): void {
+  const version = typeof pack.version === "string" ? pack.version : undefined;
+  if (version && appliedVersions[code] === version) return;
+  if (version) appliedVersions[code] = version;
+  else delete appliedVersions[code];
   formPacks[code] = validPackStrings(pack.form, FORM_REFERENCE);
   formRevision += 1;
   setUiPack(code, pack.strings); // notifies subscribers once for both namespaces
@@ -86,6 +92,7 @@ export function applyUiPack(code: string, pack: { strings?: unknown; form?: unkn
 /** Drop the pack of a language the server no longer publishes, in memory and on the device. */
 async function dropServerPack(slug: string, code: string): Promise<void> {
   delete formPacks[code];
+  delete appliedVersions[code];
   formRevision += 1;
   dropUiPack(code); // notifies subscribers once for both namespaces
   await writeStoredPack(`${slug}-${code}`, {}); // parsePack({}) is undefined: reads as absent

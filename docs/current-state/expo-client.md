@@ -498,6 +498,48 @@ Code: `src/collectionGate.ts`.
   `collectionEnded` / `collectionDailyLimit` (en, hi) with the site or unit
   name and the date or limit, from `reason`, not the server's English
   `message`.
+- Home shows the same refusal as an amber banner while the site or unit is
+  gated, and disables New interview and Register a death (drafts, Resume and
+  finishing stay enabled). Refusal messages end "Contact your supervisor".
+  Verified on the Android emulator 2026-11-08 (site paused:
+  `frozen/dp-10-gate-closed-home.png` in the run folder); the not-started,
+  ended and daily-limit wordings were checked in Jest only.
+
+## Home labels, splash hold, details chip and form language (2026-11-08)
+
+- Home rows are "To do" and "Drafts" (counts of the same lists the Interviews
+  tab filters by). Tapping "To do" opens Interviews filtered to To do.
+- Splash hold (`src/startupGate.ts`, `SplashHold` in `app/_layout.tsx`): the
+  native splash stays up until the app state is ready, the stored display
+  preferences are read and the stored UI language pack is applied (at most
+  4 s). The
+  splash is the light canvas (`#e8edf0`; `#0f1418` in dark, `app.json`
+  `splash.dark`), and `with-android-theme.js` sets the window background to the
+  same colour, so no white or black frame shows between the splash and the
+  app. The window-background part needs a native rebuild: the debug APK
+  installed before it showed about four seconds of black between splash and
+  first frame on a cold start (2026-11-08).
+- Details chip (`DetailsChip` in `src/ui.tsx`): messages that no longer print a
+  raw refusal or unknown code (paused-project refusal, standalone held and
+  coding notices, coder queue refusals) show a small "details: <code>" chip
+  under them. Tap opens the system share sheet (it has Copy); long-press
+  selects the text. There is no clipboard module in the app, so a one-tap copy
+  needs a native rebuild with `expo-clipboard`.
+- Form language and translations: translations are stored per locale and
+  version in their own meta rows (`translations:<code>:<locale>:<version>`,
+  scoped to the project), downloaded for every configured language so a
+  language can be switched offline. The reference pack (`referenceData`) no
+  longer carries them (`translationsStored: true`), so Home's read does not
+  parse them; a pack written by an older build still carries them and
+  `translationsFor` reads those when the row is missing. The interviewer's
+  last-used form language is kept in the meta key `last-form-locale` (set when
+  a form opens or switches, per interviewer database). After Home's first
+  paint, `preloadLastFormLocale` (in `InteractionManager.runAfterInteractions`)
+  reads only that locale's stored rows into memory, one locale at a time; any
+  other language loads from storage (or the server when online) when the
+  interviewer switches. The read is a deferred async storage read and one
+  small JSON parse, not a worklet runtime, which would add a native dependency
+  for a parse of tens of KB.
 
 ## Training menu (digitva-r2pf)
 

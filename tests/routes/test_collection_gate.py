@@ -141,6 +141,18 @@ class SiteCollectionGateTests(BaseTestCase):
         self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister).where(
             VaDeathRegister.project_id == self.PROJECT_ID)), 0)
 
+    def test_an_automatic_site_is_named_by_its_project(self):
+        site = db.session.get(VaSiteMaster, self.SITE_ID)
+        site.site_name = "Sites_in_project_CGS01"
+        db.session.commit()
+        self._gate(collection_enabled=False)
+        body = self._register().get_json()
+        self.assertEqual(body["display_name"], "Gate Project")
+        self.assertIn("Gate Project", body["error"])
+        self.assertNotIn("Sites_in_project", body["error"])
+        site.site_name = "Gate Site One"
+        db.session.commit()
+
     def test_before_the_start_date_refuses_and_the_start_date_itself_is_open(self):
         today = self._project_today()
         self._gate(collection_start_date=today + timedelta(days=1))

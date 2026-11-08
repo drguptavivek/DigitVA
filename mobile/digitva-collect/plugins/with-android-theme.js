@@ -63,6 +63,9 @@ function setPickerTheme(styles) {
   const appTheme = list.find((item) => item.$?.name === "AppTheme");
   if (!appTheme) throw new Error("Android styles.xml has no AppTheme style");
   upsert((appTheme.item ??= []), { $: { name: "android:datePickerDialogTheme" }, _: `@style/${DIALOG_STYLE}` });
+  // The window behind the first React frame is the splash colour (light canvas, dark canvas at night): no black gap
+  // between the splash and the app while the bundle loads (digitva-j01l).
+  upsert(appTheme.item, { $: { name: "android:windowBackground" }, _: "@color/splashscreen_background" });
   return styles;
 }
 

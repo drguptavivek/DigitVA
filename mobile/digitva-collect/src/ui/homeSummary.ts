@@ -6,9 +6,11 @@ export interface HomeSummary {
   inProgress: InterviewItem[];
   /** Cases waiting for a first interview. */
   needVisit: number;
+  /** Every item the Drafts chip on Interviews lists: the number Home shows beside the same word. */
+  drafts: number;
 }
 
 export function homeSummary(items: InterviewItem[], counts: InterviewCounts): HomeSummary {
   const inProgress = items.filter((item) => item.kind === "drafts" && item.action?.type === "resume");
-  return { inProgress, needVisit: counts.todo };
+  return { inProgress, needVisit: counts.todo, drafts: counts.drafts };
 }

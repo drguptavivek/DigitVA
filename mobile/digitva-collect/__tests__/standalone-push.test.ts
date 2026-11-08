@@ -290,7 +290,7 @@ describe("reply handling", () => {
     for (const code of ["coding_mode_mismatch", "coded_version_superseded", "not_available", "forbidden"]) {
       expect(codingNoticeText(code)).not.toBe(codingNoticeText("coding_grant_required"));
     }
-    expect(codingNoticeText("forbidden")).toContain("forbidden");
+    expect(codingNoticeText("forbidden")).toMatch(/could not be given to you/);
   });
 
   it("keeps everything when a coding was sent but the reply does not confirm it", async () => {
@@ -303,7 +303,7 @@ describe("reply handling", () => {
   it.each([
     [403, "device_mismatch", "standalone_refused", /not the device/],
     [422, "consent_invalid", "standalone_refused", /consent record/],
-    [422, "offline_coding_invalid", "standalone_refused", /offline_coding_invalid/],
+    [422, "offline_coding_invalid", "standalone_refused", /refused this record's details/],
     [409, "conflict", "case_conflict", /another phone/],
   ])("%s %s is held and shown, not reopened or retried blindly", async (status, code, issue, text) => {
     const db = await standaloneStore();

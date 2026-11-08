@@ -410,12 +410,14 @@ function applyDisplay(patch: Partial<DisplayState>) {
   for (const listener of storeListeners) listener();
 }
 
-if (peekUiTheme() === null || peekUiTextSize() === null || peekUiHighContrast() === null) {
-  // getUiPreference already lets a preference set while the read was in flight win.
-  void Promise.all([getUiTheme(), getUiTextSize(), getUiHighContrast()])
-    .then(([theme, textSize, highContrast]) => applyDisplay({ theme, textSize, highContrast }))
-    .catch(() => undefined);
-}
+/** Settles once the stored theme, text size and contrast are read; the splash screen waits for it (src/startupGate.ts). */
+export const displayPreferencesLoaded: Promise<void> =
+  peekUiTheme() === null || peekUiTextSize() === null || peekUiHighContrast() === null
+    // getUiPreference already lets a preference set while the read was in flight win.
+    ? Promise.all([getUiTheme(), getUiTextSize(), getUiHighContrast()])
+        .then(([theme, textSize, highContrast]) => applyDisplay({ theme, textSize, highContrast }))
+        .catch(() => undefined)
+    : Promise.resolve();
 subscribeUiPreferences(() => {
   // Unknown (null) means keep the current value, e.g. a locale change before any theme read.
   const patch: Partial<DisplayState> = {};

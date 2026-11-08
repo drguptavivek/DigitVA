@@ -398,6 +398,8 @@ export interface AllocationReply {
 
 export interface AllocationSnapshot {
   va_sid: string;
+  /** Masked case id, for naming the case in a dialog (never required). */
+  va_uniqueid_masked?: string;
 }
 
 export interface CodingWriteReply {
@@ -873,7 +875,12 @@ export function parseAllocation(value: unknown): AllocationReply {
 export function parseOptionalAllocation(value: unknown): AllocationSnapshot | null {
   const source = record(value, "allocation.response");
   const allocation = source.allocation;
-  return allocation === null ? null : { va_sid: string(record(allocation, "allocation.response.allocation").va_sid, "allocation.response.allocation.va_sid") };
+  if (allocation === null) return null;
+  const row = record(allocation, "allocation.response.allocation");
+  return {
+    va_sid: string(row.va_sid, "allocation.response.allocation.va_sid"),
+    ...(typeof row.va_uniqueid_masked === "string" ? { va_uniqueid_masked: row.va_uniqueid_masked } : {}),
+  };
 }
 
 export function parseCodingSave(value: unknown): CodingSaveReply {

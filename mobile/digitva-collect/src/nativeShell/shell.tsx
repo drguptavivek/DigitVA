@@ -27,6 +27,8 @@ import { AccountSheet, HelpSheet, SyncSheet } from "./sheets";
 import { ShellContext, type Shell, type ShellSheet, type SyncStatus } from "./shellContext";
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+/** Tab screens that only list work: arriving from one to another changes no count. */
+const LIST_TABS = new Set(["/worklist", "/coding", "/reviewing"]);
 /** The result line of a send: the message without its support line. */
 const oneLine = (text: string) => text.split("\n")[0];
 
@@ -95,8 +97,15 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       setWork(undefined);
     }
   }, [userId]);
-  // Work is saved on forms and sent from lists, so count again on every screen change and lock/unlock.
-  useEffect(() => void recount(), [recount, pathname, lockVersion, busy]);
+  // Work is saved on forms, registrations and cases and sent from lists, so count again on a screen change, a lock/unlock
+  // and after a send. Moving between the list tabs (Home, Code, Review) saves and sends nothing: no recount.
+  const lastPathname = useRef(pathname);
+  useEffect(() => {
+    const previous = lastPathname.current;
+    lastPathname.current = pathname;
+    if (previous !== pathname && LIST_TABS.has(previous) && LIST_TABS.has(pathname)) return;
+    void recount();
+  }, [recount, pathname, lockVersion, busy]);
   useEffect(() => setLastAt(undefined), [userId]);
 
   const run = useCallback(async (action: (id: string, db: Awaited<ReturnType<typeof openInterviewerDb>>) => Promise<{ text: string; failed?: boolean }>) => {

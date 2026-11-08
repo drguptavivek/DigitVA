@@ -12,7 +12,7 @@ import { refreshAccessSummaryForAction, type Account } from "../auth";
 import type { Db } from "../drafts";
 import { t } from "../i18n";
 import { getOrCreatePlusDeviceIdentity } from "../offlineIdentity";
-import { Button, errorText, useUiStyles } from "../ui";
+import { Button, DetailsChip, errorText, useUiStyles } from "../ui";
 import {
   adoptionOffer,
   adoptionSites,
@@ -106,7 +106,10 @@ export function AdoptionCard({ db, refresh, onChanged }: { db: Db; refresh: numb
         <View style={{ gap: 4 }}>
           <Text style={styles.text}>{t("standaloneCodingRefusedTitle")}</Text>
           {notices.map((notice) => (
-            <Text key={`${notice.draftId}:${notice.at}`} style={styles.muted} selectable>{notice.draftId.slice(0, 8)} · {codingNoticeText(notice.code)}</Text>
+            <View key={`${notice.draftId}:${notice.at}`} style={{ gap: 4 }}>
+              <Text style={styles.muted} selectable>{notice.draftId.slice(0, 8)} · {codingNoticeText(notice.code)}</Text>
+              <DetailsChip code={notice.code} />
+            </View>
           ))}
           <Button kind="secondary" label={t("standaloneDismiss")} disabled={busy} onPress={() => void dismissCodingNotices(db).then(load)} />
         </View>

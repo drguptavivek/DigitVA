@@ -9,6 +9,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppStateProvider, useAppState } from "../src/AppState";
 import { applyScreenCaptureBlock } from "../src/screenCapture";
 import { useTheme } from "../src/theme";
+import { SplashHold } from "../src/startupGate";
 import { useWhoWebTheme } from "../src/whoWebTheme";
 import { ToastProvider } from "../src/toast";
 import { t } from "../src/i18n";
@@ -96,6 +97,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AppStateProvider>
+          <SplashHold />
           <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
           <ToastProvider>
             <ShellRoot>

@@ -25,7 +25,7 @@ import { sweepExportLeftovers } from "../standalone/shareFile";
 import { STANDALONE_AGE_WARNING_DAYS } from "../standalone/config";
 import { STANDALONE_SITE_ID, standaloneProjectId } from "../standalone/project";
 import { lastBackupAt, listStandaloneRecords, type StandaloneRecord } from "../standalone/records";
-import { Button, errorText, Notice, Screen, useUiStyles } from "../ui";
+import { Button, DetailsChip, errorText, Notice, Screen, useUiStyles } from "../ui";
 import { sexLabel } from "../ui/CaseCard";
 
 type RecordTab = "progress" | "pending" | "coded";
@@ -171,6 +171,7 @@ export default function StandaloneHome() {
           {record.upload_issue ? (
             <>
               <Notice tone="error">{heldText(record.refusal_code)}</Notice>
+              <DetailsChip code={record.refusal_code} />
               <Button kind="secondary" label={t("standaloneRetry")} onPress={() => void retryHeldDraft(db, record.id).then(load)} />
             </>
           ) : null}

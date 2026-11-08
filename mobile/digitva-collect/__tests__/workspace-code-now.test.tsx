@@ -124,11 +124,11 @@ describe("CodeNowButton", () => {
       await act(async () => { button(screen.renderer.root, "Code this case now")?.props.onPress(); await Promise.resolve(); });
       await settle();
       await act(async () => { button(screen.renderer.root, "Release my other case and continue")?.props.onPress(); });
-      await act(async () => { button(screen.renderer.root, "Cancel")?.props.onPress(); });
+      await act(async () => { button(screen.renderer.root, "Keep my case")?.props.onPress(); });
       expect(api.releaseCoding).not.toHaveBeenCalled();
-      expect(button(screen.renderer.root, "Release and continue")).toBeUndefined();
+      expect(button(screen.renderer.root, "Release case")).toBeUndefined();
       await act(async () => { button(screen.renderer.root, "Release my other case and continue")?.props.onPress(); });
-      await act(async () => { button(screen.renderer.root, "Release and continue")?.props.onPress(); await Promise.resolve(); await Promise.resolve(); });
+      await act(async () => { button(screen.renderer.root, "Release case")?.props.onPress(); await Promise.resolve(); await Promise.resolve(); });
       await settle();
       expect(api.releaseCoding).toHaveBeenCalledTimes(1);
       expect(screen.onOpen).toHaveBeenCalledWith("sid");
@@ -140,6 +140,7 @@ describe("CodeNowButton", () => {
 
   test("requires explicit confirmation before releasing an existing allocation", async () => {
     const api = makeApi({
+      getCodingAllocation: jest.fn().mockResolvedValue({ va_sid: "held", va_uniqueid_masked: "PHC01-000020_172313647" }),
       codeOwnSubmission: jest.fn()
         .mockRejectedValueOnce(new ApiError(403, "allocation_exists"))
         .mockResolvedValueOnce({ va_sid: "sid" }),
@@ -152,7 +153,9 @@ describe("CodeNowButton", () => {
     await act(async () => { button(screen.renderer.root, "Release my other case and continue")?.props.onPress(); });
     const actions = alert.mock.calls[0]?.[2];
     expect(alert.mock.calls[0]?.[1]).toContain("unfinished Step 1 work");
-    await act(async () => { actions?.find((action) => action.text === "Release and continue")?.onPress?.(); await Promise.resolve(); await Promise.resolve(); });
+    expect(alert.mock.calls[0]?.[1]).toContain("case 000020");
+    expect(actions?.[0]).toMatchObject({ text: "Keep my case", style: "cancel" });
+    await act(async () => { actions?.find((action) => action.text === "Release case")?.onPress?.(); await Promise.resolve(); await Promise.resolve(); });
     await settle();
     expect(api.releaseCoding).toHaveBeenCalledTimes(1);
     expect(api.codeOwnSubmission).toHaveBeenCalledTimes(2);

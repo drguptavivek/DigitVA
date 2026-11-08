@@ -171,3 +171,17 @@ test("a lock-version bump (which a refresh itself causes) does not refetch the a
   expect(text(tree)).toContain("Project One");
   mockLockVersion = 0;
 });
+
+test("an offline flap reloads the profile in place without flashing Loading (digitva-4jmd)", async () => {
+  const tree = await render();
+  expect(text(tree)).toContain("Project One");
+  let finish!: (value: LoadedAccessProfile) => void;
+  mockLoad.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  mockOffline = true;
+  await act(async () => { tree.update(<ProfileAccess />); });
+  expect(mockLoad).toHaveBeenCalledTimes(2);
+  expect(text(tree)).toContain("Project One"); // still the saved profile while the reread is in flight
+  expect(text(tree)).not.toContain("Loading profile");
+  await act(async () => { finish(serverResult(false)); });
+  expect(text(tree)).toContain("Project One");
+});

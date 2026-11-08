@@ -36,7 +36,7 @@ jest.mock("../src/offlineIdentity", () => ({
 
 import { createDraftStore, getDraftRow, getMeta, reopenCompletedDraft, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary, SmartVaTarget } from "../src/api";
-import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { refreshAuthorizedProjectDefinitions, canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, preloadLastFormLocale, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { acquireDraftUpload, acquireLocalCodingEditor } from "../src/localCodingLeases";
 import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { codingReceiptSha256 } from "../src/codingReceipt";
@@ -311,6 +311,43 @@ describe("project scoped reference data", () => {
       units: [expect.objectContaining({ org_unit_id: "U1" })]
     }));
     expect(await getCachedReferenceData(db)).toEqual(result);
+  });
+
+  it("parses the stored reference pack once per change, not once per read (digitva-quu8)", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([project("P1")]));
+      return json(200, { scoped: false, levels: [], units: [] });
+    });
+    const result = await refreshReferenceData(USER, db, { force: true });
+    const parse = jest.spyOn(JSON, "parse");
+    const packParses = () => parse.mock.calls.filter(([text]) => typeof text === "string" && text.includes('"readyAt"')).length;
+    const first = await getCachedReferenceData(db);
+    const afterFirst = packParses();
+    await getCachedReferenceData(db);
+    await getCachedReferenceData(db);
+    expect(packParses()).toBe(afterFirst); // the next two reads parsed nothing
+    expect(first).toEqual(result);
+    // A changed pack is read afresh.
+    const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = ?", ["referenceData"]);
+    await setMeta(db, "referenceData", { ...JSON.parse(row!.value), readyAt: 1 });
+    const changed = packParses();
+    await getCachedReferenceData(db);
+    expect(packParses()).toBeGreaterThan(changed);
+    parse.mockRestore();
+  });
+
+  it("creates the definition table once per open database, not on every refresh (digitva-kqsg)", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const reference = { bootstrap: { projects: [] }, projects: [{ project: project("P1"), units: null }] } as unknown as ReferenceData;
+    const exec = jest.spyOn(db, "execAsync");
+    await refreshAuthorizedProjectDefinitions(USER, db, reference);
+    await refreshAuthorizedProjectDefinitions(USER, db, reference);
+    const creates = (calls: unknown[][]) => calls.filter(([sql]) => String(sql).includes("CREATE TABLE IF NOT EXISTS form_definitions")).length;
+    expect(creates(exec.mock.calls)).toBe(1);
+    exec.mockRestore();
   });
 
   it("prefers the shared form-options mode over temporary bootstrap metadata", async () => {
@@ -721,6 +758,65 @@ describe("translations", () => {
     server((call) => call.url.includes("project_id=P1") ? json(200, { questions: { Id10007: { label: "P1 v2" } } }) : json(500, { code: "translation_failed" }));
     expect(await translationsFor(USER, db, "P1", "WHO_2022_VA", "hi", 2)).toMatchObject({ questions: { Id10007: { label: "P1 v2" } } });
     expect(await translationsFor(USER, db, "P2", "WHO_2022_VA", "hi", 1)).toMatchObject({ questions: { Id10007: { label: "P2 Hindi" } } });
+  });
+
+  it("keeps translations out of the stored pack, loads only the last-used locale, and switches offline", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const hi = hindiProject("P1");
+    hi.form_options = { ...hi.form_options!, available_locales: [{ code: "en", label: "English" }, { code: "hi", label: "Hindi" }, { code: "ml", label: "Malayalam" }], translation_versions: { hi: 1, ml: 1 } } as ProjectSettings["form_options"];
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([hi]));
+      return json(200, { questions: { Id10007: { label: call.url.includes("/ml") ? "Malayalam" : "Hindi" } } });
+    });
+    const reference = await refreshReferenceData(USER, db, { force: true });
+    const pack = await getMeta<{ translationsStored?: boolean }>(db, "referenceData");
+    expect(pack?.translationsStored).toBe(true);
+    expect(JSON.stringify(pack)).not.toContain("Id10007");
+    expect(await getMeta(db, "translations:WHO_2022_VA:hi:1", "P1")).toMatchObject({ questions: { Id10007: { label: "Hindi" } } });
+    expect(await getMeta(db, "translations:WHO_2022_VA:ml:1", "P1")).toMatchObject({ questions: { Id10007: { label: "Malayalam" } } });
+
+    // Opening a form records the language; the next session preloads only that one into memory.
+    server(() => json(500, {}));
+    await translationsForDraft(USER, db, "P1", "WHO_2022_VA", "hi", 1, 1);
+    expect(await getMeta<string>(db, "last-form-locale")).toBe("hi");
+    await db.runAsync("DELETE FROM meta WHERE key LIKE '%translations:%'", []);
+    // Memory still holds Hindi (loaded), nothing else; Malayalam is gone from storage and the server is down.
+    expect(await translationsFor(USER, db, "P1", "WHO_2022_VA", "hi", 1)).toMatchObject({ questions: { Id10007: { label: "Hindi" } } });
+    await expect(translationsFor(USER, db, "P1", "WHO_2022_VA", "ml", 1)).rejects.toThrow();
+  });
+
+  it("preloads only the last-used locale from storage, and switching reads storage offline", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const hi = hindiProject("P1");
+    hi.form_options = { ...hi.form_options!, available_locales: [{ code: "en", label: "English" }, { code: "hi", label: "Hindi" }, { code: "ml", label: "Malayalam" }], translation_versions: { hi: 1, ml: 1 } } as ProjectSettings["form_options"];
+    const reference = { bootstrap: referenceFixture([hi]), projects: [{ project: hi, units: null }] } as unknown as ReferenceData;
+    await setMeta(db, "translations:WHO_2022_VA:hi:1", { questions: { Id10007: { label: "Hindi" } } }, "P1");
+    await setMeta(db, "translations:WHO_2022_VA:ml:1", { questions: { Id10007: { label: "Malayalam" } } }, "P1");
+    await setMeta(db, "last-form-locale", "hi");
+    server(() => json(500, {}));
+    await preloadLastFormLocale(db, reference);
+    await db.runAsync("DELETE FROM meta WHERE key LIKE '%:hi:1'", []);
+    // Hindi came from memory (its row is gone); Malayalam was not preloaded and loads from storage on demand.
+    expect(await translationsFor(USER, db, "P1", "WHO_2022_VA", "hi", 1)).toMatchObject({ questions: { Id10007: { label: "Hindi" } } });
+    expect(await translationsFor(USER, db, "P1", "WHO_2022_VA", "ml", 1)).toMatchObject({ questions: { Id10007: { label: "Malayalam" } } });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("still reads translations from a pack cached before they moved to their own rows", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    server((call) => call.url.endsWith("/fixture-reference") ? json(200, referenceFixture([hindiProject("P1")])) : json(200, { questions: { Id10007: { label: "Hindi" } } }));
+    await refreshReferenceData(USER, db, { force: true });
+    const pack = (await getMeta<Record<string, unknown> & { projects: Array<Record<string, unknown>> }>(db, "referenceData"))!;
+    delete pack.translationsStored;
+    pack.projects = pack.projects.map((item) => ({ ...item, translations: { hi: { questions: { Id10007: { label: "Legacy" } } } } }));
+    await setMeta(db, "referenceData", pack);
+    await db.runAsync("DELETE FROM meta WHERE key LIKE '%translations:%'", []);
+    server(() => json(500, {}));
+    expect(await getCachedReferenceData(db)).toBeDefined();
+    expect(await translationsFor(USER, db, "P1", "WHO_2022_VA", "hi", 1)).toMatchObject({ questions: { Id10007: { label: "Legacy" } } });
   });
 
   it("uses null only for an unavailable translation and propagates server failures", async () => {

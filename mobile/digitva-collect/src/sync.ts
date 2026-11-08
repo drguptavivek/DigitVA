@@ -1038,7 +1038,13 @@ export interface DefinitionRefreshStatus {
 
 interface ReferencePack {
   bootstrap: Bootstrap;
-  projects: Array<ProjectReferenceData & { translations: Record<string, Translations | null> }>;
+  /**
+   * `translations` is only present on packs written before translations moved to their own meta rows
+   * (`translations:<code>:<locale>:<version>`), so Home's read never parses them. New packs omit it.
+   */
+  projects: Array<ProjectReferenceData & { translations?: Record<string, Translations | null> }>;
+  /** True once every configured locale was fetched and stored in its own meta row. */
+  translationsStored?: boolean;
   /** Version of the instrument shipped in this Expo bundle. */
   bundledInstrumentVersion: string;
   readyAt: number;
@@ -1046,6 +1052,7 @@ interface ReferencePack {
 
 /** One refresh per database/interviewer, even when several screens focus together. */
 const referenceRefreshes = new WeakMap<Db, Map<string, Promise<ReferenceData>>>();
+const definitionTableReady = new WeakSet<Db>();
 const definitionRefreshes = new WeakMap<Db, Map<string, Promise<DefinitionRefreshStatus[]>>>();
 
 function configuredTranslationLocales(project: ProjectSettings): string[] {
@@ -1115,19 +1122,67 @@ function exposedReference(pack: ReferencePack): ReferenceData {
   return { bootstrap: pack.bootstrap, projects: pack.projects.map(({ project, units }) => ({ project, units })) };
 }
 
+/**
+ * Translations loaded in memory: only the interviewer's last-used form locale (one at a time). Keys carry the
+ * version, so an edited locale never hits a stale entry.
+ */
+const formTranslationMemory = new WeakMap<Db, { locale: string; entries: Map<string, Translations | null> }>();
+const LAST_FORM_LOCALE_KEY = "last-form-locale";
+
+function rememberTranslation(db: Db, locale: string, key: string, value: Translations | null): void {
+  let held = formTranslationMemory.get(db);
+  if (!held || held.locale !== locale) {
+    held = { locale, entries: new Map() };
+    formTranslationMemory.set(db, held);
+  }
+  held.entries.set(key, value);
+}
+
+/** Record the form language the interviewer is using (this database belongs to one interviewer). */
+async function recordFormLocale(db: Db, locale: string): Promise<void> {
+  if (formTranslationMemory.get(db)?.locale === locale) return;
+  if ((await getMeta<string>(db, LAST_FORM_LOCALE_KEY)) !== locale) await setMeta(db, LAST_FORM_LOCALE_KEY, locale);
+}
+
+/**
+ * After Home's first paint: bring the last-used form language's stored translations into memory, so opening a
+ * form needs no read. Storage only (no network), one locale; other languages load when the interviewer
+ * switches. A plain deferred async read keeps the main thread free of only one small JSON parse; a worklet
+ * runtime would add a native dependency for no measurable gain.
+ */
+export async function preloadLastFormLocale(db: Db, reference: ReferenceData | undefined): Promise<void> {
+  const locale = await getMeta<string>(db, LAST_FORM_LOCALE_KEY);
+  if (!locale || locale === "en" || !reference) return;
+  for (const { project } of reference.projects) {
+    const code = project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE;
+    const key = `translations:${code}:${locale}:${project.form_options?.translation_versions?.[locale] ?? "?"}`;
+    const stored = await getMeta<Translations>(db, key, project.project_id);
+    if (stored) rememberTranslation(db, locale, `${project.project_id}:${key}`, stored);
+  }
+}
+
+/** Parsed settings pack per database handle, valid while the stored text is byte-identical (the pack runs to hundreds of KB). */
+const referencePackCache = new WeakMap<Db, { raw: string; pack: ReferencePack }>();
+
 async function readReferencePack(db: Db): Promise<ReferencePack | undefined> {
+  const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = ?", [REFERENCE_META_KEY]);
+  if (!row) return undefined;
+  const hit = referencePackCache.get(db);
+  if (hit?.raw === row.value) return hit.pack;
+  let pack: ReferencePack | undefined;
   try {
-    const pack = await getMeta<ReferencePack>(db, REFERENCE_META_KEY);
-    if (!pack || !pack.bootstrap || !Array.isArray(pack.bootstrap.projects) || !Array.isArray(pack.projects)) {
-      return undefined;
-    }
-    return pack;
+    pack = JSON.parse(row.value) as ReferencePack;
   } catch (error) {
     // Only malformed JSON is an unusable cache row. Surface database errors so
     // callers do not mistake storage failures for an ordinary cache miss.
     if (error instanceof SyntaxError) return undefined;
     throw error;
   }
+  if (!pack || !pack.bootstrap || !Array.isArray(pack.bootstrap.projects) || !Array.isArray(pack.projects)) {
+    return undefined;
+  }
+  referencePackCache.set(db, { raw: row.value, pack });
+  return pack;
 }
 
 /** Display names of every project the worker had or has, for the pause notice. */
@@ -1231,8 +1286,9 @@ function referenceIsComplete(pack: ReferencePack | undefined): pack is Reference
   ) {
     return false;
   }
+  if (pack.translationsStored) return true;
   return pack.projects.every(({ project, translations }) =>
-    configuredTranslationLocales(project).every((locale) => Object.prototype.hasOwnProperty.call(translations, locale))
+    configuredTranslationLocales(project).every((locale) => Object.prototype.hasOwnProperty.call(translations ?? {}, locale))
   );
 }
 
@@ -1320,7 +1376,7 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
   // Clear project compatibility keys while rebuilding. This prevents a later
   // options/prefill failure from restoring a revoked project through a legacy
   // cache reader while the complete reference pack is rebuilt.
-  await db.runAsync("DELETE FROM meta WHERE key IN ('units', 'project') OR key LIKE 'translations:%'", []);
+  await db.runAsync("DELETE FROM meta WHERE key IN ('units', 'project')", []);
   if (accessProjects.length === 0) throw new ApiError(403, "no_collection_access");
   const settings = await Promise.all(accessProjects.map(async (accessProject) => {
       const formOptions = await fetchProjectFormOptions(userId, accessProject.project_id);
@@ -1478,7 +1534,11 @@ async function refreshAuthorizedProjectDefinitionsOnce(
     db as Parameters<typeof createNativeDefinitionCache>[0],
     userId,
   );
-  await cache.initialize();
+  // The additive CREATE TABLE only needs to run once per open database, not on every focus.
+  if (!definitionTableReady.has(db)) {
+    await cache.initialize();
+    definitionTableReady.add(db);
+  }
   const statuses: DefinitionRefreshStatus[] = [];
   for (const { project } of reference.projects) {
     const options = project.form_options;
@@ -1511,7 +1571,10 @@ async function refreshAuthorizedProjectDefinitionsOnce(
         throw new FormDefinitionError("invalid_definition");
       }
       if (!cached) await cache.put(definition);
-      await markProjectDefinitionServed(userId, db, project.project_id);
+      // Unchanged flag: read, don't rewrite (purging a project deletes the flag, so it is still checked every time).
+      if ((await getMeta<unknown>(db, SERVED_DEFINITION_META_KEY, project.project_id)) !== true) {
+        await markProjectDefinitionServed(userId, db, project.project_id);
+      }
       statuses.push({ projectId: project.project_id, available: true });
     } catch (error) {
       if (error instanceof SessionRevokedError || error instanceof SignInRequiredError ||
@@ -1606,13 +1669,17 @@ async function refreshReferenceDataOnce(userId: string, db: Db, force: boolean):
   for (const { project, units, translations } of next.projects) {
     await setMeta(db, "project", project, project.project_id);
     await setMeta(db, "units", units, project.project_id);
-    for (const [locale, translation] of Object.entries(translations)) {
+    for (const [locale, translation] of Object.entries(translations ?? {})) {
       if (!translation) continue;
       const version = project.form_options?.translation_versions?.[locale];
       await setMeta(db, `translations:${project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE}:${locale}:${version ?? "?"}`, translation, project.project_id);
     }
   }
-  await setMeta(db, REFERENCE_META_KEY, next);
+  await setMeta(db, REFERENCE_META_KEY, {
+    ...next,
+    translationsStored: true,
+    projects: next.projects.map(({ project, units }) => ({ project, units })),
+  });
   // The complete pack is already durable; failure to clear the retry marker
   // must not make a successful refresh look like a failed one.
   await setMeta(db, REFERENCE_ATTEMPT_META_KEY, 0);
@@ -1640,20 +1707,29 @@ export async function translationsFor(
   version: number | undefined
 ): Promise<Translations | null> {
   if (locale === "en") return null;
-  const completePack = await readReferencePack(db);
-  if (
-    referenceIsComplete(completePack) &&
-    completePack.projects.some(({ project, translations }) =>
-      project.project_id === projectId &&
-      (project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE) === code &&
-      project.form_options?.translation_versions?.[locale] === version &&
-      Object.prototype.hasOwnProperty.call(translations, locale)
-    )
-  ) {
-    return completePack.projects.find(({ project }) => project.project_id === projectId)?.translations[locale] ?? null;
+  const key = `translations:${code}:${locale}:${version ?? "?"}`;
+  const memoryKey = `${projectId}:${key}`;
+  const held = formTranslationMemory.get(db);
+  if (held?.locale === locale && held.entries.has(memoryKey)) return held.entries.get(memoryKey) ?? null;
+  // Packs written before translations got their own rows still carry them; read those once if the row is missing.
+  let body = await getMeta<Translations>(db, key, projectId) ?? null;
+  if (!body) {
+    const legacy = await readReferencePack(db);
+    const entry = legacy?.projects.find(({ project }) => project.project_id === projectId);
+    if (
+      entry && referenceIsComplete(legacy) &&
+      (entry.project.form_options?.form_types?.find((formType) => formType.is_default)?.instrument_code ?? BUNDLED_INSTRUMENT_CODE) === code &&
+      entry.project.form_options?.translation_versions?.[locale] === version &&
+      entry.translations && Object.prototype.hasOwnProperty.call(entry.translations, locale)
+    ) {
+      body = entry.translations[locale] ?? null;
+    }
   }
-  const body = await fetchTranslation(userId, db, projectId, code, locale, version);
-  if (body) await setMeta(db, `translations:${code}:${locale}:${version ?? "?"}`, body, projectId);
+  if (!body) {
+    body = await fetchTranslation(userId, db, projectId, code, locale, version);
+    if (body) await setMeta(db, key, body, projectId);
+  }
+  rememberTranslation(db, locale, memoryKey, body);
   return body;
 }
 
@@ -1673,6 +1749,7 @@ export async function translationsForDraft(
   draftVersion: number | undefined,
   currentVersion: number | undefined
 ): Promise<Translations | null> {
+  await recordFormLocale(db, locale).catch(() => undefined);
   if (locale === "en") return null;
   if (draftVersion !== undefined && draftVersion !== currentVersion) {
     const own = await getMeta<Translations>(db, `translations:${code}:${locale}:${draftVersion}`, projectId);

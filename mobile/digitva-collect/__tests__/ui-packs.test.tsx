@@ -23,7 +23,7 @@ const mockRequestRaw = jest.fn();
 jest.mock("../src/api", () => ({ requestRaw: (...args: unknown[]) => mockRequestRaw(...args) }));
 
 import { normalizeLocale, questionnaireLocales, setUiLocale, t, uiLanguageTag, uiTextKnown } from "../src/i18n";
-import { formUiTranslations, offerBundledUiLanguagesOnly, syncUiPacks, useUiLanguages } from "../src/uiPacks";
+import { formUiTranslations, offerBundledUiLanguagesOnly, syncUiPacks, useFormPackRevision, useUiLanguages } from "../src/uiPacks";
 
 const SERVER = "https://va.example.org";
 const V1 = "a".repeat(64);
@@ -56,6 +56,19 @@ beforeEach(() => {
   offerBundledUiLanguagesOnly();
   setUiLocale("en");
 });
+
+/** The form-label revision, read through the hook that drives re-renders. */
+function formRevisionNow(): number {
+  const seen: { current: number } = { current: -1 };
+  function Probe() {
+    seen.current = useFormPackRevision();
+    return null;
+  }
+  let tree: ReturnType<typeof create>;
+  act(() => { tree = create(<Probe />); });
+  act(() => tree.unmount());
+  return seen.current;
+}
 
 function renderLanguages() {
   const result: { current: ReturnType<typeof useUiLanguages> } = { current: [] };
@@ -138,8 +151,11 @@ it("with no stored pack and no network, a server-only language falls back to Eng
 });
 
 it("drops the pack of a language the server stops publishing, in memory and on the device", async () => {
-  const hiPack = { version: V1, strings: { ...hi, signIn: "प्रवेश" }, form: { next: "अगला" } };
-  respond({ "/api/v1/ui-strings": LIST, "/api/v1/ui-strings/hi": hiPack });
+  // A version of its own: an unchanged version is (rightly) not applied again, and V1 held other Hindi text in earlier tests.
+  const V3 = "e".repeat(64);
+  const hiPack = { version: V3, strings: { ...hi, signIn: "प्रवेश" }, form: { next: "अगला" } };
+  const list = { ...LIST, languages: LIST.languages.map((l) => (l.locale === "hi" ? { ...l, version: V3 } : l)) };
+  respond({ "/api/v1/ui-strings": list, "/api/v1/ui-strings/hi": hiPack });
   await syncUiPacks(SERVER, "hi");
   setUiLocale("hi");
   expect(t("signIn")).toBe("प्रवेश");
@@ -213,4 +229,15 @@ describe("a list answer that is not a clean list", () => {
 it("offers every questionnaire language the project enables, with or without a UI pack", () => {
   const available = [{ code: "ar" }, { code: "hi" }, { code: "en" }];
   expect(questionnaireLocales(available)).toEqual(available);
+});
+
+it("does not lay an unchanged pack over the language again (no app-wide re-render)", async () => {
+  const V4 = "f".repeat(64);
+  const pack = { version: V4, strings: { signIn: "ਸਾਈਨ ਇਨ" }, form: { next: "ਅੱਗੇ" } };
+  const list = { ...LIST, languages: LIST.languages.map((l) => (l.locale === "pa" ? { ...l, version: V4 } : l)) };
+  respond({ "/api/v1/ui-strings": list, "/api/v1/ui-strings/pa": pack });
+  await syncUiPacks(SERVER, "pa");
+  const before = formRevisionNow();
+  await syncUiPacks(SERVER, "pa");
+  expect(formRevisionNow()).toBe(before); // the form-label revision (what re-renders the form) did not move
 });

@@ -24,7 +24,7 @@ from datetime import UTC, date, datetime
 import sqlalchemy as sa
 
 from app import db
-from app.models import MasOrgUnit, VaDeathRegister, VaProjectSites, VaSiteMaster, VaWebIntakeDraft
+from app.models import MasOrgUnit, VaDeathRegister, VaProjectMaster, VaProjectSites, VaSiteMaster, VaWebIntakeDraft
 from app.services.case_transition_service import WebIntakeError
 from app.services.org_grant_service import resolve_unit_collection_gates
 from app.services.project_clock import project_days
@@ -51,6 +51,17 @@ class CollectionClosed(WebIntakeError):
 
 def _human(d: date) -> str:
     return d.strftime("%B %-d, %Y")
+
+
+def _site_label(site, site_id: str) -> str:
+    """The name a person knows the site by. A project's automatic site is named
+    ``Sites_in_project_<id>`` (organization_service.organization_site_name),
+    which means nothing to an interviewer: use the project's name instead."""
+    if site is None:
+        return site_id
+    if (site.site_name or "").startswith("Sites_in_project_"):
+        return site.project_name or site_id
+    return site.site_name or site_id
 
 
 def _closed(enabled, start, end, limit, count, name, today) -> tuple | None:
@@ -105,9 +116,10 @@ def resolve(user, targets: Iterable[tuple[str, str, uuid.UUID | None]],
                 VaProjectSites.project_id, VaProjectSites.site_id,
                 VaProjectSites.collection_enabled, VaProjectSites.collection_start_date,
                 VaProjectSites.collection_end_date, VaProjectSites.daily_interviewer_limit,
-                VaSiteMaster.site_name,
+                VaSiteMaster.site_name, VaProjectMaster.project_name,
             )
             .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
+            .join(VaProjectMaster, VaProjectMaster.project_id == VaProjectSites.project_id)
             .where(sa.tuple_(VaProjectSites.project_id, VaProjectSites.site_id).in_(sorted(pairs)))
         )
     }
@@ -169,7 +181,7 @@ def resolve(user, targets: Iterable[tuple[str, str, uuid.UUID | None]],
         site = sites.get((project_id, site_id))
         # (name, enabled, start, end, limit, count) per applying gate, site first.
         gates = [(
-            (site.site_name if site else None) or site_id,
+            _site_label(site, site_id),
             site.collection_enabled if site else True,
             site.collection_start_date if site else None,
             site.collection_end_date if site else None,

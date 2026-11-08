@@ -129,6 +129,31 @@ it("hides one reporter's rows immediately and ignores its pending page after an 
   await act(async () => tree.unmount());
 });
 
+it("keeps the list through a trip to the background and rereads it in place on return, no skeleton (digitva-fmz0)", async () => {
+  let change!: (state: string) => void;
+  const original = AppState.addEventListener;
+  AppState.addEventListener = ((_event: string, handler: (state: string) => void) => {
+    change = handler;
+    return { remove: jest.fn() };
+  }) as never;
+  const page = (name: string) => ({ deaths: [{ death_id: "d1", unique_id: "U1", deceased_name: name }], next_cursor: null });
+  let resolveSecond!: (value: ReturnType<typeof page>) => void;
+  mockLoad.mockResolvedValueOnce(page("Kept Name")).mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve; }));
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={false} />); });
+  expect(JSON.stringify(tree.toJSON())).toContain("Kept Name");
+
+  await act(async () => change("background"));
+  expect(JSON.stringify(tree.toJSON())).toContain("Kept Name");
+  await act(async () => change("active"));
+  expect(JSON.stringify(tree.toJSON())).toContain("Kept Name"); // while the reread is in flight
+  await act(async () => { resolveSecond(page("Fresh Name")); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  expect(JSON.stringify(tree.toJSON())).toContain("Fresh Name");
+  expect(mockLoad).toHaveBeenCalledTimes(2);
+  AppState.addEventListener = original;
+  await act(async () => tree.unmount());
+});
+
 describe("sign-out (reporter without collection access)", () => {
   async function pressSignOut() {
     mockLoad.mockResolvedValue({ deaths: [], next_cursor: null });

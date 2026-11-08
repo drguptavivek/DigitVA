@@ -199,8 +199,8 @@ export async function scanDocument(): Promise<AttachmentCandidate | undefined> {
 }
 
 /**
- * Sharpness of a just-captured image (src/sharpness.ts) from a ~512 px copy, which is deleted at once. On the phone
- * only; nothing is sent anywhere.
+ * Sharpness of a just-captured image (src/sharpness.ts) from a ~512 px copy resized natively (expo-image-manipulator),
+ * which is deleted at once. On the phone only; nothing is sent anywhere.
  */
 export async function checkSharpness(uri: string): Promise<{ score: number; blurry: boolean }> {
   const context = ImageManipulator.manipulate(uri);
@@ -213,7 +213,11 @@ export async function checkSharpness(uri: string): Promise<{ score: number; blur
     } finally {
       image.release();
     }
-    return jpegSharpness(await readBytes(sample));
+    const bytes = await readBytes(sample);
+    // Scoring runs on the JS thread (jpeg-js is not a worklet, so react-native-worklets cannot take it): let the
+    // "checking" state paint first. The native resize above keeps the work to a ~512 px copy, never the camera frame.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return jpegSharpness(bytes);
   } finally {
     context.release();
     removeFile(sample);

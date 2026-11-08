@@ -417,7 +417,7 @@ describe("QueueScreen", () => {
     const screen = await render("coding", api);
     await press(screen.renderer, "Release case");
     expect(JSON.stringify(screen.renderer.toJSON())).toContain("An unfinished saved Step 1 will be discarded");
-    await press(screen.renderer, "Cancel");
+    await press(screen.renderer, "Keep my case");
     expect(api.releaseCoding).not.toHaveBeenCalled();
     await press(screen.renderer, "Release case");
     await press(screen.renderer, "Release");
@@ -672,6 +672,12 @@ describe("active case banner and empty reasons", () => {
     expect(api.getWorkspace).toHaveBeenCalledTimes(1);
     expect(button(screen.renderer.root, "Resume case")).toBeDefined();
     expect(button(screen.renderer.root, "Release case")).toBeDefined();
+    // The release dialog names the case being given up, with Keep my case as the safe choice.
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await press(screen.renderer, "Release case");
+    expect(alert.mock.calls.at(-1)?.[1]).toContain("Releasing FORM-HELD-1.");
+    expect((alert.mock.calls.at(-1)?.[2] as Array<{ text: string }>)[0].text).toBe("Keep my case");
+    alert.mockRestore();
     await unmount(screen.renderer);
   });
 
@@ -1133,7 +1139,7 @@ describe("offline station coding status", () => {
     const status = (sid: string) => renderer.root.findAll((n) => typeof n.type === "string" && n.props.testID === `coding-server-status-${sid}`).map((n) => n.props.children);
     expect(status("held")).toEqual(["Sent — waiting for the server's DORIS"]);
     expect(status("refused")).toEqual(["Refused by the server: the coding mode does not match the project's"]);
-    expect(status("odd")).toEqual(["Refused by the server: code brand_new_code"]);
+    expect(status("odd")).toEqual(["Refused by the server: a reason this app does not know"]);
     expect(status("plain")).toEqual([]);
     await unmount(renderer);
   });

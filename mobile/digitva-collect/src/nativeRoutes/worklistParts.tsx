@@ -3,7 +3,7 @@
  * picker and the project chooser. Presentational: worklist.tsx owns the data, sync and refresh logic and passes
  * what each view shows plus the handlers it calls.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
 import { t } from "../i18n";
@@ -97,9 +97,6 @@ export function Notice({ children, tone = "info" }: { children: React.ReactNode;
   );
 }
 
-/** A count label as a row label: "need a visit" starts with a capital (no-op for Hindi). */
-const asRowLabel = (label: string) => label.charAt(0).toLocaleUpperCase() + label.slice(1);
-
 export interface HomeViewProps {
   loaded: boolean;
   offline: boolean;
@@ -109,7 +106,11 @@ export interface HomeViewProps {
   /** Attached files waiting beside those records (shown as a note, not added to the count). */
   unsentFiles?: number;
   canStart: boolean;
+  /** The collection gate is closed for every place a new interview could start: the start buttons are disabled (Resume is not). */
+  startClosed?: boolean;
   busy: boolean;
+  /** Open the Sync sheet (the Unsent row). */
+  onOpenSync?(): void;
   onResume(item: InterviewItem): void;
   onStart(): void;
   onSend(): void;
@@ -151,6 +152,8 @@ export function HomeView(p: HomeViewProps) {
           numeric
           tone={waiting ? "attention" : undefined}
           badge={waiting}
+          accessibilityLabel={p.onOpenSync ? `${p.unsent ?? ""} ${t("homeUnsent")}. ${t("homeView")}` : undefined}
+          onPress={p.onOpenSync}
         />
       ),
     }] : []),
@@ -158,22 +161,22 @@ export function HomeView(p: HomeViewProps) {
       key: "visit",
       node: (
         <ListRow
-          label={asRowLabel(t("homeNeedVisit"))}
+          label={t("filterTodo")}
           value={String(p.summary.needVisit)}
           numeric
-          accessibilityLabel={`${p.summary.needVisit} ${t("homeNeedVisit")}. ${t("homeView")}`}
+          accessibilityLabel={`${p.summary.needVisit} ${t("filterTodo")}. ${t("homeView")}`}
           onPress={p.onViewTodo}
         />
       ),
     }] : []),
-    ...(count > 0 ? [{
+    ...(p.summary.drafts > 0 ? [{
       key: "drafts",
       node: (
         <ListRow
-          label={t("homeDraftsInProgress")}
-          value={String(count)}
+          label={t("filterDrafts")}
+          value={String(p.summary.drafts)}
           numeric
-          accessibilityLabel={p.onViewDrafts ? `${count} ${t("homeDraftsInProgress")}. ${t("homeView")}` : undefined}
+          accessibilityLabel={p.onViewDrafts ? `${p.summary.drafts} ${t("filterDrafts")}. ${t("homeView")}` : undefined}
           onPress={p.onViewDrafts}
         />
       ),
@@ -193,6 +196,7 @@ export function HomeView(p: HomeViewProps) {
         </Card>
       ) : null}
       {offerSend ? <Button testID="home-send-now" label={t("homeSendNow")} onPress={p.onSend} disabled={p.busy || p.offline} loading={p.busy} /> : null}
+      {offerSend && p.offline ? <Text testID="home-send-offline" style={{ ...typography.caption, color: ui.mutedForeground }}>{t("offlineSendNow")}</Text> : null}
       <View style={{ gap: spacing.xs }}>
         <SectionLabel>{t("homeNextStep")}</SectionLabel>
         <Card testID="home-next-step">
@@ -203,12 +207,12 @@ export function HomeView(p: HomeViewProps) {
               </Text>
               {count > 1 ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("homeDraftsMany", { count })}</Text> : null}
               <Button testID="home-next-primary" kind={nextKind} label={t("homeResumeDraft")} onPress={() => p.onResume(latest)} />
-              {p.canStart ? <Button kind="secondary" label={t("newInterview")} onPress={p.onStart} /> : null}
+              {p.canStart ? <Button kind="secondary" label={t("newInterview")} disabled={Boolean(p.startClosed)} onPress={p.onStart} /> : null}
             </>
           ) : (
             <>
               <Text style={{ ...typography.body, color: ui.foreground }}>{t("homeStartHint")}</Text>
-              <Button testID="home-next-primary" kind={nextKind} label={t("homeStartInterview")} disabled={!p.canStart} onPress={p.onStart} />
+              <Button testID="home-next-primary" kind={nextKind} label={t("homeStartInterview")} disabled={!p.canStart || Boolean(p.startClosed)} onPress={p.onStart} />
             </>
           )}
         </Card>
@@ -318,7 +322,7 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
 
 
 /** One Interviews row: the shared CaseCard with the ID under the title, a status badge and one action. */
-export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void }) {
+export const InterviewCard = memo(function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void }) {
   const { colors, typography } = useTheme();
   const styles = useUiStyles();
   const card = (
@@ -355,7 +359,7 @@ export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item:
     : a?.type === "revise" && a.source.death_id ? { type: "case", deathId: a.source.death_id, projectId: a.source.project_id, label: a.label } : undefined;
   if (!open) return card;
   return <Pressable accessible={false} accessibilityRole="button" style={{ minHeight: controls.minTouchTarget }} testID={`open-${item.key}`} onPress={() => onAction(open)}>{card}</Pressable>;
-}
+});
 
 export interface InterviewsViewProps {
   loaded: boolean;

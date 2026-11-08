@@ -1,7 +1,7 @@
 /** Shared screen chrome and controls. */
 import type { ReactNode, Ref } from "react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, ActivityIndicator, findNodeHandle, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions, type StyleProp, type SwitchProps, type TextInputProps, type ViewStyle } from "react-native";
+import { AccessibilityInfo, ActivityIndicator, findNodeHandle, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions, type StyleProp, type SwitchProps, type TextInputProps, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
@@ -626,6 +626,22 @@ export type NoticeTone = "info" | "warning" | "error" | "success";
  * A message as a tinted card instead of a loose coloured paragraph: ink text on the tint, the tone carried by the
  * icon. Errors and warnings are announced (`alert`).
  */
+/** The raw refusal or unknown code behind a plain message, so support can still read it. Tap opens the share sheet (Copy is in it); long-press selects the text. */
+export function DetailsChip({ code }: { code: string | null | undefined }) {
+  const { ui, typography } = useTheme();
+  if (!code) return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t("detailsChipLabel", { code })}
+      onPress={() => void Share.share({ message: code }).catch(() => undefined)}
+      style={{ alignSelf: "flex-start", minHeight: 32, justifyContent: "center", paddingHorizontal: 10, borderRadius: radius.full, backgroundColor: ui.muted }}
+    >
+      <Text selectable style={{ ...typography.caption, color: ui.mutedForeground }}>{t("detailsChip", { code })}</Text>
+    </Pressable>
+  );
+}
+
 export function Notice({ tone = "info", children, action, testID }: { tone?: NoticeTone; children: ReactNode; action?: ReactNode; testID?: string }) {
   const { ui: t, typography } = useTheme();
   const urgent = tone === "error" || tone === "warning";

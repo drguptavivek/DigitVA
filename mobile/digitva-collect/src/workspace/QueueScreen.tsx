@@ -4,13 +4,14 @@ import Svg, { Path } from "react-native-svg";
 
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
-import { Button, Card, Screen, SegmentedControl, TextField, errorText, useUiStyles } from "../ui";
+import { Button, Card, DetailsChip, Screen, SegmentedControl, TextField, errorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
 import { dateOnly } from "../ui/interviewRows";
 import { ProjectSelect } from "../ui/ProjectSelect";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
 import type { WorkspaceApi } from "./api";
+import { shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
 import type {
@@ -164,6 +165,12 @@ export function recodeDeadlineText(item: Pick<CoderHistoryCase, "recodeable" | "
   if (item.recodeable) return t("codingRecodeUntil", { date: formatDisplayTimestamp(item.recode_until) });
   const until = Date.parse(item.recode_until);
   return !Number.isNaN(until) && until <= now ? t("codingRecodeClosed") : null;
+}
+
+/** "Case 000020" for a masked id like PHC01-000020_172313647; any other shape is shown as given. */
+function caseTitle(masked: string): string {
+  const number = shortCaseNumber(masked);
+  return number ? t("queueCaseNumber", { number }) : masked;
 }
 
 function CaseCardDetails({ item }: { item: AnyQueueCase }) {
@@ -644,7 +651,9 @@ export function QueueScreen({
     const requestGeneration = generation.current;
     const requestScope = { api, mode, projectId, offset, showHistory };
     if (!isCurrent(requestGeneration, requestScope)) return;
-    const warning = t(mode === "reviewing" ? "releaseReviewWarning" : "releaseCodingWarning");
+    // Name the case being given up, so the coder sees what is lost.
+    const name = heldCase?.formId;
+    const warning = `${name ? `${t("releaseCaseNamed", { name })} ` : ""}${t(mode === "reviewing" ? "releaseReviewWarning" : "releaseCodingWarning")}`;
     const proceed = () => {
       if (isCurrent(requestGeneration, requestScope)) void releaseAllocation(requestGeneration, requestScope);
     };
@@ -656,7 +665,7 @@ export function QueueScreen({
       t("releaseCaseTitle"),
       warning,
       [
-        { text: t("cancel"), style: "cancel" },
+        { text: t("codeNowKeepCase"), style: "cancel" },
         { text: t("releaseCaseAction"), style: "destructive", onPress: proceed },
       ],
     );
@@ -843,11 +852,11 @@ export function QueueScreen({
     return (
       <View style={q.filterBox}>
         {phone ? (
-          <TextField onCard accessibilityLabel="Filter cases" placeholder="Filter by ID, area, collector, or form..." value={searchQuery} onChangeText={setSearchQuery} />
+          <TextField onCard accessibilityLabel="Filter cases" placeholder="Filter by ID, area, interviewer, or form..." value={searchQuery} onChangeText={setSearchQuery} />
         ) : (
           <TextInput
             accessibilityLabel="Filter cases"
-            placeholder="Filter by ID, area, collector, or form..."
+            placeholder="Filter by ID, area, interviewer, or form..."
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -1141,7 +1150,7 @@ export function QueueScreen({
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
-                  <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
+                  <Text style={styles.headline}>{caseTitle(item.va_uniqueid_masked)}</Text>
                   <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
                 </View>
                 {phone ? null : historyBadges(item)}
@@ -1149,6 +1158,7 @@ export function QueueScreen({
               <CaseCardDetails item={item} />
               {phone ? historyBadges(item) : null}
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
+              {item.server_status === "refused" ? <DetailsChip code={item.server_code} /> : null}
               {recodeDeadlineText(item) ? <Text style={styles.muted} testID={`recode-deadline-${item.va_sid}`}>{recodeDeadlineText(item)}</Text> : null}
               {!currentData?.cachedHistoryAt ? <View style={q.actions}>
                 <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
@@ -1160,7 +1170,7 @@ export function QueueScreen({
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
                   {item.deceased_name ? <Text style={styles.headline}>{item.deceased_name}</Text> : null}
-                  <Text style={item.deceased_name ? styles.muted : styles.headline}>{item.va_uniqueid_masked}</Text>
+                  <Text style={item.deceased_name ? styles.muted : styles.headline}>{caseTitle(item.va_uniqueid_masked)}</Text>
                   <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
                 </View>
               </View>
@@ -1214,7 +1224,7 @@ export function QueueScreen({
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
-                  <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
+                  <Text style={styles.headline}>{caseTitle(item.va_uniqueid_masked)}</Text>
                   <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
                 </View>
                 {item.va_narration_language ? (
@@ -1246,6 +1256,7 @@ export function QueueScreen({
         destructive
         title={t("releaseCaseTitle")}
         message={confirmRelease.warning}
+        cancelLabel={t("codeNowKeepCase")}
         confirmLabel={t("releaseCaseAction")}
         onCancel={() => setConfirmRelease(null)}
         onConfirm={() => {

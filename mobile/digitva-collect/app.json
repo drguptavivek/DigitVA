@@ -17,7 +17,11 @@
           "image": "./assets/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#e8edf0",
+          "dark": {
+            "image": "./assets/icon.png",
+            "backgroundColor": "#0f1418"
+          }
         }
       ],
       "expo-router",

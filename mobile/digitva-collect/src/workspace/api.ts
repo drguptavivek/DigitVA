@@ -28,6 +28,7 @@ import {
   parseJsonValue,
   WorkspaceContractError,
   type AllocationReply,
+  type AllocationSnapshot,
   type CategoryPayload,
   type CoderHistory,
   type CoderProjects,
@@ -70,7 +71,7 @@ export interface WorkspaceApi {
   getCodingAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderQueue>;
   getCodingHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderHistory>;
   getCodingProjects(): Promise<CoderProjects>;
-  getCodingAllocation(): Promise<{ va_sid: string } | null>;
+  getCodingAllocation(): Promise<AllocationSnapshot | null>;
   getReviewerProjects(): Promise<ReviewerProjects>;
   getReviewerStats(projectId?: string): Promise<ReviewerStats>;
   getReviewerAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerQueue>;

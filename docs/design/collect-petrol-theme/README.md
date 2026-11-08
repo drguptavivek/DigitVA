@@ -3,7 +3,7 @@ title: DigitVA Collect Petrol theme (design references)
 doc_type: design
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-08
 ---
 
 # DigitVA Collect Petrol theme
@@ -131,6 +131,20 @@ reference screenshots live in `frozen/`.
 | Android five-tab bar (Test ALL: Home, Register, Code, Review, Sync), light, dark, high contrast, Large text | 2026-11-07 | `frozen/tabbar-test-all.png`, `frozen/dark/tabbar-test-all.png`, `frozen/high-contrast/tabbar-test-all.png`, `frozen/large-text/tabbar-test-all.png` |
 | iOS Large text (accessibility-large; Test ALL: Home, five-tab bar, Register, Place card), light and dark | 2026-11-07 | `frozen/ios/large-text/{home,tabbar-coder,register,register-location}.png`, `frozen/ios/large-text/dark/` (same four); Debug banner wraps in full, DEMO chip and avatar initials fit, tab labels fit |
 | Coding tab: Available / My coded cases segmented control, Review queue, six-tab bar (Test ALL, SADEMO: Home, Interviews, Register, Code, Review, Sync), light, dark, high contrast, Large text | 2026-11-07 | `frozen/coding/code-random-available.png`, `frozen/coding/code-my-coded.png`, `frozen/review-queue.png`, `frozen/tabbar-6.png`; the same four names in `frozen/dark/`, `frozen/high-contrast/`, `frozen/large-text/` |
+
+Refrozen 2026-11-08 (Android emulator, light unless noted): Interviews list
+(`frozen/interviews-list.png`, Test CHO SC01: To do 7 / Drafts 2 chips),
+Coding queue (`frozen/coding/code-random-available.png`,
+`frozen/coding/code-my-coded.png`, the latter with the active-case card),
+Review queue (`frozen/review-queue.png`), and the release dialog, which now
+names the case, puts Keep my case first and Release second
+(`frozen/coding/release-dialog.png`). Dark: `frozen/dark/code-random-available.png`,
+`frozen/dark/review-queue.png`, `frozen/dark/release-dialog.png`. High contrast
+and Large text were not refrozen for these screens. Home's "To do" / "Drafts"
+labels and the gate banner are in the run folder
+`docs/current-state/collect-e2e-run-2026-11-06/flashing/` (`dp-03-home.png`,
+`dp-10-gate-closed-home.png`); the four `frozen/*home.png` files were already
+replaced by the earlier writer.
 
 ## Owner decisions (2026-11-06)
 

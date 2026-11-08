@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { accessProfileDisplayText, loadAccessProfile, profileAccountAvailable, profileQuestionnaireLanguages, type LoadedAccessProfile } from "../accessProfile";
@@ -24,9 +24,15 @@ export default function ProfileAccess() {
   const [attempt, setAttempt] = useState(0);
   const userId = shell.userId;
   const server = account?.standalone ? undefined : shell.server;
+  // The loaded profile is cleared only when the account, mode or server changes (or the account locks), not on refocus or an offline flap.
+  const identity = `${available}|${userId}|${slot}|${server}`;
+  const identityRef = useRef("");
   useFocusEffect(useCallback(() => {
     let active = true;
-    setLoaded(undefined);
+    if (identityRef.current !== identity) {
+      identityRef.current = identity;
+      setLoaded(undefined);
+    }
     setFailed(false);
     if (!available || !userId) return;
     void loadAccessProfile(userId, slot, server, shell.sync.offline).then((result) => {
@@ -35,7 +41,7 @@ export default function ProfileAccess() {
       if (active) setFailed(true);
     });
     return () => { active = false; };
-  }, [available, userId, slot, server, shell.sync.offline, attempt]));
+  }, [available, userId, slot, server, shell.sync.offline, attempt, identity]));
   const visible = available && loaded && (loaded.kind === "standalone" ? account?.standalone && loaded.userId === userId && loaded.slot === slot :
     loaded.profile.slot === slot && loaded.profile.server === server && loaded.profile.userId === userId &&
       loaded.profile.accessDigest === account?.coding_history_access) ? loaded : undefined;

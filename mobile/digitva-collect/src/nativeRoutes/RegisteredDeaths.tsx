@@ -77,11 +77,8 @@ export default function RegisteredDeaths({
     void load();
     return () => {
       focused.current = false;
+      // The list stays for the way back (it is cleared on lock or account change); a late answer is dropped.
       generation.current += 1;
-      setDeaths([]);
-      setDeathsOwner(undefined);
-      pageCursorByDeath.current = {};
-      setCursor(null);
       setMessage("");
     };
   }, [load]));
@@ -91,6 +88,7 @@ export default function RegisteredDeaths({
       generation.current += 1;
       setDeaths([]);
       setDeathsOwner(undefined);
+      pageCursorByDeath.current = {};
       setCursor(null);
     }
   }, [account?.registered_deaths_access, lockVersion, userId]);
@@ -100,10 +98,6 @@ export default function RegisteredDeaths({
       appState.current = next;
       if (next !== "active") {
         generation.current += 1;
-        setDeaths([]);
-        setDeathsOwner(undefined);
-        pageCursorByDeath.current = {};
-        setCursor(null);
         return;
       }
       if (focused.current && isUnlocked(userId)) void load();

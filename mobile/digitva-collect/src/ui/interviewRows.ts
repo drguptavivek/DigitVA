@@ -5,7 +5,7 @@
  */
 import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
-import type { Db, DraftRow } from "../drafts";
+import type { DraftRow } from "../drafts";
 import { t, uiLanguageTag, type StringKey } from "../i18n";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
@@ -56,18 +56,6 @@ export interface InterviewItem {
 
 /** A listed draft with the deceased's name from its own answers (Id10017 + Id10018), when it has one. */
 export type ListedDraft = DraftRow & { deceased_name?: string | null };
-
-/** The name each local draft's answers give the deceased, by draft id. One query for all drafts; no other answer is read. */
-export async function listDraftNames(db: Db): Promise<Map<string, string>> {
-  const rows = await db.getAllAsync<{ id: string; given: unknown; surname: unknown }>(
-    "SELECT id, json_extract(envelope, '$.data.Id10017') AS given, json_extract(envelope, '$.data.Id10018') AS surname FROM drafts", []);
-  const names = new Map<string, string>();
-  for (const { id, given, surname } of rows) {
-    const name = [given, surname].map((part) => (typeof part === "string" ? part.trim() : "")).filter(Boolean).join(" ");
-    if (name) names.set(id, name);
-  }
-  return names;
-}
 
 export interface InterviewSources {
   drafts: ListedDraft[];

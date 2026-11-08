@@ -13,8 +13,8 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState } from "react-native";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, AppState, InteractionManager } from "react-native";
 
 import { useAppState } from "../AppState";
 import { SessionRevokedError, SignInRequiredError, takePickedHomeProject } from "../auth";
@@ -28,10 +28,10 @@ import {
   type Registration,
 } from "../cases";
 import { sendRefusals, type SendRefusal } from "../unsentWork";
-import { deleteUnsentDraft, getMeta, listDrafts, setMeta, reopenCompletedDraft, retryHeldDraft, type Db, type DraftRow } from "../drafts";
+import { deleteUnsentDraft, getMeta, listDraftsNamed, setMeta, reopenCompletedDraft, retryHeldDraft, type Db, type DraftRow } from "../drafts";
 import { codingNotices, dismissCodingNotices, type CodingNotice } from "../codingUploadNotices";
 import { codingNoticeText } from "../standalone/adopt";
-import { checkCollectionGate, gateMessage, recordCollectionStart } from "../collectionGate";
+import { checkCollectionGate, gateMessage, recordCollectionStart, type GateDecision } from "../collectionGate";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { FirstDownloadModal } from "../FirstDownloadModal";
 import { t } from "../i18n";
@@ -45,6 +45,7 @@ import {
 } from "../revisions";
 import {
   getCachedReferenceData,
+  preloadLastFormLocale,
   fetchCasePage,
   listPausedProjects,
   type PausedProject,
@@ -58,16 +59,20 @@ import {
 import { useToast } from "../toast";
 import { icons } from "../Icon";
 import { displayProjectName } from "../projectName";
-import { Button, Card, errorText, ListRow, Screen, Separator } from "../ui";
-import { buildInterviewItems, interviewCounts, listDraftNames, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
+import { Button, Card, DetailsChip, errorText, ListRow, Screen, Separator } from "../ui";
+import { buildInterviewItems, interviewCounts, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
 import type { PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
 import { HomeView, InterviewsView, Notice, ProjectLine, ProjectSheet, SitePickerSheet } from "./worklistParts";
 
+type ClosedGate = Exclude<GateDecision, { open: true }>;
+
 /** Per-account meta key for the project the user chose on Interviews. */
 const PICKED_PROJECT_KEY = "worklist.project.v1";
+/** The submitted-interviews list is fetched at most this often per account unless something changed it (Refresh, Send, a lock bump). */
+const SUBMITTED_TTL_MS = 60_000;
 
 export default function Worklist() {
   const { userId, registeredMine, view, filter } = useLocalSearchParams<{ userId: string; registeredMine?: string; view?: string; filter?: string }>();
@@ -87,6 +92,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     refresh?: string;
   }>();
   const { accounts, device, reload, lockVersion, syncAccount, offline } = useAppState();
+  const lastLockVersion = useRef(lockVersion);
   const shell = useShell();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
@@ -149,6 +155,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     useRef<Awaited<ReturnType<typeof getCachedReferenceData>>>(undefined);
   const consumedRefreshFor = useRef<string | undefined>(undefined);
   const appStateRef = useRef(AppState.currentState);
+  const submittedFetchedRef = useRef<{ key: string; at: number } | undefined>(undefined);
+  const submittedInFlightRef = useRef<string | undefined>(undefined);
 
   const setReference = useCallback(
     (next: Awaited<ReturnType<typeof getCachedReferenceData>>) => {
@@ -163,6 +171,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         [...previousProjects].some((projectId) => !authorizedProjects.has(projectId));
       if (authorizationChanged) {
         submittedRequestGenerationRef.current += 1;
+        submittedFetchedRef.current = undefined;
         setSubmittedRevisions((rows) => rows.filter((row) => authorizedProjects.has(row.project_id)));
         setSubmittedRevisionsLoaded(false);
         setSubmittedRevisionsError(undefined);
@@ -187,10 +196,17 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     [account, userId],
   );
 
-  const clearVisible = useCallback(() => {
+  /** Leaving the screen: late answers are dropped, but what is shown stays for the way back (no skeleton flash). */
+  const stopWork = useCallback(() => {
     focusedRef.current = false;
     onlineRequestGenerationRef.current += 1;
     submittedRequestGenerationRef.current += 1;
+  }, []);
+
+  /** Account change, lock or session error: the decrypted rows held in state go with it. */
+  const clearVisible = useCallback(() => {
+    stopWork();
+    submittedFetchedRef.current = undefined;
     selectedProjectRef.current = undefined;
     dbRef.current = undefined;
     referenceDataRef.current = undefined;
@@ -216,7 +232,10 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     setCanCodeNowUniqueIds([]);
     setDraftConflict(false);
     setCodingUploadNotices([]);
-  }, []);
+  }, [stopWork]);
+
+  // Another account (or this screen going away) drops the rows held for the last one.
+  useEffect(() => () => clearVisible(), [account?.user_id, clearVisible]);
 
   useEffect(() => {
     if (selectedProjectRef.current !== selectedProjectId) {
@@ -233,9 +252,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       current: () => boolean = () => true,
       caseFlagsAuthoritative = false,
     ) => {
-      const [d, draftNames, c, r, a, localRevisions, reference, lastRefusals, codingNoticesForAccount] = await Promise.all([
-        listDrafts(handle),
-        listDraftNames(handle),
+      const [d, c, r, a, localRevisions, reference, lastRefusals, codingNoticesForAccount] = await Promise.all([
+        listDraftsNamed(handle),
         listCases(handle),
         listRegistrations(handle),
         listActions(handle),
@@ -249,7 +267,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         new Set(reference?.projects.map(({ project }) => project.project_id) ?? []),
       );
       if (!current()) return;
-      setDrafts(d.map((draft) => ({ ...draft, deceased_name: draftNames.get(draft.id) ?? null })));
+      setDrafts(d);
       setRefusals(lastRefusals);
       setCodingUploadNotices(codingNoticesForAccount);
       setRevisions(localRevisions);
@@ -369,15 +387,22 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   );
 
   const loadSubmittedInterviews = useCallback(
-    async (projectIds: Set<string>, current: () => boolean = () => true) => {
+    async (projectIds: Set<string>, current: () => boolean = () => true, force = false) => {
       if (!account) return;
+      const key = [...projectIds].sort().join("|");
+      const fetched = submittedFetchedRef.current;
+      // The second call of a focus (after the reference refresh) and a quick return to the screen ask the same question.
+      if (!force && (submittedInFlightRef.current === key ||
+          (fetched?.key === key && Date.now() - fetched.at < SUBMITTED_TTL_MS))) return;
       const generation = ++submittedRequestGenerationRef.current;
+      submittedInFlightRef.current = key;
       setSubmittedRevisionsError(undefined);
       try {
         const rows = await fetchSubmittedRevisions(account.user_id);
         if (!current() || generation !== submittedRequestGenerationRef.current) return;
         setSubmittedRevisions(rows.filter((row) => projectIds.has(row.project_id)));
         setSubmittedRevisionsLoaded(true);
+        submittedFetchedRef.current = { key, at: Date.now() };
       } catch (error) {
         if (!current() || generation !== submittedRequestGenerationRef.current) return;
         if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
@@ -387,6 +412,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         // No network (the fetch threw a TypeError, the same signal that flags the phone offline) is not a fault to retry; any other failure keeps its Ref line.
         setSubmittedRevisionsError(error instanceof TypeError ? t("revisionsNeedConnection") : `${t("revisionRetry")}\n${errorText(error).split("\n").pop()}`);
         setSubmittedRevisionsLoaded(false);
+      } finally {
+        if (submittedInFlightRef.current === key) submittedInFlightRef.current = undefined;
       }
     },
     [account, handleError],
@@ -425,6 +452,10 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           if (!active) return;
           setReference(cached);
           setReferenceRead(true);
+          // Home is drawn: now, off the interaction path, bring the last-used form language into memory.
+          InteractionManager.runAfterInteractions(() => {
+            try { void preloadLastFormLocale(handle, cached).catch(() => undefined); } catch { /* preload is best-effort */ }
+          });
           // Nothing downloaded yet (first sign-in on this phone): block Home until it is.
           const isFirstDownload = !cached;
           if (isFirstDownload) setFirstDownload(true);
@@ -486,10 +517,11 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       })();
       return () => {
         active = false;
-        clearVisible();
+        stopWork();
       };
     }, [
       account,
+      stopWork,
       clearVisible,
       handleError,
       isCurrent,
@@ -502,9 +534,33 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       refreshOnFocus,
       router,
       setReference,
-      lockVersion,
     ]),
   );
+
+  // Data changed under the open screen (a Send or Refresh from the shell, an access change) or the store was locked/unlocked:
+  // reread quietly in place, never through the focus effect's reset. A lock drops what is held.
+  useEffect(() => {
+    if (lastLockVersion.current === lockVersion) return;
+    lastLockVersion.current = lockVersion;
+    if (!account) return;
+    if (!isUnlocked(account.user_id)) {
+      clearVisible();
+      return;
+    }
+    const handle = dbRef.current;
+    if (!handle || !focusedRef.current) return;
+    void (async () => {
+      try {
+        await loadLocal(handle, isCurrent);
+        const cached = await getCachedReferenceData(handle);
+        if (!isCurrent()) return;
+        setReference(cached);
+        void loadSubmittedInterviews(new Set(cached?.projects.map(({ project }) => project.project_id) ?? []), isCurrent, true);
+      } catch (error) {
+        if (isCurrent()) await handleError(error);
+      }
+    })();
+  }, [lockVersion, account, clearVisible, loadLocal, isCurrent, setReference, loadSubmittedInterviews, handleError]);
 
   useEffect(() => {
     appStateRef.current = AppState.currentState;
@@ -567,6 +623,105 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     return () => { active = false; };
   }, [db, selectedProjectId]);
 
+  const selectedProject = useMemo(
+    () => (referenceData?.projects ?? []).find(({ project }) => project.project_id === selectedProjectId),
+    [referenceData, selectedProjectId],
+  );
+  const targets = useMemo(
+    () => selectedProject
+      ? targetsFrom(selectedProject.project, selectedProject.units).filter((target) => startsDirectly(selectedProject.project, target.siteId))
+      : [],
+    [selectedProject],
+  );
+  const registerTargets = useMemo(
+    () => selectedProject
+      ? targetsFrom(selectedProject.project, selectedProject.units).filter((target) => registersDeaths(selectedProject.project, target.siteId))
+      : [],
+    [selectedProject],
+  );
+  const projects = useMemo(() => referenceData?.projects.map(({ project }) => project) ?? [], [referenceData]);
+  const items = useMemo(() => {
+    const authorized = new Set(projects.map(({ project_id }) => project_id));
+    const visible = <T extends { project_id: string | null | undefined }>(rows: T[]) =>
+      rows.filter((row) => row.project_id && authorized.has(row.project_id) && (!selectedProjectId || row.project_id === selectedProjectId));
+    return buildInterviewItems({
+      drafts: visible(drafts),
+      registrations: visible(registrations),
+      cases: visible(cases),
+      onlineCases: selectedProjectId ? onlineCases : [],
+      submitted: visible(submittedRevisions),
+      revisions: visible(revisions),
+      refusals,
+    });
+  }, [projects, selectedProjectId, drafts, registrations, cases, onlineCases, submittedRevisions, revisions, refusals]);
+  const summary = useMemo(() => homeSummary(items, interviewCounts(items)), [items]);
+
+  // A closed collection gate (paused, outside its dates, daily limit) for every place a new start could go: the start
+  // buttons are disabled and a banner says why. Resume and finishing are never gated. Offline or a stale answer is open.
+  const [startGate, setStartGate] = useState<ClosedGate>();
+  const [registerGate, setRegisterGate] = useState<ClosedGate>();
+  useEffect(() => {
+    let live = true;
+    const closedFor = async (list: typeof targets) => {
+      if (!db || list.length === 0) return undefined;
+      let first: ClosedGate | undefined;
+      for (const target of list) {
+        const gate = await checkCollectionGate(db, target.projectId, target.siteId, target.orgUnitId);
+        if (gate.open) return undefined;
+        first ??= gate;
+      }
+      return first;
+    };
+    void Promise.all([closedFor(targets), closedFor(registerTargets)])
+      .then(([start, register]) => { if (live) { setStartGate(start); setRegisterGate(register); } })
+      .catch(() => { if (live) { setStartGate(undefined); setRegisterGate(undefined); } });
+    return () => { live = false; };
+  }, [db, targets, registerTargets, offline, lockVersion, drafts]);
+
+  const openRevision = useCallback((summary: SubmittedRevisionSummary | RevisionRow) => {
+    if (
+      !userId ||
+      !db ||
+      !isUnlocked(userId) ||
+      !referenceDataRef.current?.projects.some(({ project }) => project.project_id === summary.project_id)
+    ) {
+      setMessage(t("revisionUnavailable"));
+      return;
+    }
+    router.push({
+      pathname: "/revision",
+      params: { userId, draftId: summary.draft_id, projectId: summary.project_id, siteId: summary.site_id, vaSid: summary.va_sid },
+    });
+  }, [userId, db, router, setMessage]);
+
+  const openRegister = useCallback(() => {
+    router.push({ pathname: "/register", params: { userId, projectId: selectedProject?.project.project_id ?? "" } });
+  }, [router, userId, selectedProject]);
+
+  const runAction = useCallback((action: InterviewAction) => {
+    if (action.type === "resume") {
+      router.push({
+        pathname: "/form",
+        params: { userId, draftId: action.draft.id, ...(action.draft.project_id ? { projectId: action.draft.project_id } : {}) },
+      });
+    } else if (action.type === "reopen") {
+      setReopening(action.draft);
+    } else if (action.type === "case") {
+      router.push({ pathname: "/case", params: { userId, projectId: action.projectId, deathId: action.deathId } });
+    } else if (action.type === "registration") {
+      router.push({ pathname: "/case", params: { userId, clientDeathId: action.clientDeathId } });
+    } else {
+      openRevision(action.source);
+    }
+  }, [router, userId, openRevision]);
+
+  const retryDemo = useCallback((item: InterviewItem) => {
+    const handle = dbRef.current;
+    if (handle && item.retryDemo) void retryHeldDraft(handle, item.retryDemo.id).then(() => loadLocal(handle));
+  }, [loadLocal]);
+
+  const deleteDraftRow = useCallback((item: InterviewItem) => setDeleting(item.deletable), []);
+
   if (!account) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) {
     return (
@@ -595,7 +750,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       const authorizedProjectIds = new Set(
         fresh?.projects.map(({ project }) => project.project_id) ?? [],
       );
-      await loadSubmittedInterviews(authorizedProjectIds, isCurrent);
+      await loadSubmittedInterviews(authorizedProjectIds, isCurrent, true);
       if (projectId) {
         const page = await fetchCasePage(account.user_id, projectId, {
           limit: 50,
@@ -625,30 +780,6 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       setBusy(false);
       setRefreshing(false);
     }
-  }
-
-  function openRevision(summary: SubmittedRevisionSummary | RevisionRow) {
-    if (
-      !account ||
-      !db ||
-      !isUnlocked(account.user_id) ||
-      !referenceDataRef.current?.projects.some(
-        ({ project }) => project.project_id === summary.project_id,
-      )
-    ) {
-      setMessage(t("revisionUnavailable"));
-      return;
-    }
-    router.push({
-      pathname: "/revision",
-      params: {
-        userId: account.user_id,
-        draftId: summary.draft_id,
-        projectId: summary.project_id,
-        siteId: summary.site_id,
-        vaSid: summary.va_sid,
-      },
-    });
   }
 
   async function loadOnlineMore() {
@@ -755,6 +886,14 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       }
       if (isCurrentSync()) {
         setReference(fresh);
+        // New submissions are on the server now; the cached list is stale.
+        if (result.sent > 0) {
+          void loadSubmittedInterviews(
+            new Set(fresh?.projects.map(({ project }) => project.project_id) ?? []),
+            isCurrent,
+            true,
+          );
+        }
       }
     } catch (error) {
       if (isCurrent()) await handleError(error);
@@ -769,59 +908,18 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     }
   }
 
-  const selectedProject = (referenceData?.projects ?? []).find(
-    ({ project }) => project.project_id === selectedProjectId,
-  );
-  const targets = selectedProject
-    ? targetsFrom(selectedProject.project, selectedProject.units).filter(
-        (target) => startsDirectly(selectedProject.project, target.siteId),
-      )
-    : [];
-  const projects = referenceData?.projects.map(({ project }) => project) ?? [];
-  const authorizedProjectIds = new Set(projects.map(({ project_id }) => project_id));
-  const authorizedCases = cases.filter((row) => row.project_id && authorizedProjectIds.has(row.project_id));
-  const authorizedRegistrations = registrations.filter((row) => authorizedProjectIds.has(row.project_id));
-  const authorizedDrafts = drafts.filter((row) => row.project_id && authorizedProjectIds.has(row.project_id));
-  const visibleCases = selectedProjectId
-    ? authorizedCases.filter((row) => row.project_id === selectedProjectId)
-    : authorizedCases;
-  const visibleRegistrations = selectedProjectId
-    ? authorizedRegistrations.filter((row) => row.project_id === selectedProjectId)
-    : authorizedRegistrations;
-  const visibleDrafts = selectedProjectId
-    ? authorizedDrafts.filter((row) => row.project_id === selectedProjectId)
-    : authorizedDrafts;
-  const visibleRevisions = revisions.filter(
-    (row) =>
-      authorizedProjectIds.has(row.project_id) &&
-      (!selectedProjectId || row.project_id === selectedProjectId),
-  );
-  const visibleSubmittedRevisions = submittedRevisions.filter(
-    (row) =>
-      authorizedProjectIds.has(row.project_id) &&
-      (!selectedProjectId || row.project_id === selectedProjectId),
-  );
-  const items = buildInterviewItems({
-    drafts: visibleDrafts,
-    registrations: visibleRegistrations,
-    cases: visibleCases,
-    onlineCases: selectedProjectId ? onlineCases : [],
-    submitted: visibleSubmittedRevisions,
-    revisions: visibleRevisions,
-    refusals,
-  });
-  const summary = homeSummary(items, interviewCounts(items));
   const canRegister = Boolean(selectedProject && registersDeaths(selectedProject.project) && account.registration_access);
   const loaded = Boolean(db && referenceData);
   const isOffline = Boolean(offline);
   const goRows = [
-    canRegister ? <ListRow key="register" icon={icons.register} label={t("registerDeath")} onPress={openRegister} /> : null,
+    canRegister ? <ListRow key="register" icon={icons.register} label={t("registerDeath")} disabled={registerGate !== undefined} onPress={openRegister} /> : null,
     account.registered_deaths_access ? (
       <ListRow key="mine" icon={icons.interviews} label={t("myRegisteredDeaths")} onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })} />
     ) : null,
   ].filter((row) => row !== null);
   // Each row is followed by a separator when another row comes after it in the same card.
   const homeRows = goRows.length ? goRows.flatMap((row, index) => (index < goRows.length - 1 ? [row, <Separator key={`sep-${index}`} icon />] : [row])) : undefined;
+  const gateBanner = startGate || registerGate ? <Notice tone="warning">{gateMessage((startGate ?? registerGate)!)}</Notice> : null;
 
   /** A new interview with no registration is a new start, checked against the collection gate (digitva-dj29). */
   async function startInterview(target: PickerTarget) {
@@ -845,32 +943,6 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}),
       },
     });
-  }
-
-  function openRegister() {
-    router.push({ pathname: "/register", params: { userId: account!.user_id, projectId: selectedProject?.project.project_id ?? "" } });
-  }
-
-  function runAction(action: InterviewAction) {
-    if (action.type === "resume") {
-      router.push({
-        pathname: "/form",
-        params: { userId: account!.user_id, draftId: action.draft.id, ...(action.draft.project_id ? { projectId: action.draft.project_id } : {}) },
-      });
-    } else if (action.type === "reopen") {
-      setReopening(action.draft);
-    } else if (action.type === "case") {
-      router.push({ pathname: "/case", params: { userId: account!.user_id, projectId: action.projectId, deathId: action.deathId } });
-    } else if (action.type === "registration") {
-      router.push({ pathname: "/case", params: { userId: account!.user_id, clientDeathId: action.clientDeathId } });
-    } else {
-      openRevision(action.source);
-    }
-  }
-
-  function retryDemo(item: InterviewItem) {
-    const handle = dbRef.current;
-    if (handle && item.retryDemo) void retryHeldDraft(handle, item.retryDemo.id).then(() => loadLocal(handle));
   }
 
   /** Delete a never-sent draft after the danger dialog; the store re-checks it was never sent and deletes nothing on the server. */
@@ -927,9 +999,10 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       {codingUploadNotices.length ? (
         <>
           {codingUploadNotices.map((notice, index) => (
-            <Notice key={`${notice.draftId}-${notice.codingSha256 ?? notice.at}-${index}`}>
-              {codingNoticeText(notice.code)}
-            </Notice>
+            <Fragment key={`${notice.draftId}-${notice.codingSha256 ?? notice.at}-${index}`}>
+              <Notice>{codingNoticeText(notice.code)}</Notice>
+              <DetailsChip code={notice.code} />
+            </Fragment>
           ))}
           <Button kind="secondary" size="sm" label={t("dismiss")} onPress={() => void dismissCodingUploadNotices()} />
         </>
@@ -957,10 +1030,13 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           actions.filter((row) => row.project_id === paused.projectId).length +
           revisions.filter((row) => row.project_id === paused.projectId).length;
         return (
-          <Notice key={`paused-${paused.projectId}`}>
-            {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })} {t("pausedProjectReason")}
-            {paused.refusal ? ` ${t("pausedProjectRefused", { code: paused.refusal.code ?? String(paused.refusal.status) })}` : ""}
-          </Notice>
+          <Fragment key={`paused-${paused.projectId}`}>
+            <Notice>
+              {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })} {t("pausedProjectReason")}
+              {paused.refusal ? ` ${t("pausedProjectRefused")}` : ""}
+            </Notice>
+            {paused.refusal ? <DetailsChip code={paused.refusal.code ?? String(paused.refusal.status)} /> : null}
+          </Fragment>
         );
       })}
     </>
@@ -1023,7 +1099,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           offline={isOffline}
           items={items}
           initialFilter={filter}
-          canRegister={canRegister}
+          canRegister={canRegister && registerGate === undefined}
           refreshing={refreshing}
           busy={busy}
           canRefresh={Boolean(db)}
@@ -1033,11 +1109,11 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           loadFailedText={submittedRevisionsError}
           onAction={runAction}
           onRetryDemo={retryDemo}
-          onDeleteDraft={(item) => setDeleting(item.deletable)}
+          onDeleteDraft={deleteDraftRow}
           onRegister={openRegister}
           onRefresh={() => void refresh()}
           onLoadMore={() => void loadOnlineMore()}
-          header={projectLine}
+          header={<>{projectLine}{gateBanner}</>}
           footer={notices}
         />
         {sheets}
@@ -1047,6 +1123,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   return (
     <Screen title={t("home")}>
       {projectLine}
+      {gateBanner}
       <HomeView
         loaded={Boolean(db && referenceRead)}
         offline={isOffline}
@@ -1054,7 +1131,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         unsent={shell.sync.work?.unsent}
         unsentFiles={shell.sync.work?.unsentFiles}
         canStart={Boolean(db && referenceData && targets.length > 0)}
+        startClosed={startGate !== undefined}
         busy={busy}
+        onOpenSync={() => shell.openSheet("sync")}
         onResume={(item) => item.action && runAction(item.action)}
         onStart={() => setPicking(true)}
         onSend={() => void send()}

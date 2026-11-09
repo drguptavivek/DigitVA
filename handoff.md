@@ -3,7 +3,7 @@
 ## Start here
 
 Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Staging runs
-`0e1a5e308` (deployed 9 Nov: collection gate and hold, project clock, Collect flashing/UX fixes, send-on-leave); phones there are
+`9464fa016` (deployed 9 Nov, adds Saved on server; before it `0e1a5e308`: collection gate and hold, project clock, Collect flashing/UX fixes, send-on-leave); phones there are
 on 0.3.19 or older. main now also carries the Collect Petrol redesign,
 accessibility settings and server UI languages (CHANGELOG 2026-11-06), with
 the iOS, SmartVA and standalone app work that shared its files. Never reset
@@ -22,10 +22,9 @@ contrast, Large text) and refrozen.
 The 2026-11-06 Collect e2e run and its fixes are done and on staging
 (`d024b5ad0`, CHANGELOG 2026-11-07; report
 `docs/current-state/collect-e2e-run-2026-11-06.md`). Left from it:
-- Open from 9 Nov: `digitva-n3ec` needs the server to tell the phone which
-  attachments it holds before "Saved on server" can show; `mvfe` and
-  `gnpw` need a cold-start check on the next native build; Hindi (machine
-  drafted) needs owner review.
+- Open from 9 Nov: Hindi (machine drafted) needs owner review; "Saved on
+  server" is untested on a device. The Samsung now runs the CI release build
+  and must be re-enrolled.
 - Saved web audio from S3 (`oll6` fix) on staging: record, leave, return.
 - Sent read-only view of an interview with media: untested.
 - Hindi for the new attachment-load and camera strings.
@@ -64,7 +63,7 @@ draft on SC01 case b9cf3f2c. Samsung has the plain Collect debug build.
    needs the old-APK audit (the redesign changes no API shapes; the new
    `/api/v1/ui-strings` routes are additive).
 4. Staging rollback:
-   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 176093dd10aee7a6a4bea576d9b7cd0a913fc671`.
+   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 0e1a5e3086814305db577f274691df6c582e616e`.
    `minerva_icd_cache_redis` (128 MB) holds the ICD-11 caches; ~0.8 GB free
    RAM, no swap. `/download/android*` serve 0.3.19 from `private/android-hosted`.
 5. On staging, by hand: refuse then re-consent a direct interview

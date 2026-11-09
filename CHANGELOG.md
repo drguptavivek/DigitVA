@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-09
 
+- **Staging deploy `9464fa016`** (previous `0e1a5e308`).
+- **Saved on server** (`5c567811c`; n3ec): the draft fetch lists the
+  attachment ids the server holds; the phone labels them instead of asking to
+  re-record. Cold start checked on the CI release (mvfe, gnpw closed).
+
 - **Staging deploy `0e1a5e308`** (previous `176093dd1`; old-APK audit clean).
 - **Simple fixes for open Collect beads** (`0e1a5e308`; q32b, 39zq, kwri,
   b8dp, naux, zyei, gnpw, nih5, rd0u): migration tests run serially after the

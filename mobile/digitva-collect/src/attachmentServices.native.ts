@@ -17,7 +17,7 @@ import * as Device from "expo-device";
 import * as DocumentPicker from "expo-document-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, AppState, Image, Linking, Platform } from "react-native";
 import {
   WHO_VA_ATTACHMENT_POLICY,
@@ -37,6 +37,7 @@ import {
   storePdf,
   type CaptureEnv,
 } from "./attachmentCapture";
+import { getServerAttachments, referenceId } from "./attachmentStore";
 import type { AttachmentServicesContext } from "./attachmentServices";
 import { t } from "./i18n";
 import { fileSize, readBytes, removeFile, writeCaptureFile, writePlaybackCopy } from "./mediaFiles";
@@ -232,6 +233,14 @@ export async function checkSharpness(uri: string): Promise<{ score: number; blur
 export function useAttachmentServices(context: AttachmentServicesContext): WhoVaPlatformServices {
   const recorder = useAudioRecorder(VOICE);
   const { db, draftId, projectId } = context;
+  // Ids the server holds for a draft imported from it: no local bytes, shown as "Saved on server".
+  const [onServer, setOnServer] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (!db || !draftId) return undefined;
+    let live = true;
+    void getServerAttachments(db, draftId).then((ids) => { if (live) setOnServer(new Set(ids)); }, () => {});
+    return () => { live = false; };
+  }, [db, draftId]);
   return useMemo<WhoVaPlatformServices>(() => {
     if (!db || !draftId) return {};
     const env: CaptureEnv = {
@@ -274,6 +283,11 @@ export function useAttachmentServices(context: AttachmentServicesContext): WhoVa
       resolveAttachmentUri: (reference) => resolveStored(env, reference),
       releaseAttachmentUri: (uri) => removeFile(uri),
       removeAttachment: (reference) => removeStored(env, reference),
+      isAttachmentOnServer: (reference) => {
+        const id = referenceId(reference);
+        return id !== undefined && onServer.has(id);
+      },
+      savedOnServerLabel: t("attachmentSavedOnServer"),
     };
-  }, [db, draftId, projectId, recorder]);
+  }, [db, draftId, projectId, recorder, onServer]);
 }

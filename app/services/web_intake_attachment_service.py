@@ -121,6 +121,18 @@ def pending_filenames(draft_id: uuid.UUID, ids: set[uuid.UUID]) -> dict[uuid.UUI
     return {cid: filename for cid, filename in rows}
 
 
+def held_ids(draft_id: uuid.UUID) -> list[str]:
+    """Client attachment ids the server holds for the draft (a row exists only
+    once the file is stored), so a phone re-importing the draft need not
+    re-record them. One query; ordered for a stable reply."""
+    rows = db.session.scalars(
+        sa.select(VaWebIntakeAttachment.client_attachment_id)
+        .where(VaWebIntakeAttachment.draft_id == draft_id)
+        .order_by(VaWebIntakeAttachment.created_at, VaWebIntakeAttachment.client_attachment_id)
+    )
+    return [str(cid) for cid in rows]
+
+
 def get_upload(draft_id: uuid.UUID, client_attachment_id: uuid.UUID) -> VaWebIntakeAttachment | None:
     return db.session.get(VaWebIntakeAttachment, (draft_id, client_attachment_id))
 

@@ -8,6 +8,7 @@ import { saveDraftConsent } from "../src/consentStore";
 import { createDraftStore, getDraftRow, markCompleted, migrate, setMeta, stripDraftCovered, unfinishedDraftsForSync, type Db, type DraftSyncItem } from "../src/drafts";
 import { recoverRefusalDraft, reconcileCaseDraft, recordCodingTimeline, recordDraftTimeline, syncDraftSnapshot, type FetchedServerDraft } from "../src/draftSync";
 import type { CaseDetail } from "../src/cases";
+import { getServerAttachments } from "../src/attachmentStore";
 
 jest.mock("../src/auth", () => ({ authedRequest: jest.fn() }));
 jest.mock("expo-crypto", () => ({
@@ -430,6 +431,22 @@ describe("native draft sync", () => {
     await expect(reconcileCaseDraft("user-1", db, caseDetail(), null, LOCAL_ID, defaults))
       .rejects.toThrow("server_draft_instrument_mismatch");
     expect(await getDraftRow(db, LOCAL_ID)).toBeNull();
+  });
+
+  it("keeps the attachment ids the server holds when it imports a server draft, and none from an older server", async () => {
+    const held = "44444444-4444-4444-8444-444444444444";
+    request.mockResolvedValueOnce({ status: 200, body: {
+      draft: summary(), envelope: serverEnvelope(), prefill: {}, server_attachments: [held, 7]
+    } });
+    await reconcileCaseDraft("user-1", db, caseDetail(), null, LOCAL_ID, defaults);
+    expect(await getServerAttachments(db, LOCAL_ID)).toEqual([held]);
+  });
+
+  it("stores no server attachment ids when an older server omits the field", async () => {
+    request.mockResolvedValueOnce({ status: 200, body: { draft: summary(), envelope: serverEnvelope(), prefill: {} } });
+    await reconcileCaseDraft("user-1", db, caseDetail(), null, LOCAL_ID, defaults);
+    expect(await getDraftRow(db, LOCAL_ID)).not.toBeNull();
+    expect(await getServerAttachments(db, LOCAL_ID)).toEqual([]);
   });
 
   it("keeps the local row when the server timestamp is equal to its base", async () => {

@@ -185,6 +185,8 @@ is the phone's side. Server caps and accepted types are not restated here:
 
 - Web interview (2026-11-07): "Take photo" is only `<input type="file" accept="image/jpeg,image/png" capture="environment">` (the camera on phones, a file picker on desktop); there is no live `getUserMedia` camera. The photo goes through the usual sharpness and size processing.
 
+- Files the server already holds (`digitva-n3ec`): `GET /api/v1/intake/drafts/<id>` carries `server_attachments`, the ids of the draft's stored files. A draft imported from the server keeps the list; an attachment question whose answer references one of them, with no bytes on the phone, shows "Saved on server" instead of a load failure, counts as answered, and is not sent again (the upload step sends only files the phone holds). Replace makes a new local file. There is no re-download of the bytes to the phone.
+
 ## Not decided here
 
 - Re-recording replaces the saved file once the new one is saved; delete

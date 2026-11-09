@@ -125,6 +125,12 @@ export interface WhoVaPlatformServices {
   resolveAttachmentUri?: (attachment: AttachmentReference) => Promise<string | undefined>;
   releaseAttachmentUri?: (uri: string) => void;
   removeAttachment?: (attachment: AttachmentReference) => Promise<void>;
+  /**
+   * True when the server already holds this attachment although the device has no bytes for it (a draft
+   * re-imported from the server). The control then shows `savedOnServerLabel` instead of a load failure.
+   */
+  isAttachmentOnServer?: (attachment: AttachmentReference) => boolean;
+  savedOnServerLabel?: string;
 }
 
 /** The full-screen photo viewer a host supplies. Rotation is view-only: the stored image is never changed. */
@@ -2332,11 +2338,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const [loading, setLoading] = useState(false);
     const resolveAttachmentUri = services.resolveAttachmentUri;
     const releaseAttachmentUri = services.releaseAttachmentUri;
+    const isOnServer = services.isAttachmentOnServer;
 
     useEffect(() => {
       let active = true;
       let resolvedUri: string | undefined;
       const attachmentValue = storedAttachmentReference(value);
+      const failure = attachmentValue && isOnServer?.(attachmentValue) ? undefined : loadFailedMessage;
       if (!attachmentUri) {
         setPreviewUri(undefined);
         setLoading(false);
@@ -2354,7 +2362,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       if (!resolveAttachmentUri || !attachmentValue) {
         setPreviewUri(undefined);
         setLoading(false);
-        onLoadError(loadFailedMessage);
+        onLoadError(failure);
         return () => {
           active = false;
         };
@@ -2370,7 +2378,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           if (!uri || uri.startsWith("who-va-attachment:")) {
             if (uri) releaseAttachmentUri?.(uri);
             setLoading(false);
-            onLoadError(loadFailedMessage);
+            onLoadError(failure);
             return;
           }
           resolvedUri = uri;
@@ -2381,14 +2389,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         .catch(() => {
           if (active) {
             setLoading(false);
-            onLoadError(loadFailedMessage);
+            onLoadError(failure);
           }
         });
       return () => {
         active = false;
         if (resolvedUri) releaseAttachmentUri?.(resolvedUri);
       };
-    }, [attachmentUri, loadFailedMessage, onLoadError, releaseAttachmentUri, resolveAttachmentUri, value]);
+    }, [attachmentUri, loadFailedMessage, onLoadError, releaseAttachmentUri, resolveAttachmentUri, isOnServer, value]);
 
     return { previewUri, loading };
   }
@@ -2673,6 +2681,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         {playbackLoading ? (
           <PrimitiveText style={questionControlStyles.hint}>{messages.loadingAudio}</PrimitiveText>
         ) : null}
+        {!previewUri && !playbackLoading && currentAttachment && services.isAttachmentOnServer?.(currentAttachment) ? (
+          <PrimitiveText style={questionControlStyles.hint}>{services.savedOnServerLabel}</PrimitiveText>
+        ) : null}
         {/* Play and Delete share one row with Delete as an icon at the far end, so a tap meant for Play
             cannot land on Delete (owner, phone check 2026-10-30). */}
         {phase === "idle" && ((previewUri && Player) || (value && !readOnly && services.removeAttachment)) ? (
@@ -2829,6 +2840,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
     const resolveAttachmentUri = services.resolveAttachmentUri;
     const releaseAttachmentUri = services.releaseAttachmentUri;
+    const isOnServer = services.isAttachmentOnServer;
 
     useEffect(() => {
       let active = true;
@@ -2854,13 +2866,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           if (active) setPreviewUri(uri);
         })
         .catch(() => {
-          if (active) onLoadError(loadFailedMessage);
+          if (active && !isOnServer?.(attachmentValue)) onLoadError(loadFailedMessage);
         });
       return () => {
         active = false;
         if (resolvedUri) releaseAttachmentUri?.(resolvedUri);
       };
-    }, [attachmentUri, loadFailedMessage, onLoadError, releaseAttachmentUri, resolveAttachmentUri, value]);
+    }, [attachmentUri, loadFailedMessage, onLoadError, releaseAttachmentUri, resolveAttachmentUri, isOnServer, value]);
 
     return previewUri;
   }
@@ -3151,6 +3163,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             messages={messages}
           />
         ) : null}
+        {!previewUri && currentAttachment && services.isAttachmentOnServer?.(currentAttachment) ? (
+          <PrimitiveText style={questionControlStyles.hint}>{services.savedOnServerLabel}</PrimitiveText>
+        ) : null}
         {attachment.name ? (
           <PrimitiveText style={questionControlStyles.attachmentName}>{attachment.name}</PrimitiveText>
         ) : null}
@@ -3326,6 +3341,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             services={services}
             messages={messages}
           />
+        ) : null}
+        {!previewUri && currentAttachment && services.isAttachmentOnServer?.(currentAttachment) ? (
+          <PrimitiveText style={questionControlStyles.hint}>{services.savedOnServerLabel}</PrimitiveText>
         ) : null}
         {attachment.name ? (
           <PrimitiveText style={questionControlStyles.attachmentName}>{attachment.name}</PrimitiveText>

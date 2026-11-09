@@ -1990,6 +1990,7 @@
   "standaloneProfileNameField": "Name (letters A to Z and spaces)",
   "standaloneProfileAgeField": "Age (18 to 89, or 99 if not stated)",
   "offlineAttachmentUnavailable": "Attachment unavailable.",
+  "attachmentSavedOnServer": "Saved on server",
   "offlineAttachmentLoading": "Loading attachment…",
   "offlineAttachmentDocument": "A document is attached; it is not shown here.",
   "offlineAttachedImage": "Attached image",

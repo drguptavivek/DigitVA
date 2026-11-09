@@ -137,3 +137,28 @@ export async function sendableAttachments(
   const heldIds = new Set(held.map((file) => file.id));
   return { files: held, missing: [...wanted].filter((id) => !heldIds.has(id)) };
 }
+
+const serverHeldKey = (draftId: string) => `server-attachments:${draftId}`;
+
+/**
+ * Remember the attachment ids the server already holds for a draft imported from it (`server_attachments` of
+ * `GET /intake/drafts/<id>`): the phone has no bytes for them, so the form shows "Saved on server" and the
+ * upload step never asks for them. Kept in the meta table (no schema change); an empty list clears it.
+ */
+export async function setServerAttachments(db: Db, draftId: string, ids: readonly string[]): Promise<void> {
+  if (!ids.length) {
+    await db.runAsync("DELETE FROM meta WHERE key = ?", [serverHeldKey(draftId)]);
+    return;
+  }
+  await db.runAsync(
+    "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    [serverHeldKey(draftId), JSON.stringify(ids)],
+  );
+}
+
+export async function getServerAttachments(db: Db, draftId: string): Promise<string[]> {
+  const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM meta WHERE key = ?", [serverHeldKey(draftId)]);
+  if (!row) return [];
+  const ids = JSON.parse(row.value) as unknown;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string").map((id) => id.toLowerCase()) : [];
+}

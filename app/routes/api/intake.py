@@ -822,6 +822,9 @@ def get_draft(draft_id):
             # The hash of the exact answers text held now (null for a browser
             # draft); a revision must start from these answers.
             "answers_sha256": draft.answers_sha256,
+            # Attachment ids the server already holds; the phone shows them as
+            # "Saved on server" instead of asking for a re-record.
+            "server_attachments": attachments_svc.held_ids(draft.draft_id),
         }
     )
 

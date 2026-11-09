@@ -9,6 +9,7 @@ import type { CaseDetail } from "./cases";
 import { canStartDeathInterview } from "./deathWorkflow";
 import { consentFor, loadConsents, withoutCovered } from "./consentStore";
 import { isRefused, refusalAnswers } from "./refusalBoundary";
+import { setServerAttachments } from "./attachmentStore";
 import { clearRefusedDraftInTransaction, draftForCase, getDraftPrefill, getDraftRow, getMeta, setMeta, localDateTimeWithOffset, type Db, type DeviceTimedDraft, type DraftRow, type DraftSyncItem } from "./drafts";
 import { runInTransaction } from "./dbTransaction";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
@@ -62,6 +63,8 @@ export interface FetchedServerDraft {
   draft: ServerDraftSummary;
   envelope: ServerDraftEnvelope;
   prefill: Record<string, unknown>;
+  /** Attachment ids the server holds for the draft (absent from an older server). */
+  serverAttachments?: string[];
 }
 
 export interface DraftSyncResult {
@@ -177,7 +180,10 @@ export async function fetchServerDraft(userId: string, serverDraftId: string): P
   return {
     draft,
     envelope: serverEnvelope(body.envelope, serverDraftId),
-    prefill: prefillRecord(body.prefill)
+    prefill: prefillRecord(body.prefill),
+    serverAttachments: Array.isArray(body.server_attachments)
+      ? body.server_attachments.filter((id): id is string => typeof id === "string")
+      : []
   };
 }
 
@@ -649,7 +655,9 @@ async function storeServerWinner(
   [JSON.stringify(merged), fetched.draft.updated_at, fetched.draft.draft_id, fetched.draft.updated_at,
     serverPrefill ? JSON.stringify(serverPrefill) : null,
     local.id, local.envelope, local.updated_at]);
-  return resultChanges(result);
+  if (!resultChanges(result)) return false;
+  await setServerAttachments(db, local.id, fetched.serverAttachments ?? []);
+  return true;
 }
 
 async function insertServerDraft(
@@ -681,7 +689,10 @@ async function insertServerDraft(
     JSON.stringify(fetched.prefill), fetched.draft.draft_id, fetched.draft.updated_at,
     caseDetail.death_id, localId
   ]);
-  if (resultChanges(result)) return { row: await getDraftRow(db, localId), imported: true };
+  if (resultChanges(result)) {
+    await setServerAttachments(db, localId, fetched.serverAttachments ?? []);
+    return { row: await getDraftRow(db, localId), imported: true };
+  }
   return { row: await draftForCase(db, { deathId: caseDetail.death_id }), imported: false };
 }
 

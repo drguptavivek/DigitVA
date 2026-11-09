@@ -10,7 +10,7 @@ jest.mock("expo-crypto", () => ({
 }));
 
 import { ApiError } from "../src/api";
-import { draftAttachments, saveAttachment } from "../src/attachmentStore";
+import { draftAttachments, markUploaded, saveAttachment } from "../src/attachmentStore";
 import { uploadDraftAttachments } from "../src/attachmentUpload";
 import { createDraftStore, getDraftRow, markCompleted, migrate, type Db } from "../src/drafts";
 import { sendRefusal } from "../src/unsentWork";
@@ -71,6 +71,15 @@ it("sends nothing for confirmed files, or when the answers reference no file", a
   mockRequest.mockClear();
   expect(await uploadDraftAttachments("u1", db, item, { Id10476_audio: ref(A), imagenarr: ref(B) })).toEqual({ state: "done" });
   expect(await uploadDraftAttachments("u1", db, item, { Id10013: "yes" })).toEqual({ state: "done" });
+  expect(mockRequest).not.toHaveBeenCalled();
+});
+
+it("needs no local bytes for a reference the server already holds", async () => {
+  const HELD = "33333333-3333-4333-8333-333333333333";
+  await markUploaded(db, A);
+  await markUploaded(db, B);
+  mockRequest.mockClear();
+  expect(await uploadDraftAttachments("u1", db, item, { Id10476_audio: ref(HELD), imagenarr: ref(B) })).toEqual({ state: "done" });
   expect(mockRequest).not.toHaveBeenCalled();
 });
 

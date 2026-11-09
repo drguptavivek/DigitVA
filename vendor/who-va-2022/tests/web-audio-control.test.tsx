@@ -164,6 +164,22 @@ describe("web audio control", () => {
     root.unmount();
   });
 
+  it("shows the host's saved-on-server label, not a load error, for a recording only the server holds", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = renderAudio(container, {
+      value: { uri: "who-va-attachment:saved", id: "saved", mimeType: "audio/webm" },
+      platform: {
+        resolveAttachmentUri: () => Promise.resolve(undefined),
+        isAttachmentOnServer: (a: { id?: string }) => a.id === "saved",
+        savedOnServerLabel: "Saved on server"
+      }
+    });
+    await vi.waitFor(() => expect(container.textContent).toContain("Saved on server"));
+    expect(container.textContent).not.toContain("could not be loaded");
+    root.unmount();
+  });
+
   it("clears a stale load error once a later resolve succeeds", async () => {
     const value = { uri: "who-va-attachment:saved", id: "saved", mimeType: "audio/webm" };
     const container = document.createElement("div");

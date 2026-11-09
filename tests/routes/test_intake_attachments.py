@@ -152,6 +152,15 @@ class IntakeAttachmentTests(BaseTestCase):
         self.assertEqual(response.status_code, 201, response.get_json())
         return response.get_json()["draft"]
 
+    def _start_draft_with_client_id(self):
+        response = self.client.post(
+            "/api/v1/intake/drafts",
+            json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "client_draft_id": str(uuid.uuid4())},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        return response.get_json()["draft"]
+
     def _put(self, draft_id, cid, body, **kwargs):
         headers = {"Content-Type": "application/octet-stream", **self._csrf_headers(), **kwargs.pop("headers", {})}
         return self.client.put(
@@ -181,6 +190,18 @@ class IntakeAttachmentTests(BaseTestCase):
             json={"completion": {"valid": True, "issues": [], "data": data}},
             headers=self._csrf_headers(),
         )
+
+    def test_get_draft_lists_the_ids_the_server_holds_for_that_draft_only(self):
+        self._login(self.interviewer_id)
+        draft, other = self._start_draft(), self._start_draft_with_client_id()
+        self.assertEqual(self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()["server_attachments"], [])
+        cid, foreign = uuid.uuid4(), uuid.uuid4()
+        self.assertEqual(self._put(draft["draft_id"], cid, WEBM).status_code, 201)
+        self.assertEqual(self._put(other["draft_id"], foreign, WEBM).status_code, 201)
+        body = self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").get_json()
+        self.assertEqual(body["server_attachments"], [str(cid)])
+        self._login(self.other_id)
+        self.assertEqual(self.client.get(f"/api/v1/intake/drafts/{draft['draft_id']}").status_code, 404)
 
     # ── upload ─────────────────────────────────────────────────────────────
 

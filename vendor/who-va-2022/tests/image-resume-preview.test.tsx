@@ -42,3 +42,13 @@ it("never hands an unresolvable opaque ref to the image element", async () => {
   expect(container.querySelector('img[src^="who-va-attachment:"]')).toBeNull();
   root.unmount();
 });
+
+it("shows the host's saved-on-server label, not a load failure, for an image only the server holds", async () => {
+  const resolveAttachmentUri = vi.fn().mockResolvedValue(undefined);
+  const { container, root } = render({
+    resolveAttachmentUri, isAttachmentOnServer: (a: { id?: string }) => a.id === "opaque", savedOnServerLabel: "Saved on server"
+  });
+  await vi.waitFor(() => expect(container.textContent).toContain("Saved on server"));
+  expect(container.textContent).not.toContain("could not be loaded");
+  root.unmount();
+});

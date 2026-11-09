@@ -48,7 +48,7 @@ import { errorText } from "./ui";
 import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline } from "./network";
 import { accountServerChanged, lacksServer } from "./accountServer";
 import { NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
-import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
+import { reconcileReferenceAccess, refreshReferenceData, uploadQueuedWork } from "./sync";
 import type { AccessSummary } from "./api";
 import type { ClientBootstrap } from "./client/api";
 import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, type NativeSyncResult } from "./nativeNotificationSync";
@@ -471,6 +471,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     };
   }, [bumpRefresh, pollForegroundNotifications, reportBackgroundError]);
 
+  // Leaving the app: send queued work while the store is still unlocked
+  // (it locks 60 s after backgrounding). Per-draft upload locks make a
+  // concurrent foreground sync safe; failures wait for the next sync.
+  const sendOnLeave = useCallback(async () => {
+    if (isOffline()) return;
+    for (const account of accountsRef.current) {
+      if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+      if (!isUnlocked(account.user_id)) continue;
+      try {
+        await uploadQueuedWork(account.user_id, await openInterviewerDb(account.user_id));
+      } catch {
+        // Kept in the queue; the next foreground sync retries.
+      }
+    }
+  }, []);
+
   useEffect(() => {
     let previous = NativeAppState.currentState;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -503,6 +519,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         startTimer();
       } else if (next !== "active") {
         stopTimer();
+        if (previous === "active") void sendOnLeave();
       }
       previous = next;
     });
@@ -511,7 +528,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       foregroundNotificationRefresh.current = undefined;
       subscription.remove();
     };
-  }, [ready, refreshUnlocked, pollForegroundNotifications, reportBackgroundError, setBackgroundError]);
+  }, [ready, refreshUnlocked, sendOnLeave, pollForegroundNotifications, reportBackgroundError, setBackgroundError]);
 
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));

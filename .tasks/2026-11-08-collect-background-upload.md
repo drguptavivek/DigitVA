@@ -1,6 +1,6 @@
 # Collect: upload unsent work from the Android background task (digitva-bxff)
 
-Status: proposed (awaiting owner decision D1)
+Status: superseded 2026-11-09 — owner chose the simple path: send queued work when the app goes to the background, in the 60 s before the store locks (src/AppState.tsx sendOnLeave). Outbox not built.
 Priority: P1
 Created: 2026-11-08
 

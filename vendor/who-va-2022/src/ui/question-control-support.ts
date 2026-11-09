@@ -254,11 +254,11 @@ export const questionControlStyles = {
   // The gap keeps adjacent buttons apart; without it they touched on the phone.
   actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8, marginTop: 8 },
   buttonCompact: { alignSelf: "flex-start" as const },
-  // An attachment action row: equal-width, equal-height buttons on one line (no wrapping into mixed widths).
-  actionRow: { flexDirection: "row" as const, alignItems: "stretch" as const, gap: 8, marginTop: 8 },
+  // An attachment action row: equal-height buttons; a button too narrow for its label moves to the next line whole (digitva-b8dp).
+  actionRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, alignItems: "stretch" as const, gap: 8, marginTop: 8 },
   actionButton: {
     flexGrow: 1,
-    flexBasis: 0,
+    flexBasis: 120,
     minWidth: 0,
     minHeight: 48,
     paddingHorizontal: 10,

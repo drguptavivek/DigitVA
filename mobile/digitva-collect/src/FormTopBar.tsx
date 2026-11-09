@@ -109,7 +109,7 @@ export function FormTopBar({
           accessibilityLabel={t("problemsChip", { count: problemCount })}
           testID="problems-chip"
           onPress={onProblems}
-          style={{ minHeight: 36, paddingHorizontal: spacing.sm, borderRadius: radius.lg * 2, borderWidth: 1, borderColor: ui.destructiveText, justifyContent: "center" }}
+          style={{ minHeight: 44, paddingHorizontal: spacing.sm, borderRadius: radius.lg * 2, borderWidth: 1, borderColor: ui.destructiveText, justifyContent: "center" }}
         >
           <Text numberOfLines={1} style={{ ...typography.caption, fontWeight: "700", color: ui.destructiveText }}>{t("problemsChip", { count: problemCount })}</Text>
         </Pressable>
@@ -123,7 +123,7 @@ export function FormTopBar({
           testID="consent-chip"
           disabled={!consentChip.onPress || disabled}
           onPress={consentChip.onPress}
-          style={{ minHeight: 36, paddingHorizontal: spacing.sm, borderRadius: radius.lg * 2, borderWidth: 1, borderColor: consentChip.decision === "granted" ? ui.success : consentChip.decision === "refused" ? ui.destructiveText : ui.warningText, justifyContent: "center" }}
+          style={{ minHeight: 44, paddingHorizontal: spacing.sm, borderRadius: radius.lg * 2, borderWidth: 1, borderColor: consentChip.decision === "granted" ? ui.success : consentChip.decision === "refused" ? ui.destructiveText : ui.warningText, justifyContent: "center" }}
         >
           <Text numberOfLines={1} style={{ ...typography.caption, fontWeight: "700", color: ui.foreground }}>{consentChip.label}</Text>
         </Pressable>

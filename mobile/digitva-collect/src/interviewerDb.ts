@@ -120,6 +120,8 @@ function tracked<T>(work: Promise<T>): Promise<T> {
 const fileName = async (userId: string) => `iv_${await storeHash(userId)}.db`;
 
 export const isUnlocked = (userId: string) => unlocked.has(userId);
+/** The open handle for an unlocked interviewer, else undefined; a lock and re-unlock gives a new handle. */
+export const unlockedDb = (userId: string): Db | undefined => unlocked.get(userId);
 /** A store is open, or opening (lockAll will wait for it). */
 export const anyUnlocked = () => unlocked.size > 0 || opening.size > 0;
 /** An open store for device-level records that belong to no one interviewer (the error log); undefined while locked. */

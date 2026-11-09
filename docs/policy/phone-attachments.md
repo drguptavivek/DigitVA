@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-09
 ---
 
 # Phone Attachments
@@ -183,7 +183,7 @@ is the phone's side. Server caps and accepted types are not restated here:
      explanation as the camera button. The Android ML Kit scanner runs in Play
      services' own screen and needs no camera permission from the app.
 
-- Web interview (2026-11-07): "Take photo" opens a live camera preview (`getUserMedia`, rear camera, Capture/Cancel/Esc) and falls back to the `capture` file input when no camera is available or permission is denied; the captured JPEG goes through the usual sharpness and size processing.
+- Web interview (2026-11-07): "Take photo" is only `<input type="file" accept="image/jpeg,image/png" capture="environment">` (the camera on phones, a file picker on desktop); there is no live `getUserMedia` camera. The photo goes through the usual sharpness and size processing.
 
 ## Not decided here
 

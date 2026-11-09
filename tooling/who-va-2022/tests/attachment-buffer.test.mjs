@@ -351,28 +351,45 @@ test("nothing the platform adapter returns carries the picked file's name", asyn
   assert.equal(audioRef.originalName, "aud-id.webm");
 });
 
-test("captureImage uses the live camera, falls back to the file input, and resets on cancel", async () => {
+test("captureImage opens an input with capture=environment and a cancelled pick returns nothing", async () => {
   const { createAttachmentPlatform } = await import("../../../app/static/js/intake/attachment_platform.js");
   const { buffer } = makeBuffer();
-  let live;
-  let picks = 0;
-  const WhoVa = {
-    WHO_VA_ATTACHMENT_POLICY: { image: { acceptedMimeTypes: ["image/jpeg"], maxInputBytes: 1 } },
-    captureWebCameraPhoto: async () => live,
-    processWebImageAttachment: async (file) => ({ id: "img-id", name: "img-id.jpg", originalName: file.name }),
+  const inputs = [];
+  const fakeInput = () => {
+    const attrs = {};
+    const handlers = {};
+    const input = {
+      files: [],
+      setAttribute: (k, v) => { attrs[k] = v; },
+      addEventListener: (type, fn) => { handlers[type] = fn; },
+      click: () => queueMicrotask(() => { input.files = input.next; handlers.change?.(); }),
+    };
+    inputs.push({ input, attrs });
+    return input;
   };
-  const platform = createAttachmentPlatform({
-    WhoVa, buffer, uploader: { flush: async () => {} }, attachmentUrl: (id) => id,
-    pick: async () => { picks += 1; return Object.assign(new Blob(["x"]), { name: "picked.jpg" }); },
-  });
-
-  live = Object.assign(new Blob(["x"]), { name: "camera.jpg" });
-  assert.equal((await platform.captureImage()).id, "img-id");
-  assert.equal(picks, 0);
-  live = undefined; // cancelled in the live preview: no picker, nothing returned
-  assert.equal(await platform.captureImage(), undefined);
-  assert.equal(picks, 0);
-  live = null; // no camera usable: file input
-  assert.equal((await platform.captureImage()).id, "img-id");
-  assert.equal(picks, 1);
+  const realDocument = globalThis.document;
+  const realWindow = globalThis.window;
+  globalThis.document = { createElement: fakeInput };
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  try {
+    const WhoVa = {
+      WHO_VA_ATTACHMENT_POLICY: { image: { acceptedMimeTypes: ["image/jpeg"], maxInputBytes: 1 } },
+      processWebImageAttachment: async (file) => ({ id: "img-id", name: "img-id.jpg", originalName: file.name }),
+      // The live camera was removed (digitva-nih5); reaching it again fails the test.
+      captureWebCameraPhoto: () => { throw new Error("live camera must not be used"); },
+    };
+    const platform = createAttachmentPlatform({
+      WhoVa, buffer, uploader: { flush: async () => {} }, attachmentUrl: (id) => id,
+    });
+    const first = platform.captureImage();
+    inputs[0].input.next = [Object.assign(new Blob(["x"]), { name: "shot.jpg" })];
+    assert.equal((await first).id, "img-id");
+    assert.equal(inputs[0].attrs.capture, "environment");
+    const second = platform.captureImage();
+    inputs[1].input.next = [];
+    assert.equal(await second, undefined);
+  } finally {
+    globalThis.document = realDocument;
+    globalThis.window = realWindow;
+  }
 });

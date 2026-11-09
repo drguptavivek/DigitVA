@@ -50,7 +50,7 @@ import {
   validateRegistration,
   type RegistrationFields,
 } from "../cases";
-import { checkCollectionGate, gateMessage, recordCollectionStart } from "../collectionGate";
+import { checkCollectionGate, gateMessage, recordCollectionStart, type GateDecision } from "../collectionGate";
 import { getMeta, setMeta, type Db } from "../drafts";
 import type { ProjectConsentConfig } from "../consent";
 import {
@@ -453,6 +453,24 @@ export default function Register() {
   // The project picked on screen: a reload on resume keeps it when no saved copy exists (name and sex still empty).
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
+  // A closed collection gate for every site this form could register to: a banner says why (the same text Interviews
+  // shows). Saving re-checks it. Offline or a stale answer is open.
+  const [closedGate, setClosedGate] = useState<Exclude<GateDecision, { open: true }>>();
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      let first: Exclude<GateDecision, { open: true }> | undefined;
+      if (db && !params.deathId) {
+        for (const choice of targets) {
+          const gate = await checkCollectionGate(db, choice.projectId, choice.siteId, choice.orgUnitId);
+          if (gate.open) { first = undefined; break; }
+          first ??= gate;
+        }
+      }
+      if (live) setClosedGate(first);
+    })().catch(() => { if (live) setClosedGate(undefined); });
+    return () => { live = false; };
+  }, [db, targets, params.deathId, lockVersion]);
   const [target, setTarget] = useState<Target | undefined>();
   const [fields, setFields] = useState<RegistrationFields>({
     deceased_name: "",
@@ -1258,6 +1276,7 @@ export default function Register() {
     <Screen title={t("registerDeath")} footer={footer} scrollRef={scroller}>
       <FormThemeContext.Provider value={whoTheme}>
       <View style={{ gap: spacing.md, paddingBottom: spacing.xs }}>
+      {closedGate ? <Notice tone="warning"><Text style={styles.text} testID="register-gate">{gateMessage(closedGate)}</Text></Notice> : null}
       {!serverDeathId && registerProjects.length > 1 ? (
         <Card grouped label={t("chooseProject")}>
           {registerProjects.map((project, index) => (

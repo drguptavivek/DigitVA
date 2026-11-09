@@ -48,6 +48,7 @@ import { errorText } from "./ui";
 import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline } from "./network";
 import { accountServerChanged, lacksServer } from "./accountServer";
 import { NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { dropWorklist } from "./worklistCache";
 import { reconcileReferenceAccess, refreshReferenceData, uploadQueuedWork } from "./sync";
 import type { AccessSummary } from "./api";
 import type { ClientBootstrap } from "./client/api";
@@ -201,6 +202,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     try {
       await lockAll();
+      dropWorklist();
       lastAccess.current.clear();
       setError(undefined);
       router.replace("/");
@@ -472,8 +474,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [bumpRefresh, pollForegroundNotifications, reportBackgroundError]);
 
   // Leaving the app: send queued work while the store is still unlocked
-  // (it locks 60 s after backgrounding). Per-draft upload locks make a
-  // concurrent foreground sync safe; failures wait for the next sync.
+  // (it locks 60 s after backgrounding). A concurrent sync is safe: drafts hold
+  // per-draft upload locks and the server dedupes resent client ids; failures wait for the next sync.
   const sendOnLeave = useCallback(async () => {
     if (isOffline()) return;
     for (const account of accountsRef.current) {

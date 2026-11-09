@@ -265,7 +265,7 @@ function TabBar() {
                 </View>
               ) : null}
             </View>
-            <Text key={fontScale} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.92} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, ...controlText, lineHeight: 18, alignSelf: "stretch", paddingHorizontal: 2, fontWeight: on ? "600" : "400", color }}>{t(tab.labelKey)}</Text>
+            <Text key={fontScale} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.92} maxFontSizeMultiplier={1.5} style={{ ...typography.caption, ...controlText, lineHeight: 22, alignSelf: "stretch", paddingHorizontal: 2, fontWeight: on ? "600" : "400", color }}>{t(tab.labelKey)}</Text>
           </Pressable>
         );
       })}

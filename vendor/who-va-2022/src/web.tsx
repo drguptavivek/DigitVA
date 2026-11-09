@@ -34,7 +34,6 @@ export {
   resolveWebAttachmentUri
 } from "./web-attachments.js";
 export { startWebAudioRecording } from "./web-audio.js";
-export { captureWebCameraPhoto } from "./web-camera.js";
 export type * from "./web-audio.js";
 export type { WhoVaQuestionControlProps } from "./ui/question-controls.js";
 

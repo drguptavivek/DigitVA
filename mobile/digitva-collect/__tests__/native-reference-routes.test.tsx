@@ -188,6 +188,7 @@ jest.mock("../src/AppState", () => ({
 }));
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => true,
+  unlockedDb: () => undefined,
   openInterviewerDb: jest.fn(async () => mockDb),
 }));
 jest.mock("../src/formDefinitionCache", () => ({

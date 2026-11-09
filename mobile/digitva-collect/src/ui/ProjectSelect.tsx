@@ -3,7 +3,6 @@ import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDime
 import Svg, { Path } from "react-native-svg";
 
 import { t } from "../i18n";
-import { Icon, icons } from "../Icon";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { Chevron } from "../web/Chevron";
 import { toggleProject } from "../web/stats/view";
@@ -64,11 +63,11 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
   onChange: (next: string[]) => void;
   multiple?: boolean;
   disabled?: boolean;
-  /** Phone presentation: "Project" label above a hairline picker row (as the Register unit picker); ignored on the web. */
+  /** Phone presentation: the plain project row Home uses (no label, no border); ignored on the web. */
   fieldRow?: boolean;
 }) {
   const s = useSelectStyles();
-  const { colors, ui, typography, focusWidth } = useTheme();
+  const { colors, ui, typography } = useTheme();
   const { width } = useWindowDimensions();
   const wide = width >= WIDE;
   const [open, setOpen] = useState(false);
@@ -126,22 +125,21 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
   );
   const phoneRow = fieldRow && Platform.OS !== "web";
   const trigger = phoneRow ? (
-    <View style={{ gap: spacing.xxs }}>
-      <Text style={{ ...typography.subhead, fontWeight: "600", color: ui.foreground, fontFamily: controls.fontFamily }}>{t("filterProject")}</Text>
-      <Pressable
-        ref={button}
-        accessibilityRole="button"
-        accessibilityLabel={field}
-        accessibilityState={{ expanded: open, disabled }}
-        disabled={disabled}
-        onPress={show}
-        // The Register unit picker's look: white fill, a hairline edge, a primary chevron.
-        style={[{ flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: controls.minHeight, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: focusWidth, borderColor: ui.border, backgroundColor: ui.card }, disabled && { opacity: 0.5 }]}
-      >
-        <Text numberOfLines={1} style={{ ...typography.body, flex: 1, color: ui.foreground }}>{projectSummary(projects, value)}</Text>
-        <Icon name={icons.chevronRight} color={ui.primary} size={16} />
-      </Pressable>
-    </View>
+    // The plain row Home's project line uses (ProjectLine in nativeRoutes/worklistParts): no label, no border.
+    <Pressable
+      ref={button}
+      accessibilityRole="button"
+      accessibilityLabel={field}
+      accessibilityState={{ expanded: open, disabled }}
+      disabled={disabled}
+      onPress={show}
+      style={[{ minHeight: controls.minTouchTarget, justifyContent: "center" }, disabled && { opacity: 0.5 }]}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
+        <Text numberOfLines={1} style={{ ...typography.subhead, color: ui.mutedForeground, flexShrink: 1 }}>{projectSummary(projects, value)}</Text>
+        <Chevron expanded size={18} color={ui.mutedForeground} />
+      </View>
+    </Pressable>
   ) : (
       <Pressable
         ref={button}

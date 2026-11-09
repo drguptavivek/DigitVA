@@ -10,7 +10,7 @@ import themeHi from "../src/strings/theme-hi.json";
  */
 const SAME_AS_ENGLISH = new Set([
   "appName", "dataFilterSmartva", "dataColSmartva", "webAttachmentKindPdf",
-  "codingModeIcd11Doris", "codingModeIcd10", "icd11Citation", "emailPlaceholder",
+  "codingModeIcd11Doris", "codingModeIcd10", "icd11Citation", "digitvaAddition", "emailPlaceholder",
 ]);
 
 const pairs: Array<[Record<string, string>, Record<string, string>]> = [[en, hi], [themeEn, themeHi]];

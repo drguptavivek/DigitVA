@@ -57,6 +57,7 @@ import {
   targetsFrom,
 } from "../sync";
 import { useToast } from "../toast";
+import { dropWorklist, heldWorklist, holdWorklist } from "../worklistCache";
 import { icons } from "../Icon";
 import { displayProjectName } from "../projectName";
 import { Button, Card, DetailsChip, errorText, ListRow, Screen, Separator } from "../ui";
@@ -91,21 +92,23 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     userId: string;
     refresh?: string;
   }>();
-  const { accounts, device, reload, lockVersion, syncAccount, offline } = useAppState();
+  const { accounts, device, reload, lockVersion, syncAccount, offline, uiLocale } = useAppState();
   const lastLockVersion = useRef(lockVersion);
   const shell = useShell();
   const account = accounts.find((a) => a.user_id === userId);
+  // The last data this tab (or its sibling) loaded, if the same store is still open: drawn at once while it refreshes.
+  const [held] = useState(() => (userId ? heldWorklist(userId) : undefined));
   const [db, setDb] = useState<Db | undefined>();
-  const [drafts, setDrafts] = useState<ListedDraft[]>([]);
-  const [refusals, setRefusals] = useState<Map<string, SendRefusal>>(new Map());
-  const [revisions, setRevisions] = useState<RevisionRow[]>([]);
+  const [drafts, setDrafts] = useState<ListedDraft[]>(held?.drafts ?? []);
+  const [refusals, setRefusals] = useState<Map<string, SendRefusal>>(held?.refusals ?? new Map());
+  const [revisions, setRevisions] = useState<RevisionRow[]>(held?.revisions ?? []);
   const [firstDownload, setFirstDownload] = useState(false);
-  const [submittedRevisions, setSubmittedRevisions] = useState<SubmittedRevisionSummary[]>([]);
+  const [submittedRevisions, setSubmittedRevisions] = useState<SubmittedRevisionSummary[]>(held?.submittedRevisions ?? []);
   const [submittedRevisionsLoaded, setSubmittedRevisionsLoaded] = useState(false);
   // The revisions list failed to load: undefined = fine; the text is what Interviews shows (no connection, or Retry + the Ref line).
   const [submittedRevisionsError, setSubmittedRevisionsError] = useState<string | undefined>();
-  const [cases, setCases] = useState<CaseDetail[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>();
+  const [cases, setCases] = useState<CaseDetail[]>(held?.cases ?? []);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(held?.selectedProjectId);
   // The user's own pick (kept in this account's database) survives blur and reference refreshes, unlike the state above.
   const pickedProjectRef = useRef<string | undefined>(undefined);
   const deviceProjectRef = useRef<string | undefined>(undefined);
@@ -113,17 +116,17 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   // Keep the current project while authorized, else the saved pick, else the project this phone was enrolled on, else the first.
   const defaultProject = useCallback((ids: string[], current?: string) =>
     [current, pickedProjectRef.current, deviceProjectRef.current].find((id) => id && ids.includes(id)) ?? ids[0], []);
-  const [onlineCases, setOnlineCases] = useState<CaseRow[]>([]);
+  const [onlineCases, setOnlineCases] = useState<CaseRow[]>(held?.onlineCases ?? []);
   const [onlineCursor, setOnlineCursor] = useState<string | null>(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [actions, setActions] = useState<CaseAction[]>([]);
-  const [pausedProjects, setPausedProjects] = useState<PausedProject[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>(held?.registrations ?? []);
+  const [actions, setActions] = useState<CaseAction[]>(held?.actions ?? []);
+  const [pausedProjects, setPausedProjects] = useState<PausedProject[]>(held?.pausedProjects ?? []);
   const [referenceData, setReferenceData] =
-    useState<Awaited<ReturnType<typeof getCachedReferenceData>>>();
+    useState<Awaited<ReturnType<typeof getCachedReferenceData>>>(held?.referenceData);
   // The cached reference data has been read since the last unlock (it may be absent on a first sign-in). Until then
   // the views show their skeletons: without it they would draw an account with no project and then jump.
-  const [referenceRead, setReferenceRead] = useState(false);
+  const [referenceRead, setReferenceRead] = useState(held !== undefined);
   const [picking, setPicking] = useState(false);
   const [choosingProject, setChoosingProject] = useState(false);
   const [recent, setRecent] = useState<RecentTarget>();
@@ -150,9 +153,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const dbRef = useRef<Db | undefined>(undefined);
   const onlineRequestGenerationRef = useRef(0);
   const submittedRequestGenerationRef = useRef(0);
-  const selectedProjectRef = useRef<string | undefined>(undefined);
+  const selectedProjectRef = useRef<string | undefined>(held?.selectedProjectId);
   const referenceDataRef =
-    useRef<Awaited<ReturnType<typeof getCachedReferenceData>>>(undefined);
+    useRef<Awaited<ReturnType<typeof getCachedReferenceData>>>(held?.referenceData);
   const consumedRefreshFor = useRef<string | undefined>(undefined);
   const appStateRef = useRef(AppState.currentState);
   const submittedFetchedRef = useRef<{ key: string; at: number } | undefined>(undefined);
@@ -353,6 +356,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     async (error: unknown) => {
       if (error instanceof SessionRevokedError) {
         Alert.alert(errorText(error));
+        dropWorklist();
         clearVisible();
         await reload();
         router.replace("/");
@@ -360,6 +364,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       }
       // Tokens dropped, data kept: the home screen now flags this account.
       if (error instanceof SignInRequiredError) {
+        dropWorklist();
         clearVisible();
         await reload();
         router.replace("/");
@@ -468,7 +473,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
             pickedProjectRef.current = undefined;
             void setMeta(handle, PICKED_PROJECT_KEY, null).catch(() => undefined);
           }
-          setSelectedProjectId((current) => defaultProject(cachedIds, current));
+          // The pick made on another tab wins over this tab's older one.
+          setSelectedProjectId(defaultProject(cachedIds));
           try {
             const fresh = forceRefresh
               ? await refreshReferenceData(account.user_id, handle, {
@@ -544,6 +550,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     lastLockVersion.current = lockVersion;
     if (!account) return;
     if (!isUnlocked(account.user_id)) {
+      dropWorklist();
       clearVisible();
       return;
     }
@@ -653,7 +660,13 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       revisions: visible(revisions),
       refusals,
     });
-  }, [projects, selectedProjectId, drafts, registrations, cases, onlineCases, submittedRevisions, revisions, refusals]);
+    // uiLocale: the card words (badge, action, time) are translated when built, so a language change rebuilds them.
+  }, [projects, selectedProjectId, drafts, registrations, cases, onlineCases, submittedRevisions, revisions, refusals, uiLocale]);
+  useEffect(() => {
+    if (db && userId && referenceRead) {
+      holdWorklist(userId, db, { drafts, refusals, revisions, cases, registrations, actions, pausedProjects, submittedRevisions, onlineCases, referenceData, selectedProjectId });
+    }
+  }, [db, userId, referenceRead, drafts, refusals, revisions, cases, registrations, actions, pausedProjects, submittedRevisions, onlineCases, referenceData, selectedProjectId]);
   const summary = useMemo(() => homeSummary(items, interviewCounts(items)), [items]);
 
   // A closed collection gate (paused, outside its dates, daily limit) for every place a new start could go: the start
@@ -1095,7 +1108,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     return (
       <Screen title={t("tabInterviews")} scroll={false}>
         <InterviewsView
-          loaded={Boolean(db && referenceRead)}
+          loaded={referenceRead}
           offline={isOffline}
           items={items}
           initialFilter={filter}
@@ -1125,7 +1138,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       {projectLine}
       {gateBanner}
       <HomeView
-        loaded={Boolean(db && referenceRead)}
+        loaded={referenceRead}
         offline={isOffline}
         summary={summary}
         unsent={shell.sync.work?.unsent}

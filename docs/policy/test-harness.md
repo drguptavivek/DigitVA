@@ -3,7 +3,7 @@ title: Test Harness Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-11-09
 ---
 
 # Test Harness Policy
@@ -40,7 +40,11 @@ stale-connection cleanup.
 The full suite runs in parallel inside one pytest process:
 
     docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/<db> \
-      minerva_app_service uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4
+      minerva_app_service uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4 --ignore=tests/migrations
+
+then `tests/migrations` serially (`make test-parallel` does both). Under xdist a
+worker dies in the migration tests and its queued tests silently never run
+(`digitva-rd0u`); compare the passed count with `--collect-only` if in doubt.
 
 - **Per-worker databases.** Each xdist worker (`gw0`..`gwN`) runs against
   `<db>_<worker>`, e.g. `minerva_test_pii_gw0`. `conftest.pytest_configure`

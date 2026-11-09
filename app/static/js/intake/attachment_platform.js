@@ -93,10 +93,8 @@ export function createAttachmentPlatform({ WhoVa, buffer, uploader, attachmentUr
       return { stop: () => session.stop().then(withoutFileName), cancel: () => session.cancel() };
     },
     captureImage: async () => {
-      // Live camera first; null = none usable (no getUserMedia, denied, no device), so use the file input.
-      const live = WhoVa.captureWebCameraPhoto ? await WhoVa.captureWebCameraPhoto() : null;
-      if (live === undefined) return undefined;
-      const file = live ?? (await pick("image/jpeg,image/png", true));
+      // capture="environment": the camera on phones, a file picker on desktop.
+      const file = await pick("image/jpeg,image/png", true);
       return file ? processImage(file) : undefined;
     },
     selectImage: async () => {

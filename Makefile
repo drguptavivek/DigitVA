@@ -242,7 +242,10 @@ test:
 # Each worker uses <test db>_gw0.. (docs/policy/test-harness.md).
 test-parallel:
 	$(COMPOSE) exec -T $(if $(TEST_DATABASE_URL),-e TEST_DATABASE_URL=$(TEST_DATABASE_URL)) $(APP_SERVICE) \
-		uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4
+		uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4 --ignore=tests/migrations
+	# Migration tests upgrade/downgrade one shared schema; under xdist a worker dies and its queued tests silently never run (digitva-rd0u).
+	$(COMPOSE) exec -T $(if $(TEST_DATABASE_URL),-e TEST_DATABASE_URL=$(TEST_DATABASE_URL)) $(APP_SERVICE) \
+		uv run --no-sync python -m pytest tests/migrations -q -p no:cacheprovider
 
 # Every step to the Collect Plus arm64 APK in a pinned amd64 container (scripts/collect-plus-local/run.sh): default the working tree,
 # SRC=git REF=<branch|sha> a clean clone. NATIVE=1 builds on this Mac with its own toolchains instead of the container.

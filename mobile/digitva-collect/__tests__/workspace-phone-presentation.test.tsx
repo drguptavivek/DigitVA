@@ -38,7 +38,9 @@ describe("coding queue presentation", () => {
     expect(labelled(r, "Back")).toHaveLength(0);
     expect(r.root.findAll((n) => n.props.testID === "contextual-help-coding")).toHaveLength(0);
     expect(r.root.findAll((n) => n.props.accessibilityRole === "radiogroup" && n.props.accessibilityLabel === "Cases").length).toBeGreaterThan(0);
-    expect(r.root.findAll((n) => n.type === Text && n.props.children === "Project").length).toBeGreaterThan(0);
+    // The project row is Home's plain row (digitva-zyei): the project button, no "Project" label above it.
+    expect(r.root.findAll((n) => n.props.accessibilityRole === "button" && String(n.props.accessibilityLabel).startsWith("Project:")).length).toBeGreaterThan(0);
+    expect(r.root.findAll((n) => n.type === Text && n.props.children === "Project")).toHaveLength(0);
     expect(r.root.findAll((n) => n.type === TextInput && n.props.accessibilityLabel === "Filter cases").length).toBeGreaterThan(0);
   });
 

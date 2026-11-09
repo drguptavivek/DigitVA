@@ -113,9 +113,6 @@ export interface WhoVaUiMessageTemplates {
   openingScanner: string;
   blurryPhoto: string;
   retakePhoto: string;
-  cameraTitle: string;
-  cameraCapture: string;
-  cameraCancel: string;
   keepPhoto: string;
   removeImage: string;
   removeRecording: string;
@@ -290,9 +287,6 @@ export interface WhoVaUiMessages {
   openingScanner: string;
   blurryPhoto: string;
   retakePhoto: string;
-  cameraTitle: string;
-  cameraCapture: string;
-  cameraCancel: string;
   keepPhoto: string;
   removeImage: string;
   removeRecording: string;
@@ -454,9 +448,6 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   openingScanner: "Opening scanner…",
   blurryPhoto: "This photo looks blurry. Retake?",
   retakePhoto: "Retake",
-  cameraTitle: "Take photo",
-  cameraCapture: "Capture",
-  cameraCancel: "Cancel",
   keepPhoto: "Keep",
   removeImage: "Remove image",
   removeRecording: "Delete recording",

@@ -847,7 +847,7 @@
   "codingRefused_conflict": "यह सर्वर पर पहले से मौजूद रिकॉर्ड से टकराता है",
   "codingRefused_unknown": "ऐसा कारण जिसे यह ऐप नहीं जानता",
   "icd11Citation": "International Classification of Diseases, Eleventh Revision (ICD-11), World Health Organization (WHO) 2019/2021 https://icd.who.int/browse11. Licensed under Creative Commons Attribution-NoDerivatives 3.0 IGO licence (CC BY-ND 3.0 IGO).",
-  "digitvaAddition": "DigitVA का जोड़ — WHO से नहीं",
+  "digitvaAddition": "DigitVA addition — not from WHO",
   "accessRemovedKept": "आपकी पहुँच हटा दी गई है। जो काम अभी भेजा नहीं गया है वह इस फ़ोन पर एन्क्रिप्टेड रूप में रहेगा। अपने पर्यवेक्षक से संपर्क करें।",
   "accessRemovedUnsent": "पहुँच हटा दी गई — {count} आइटम नहीं भेजे गए। अपने पर्यवेक्षक से संपर्क करें।",
   "accessRemovedLocked": "पहुँच हटा दी गई। क्या भेजा नहीं गया है यह देखने के लिए यह खाता अनलॉक करें, और अपने पर्यवेक्षक से संपर्क करें।",

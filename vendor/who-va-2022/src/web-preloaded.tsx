@@ -10,7 +10,6 @@ import { whoVa2022Instrument } from "./instrument.js";
 import { createWhoVaWebForm } from "./web-platform.js";
 
 export * from "./web-platform.js";
-export { captureWebCameraPhoto } from "./web-camera.js";
 export * from "./instrument.js";
 export { WHO_VA_2022_LANGUAGES } from "./instrument-language.js";
 

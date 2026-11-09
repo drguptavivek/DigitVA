@@ -3,6 +3,26 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-09
+
+- **Staging deploy `0e1a5e308`** (previous `176093dd1`; old-APK audit clean).
+- **Simple fixes for open Collect beads** (`0e1a5e308`; q32b, 39zq, kwri,
+  b8dp, naux, zyei, gnpw, nih5, rd0u): migration tests run serially after the
+  parallel suite; web photo is a capture file input only; Interviews keeps its
+  last list in memory; gate notice on Register; tab and chip sizing.
+- **Send queued work on leaving Collect** (`40ee1a528`; bxff): upload in the
+  60 s before the store locks; the device-key outbox design was dropped.
+
+## 2026-11-08
+
+- **Collect flashing, speed and UX fixes; last-used form language only**
+  (`7d238868f`; epic a9s1).
+- **Collection hold** (`b8732d608`; migration `e5c1h7d3k9a2`): uploads outside
+  the collection period are accepted and held; extending the period releases
+  them; data managers release or reject.
+- **Collection gate on the phone; area dashboard on the project clock**
+  (`edf8b1375`; dj29, at68).
+
 ## 2026-11-07
 
 - **Collect e2e fixes, GPS capture, Code and Review tabs; staging deploy**

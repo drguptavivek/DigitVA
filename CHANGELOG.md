@@ -3,6 +3,13 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-10
+
+- **Staging deploy `73a14cba4`** (previous `9464fa016`): pins Collect 0.3.20
+  (arm64 and armeabi-v7a on GitHub `android-v0.3.20`) and Collect Plus 0.3.20
+  (arm64, `collect-plus-v0.3.20-plus.1`); staging hosts both arm64 APKs and
+  `/api/v1/app/android/latest` reports 0.3.20 for both variants.
+
 ## 2026-11-09
 
 - **Staging deploy `9464fa016`** (previous `0e1a5e308`).

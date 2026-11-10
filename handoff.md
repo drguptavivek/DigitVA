@@ -3,8 +3,8 @@
 ## Start here
 
 Fully offline DORIS coding in Collect Plus (`digitva-9cll`). Staging runs
-`9464fa016` (deployed 9 Nov, adds Saved on server; before it `0e1a5e308`: collection gate and hold, project clock, Collect flashing/UX fixes, send-on-leave); phones there are
-on 0.3.19 or older. main now also carries the Collect Petrol redesign,
+`73a14cba4` (deployed 10 Nov: hosts Collect and Collect Plus 0.3.20; before it `9464fa016` Saved on server, `0e1a5e308` collection gate and hold, project clock, send-on-leave); phones there are
+on 0.3.19 or older until they update. main now also carries the Collect Petrol redesign,
 accessibility settings and server UI languages (CHANGELOG 2026-11-06), with
 the iOS, SmartVA and standalone app work that shared its files. Never reset
 or stash; preserve the unrelated `scripts/loadtest/restore.sh`, manuscript
@@ -63,7 +63,7 @@ draft on SC01 case b9cf3f2c. Samsung has the plain Collect debug build.
    needs the old-APK audit (the redesign changes no API shapes; the new
    `/api/v1/ui-strings` routes are additive).
 4. Staging rollback:
-   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 0e1a5e3086814305db577f274691df6c582e616e`.
+   `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 9464fa0161a35d17c92a7af71d83ccffc702306f`.
    `minerva_icd_cache_redis` (128 MB) holds the ICD-11 caches; ~0.8 GB free
    RAM, no swap. `/download/android*` serve 0.3.19 from `private/android-hosted`.
 5. On staging, by hand: refuse then re-consent a direct interview

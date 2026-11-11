@@ -1605,12 +1605,18 @@
       </div>
       <div class="mt-2" id="cb-reset-snapshot-history">Loading recent snapshots...</div>
     `;
+    const layerNotice = schemeCode === 'WHO_2022_VA_2026' ? `
+      <div class="mt-2 text-muted">
+        This gives WHO's baseline: ICD-11 mappings are regenerated and the DigitVA overrides are removed from ICD-10 and ICD-11. Use Apply DigitVA overrides to layer them back.
+      </div>
+    ` : '';
     if (state.pendingResetScopeMode === 'scheme') {
       els.resetDefaultModalBody.innerHTML = `
         Reset <strong>${esc(schemeName || schemeCode)}</strong> from its source workbook?
         <div class="mt-2 text-muted">
           This will replace the age bands, headings, and ICD-10 mappings for the entire built-in scheme across all age groups.
         </div>
+        ${layerNotice}
         ${snapshotNotice}
       `;
     } else {
@@ -1620,6 +1626,7 @@
         <div class="mt-2 text-muted">
           This will replace the current headings and ICD-10 mappings for this built-in age band slice.
         </div>
+        ${layerNotice}
         ${snapshotNotice}
       `;
     }

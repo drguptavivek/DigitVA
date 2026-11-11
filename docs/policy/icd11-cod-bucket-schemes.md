@@ -181,7 +181,10 @@ For `WHO_2022_VA_2026` the owner chose "WHO then layer":
   read at all (decision 4, the mistyped `5C52.Y-5C52-Z`). Everything else is
   `digitva`: codes WHO's annex leaves out (5a), bucket choices that mirror a
   DigitVA ICD-10 decision (9, 10), analogies (17) and the settled crosswalk
-  disagreements (20). A new row says which layer it is.
+  disagreements (20). A new row says which layer it is. The owner confirmed
+  on 2026-11-11 (`digitva-hef1`) that the decision 5a rows (`RA01` and
+  `3A4Z` included) and the decision 17 transport rows are DigitVA overrides,
+  not WHO fixes.
 - `WHO_2022_VA` is unchanged: its frozen admin overrides add codes and
   buckets the workbook lacks, are applied at every import, and keep live
   admin choices, so they are not a separable layer.

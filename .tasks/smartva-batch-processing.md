@@ -9,7 +9,7 @@
 - Fixed stale-connection cascade with `db.session.remove()` after error rollback
 
 ### Phase 2: Source-based execution (replaces PyInstaller binary)
-- Replaced `resource/smartva` PyInstaller `--onefile` binary with `python -m smartva.va_cli`
+- Replaced `resource/smartva` PyInstaller `--onefile` binary (file removed from the repo 2026-11-11; recover from git history if ever needed) with `python -m smartva.va_cli`
 - SmartVA-Analyze installed from `vendor/smartva-analyze` git submodule via `uv pip install --no-deps`
 - CLI deps in `pyproject.toml`: `progressbar2`, `stemming`, `python-dateutil`, `xlsxwriter`, `matplotlib`
 - Removed `_cleanup_smartva_tmp()` — no more `/tmp/_MEI*` orphan dirs

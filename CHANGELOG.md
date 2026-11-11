@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-11
 
+- **Effective ICD-11 policy file** (digitva-hef1;
+  docs/policy/who-2022-icd11-coding-allowability.md). The draft service and a
+  new `resource/icd11_mms_2026_01_policy_effective_2026_11_11.json` now carry
+  the 2026-10-26 rules (chapter 22 not selectable, KD3B.Z selectable), so a
+  re-import no longer undoes them; `flask icd11 policy-import` defaults to it.
+- **Removed about 99 MB of unread files**: the old SmartVA binary, ICD-10
+  2010/2016 XML and the duplicate 2019 XML, old manual-override scheme
+  exports, two terminology PDFs, the PHMRC folder and an SRS statistics PDF.
+
 - **Public demo DORIS and revision reporting** (`digitva-9cll.9`).
   Deployed the isolated DORIS service on the demo host with image
   `73a14cba4`. The public help page and API served a synthetic DORIS and

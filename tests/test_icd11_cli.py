@@ -99,6 +99,13 @@ class Icd11CliTestCase(BaseTestCase):
             self.assertIn("lin:cat1", content)
             self.assertIn("1A00", content)
 
+    def test_policy_import_defaults_to_the_effective_policy_file(self):
+        from app.commands.icd11 import policy_import
+
+        default = next(p.default for p in policy_import.params if p.name == "input_path")
+        self.assertEqual(default, "resource/icd11_mms_2026_01_policy_effective_2026_11_11.json")
+        self.assertTrue((Path(__file__).resolve().parents[1] / default).is_file())
+
     def test_policy_export_and_import_cli_round_trip(self):
         export_path = self._write_export()
         self.runner.invoke(

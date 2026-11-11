@@ -60,6 +60,11 @@ CATALOGUE = (
     ("QA00", None, "24", False),
     ("KA00", None, "19", False),
     ("KA00.0", "KA00", "19", False),
+    ("KD3B", None, "19", False),
+    ("KD3B.0", "KD3B", "19", False),
+    ("KD3B.Z", "KD3B", "19", True),
+    ("NA00", None, "22", False),
+    ("NA00.Z", "NA00", "22", True),
     ("GA00", None, "16", False),
     ("GA00.0", "GA00", "16", False),
     ("GA6Z", None, "16", True),
@@ -105,7 +110,8 @@ CAUSE_ROWS = [
     {"va_code": "VAs-10.99", "icd11_codes": "MH11"},
     {"va_code": "VAs-01.13", "icd11_codes": "RA01.0; RA02"},
     # Not in WHO's annex: proves the exclusions beat any annex range.
-    {"va_code": "TEST", "icd11_codes": "QA00; SA00; VD00"},
+    {"va_code": "TEST", "icd11_codes": "QA00; SA00; VD00; NA00"},
+    {"va_code": "VAs-11.02", "icd11_codes": "KD3B"},
 ]
 
 ICD10_RESTRICTIONS = {
@@ -208,6 +214,23 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
             self.assertEqual(self.decisions[code]["rule"], "excluded_emergency")
         self.assertTrue(self.decisions["RA01.0"]["selectable"])
 
+    def test_chapter_22_is_never_selectable_even_inside_an_annex_range(self):
+        # Owner change 2026-10-26 (digitva-kmm2), as migration b8d4f2a6c1e9.
+        for code in ("NA00", "NA00.Z"):
+            self.assertIn(code, self.decisions)
+            self.assertFalse(self.decisions[code]["selectable"], code)
+            self.assertEqual(self.decisions[code]["rule"], "excluded_injury_nature")
+
+    def test_kd3b_z_is_selectable_with_the_chapter_19_rule_and_kd3b_is_not(self):
+        kd3b_z = self.decisions["KD3B.Z"]
+        self.assertTrue(kd3b_z["selectable"])
+        self.assertEqual(
+            (kd3b_z["sex"], kd3b_z["age"], kd3b_z["restriction_rule"]),
+            ("both", "neonate_infant", "chapter 19 (KA-KD), neonates and infants"),
+        )
+        self.assertFalse(self.decisions["KD3B"]["selectable"])
+        self.assertEqual(self.decisions["KD3B"]["rule"], "decision_18_not_selectable")
+
     def test_ra02_and_ra03_are_selectable_for_both_sexes_and_all_ages(self):
         # Owner, 2026-09-29: post COVID-19 condition and MIS-C.
         for code in ("RA02", "RA03"):
@@ -285,7 +308,8 @@ class Icd11PolicyDraftRuleTests(unittest.TestCase):
         self.assertEqual(payload["row_count"], len(payload["items"]))
         self.assertTrue(all("policy_status" not in item for item in payload["items"]))
         notes = {item["code"]: item["restriction_note"] for item in payload["items"]}
-        self.assertEqual(notes["1C15"], "Draft: 1C15, tetanus (owner override of ICD-10 A33)")
+        self.assertEqual(payload["status"], "effective")
+        self.assertEqual(notes["1C15"], "1C15, tetanus (owner override of ICD-10 A33)")
         self.assertIsNone(notes["1G40"])
 
 

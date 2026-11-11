@@ -57,7 +57,7 @@ no ICD-11 catalog, and nothing in the app reads the new reference files.
 Compared against
 `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27/who_2022_icd10_2019_2_policy_reviewed.json`
 (the reviewed policy JSON, 2380 rows) and the current bucket mapping in
-`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/cod_bucket_scheme_who_2022_va_with_manual_overrides.json`,
+`cod_bucket_scheme_who_2022_va_with_manual_overrides.json` (removed 2026-11-11 as an unread copy; recover it from git history before that date),
 using the full ICD-10 hierarchy master
 (`docs/icd-causegrp-mappings/migration-artifacts/icd10-2019-base-2026-04-27/icd10_2019_hierarchy.csv`)
 to expand the annex's three-character ranges. VAs-12.99's `(S00-T99)` change

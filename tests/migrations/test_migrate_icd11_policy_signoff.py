@@ -29,6 +29,11 @@ ARTIFACT = (
     REPO / "docs" / "icd-causegrp-mappings" / "migration-artifacts"
     / "who-2022-icd11-policy-draft-2026-09-24" / "who_2022_icd11_mms_2026_01_policy_draft.json"
 )
+EFFECTIVE = REPO / "resource" / "icd11_mms_2026_01_policy_effective_2026_11_11.json"
+EFFECTIVE_ARTIFACT = (
+    REPO / "docs" / "icd-causegrp-mappings" / "migration-artifacts"
+    / "who-2022-icd11-policy-effective-2026-11-11" / "who_2022_icd11_mms_2026_01_policy_draft.json"
+)
 FIELDS = "is_coding_selectable, sex_selectable, age_group_selectable, restriction_note, policy_status"
 
 
@@ -171,6 +176,34 @@ def _load_module():
 class FrozenPolicyTest(unittest.TestCase):
     def test_frozen_copy_is_byte_equal_to_the_docs_artifact(self):
         self.assertEqual(FROZEN.read_bytes(), ARTIFACT.read_bytes())
+
+    def test_effective_copy_is_byte_equal_to_its_docs_artifact(self):
+        self.assertEqual(EFFECTIVE.read_bytes(), EFFECTIVE_ARTIFACT.read_bytes())
+
+    def test_effective_policy_is_the_signoff_after_b8d4f2a6c1e9(self):
+        # The effective file must reproduce a7c3e9f1b5d2 + b8d4f2a6c1e9:
+        # chapter 22 dropped, KD3B.Z added with its siblings' rule, no
+        # "Draft: " prefix, every other row unchanged.
+        def values(path):
+            return {
+                item["code"]: (item["linearization_uri"], item["sex_selectable"],
+                               item["age_group_selectable"], item["restriction_note"])
+                for item in json.loads(path.read_text(encoding="utf-8"))["items"]
+                if item["chapter_no"] != "22"
+            }
+
+        signoff, effective = values(FROZEN), values(EFFECTIVE)
+        chapters = {item["chapter_no"] for item in json.loads(EFFECTIVE.read_text(encoding="utf-8"))["items"]}
+        self.assertNotIn("22", chapters)
+        self.assertIn("22", {item["chapter_no"] for item in json.loads(FROZEN.read_text(encoding="utf-8"))["items"]})
+        expected = {
+            code: (uri, sex, age, (note or "").removeprefix("Draft: ") or None)
+            for code, (uri, sex, age, note) in signoff.items()
+        }
+        self.assertIn("KD3B.Z", effective)
+        self.assertEqual(effective.pop("KD3B.Z")[1:],
+                         ("both", "neonate_infant", "chapter 19 (KA-KD), neonates and infants"))
+        self.assertEqual(effective, expected)
 
     def test_frozen_items_are_unique_and_selectable(self):
         data = json.loads(FROZEN.read_text(encoding="utf-8"))

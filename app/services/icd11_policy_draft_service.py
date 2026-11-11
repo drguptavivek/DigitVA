@@ -2,8 +2,9 @@
 
 Policy: docs/policy/who-2022-icd11-coding-allowability.md (draft, owner
 review pending). Every active category is selectable unless its chapter is
-never selectable (rule 3): chapters Q, S, V, X; chapter 25 (RA) emergency
-codes outside the RA01, RA02 and RA03 families; KD3B/KD3B.Z. A category no annex ICD-11 range
+never selectable (rule 3): chapters Q, S, V, X; chapter 22 (NA-NF, injury
+nature); chapter 25 (RA) emergency codes outside the RA01, RA02 and RA03
+families; KD3B. A category no annex ICD-11 range
 (or owner decision 5a) covers is still selectable but carries no VA cause
 bucket. Sex and age restrictions come from the reviewed ICD-10 policy through
 WHO's 10To11MapToOneCategory table, then from the chapter rules the ICD-10
@@ -11,8 +12,9 @@ policy applies to the equivalent chapters, using the same rules regardless of
 whether the category is in an annex range.
 
 Nothing here writes to the database: the output is a policy JSON in the
-``import_icd11_mms_policy_json`` format plus a review CSV and README, for the
-owner to review before anyone imports it.
+``import_icd11_mms_policy_json`` format plus a review CSV and README. The
+output of 2026-11-11 is the effective policy (EFFECTIVE_POLICY_PATH); it
+reproduces the database after migrations a7c3e9f1b5d2 and b8d4f2a6c1e9.
 """
 
 from __future__ import annotations
@@ -39,9 +41,14 @@ from app.services.cod_bucket_icd11_generator import (
     parse_icd11_ranges,
 )
 
+# The 2026-09-24 draft directory is frozen (migration a7c3e9f1b5d2's sign-off
+# JSON is its byte-identical copy); regenerating writes the effective one.
 DEFAULT_POLICY_DRAFT_DIR = (
-    "docs/icd-causegrp-mappings/migration-artifacts/who-2022-icd11-policy-draft-2026-09-24"
+    "docs/icd-causegrp-mappings/migration-artifacts/who-2022-icd11-policy-effective-2026-11-11"
 )
+# What `flask icd11 policy-import` imports by default: the draft JSON of
+# DEFAULT_POLICY_DRAFT_DIR, copied byte for byte.
+EFFECTIVE_POLICY_PATH = "resource/icd11_mms_2026_01_policy_effective_2026_11_11.json"
 ICD10_POLICY_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision/"
     "who_2022_icd10_2019_2_policy_reviewed.json"
@@ -68,6 +75,9 @@ DECISION_5A_RANGES = (
 # Chapters never selectable: factors influencing health status (Q),
 # traditional medicine (S), functioning (V), extension codes (X).
 EXCLUDED_CHAPTERS = {"24": "Q", "26": "S", "V": "V", "X": "X"}
+# Chapter 22 (injury nature, NA-NF) is never the final underlying cause; the
+# external cause (chapter 23) is (owner, 2026-10-26, digitva-kmm2).
+INJURY_CHAPTER = "22"
 # Chapter 25 (RA emergency codes) is selectable only for the RA01 (owner
 # decision 5a), RA02 (post COVID-19 condition) and RA03 (MIS-C) families
 # (owner, 2026-09-29).
@@ -117,12 +127,13 @@ RULE_EXCLUDED_CHAPTER = "excluded_chapter"
 RULE_EXCLUDED_EMERGENCY = "excluded_emergency"
 RULE_NOT_IN_ANNEX = "not_in_annex"
 RULE_DECISION_18 = "decision_18_not_selectable"
+RULE_EXCLUDED_INJURY = "excluded_injury_nature"
 
-# Owner decision 18 (2026-09-25, digitva-g2n): unknown-timing fetal death is
-# not selectable, so every ICD-11 stillbirth lands in Fresh (KD3B.1) or
-# Macerated (KD3B.0). Wins over the annex/decision-5a range that would
-# otherwise select these two codes.
-DECISION_18_NOT_SELECTABLE = ("KD3B", "KD3B.Z")
+# Owner decision 18 (2026-09-25, digitva-g2n) made KD3B and KD3B.Z not
+# selectable; the owner reversed it for KD3B.Z on 2026-10-26 (digitva-kmm2),
+# which now takes the chapter 19 rule like KD3B.0 and KD3B.1. The parent KD3B
+# stays not selectable, winning over the annex range that would select it.
+DECISION_18_NOT_SELECTABLE = ("KD3B",)
 
 FLAG_PAST_END = "past_written_end"
 FLAG_CONFLICT = "icd10_conflict"
@@ -326,6 +337,8 @@ def draft_icd11_policy(
             rule = RULE_DECISION_18
         elif chapter in EXCLUDED_CHAPTERS:
             rule = RULE_EXCLUDED_CHAPTER
+        elif chapter == INJURY_CHAPTER:
+            rule = RULE_EXCLUDED_INJURY
         elif chapter == EMERGENCY_CHAPTER and code.split(".")[0] not in EMERGENCY_ALLOWED_STEMS:
             rule = RULE_EXCLUDED_EMERGENCY
         decision = {
@@ -430,7 +443,7 @@ def policy_payload(draft: Icd11PolicyDraft) -> dict:
             "sex_selectable": row["sex"],
             "age_group_selectable": row["age"],
             "restriction_note": (
-                f"Draft: {row['restriction_rule']}"
+                row["restriction_rule"]
                 if (row["sex"], row["age"]) != DEFAULT_RESTRICTION
                 else None
             ),
@@ -440,7 +453,7 @@ def policy_payload(draft: Icd11PolicyDraft) -> dict:
     return {
         "release": draft.release,
         "source_version": SOURCE_VERSION,
-        "status": "draft",
+        "status": "effective",
         "policy": "docs/policy/who-2022-icd11-coding-allowability.md",
         "row_count": len(items),
         "items": items,
@@ -498,20 +511,21 @@ def _readme(draft: Icd11PolicyDraft) -> str:
     )
     lines = [
         "---",
-        "title: WHO 2022 ICD-11 coding-selectability policy draft (2026-01)",
+        "title: WHO 2022 ICD-11 coding-selectability policy, effective (2026-01)",
         "doc_type: migration-artifact",
-        "status: draft",
+        "status: active",
         "owner: engineering",
         f"last_updated: {date.today().isoformat()}",
         "---",
         "",
-        "# WHO 2022 ICD-11 coding-selectability policy draft (2026-01)",
+        "# WHO 2022 ICD-11 coding-selectability policy, effective (2026-01)",
         "",
         "Written by `flask icd11 policy-draft` "
         "(`app/services/icd11_policy_draft_service.py`). Rules: "
-        "`docs/policy/who-2022-icd11-coding-allowability.md` (draft, owner review "
-        "pending). Nothing here has been imported into any database and no "
-        "migration reads this folder.",
+        "`docs/policy/who-2022-icd11-coding-allowability.md` (signed off). No migration "
+        f"reads this folder; its policy JSON is copied byte for byte to `{EFFECTIVE_POLICY_PATH}`, "
+        "the default of `flask icd11 policy-import`, and importing it reproduces the database "
+        "after migrations a7c3e9f1b5d2 and b8d4f2a6c1e9.",
         "",
         "Sources: annex ICD-11 ranges `" + CAUSE_LIST_PATH + "`; catalogue "
         f"`mas_icd11_mms` release `{draft.release}`; ICD-10 restrictions `{ICD10_POLICY_PATH}`; "
@@ -523,11 +537,10 @@ def _readme(draft: Icd11PolicyDraft) -> str:
         "never carried to any ICD-11 code; chapters 18 and 19 take their chapter rules "
         "instead.",
         "",
-        "Owner decision 18 (2026-09-25, digitva-g2n) applied: `KD3B` and `KD3B.Z` "
-        "(time of fetal death not specified) are not selectable, so every ICD-11 "
-        "stillbirth lands in Fresh (`KD3B.1` intrapartum) or Macerated (`KD3B.0` "
-        "antepartum). This is dev-only: applying it to a database is a separate "
-        "`flask icd11 policy-import` step, not a migration.",
+        "Owner change of 2026-10-26 (digitva-kmm2) applied: every chapter 22 category "
+        "(injury nature, NA-NF) is not selectable (`excluded_injury_nature`); `KD3B.Z` is "
+        "selectable with the chapter 19 rule; the parent `KD3B` stays not selectable "
+        "(owner decision 18, digitva-g2n). Restriction notes carry no `Draft: ` prefix.",
         "",
         "## Files",
         "",
@@ -581,7 +594,8 @@ def _readme(draft: Icd11PolicyDraft) -> str:
         "The never-selectable chapters (`excluded_chapter`: Q, S, V, X) are "
         "counted in 'Selectable per chapter' above and not repeated here. "
         "Everything else rule 3 excludes: non-RA01 emergency codes "
-        "(`excluded_emergency`) and KD3B/KD3B.Z (`decision_18_not_selectable`):",
+        "(`excluded_emergency`) and KD3B (`decision_18_not_selectable`); chapter 22 "
+        "(`excluded_injury_nature`) is counted per chapter above:",
         "",
         *[
             f"- `{row['code']}` {row['title']} ({row['rule']})"

@@ -17,6 +17,7 @@ from app.services.who_icd_api import _CACHE_PREFIX as API_CACHE_PREFIX
 from app.services.who_icd_api import _cache_client
 from app.services.icd11_policy_draft_service import (
     DEFAULT_POLICY_DRAFT_DIR,
+    EFFECTIVE_POLICY_PATH,
     build_icd11_policy_draft,
     write_icd11_policy_draft,
 )
@@ -91,7 +92,7 @@ def policy_export(release: str, output_path: str | None) -> None:
 
 
 @icd11_group.command("policy-import")
-@click.argument("input_path")
+@click.argument("input_path", default=EFFECTIVE_POLICY_PATH)
 @click.option("--release", default=DEFAULT_ICD11_RELEASE, show_default=True)
 def policy_import(input_path: str, release: str) -> None:
     with open(input_path, encoding="utf-8") as handle:

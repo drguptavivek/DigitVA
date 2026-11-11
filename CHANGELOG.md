@@ -5,6 +5,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-11
 
+- **Staging deploy `210ea326e`** (previous `73a14cba4`), migrations at head
+  `f2b7d4a9c1e6`.
+
 - **Effective ICD-11 policy file** (digitva-hef1;
   docs/policy/who-2022-icd11-coding-allowability.md). The draft service and a
   new `resource/icd11_mms_2026_01_policy_effective_2026_11_11.json` now carry

@@ -3,7 +3,7 @@ title: WHO 2022 VA ICD And COD 2026 Revision Migration Artifacts
 doc_type: migration-artifact
 status: active
 owner: engineering
-last_updated: 2026-09-24
+last_updated: 2026-11-11
 ---
 
 # WHO 2022 VA ICD And COD 2026 Revision Migration Artifacts
@@ -84,10 +84,12 @@ before editing.
 decisions 10, 11 and 12 (`docs/policy/icd10-to-icd11-transition.md` section 6):
 `A80`-`A89` to `vas_01_07`, 65 boarding/alighting point codes to `vas_12_01`,
 and `I50.0`/`I50.9` to `vas_04_01`. The workbook above was already released
-when they were made, so it is not edited. Instead
-`import_who_2022_va_2026_scheme` and the admin "reset to default" apply this
-file on top of the workbook (bucket, match type and note only; workbook
-provenance stays), and existing databases get the same change from migration
+when they were made, so it is not edited. Instead the admin "Apply DigitVA
+overrides" action (`apply_cod_bucket_scheme_overrides`) applies this file on
+top of the workbook (bucket, match type and note only; workbook provenance
+stays). Since 2026-11-11 an import or "reset to default" gives the workbook
+alone, the WHO baseline (`docs/policy/icd11-cod-bucket-schemes.md`, "WHO
+baseline and DigitVA overrides"), and existing databases get the same change from migration
 `fad35e5c4b79`, which embeds the codes. A test keeps the file and the
 migration equal. It is a new file, so no database that already ran
 `c5f2a8d1e9b3` is affected by its addition.

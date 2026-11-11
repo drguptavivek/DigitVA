@@ -3,7 +3,32 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-11
+
+- **Public demo DORIS and revision reporting** (`digitva-9cll.9`).
+  Deployed the isolated DORIS service on the demo host with image
+  `73a14cba4`. The public help page and API served a synthetic DORIS and
+  CoDEdit result over HTTPS. The app version API reports the full image SHA.
+
+## 2026-11-11
+
+- **COD buckets: WHO baseline, then DigitVA overrides** (digitva-ozd1;
+  docs/policy/icd11-cod-bucket-schemes.md). Reset of WHO_2022_VA_2026 now
+  yields WHO's mappings for ICD-10 and regenerates ICD-11 (it used to delete
+  every ICD-11 row); a snapshotted admin "Apply DigitVA overrides" action
+  layers the ICD-10 overrides CSV and the `layer=digitva` ICD-11 decisions.
+  Reset then apply equals the migrated state. Migration f2b7d4a9c1e6 adds the
+  snapshot reason. Generator inputs ship in the image.
+
 ## 2026-11-10
+
+- **Public demo deploy `73a14cba4`** (`digitva-77v5.10`, previous
+  `c8b749f7b`). Verified the demo S3 database dump before applying 11
+  migrations to `e5c1h7d3k9a2`. The app, worker and scheduler run the same
+  image as v3. Checked health, sign-up, the public dashboard, the web app,
+  both arm64 APK downloads at 0.3.20, and a synthetic DORIS run from the
+  demo app container. The public DORIS help route remains tracked in
+  `digitva-9cll.9`.
 
 - **Staging deploy `73a14cba4`** (previous `9464fa016`): pins Collect 0.3.20
   (arm64 and armeabi-v7a on GitHub `android-v0.3.20`) and Collect Plus 0.3.20

@@ -3,7 +3,7 @@ title: ICD-11 COD Bucket Schemes
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-11
 ---
 
 # ICD-11 COD Bucket Schemes
@@ -121,11 +121,11 @@ project lookup.
   `icd10`) is part of the unique key; existing rows are `icd10`.
 - `mas_cod_bucket_schemes.icd11_method` is `native` or null.
   `apply_icd11_generation` replaces only the scheme's `icd11` rows, sets
-  `native` and bumps `mapping_version`; a whole-scheme reset from the workbook
-  rebuilds the ICD-10 table, clears `native`, and so needs
-  `flask cod-buckets generate-icd11` again
-  (`app/services/cod_bucket_mapping_service.py`,
-  `_replace_scheme_contents`). The column's check constraint and the JSON
+  `native` and bumps `mapping_version`. A reset of `WHO_2022_VA_2026`
+  regenerates its ICD-11 rows in the same transaction (see "WHO baseline
+  and DigitVA overrides" below); a reset of any other scheme clears `native`
+  and needs `flask cod-buckets generate-icd11` again
+  (`app/services/cod_bucket_mapping_service.py`, `_replace_scheme_contents`). The column's check constraint and the JSON
   import still accept `crosswalk`, but nothing reads or writes it.
 - There is no crosswalk table; WHO's 11-to-10 files are read from
   `docs/icd-causegrp-mappings/migration-artifacts/` by the generator only.
@@ -150,3 +150,38 @@ scheme's 10 most recent snapshots and downloads any of them; the browser also
 auto-downloads the snapshot the moment a reset completes. No retention/prune
 job exists yet for this table -- add one once it grows large enough to
 matter.
+
+## WHO baseline and DigitVA overrides (owner, 2026-11-11, digitva-ozd1)
+
+For `WHO_2022_VA_2026` the owner chose "WHO then layer":
+
+- **Reset to source gives the WHO baseline in both classifications.** ICD-10
+  is the released 2026 workbook only. ICD-11 is regenerated from the WHO
+  cause list with only the `who_fix` rows of the ICD-11 decisions file. The
+  generator's built-in rules still apply, since without them the annex cannot
+  be read as one bucket per code: the narrowest range wins, the shared `PA`
+  and `PJ2x` ranges split (decisions 2 and 3), and every code still without a
+  bucket takes the decision 5b fallback, so no code is unmapped. The 5b
+  fallback reads the live `WHO_2022_VA` ICD-10 rows, so the baseline also
+  depends on that scheme (its admin overrides included). The reset also adds
+  the `vas_11_01` "Fresh stillbirth" node, which the ICD-11 annex needs for
+  `KD3B.1` but the ICD-10 workbook lacks (as migration `6c11b620f48f` did).
+  If regeneration fails the whole reset is refused. An age-band reset of
+  this scheme is a whole-scheme reset (it has one age band).
+- **DigitVA overrides are a separate layer**, applied by "Apply DigitVA
+  overrides" in the admin COD bucket panel. It snapshots the scheme first
+  (reason `apply_overrides`), then moves the ICD-10 codes in
+  `WHO_2022_VA_2026_owner_decisions_overrides.csv` and the ICD-11 codes of
+  the `digitva` rows of `who_2022_va_icd11_owner_decisions.csv` to their
+  decided bucket, with `match_type` `owner_decision` (never the admin
+  editor's `manual_override`). It is idempotent. Reset then apply gives the
+  state the migrations produced.
+- **`who_fix` versus `digitva`.** The ICD-11 decisions file has a `layer`
+  column. `who_fix` is a correction without which a WHO annex token cannot be
+  read at all (decision 4, the mistyped `5C52.Y-5C52-Z`). Everything else is
+  `digitva`: codes WHO's annex leaves out (5a), bucket choices that mirror a
+  DigitVA ICD-10 decision (9, 10), analogies (17) and the settled crosswalk
+  disagreements (20). A new row says which layer it is.
+- `WHO_2022_VA` is unchanged: its frozen admin overrides add codes and
+  buckets the workbook lacks, are applied at every import, and keep live
+  admin choices, so they are not a separable layer.

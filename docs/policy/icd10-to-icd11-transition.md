@@ -3,7 +3,7 @@ title: ICD-10 to ICD-11 Transition for VA Cause Buckets
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-11-11
 ---
 
 # ICD-10 to ICD-11 Transition for VA Cause Buckets
@@ -361,8 +361,11 @@ section 1.1.
 The owner decided all 13 open items on 2026-09-24. Decisions 1-5 and 9-12
 are applied (section 6.1); 6-8 and 13 are tracked separately. Each applied
 change is a regenerated artifact plus a new data migration, recorded where
-the generator or the scheme import reads it, so that regenerating or
-resetting does not undo it.
+the generator or the scheme import reads it, so that regenerating does not
+undo it. Since 2026-11-11 a reset gives the WHO baseline and the DigitVA
+decisions are re-applied by "Apply DigitVA overrides"
+([ICD-11 COD Bucket Schemes](icd11-cod-bucket-schemes.md), "WHO baseline and
+DigitVA overrides").
 
 | # | Item | Decision |
 |---|---|---|

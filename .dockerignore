@@ -20,6 +20,13 @@ docs/
 !docs/icd-causegrp-mappings/migration-artifacts/srs-india-cod-2026-04-27
 !docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27
 !docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision
+# Files the ICD-11 generator reads when an admin resets WHO_2022_VA_2026
+# (app/services/cod_bucket_icd11_generator.py default paths); the same test
+# pins them.
+!docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv
+!docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv
+!docs/icd-causegrp-mappings/migration-artifacts/icd11-icd10-mapping-tables-2025-01-base-2026-09-16/11To10MapToOneCategory.txt
+!docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-changes-2026-01-vs-2025-01-2026-09-16/changes_MMS_2026-01_2025-01-main.xlsx
 node_modules/
 tasks/
 backup/

@@ -60,6 +60,7 @@ from app.services.cod_bucket_mapping_service import (
     import_srs_india_scheme,
     import_who_2022_va_scheme,
     import_who_2022_va_2026_scheme,
+    _apply_who_2022_va_2026_owner_decisions,
     list_cod_bucket_unmapped_icd_rows,
     list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
@@ -461,6 +462,8 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(age_band.level_count, 2)
 
     def test_import_who_2022_va_2026_frozen_workbook_applies_annex_and_overrides(self):
+        """The WHO baseline: the workbook's annex and carried-forward overrides,
+        without the owner's DigitVA decisions (docs/policy/icd11-cod-bucket-schemes.md)."""
         scheme = import_who_2022_va_2026_scheme(
             MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH
         )
@@ -498,8 +501,23 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(bucket_of("K72"), "Liver cirrhosis")
         self.assertEqual(bucket_of("K75"), "Other Gastrointestinal Diseases")
         self.assertEqual(bucket_of("R50"), "Unspecified infectious disease")
-        # Owner decisions 10, 11 and 12 (2026-09-24) are layered on the workbook
-        self._assert_owner_icd10_decisions(scheme)
+        self._assert_who_icd10_baseline(scheme)
+
+    def _assert_who_icd10_baseline(self, scheme):
+        owner_rows = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.match_type == "owner_decision",
+            )
+        )
+        self.assertEqual(owner_rows, 0)
+        a80 = db.session.scalar(
+            sa.select(MasCodBucketNode.node_code)
+            .join(MapIcdCodBucket, MapIcdCodBucket.node_id == MasCodBucketNode.node_id)
+            .where(MapIcdCodBucket.scheme_id == scheme.scheme_id, MapIcdCodBucket.icd_code == "A80")
+        )
+        self.assertIsNotNone(a80)
+        self.assertNotEqual(a80, "vas_01_07", "decision 11 is a DigitVA override, not WHO")
 
     def _assert_owner_icd10_decisions(self, scheme):
         rows = {
@@ -535,8 +553,11 @@ class CodBucketMappingServiceTests(BaseTestCase):
             self.assertEqual(rows[code].node_code, "vas_12_02", code)
         self.assertEqual(rows["I50.1"].node_code, "vas_04_01")
 
-    def test_reset_who_2022_va_2026_to_default_keeps_owner_icd10_decisions(self):
-        import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
+    def test_reset_who_2022_va_2026_to_default_gives_the_who_icd10_baseline(self):
+        scheme = import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
+        _apply_who_2022_va_2026_owner_decisions(scheme)
+        db.session.commit()
+        self._assert_owner_icd10_decisions(scheme)
 
         for reset_entire_scheme in (False, True):
             scheme, _snapshot_id = reset_cod_bucket_scheme_age_band_to_source(
@@ -544,7 +565,13 @@ class CodBucketMappingServiceTests(BaseTestCase):
                 age_scope=None,
                 reset_entire_scheme=reset_entire_scheme,
             )
-            self._assert_owner_icd10_decisions(scheme)
+            self._assert_who_icd10_baseline(scheme)
+
+    def test_owner_icd10_decisions_apply_once(self):
+        scheme = import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
+        self.assertGreater(_apply_who_2022_va_2026_owner_decisions(scheme), 0)
+        self._assert_owner_icd10_decisions(scheme)
+        self.assertEqual(_apply_who_2022_va_2026_owner_decisions(scheme), 0)
 
     def test_admin_mapping_metadata_treats_owner_decision_as_the_2026_default(self):
         scheme = import_who_2022_va_2026_scheme(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
@@ -563,8 +590,11 @@ class CodBucketMappingServiceTests(BaseTestCase):
                 MapIcdCodBucket.icd_code == "A80",
             )
         )
-        mapping.node_id = node("vas_01_99").node_id
-        apply_admin_cod_bucket_mapping_metadata(scheme=scheme, mapping=mapping, target_node=node("vas_01_99"))
+        workbook_node = db.session.get(MasCodBucketNode, mapping.node_id)
+        workbook_match_type = mapping.match_type
+        self.assertNotIn(workbook_node.node_code, {"vas_01_07", "vas_99"})
+        mapping.node_id = node("vas_99").node_id
+        apply_admin_cod_bucket_mapping_metadata(scheme=scheme, mapping=mapping, target_node=node("vas_99"))
         self.assertEqual(mapping.match_type, "manual_override")
 
         mapping.node_id = node("vas_01_07").node_id
@@ -572,6 +602,12 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(mapping.match_type, "owner_decision")
         self.assertEqual(mapping.source_sheet, "ICD_Mapped")
         self.assertTrue(mapping.mapping_note.startswith("Owner decision 11 (2026-09-24): "))
+
+        # Back to WHO's own bucket is the workbook default, not an override.
+        mapping.node_id = workbook_node.node_id
+        apply_admin_cod_bucket_mapping_metadata(scheme=scheme, mapping=mapping, target_node=workbook_node)
+        self.assertEqual(mapping.match_type, workbook_match_type)
+        self.assertEqual(mapping.source_sheet, "ICD_Mapped")
 
     def test_admin_mapping_metadata_clears_override_when_who_mapping_returns_to_xlsx_default(self):
         workbook_path = self._make_who_2022_va_workbook()

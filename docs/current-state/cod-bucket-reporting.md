@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-11
 ---
 
 # COD Bucket Reporting
@@ -311,6 +311,21 @@ current editor supports:
   - built-in reset-default always reloads from the frozen migration-artifact
     workbook copy, not from mutable working workbooks under
     `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/`
+  - `WHO_2022_VA_2026` resets to the WHO baseline (policy:
+    `docs/policy/icd11-cod-bucket-schemes.md`, "WHO baseline and DigitVA
+    overrides"): ICD-10 from the 2026 workbook only, ICD-11 regenerated in the
+    same transaction from the cause list with only the `who_fix` decisions.
+    It also adds the `vas_11_01` "Fresh stillbirth" node the workbook lacks.
+    A regeneration failure refuses the reset. Its age-band reset is the same
+    whole-scheme reset. Without an ICD-11
+    catalogue for the default release the ICD-11 table stays empty and a
+    warning is logged.
+- applying DigitVA overrides to `WHO_2022_VA_2026` from the `Edit COD Scheme`
+  modal with confirmation (`POST /admin/api/cod-bucket-schemes/<code>/apply-overrides`,
+  `apply_cod_bucket_scheme_overrides`): snapshots the scheme (reason
+  `apply_overrides`), then moves the ICD-10 owner-decision codes and the
+  `digitva` ICD-11 decision codes to their decided bucket; returns the rows
+  changed per classification and is idempotent
 - editing category/subcategory/field labels
 - editing display `sort_order`
 - loading ICD mappings on demand only for the selected last-level disease leaf

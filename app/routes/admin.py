@@ -67,6 +67,7 @@ from app.services.cod_bucket_mapping_service import (
     list_cod_bucket_scheme_cards,
     list_cod_bucket_schemes,
     reset_cod_bucket_scheme_age_band_to_source,
+    apply_cod_bucket_scheme_overrides,
     search_cod_bucket_icd_candidates,
     update_cod_bucket_scheme,
 )
@@ -5797,6 +5798,32 @@ def admin_cod_bucket_scheme_reset_default(scheme_code):
     )
 
 
+@admin.post("/api/cod-bucket-schemes/<scheme_code>/apply-overrides")
+@role_required("admin")
+def admin_cod_bucket_scheme_apply_overrides(scheme_code):
+    """Layer the scheme's DigitVA overrides on its WHO baseline (snapshotted)."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    try:
+        scheme, snapshot_id, counts = apply_cod_bucket_scheme_overrides(
+            scheme_code=scheme_code,
+            created_by_user_id=current_user.user_id,
+        )
+    except LookupError:
+        return _json_error("COD bucket scheme not found.", 404)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+
+    return jsonify(
+        {
+            "message": "DigitVA overrides applied.",
+            "scheme_code": scheme.scheme_code,
+            "changed": counts,
+            "snapshot_id": str(snapshot_id),
+        }
+    )
+
+
 @admin.get("/api/cod-bucket-schemes/<scheme_code>/snapshots")
 @role_required("admin")
 def admin_cod_bucket_scheme_snapshots(scheme_code):
@@ -6206,8 +6233,8 @@ def admin_cod_bucket_scheme_update_mapping(scheme_code, mapping_id):
     if mapping is None or mapping.scheme_id != scheme.scheme_id:
         return _json_error("COD bucket mapping not found.", 404)
     if mapping.icd_classification != "icd10":
-        # ICD-11 rows are generated (flask cod-buckets generate-icd11) and
-        # reviewed read-only in this panel for now.
+        # ICD-11 rows are generated (a reset, Apply DigitVA overrides or
+        # flask cod-buckets generate-icd11) and reviewed read-only here.
         return _json_error("ICD-11 mappings are read-only here.", 400)
 
     data = request.get_json(silent=True) or {}
@@ -6262,8 +6289,8 @@ def admin_cod_bucket_scheme_delete_mapping(scheme_code, mapping_id):
     if mapping is None or mapping.scheme_id != scheme.scheme_id:
         return _json_error("COD bucket mapping not found.", 404)
     if mapping.icd_classification != "icd10":
-        # ICD-11 rows are generated (flask cod-buckets generate-icd11) and
-        # reviewed read-only in this panel for now.
+        # ICD-11 rows are generated (a reset, Apply DigitVA overrides or
+        # flask cod-buckets generate-icd11) and reviewed read-only here.
         return _json_error("ICD-11 mappings are read-only here.", 400)
 
     icd_code = mapping.icd_code

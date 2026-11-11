@@ -384,6 +384,31 @@ class Icd11GeneratorTests(BaseTestCase):
         self.assertEqual(issues, ["1D20", "5C52.Y-5C52-Z", "NOPE1"])
         self.assertEqual(decided["1D20"], ("vas_01_12", "range"), "an entry with an unknown node is skipped")
 
+    def test_decision_layers_filter_rows_and_a_file_without_layers_is_digitva(self):
+        # The fixture file has no `layer` column: every row counts as digitva.
+        only_digitva = self._decided(
+            generate_icd11_buckets(scheme_code=SCHEME_CODE, release=RELEASE, decision_layers=("digitva",), **self.paths)
+        )
+        self.assertEqual(only_digitva["1D90"], ("vas_99", "owner_decision"))
+        none_who_fix = self._decided(
+            generate_icd11_buckets(scheme_code=SCHEME_CODE, release=RELEASE, decision_layers=("who_fix",), **self.paths)
+        )
+        self.assertNotEqual(none_who_fix["1D90"][1], "owner_decision")
+
+        with open(self.paths["decisions_path"], "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["code", "node_code", "decision", "decided_on", "note", "layer"])
+            writer.writerow(["1D90", "vas_99", "10", "2026-09-24", "DigitVA", "digitva"])
+            writer.writerow(["KD3B", "vas_11_02", "9", "2026-09-24", "Fix", "who_fix"])
+        who_fix = self._decided(
+            generate_icd11_buckets(scheme_code=SCHEME_CODE, release=RELEASE, decision_layers=("who_fix",), **self.paths)
+        )
+        self.assertEqual(who_fix["KD3B"], ("vas_11_02", "owner_decision"))
+        self.assertNotEqual(who_fix["1D90"][1], "owner_decision")
+        both = self._decided(self._generate())
+        self.assertEqual(both["1D90"], ("vas_99", "owner_decision"))
+        self.assertEqual(both["KD3B"], ("vas_11_02", "owner_decision"))
+
     def test_two_equally_narrow_decisions_for_one_code_fail_loudly(self):
         self._write_decisions(
             Path(self.paths["decisions_path"]),

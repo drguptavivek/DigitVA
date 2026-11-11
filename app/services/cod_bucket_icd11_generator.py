@@ -50,6 +50,11 @@ CHANGE_LIST_PATH = (
 DECISIONS_PATH = (
     "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_icd11_owner_decisions.csv"
 )
+# Decision layers (owner, 2026-11-11, docs/policy/icd11-cod-bucket-schemes.md
+# "WHO baseline and DigitVA overrides"): a reset applies only `who_fix` rows,
+# "Apply DigitVA overrides" the `digitva` ones.
+LAYER_WHO_FIX = "who_fix"
+LAYER_DIGITVA = "digitva"
 DEFAULT_REPORT_DIR = (
     "docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd11-native-2026-09-21"
 )
@@ -280,10 +285,14 @@ def load_owner_decisions(
     sorted_codes: list[str],
     catalogue: dict,
     nodes_by_code: dict[str, list],
+    layers: tuple[str, ...] | None = None,
 ) -> tuple[dict[str, dict], list[dict]]:
     """The owner's recorded ICD-11 decisions, one per catalogue code.
 
-    `path` is a CSV of `code, node_code, decision, decided_on, note`. A single
+    `path` is a CSV of `code, node_code, decision, decided_on, note, layer`.
+    `layers` keeps only rows of those layers (`LAYER_WHO_FIX`,
+    `LAYER_DIGITVA`); None keeps every row, and a file without a `layer`
+    column counts as all `digitva`. A single
     code covers only itself (so `KD3B` leaves `KD3B.1` alone); `A-B` covers
     what the same annex range would, descendants included. Where two entries
     cover a code the narrower wins, as in the annex. Returns
@@ -297,6 +306,8 @@ def load_owner_decisions(
     with open(path, newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     for row_number, row in enumerate(rows, start=2):
+        if layers is not None and (row.get("layer") or LAYER_DIGITVA).strip() not in layers:
+            continue
         token = row["code"].strip().upper()
         node_code = row["node_code"].strip()
         label = f"Owner decision {row['decision'].strip()} ({row['decided_on'].strip()})"
@@ -338,11 +349,13 @@ def generate_icd11_buckets(
     change_list_path: str = CHANGE_LIST_PATH,
     curated_scheme_code: str = CURATED_ICD10_SCHEME_CODE,
     decisions_path: str = DECISIONS_PATH,
+    decision_layers: tuple[str, ...] | None = None,
 ) -> Icd11Generation:
     """Decide the scheme's ICD-11 table without writing anything.
 
-    Precedence per code: a recorded owner decision, then the narrowest annex
-    range (shared ranges split per code), then the decision 5b fallback.
+    Precedence per code: a recorded owner decision (of `decision_layers`
+    only, when given), then the narrowest annex range (shared ranges split
+    per code), then the decision 5b fallback.
     Raises LookupError for an unknown scheme and ValueError when the release
     has no catalogue rows or the decisions file contradicts itself.
     """
@@ -470,7 +483,9 @@ def generate_icd11_buckets(
         review("tie", code=code, title=title, va_code="|".join(winners), token=competing, detail="not mapped")
 
     # 2b. Recorded owner decisions beat the annex.
-    owner_decisions, issues = load_owner_decisions(decisions_path, sorted_codes, catalogue, nodes_by_code)
+    owner_decisions, issues = load_owner_decisions(
+        decisions_path, sorted_codes, catalogue, nodes_by_code, decision_layers
+    )
     result.review.extend({"decision": "", **issue} for issue in issues)
     for code, entry in owner_decisions.items():
         node_code = entry["node_code"]
@@ -689,11 +704,13 @@ def write_icd11_seed_csv(result: Icd11Generation, path: str | Path) -> Path:
     return path
 
 
-def apply_icd11_generation(result: Icd11Generation) -> MasCodBucketScheme:
+def apply_icd11_generation(result: Icd11Generation, *, commit: bool = True) -> MasCodBucketScheme:
     """Replace the scheme's ICD-11 rows with `result` in one transaction.
 
     ICD-10 rows are untouched. Sets `icd11_method='native'` and bumps
-    `mapping_version`. Rolls back and re-raises on any failure.
+    `mapping_version`. Rolls back and re-raises on any failure. With
+    `commit=False` it only flushes, for a caller (the scheme reset) that owns
+    the transaction.
     """
     scheme = db.session.scalar(
         sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == result.scheme_code)
@@ -725,7 +742,10 @@ def apply_icd11_generation(result: Icd11Generation) -> MasCodBucketScheme:
         )
         scheme.icd11_method = "native"
         scheme.mapping_version = (scheme.mapping_version or 0) + 1
-        db.session.commit()
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
     except Exception:
         db.session.rollback()
         raise

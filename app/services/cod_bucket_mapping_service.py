@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import functools
+import logging
 import os
 from io import BytesIO
 from io import StringIO
@@ -40,6 +41,8 @@ from app.services.submission_analytics_mv import (
     COD_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
 )
+
+log = logging.getLogger(__name__)
 
 SCHEME_CODE_SRS_INDIA = "SRS_INDIA"
 SCHEME_CODE_CMEA10 = "CMEA10"
@@ -117,8 +120,9 @@ MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH = (
     "WHO_2022_VA_Bucket_Mapping_document_derived_2026_revision.xlsx"
 )
 # Owner decisions 10, 11 and 12 (2026-09-24) on WHO_2022_VA_2026's ICD-10
-# rows. The released 2026 workbook is not edited (see that folder's README),
-# so every import or reset of the scheme layers these on top of it.
+# rows. The released 2026 workbook is not edited (see that folder's README).
+# A reset gives the workbook alone; "Apply DigitVA overrides"
+# (`apply_cod_bucket_scheme_overrides`) layers these on top of it.
 MIGRATION_ARTIFACT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "who-2022-va-icd-cod-2026-revision/"
@@ -672,22 +676,26 @@ def apply_admin_cod_bucket_mapping_metadata(
         default_mapping = _who_2022_default_mapping_by_code(
             str(source_path) if source_path else None
         ).get(mapping.icd_code)
+    candidates = [default_mapping] if default_mapping else []
     if (
         default_mapping
         and scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026
         and mapping.icd_classification == ICD_CLASSIFICATION_ICD10
     ):
-        # The owner's decisions are part of this scheme's default.
+        # Both the WHO workbook bucket and the owner's DigitVA decision are
+        # source values, not manual overrides; the decision is checked first.
         decision = _who_2022_va_2026_owner_decisions().get(mapping.icd_code)
         if decision:
-            default_mapping = {**default_mapping, **decision}
+            candidates.insert(0, {**default_mapping, **decision})
 
-    if default_mapping and target_node.node_code == default_mapping["node_code"]:
-        mapping.source_sheet = default_mapping["source_sheet"]
-        mapping.source_row_number = default_mapping["source_row_number"]
-        mapping.source_category = default_mapping["source_category"]
-        mapping.match_type = default_mapping["match_type"]
-        mapping.mapping_note = default_mapping["mapping_note"]
+    for candidate in candidates:
+        if target_node.node_code != candidate["node_code"]:
+            continue
+        mapping.source_sheet = candidate["source_sheet"]
+        mapping.source_row_number = candidate["source_row_number"]
+        mapping.source_category = candidate["source_category"]
+        mapping.match_type = candidate["match_type"]
+        mapping.mapping_note = candidate["mapping_note"]
         return
 
     mapping.source_sheet = MANUAL_OVERRIDE_SOURCE_SHEET
@@ -734,7 +742,8 @@ def _replace_scheme_contents(scheme: MasCodBucketScheme) -> None:
     mark_scheme_stale(scheme.scheme_id)
     # Every classification goes: the nodes are rebuilt, so ICD-11 rows would
     # cascade with them anyway. A native scheme then has no ICD-11 table
-    # until `flask cod-buckets generate-icd11` runs again, so say so.
+    # until it is regenerated (WHO_2022_VA_2026's reset does so itself;
+    # otherwise `flask cod-buckets generate-icd11`), so say so.
     db.session.execute(
         sa.delete(MapIcdCodBucket).where(MapIcdCodBucket.scheme_id == scheme.scheme_id)
     )
@@ -1348,12 +1357,12 @@ def import_who_2022_va_scheme(
     return scheme
 
 
-def _apply_who_2022_va_2026_owner_decisions(scheme: MasCodBucketScheme) -> None:
-    """Move a freshly populated scheme's ICD-10 rows to the owner's decisions.
+def _apply_who_2022_va_2026_owner_decisions(scheme: MasCodBucketScheme) -> int:
+    """Move the scheme's ICD-10 rows to the owner's DigitVA decisions.
 
     Only the bucket, match type and note change; the workbook provenance
     stays. A code or node the scheme lacks is skipped (a non-default
-    workbook), never created.
+    workbook), never created. Returns the number of rows that changed.
     """
     nodes = {
         node.node_code: node
@@ -1374,15 +1383,237 @@ def _apply_who_2022_va_2026_owner_decisions(scheme: MasCodBucketScheme) -> None:
             sa.func.upper(MapIcdCodBucket.icd_code).in_(list(decisions)),
         )
     )
+    changed = 0
     for mapping in mappings:
         decision = decisions[mapping.icd_code.upper()]
         node = nodes.get(decision["node_code"])
         if node is None:
             continue
-        mapping.node_id = node.node_id
-        mapping.match_type = decision["match_type"]
-        mapping.mapping_note = decision["mapping_note"]
+        values = {
+            "node_id": node.node_id,
+            "match_type": decision["match_type"],
+            "mapping_note": decision["mapping_note"],
+        }
+        changed += _set_changed(mapping, values)
     db.session.flush()
+    return changed
+
+
+def _set_changed(mapping: MapIcdCodBucket, values: dict) -> int:
+    """Set `values` on `mapping`; 1 if any differed, else 0 (no dirty row)."""
+    if all(getattr(mapping, key) == value for key, value in values.items()):
+        return 0
+    for key, value in values.items():
+        setattr(mapping, key, value)
+    return 1
+
+
+def _apply_who_2022_va_2026_icd11_digitva_decisions(scheme: MasCodBucketScheme) -> int:
+    """Move the scheme's ICD-11 rows to the `digitva` rows of the owner's
+    ICD-11 decisions file, as `generate_icd11_buckets` would place them.
+
+    Only existing all-ages rows change (a reset generates a row for every
+    catalogue code); returns the number that changed. Raises ValueError when
+    the default release has no catalogue.
+    """
+    from app.services.cod_bucket_icd11_generator import (
+        DECISIONS_PATH,
+        LAYER_DIGITVA,
+        MATCH_TYPE_DECISION,
+        load_catalogue,
+        load_owner_decisions,
+        va_code_for_node,
+    )
+
+    catalogue = load_catalogue(DEFAULT_ICD11_RELEASE)
+    if not catalogue:
+        raise ValueError(f"No ICD-11 catalogue for release {DEFAULT_ICD11_RELEASE}.")
+    nodes_by_code: dict[str, list[MasCodBucketNode]] = {}
+    for node in db.session.scalars(
+        sa.select(MasCodBucketNode).where(
+            MasCodBucketNode.scheme_id == scheme.scheme_id,
+            MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+            MasCodBucketNode.age_scope.is_(None),
+        )
+    ):
+        nodes_by_code.setdefault(node.node_code, []).append(node)
+    decisions, issues = load_owner_decisions(
+        DECISIONS_PATH, sorted(catalogue), catalogue, nodes_by_code, (LAYER_DIGITVA,)
+    )
+    for issue in issues:
+        log.warning("ICD-11 DigitVA decision skipped: %s %s", issue["token"], issue["detail"])
+    if not decisions:
+        return 0
+    source_sheet = Path(DECISIONS_PATH).name
+    changed = 0
+    for mapping in db.session.scalars(
+        sa.select(MapIcdCodBucket).where(
+            MapIcdCodBucket.scheme_id == scheme.scheme_id,
+            MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+            MapIcdCodBucket.age_scope.is_(None),
+            MapIcdCodBucket.icd_code.in_(list(decisions)),
+        )
+    ):
+        entry = decisions[mapping.icd_code]
+        node_code = entry["node_code"]
+        changed += _set_changed(
+            mapping,
+            {
+                "node_id": nodes_by_code[node_code][0].node_id,
+                "match_type": MATCH_TYPE_DECISION,
+                "mapping_note": entry["note"],
+                "source_sheet": source_sheet,
+                "source_row_number": entry["row_number"],
+                "source_category": va_code_for_node(node_code) or node_code,
+            },
+        )
+    db.session.flush()
+    return changed
+
+
+def _refuse_without_icd11_catalogue(scheme: MasCodBucketScheme) -> None:
+    """Refuse before any write when the scheme holds ICD-11 rows but the
+    default release's catalogue is missing, so nothing could rebuild them."""
+    if db.session.scalar(
+        sa.select(sa.exists().where(MasIcd11Mms.release == DEFAULT_ICD11_RELEASE))
+    ):
+        return
+    had_icd11 = scheme.scheme_id is not None and (
+        scheme.icd11_method == "native"
+        or db.session.scalar(
+            sa.select(sa.exists().where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+            ))
+        )
+    )
+    if had_icd11:
+        raise ValueError(
+            f"No ICD-11 catalogue for release {DEFAULT_ICD11_RELEASE}; "
+            "its ICD-11 mappings could not be rebuilt."
+        )
+
+
+def _regenerate_who_2022_va_2026_icd11(scheme: MasCodBucketScheme) -> None:
+    """Rebuild the scheme's ICD-11 rows as the WHO baseline (only `who_fix`
+    decisions) inside the caller's transaction; nothing is committed.
+
+    Without a catalogue for the default release (a database that never
+    loaded one) the ICD-11 table stays empty and a warning is logged, as
+    before this regeneration existed. Any generation failure rolls the whole
+    reset back and raises ValueError.
+    """
+    from app.services.cod_bucket_icd11_generator import (
+        LAYER_WHO_FIX,
+        apply_icd11_generation,
+        generate_icd11_buckets,
+    )
+
+    _ensure_who_2022_va_2026_fresh_stillbirth_node(scheme)
+    has_catalogue = db.session.scalar(
+        sa.select(sa.exists().where(MasIcd11Mms.release == DEFAULT_ICD11_RELEASE))
+    )
+    if not has_catalogue:
+        log.warning(
+            "%s reset without an ICD-11 %s catalogue: ICD-11 rows not regenerated.",
+            scheme.scheme_code, DEFAULT_ICD11_RELEASE,
+        )
+        return
+    try:
+        result = generate_icd11_buckets(
+            scheme_code=scheme.scheme_code,
+            release=DEFAULT_ICD11_RELEASE,
+            decision_layers=(LAYER_WHO_FIX,),
+        )
+        apply_icd11_generation(result, commit=False)
+    except Exception as exc:
+        db.session.rollback()
+        log.exception("%s ICD-11 regeneration failed; reset refused.", scheme.scheme_code)
+        raise ValueError("ICD-11 regeneration failed; reset refused.") from exc
+
+
+def _ensure_who_2022_va_2026_fresh_stillbirth_node(scheme: MasCodBucketScheme) -> None:
+    """Add `vas_11_01` "Fresh stillbirth" beside `vas_11_02`, if missing.
+
+    The ICD-11 annex buckets `KD3B.1` there, but the ICD-10 workbook has no
+    row for it (ICD-10 `P95` is one code), so the import does not create it.
+    Mirrors migration 6c11b620f48f; flushes.
+    """
+    nodes = {
+        node.node_code: node
+        for node in db.session.scalars(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+                MasCodBucketNode.node_code.in_(["vas_11_01", "vas_11_02"]),
+            )
+        )
+    }
+    sibling = nodes.get("vas_11_02")
+    if "vas_11_01" in nodes or sibling is None:
+        db.session.flush()
+        return
+    db.session.add(
+        MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=sibling.age_scope,
+            node_type=NODE_TYPE_FIELD,
+            parent_node_id=sibling.parent_node_id,
+            node_code="vas_11_01",
+            node_label="Fresh stillbirth",
+            sort_order=sibling.sort_order - 1,
+            is_active=True,
+        )
+    )
+    db.session.flush()
+
+
+def scheme_can_apply_overrides(scheme: MasCodBucketScheme) -> bool:
+    """Whether the scheme has a separable DigitVA overrides layer."""
+    return scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026
+
+
+def apply_cod_bucket_scheme_overrides(
+    *,
+    scheme_code: str,
+    created_by_user_id: uuid.UUID | None = None,
+) -> tuple[MasCodBucketScheme, uuid.UUID, dict[str, int]]:
+    """Layer the owner's DigitVA decisions onto a scheme's WHO baseline.
+
+    Snapshots the whole scheme first (refused if that fails), then moves the
+    ICD-10 and ICD-11 decision codes to their decided bucket in one
+    transaction. Idempotent: a second run changes nothing. Returns
+    ``(scheme, snapshot_id, {"icd10": n, "icd11": n})``, the rows changed.
+    Raises LookupError for an unknown scheme and ValueError when the scheme
+    has no overrides layer or the ICD-11 catalogue is missing.
+    """
+    scheme = get_cod_bucket_scheme(scheme_code)
+    if scheme is None:
+        raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+    if not scheme_can_apply_overrides(scheme):
+        raise ValueError("This scheme has no DigitVA overrides.")
+    _refuse_without_icd11_catalogue(scheme)
+    try:
+        snapshot = snapshot_cod_bucket_scheme(
+            scheme=scheme,
+            reason=VaCodBucketSchemeSnapshot.REASON_APPLY_OVERRIDES,
+            created_by_user_id=created_by_user_id,
+        )
+    except Exception as exc:
+        raise ValueError("Snapshot failed; overrides refused.") from exc
+    snapshot_id = snapshot.snapshot_id
+    try:
+        counts = {
+            ICD_CLASSIFICATION_ICD10: _apply_who_2022_va_2026_owner_decisions(scheme),
+            ICD_CLASSIFICATION_ICD11: _apply_who_2022_va_2026_icd11_digitva_decisions(scheme),
+        }
+        if any(counts.values()):
+            scheme.mapping_version = (scheme.mapping_version or 0) + 1
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return scheme, snapshot_id, counts
 
 
 def import_who_2022_va_2026_scheme(
@@ -1394,8 +1625,10 @@ def import_who_2022_va_2026_scheme(
     not a replacement of it. Adopts the WHO 2026 annex ICD-10 ranges: VAs-98
     gains G43-G47 and widens to K70-K93 (minus the VAs-06.02 liver-cirrhosis
     carve-out), VAs-99 expands from R95-R99 to R00-R09; R11-R94; R96-R99, and
-    R95 moves from VAs-99 to VAs-10.99. Then applies the owner's ICD-10
-    decisions of 2026-09-24 (`DEFAULT_WHO_2022_VA_2026_OWNER_DECISIONS_PATH`).
+    R95 moves from VAs-99 to VAs-10.99. This is the WHO baseline: the owner's
+    DigitVA decisions are not applied (`apply_cod_bucket_scheme_overrides`
+    does that), and the ICD-11 rows are regenerated with only the `who_fix`
+    decisions, all in one transaction.
     """
     workbook_path = str(workbook_path)
     scheme = _get_or_create_scheme(
@@ -1409,6 +1642,7 @@ def import_who_2022_va_2026_scheme(
         ),
         source_path=workbook_path,
     )
+    _refuse_without_icd11_catalogue(scheme)
     _replace_scheme_contents(scheme)
     meta = _builtin_age_band_metadata(SCHEME_CODE_WHO_2022_VA_2026, None)
     _create_age_band(
@@ -1423,7 +1657,7 @@ def import_who_2022_va_2026_scheme(
         sort_order=meta["sort_order"],
     )
     _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
-    _apply_who_2022_va_2026_owner_decisions(scheme)
+    _regenerate_who_2022_va_2026_icd11(scheme)
 
     db.session.commit()
     return scheme
@@ -1490,6 +1724,7 @@ def list_cod_bucket_scheme_cards() -> list[dict]:
             "mapping_version": scheme.mapping_version,
             "is_active": scheme.is_active,
             "can_reset_from_source": scheme_can_reset_from_source(scheme),
+            "can_apply_overrides": scheme_can_apply_overrides(scheme),
             "age_bands": [
                 {
                     **_serialize_age_band(age_band),
@@ -1557,6 +1792,8 @@ def reset_cod_bucket_scheme_age_band_to_source(
     workbook_path = _scheme_reset_source_path(scheme)
     if workbook_path is None:
         raise ValueError("No source workbook is configured for this scheme.")
+    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
+        _refuse_without_icd11_catalogue(scheme)
 
     try:
         snapshot = snapshot_cod_bucket_scheme(
@@ -1655,7 +1892,9 @@ def reset_cod_bucket_scheme_age_band_to_source(
             sort_order=meta["sort_order"],
         )
         _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
-        _apply_who_2022_va_2026_owner_decisions(scheme)
+        # Its one age band covers the whole scheme, so this is the same
+        # WHO-baseline reset as the whole-scheme one, ICD-11 included.
+        _regenerate_who_2022_va_2026_icd11(scheme)
     else:
         raise ValueError("This scheme does not support reset from source.")
 

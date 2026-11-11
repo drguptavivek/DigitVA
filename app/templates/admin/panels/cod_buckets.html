@@ -423,6 +423,13 @@
           >
             <i class="fa-solid fa-rotate-left me-1"></i>Reset Default Scheme
           </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-warning d-none"
+            id="cb-scheme-apply-overrides-btn"
+          >
+            <i class="fa-solid fa-layer-group me-1"></i>Apply DigitVA overrides
+          </button>
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
           <button type="button" class="btn btn-sm btn-primary" id="cb-scheme-create-save">Create Scheme</button>
         </div>
@@ -667,6 +674,7 @@
     schemeCreateBandsBody: document.getElementById('cb-scheme-create-bands-body'),
     schemeCreateAddBand: document.getElementById('cb-scheme-create-add-band'),
     schemeResetDefaultBtn: document.getElementById('cb-scheme-reset-default-btn'),
+    schemeApplyOverridesBtn: document.getElementById('cb-scheme-apply-overrides-btn'),
     schemeCreateSave: document.getElementById('cb-scheme-create-save'),
     unmapModalEl: document.getElementById('cb-unmap-modal'),
     unmapModalBody: document.getElementById('cb-unmap-modal-body'),
@@ -971,8 +979,9 @@
 
   function renderMappingSection() {
     const leaf = currentLeaf();
-    // The ICD-11 view is a read-only review of the generated table
-    // (flask cod-buckets generate-icd11); editing stays ICD-10 only.
+    // The ICD-11 view is a read-only review of the generated table (a reset,
+    // Apply DigitVA overrides or flask cod-buckets generate-icd11); editing
+    // stays ICD-10 only.
     const isIcd11 = state.mappingClassification === 'icd11';
     const icdLabel = isIcd11 ? 'ICD-11' : 'ICD-10';
     els.openIcdModalBtn.disabled = !leaf || isIcd11;
@@ -1570,6 +1579,10 @@
     els.schemeResetDefaultBtn.disabled = !canResetScheme;
     els.schemeResetDefaultBtn.dataset.schemeCode = canResetScheme ? (scheme.scheme_code || '') : '';
     els.schemeResetDefaultBtn.dataset.schemeName = canResetScheme ? (scheme.scheme_name || '') : '';
+    const canApplyOverrides = !!scheme.can_apply_overrides;
+    els.schemeApplyOverridesBtn.classList.toggle('d-none', !canApplyOverrides);
+    els.schemeApplyOverridesBtn.disabled = !canApplyOverrides;
+    els.schemeApplyOverridesBtn.dataset.schemeCode = canApplyOverrides ? (scheme.scheme_code || '') : '';
     renderCreateSchemeBands();
     getSchemeCreateModal().show();
   }
@@ -2074,6 +2087,41 @@
       ageLabel: '',
       resetScope: 'scheme',
     });
+  });
+
+  // DigitVA overrides layer on the WHO baseline a reset gives
+  // (docs/policy/icd11-cod-bucket-schemes.md); the server snapshots first.
+  els.schemeApplyOverridesBtn.addEventListener('click', async function () {
+    const schemeCode = els.schemeApplyOverridesBtn.dataset.schemeCode || '';
+    if (!schemeCode) return;
+    if (!window.confirm(
+      `Apply DigitVA overrides to ${schemeCode}? The scheme is snapshotted first.`
+    )) return;
+    try {
+      const result = await apiJson(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/apply-overrides`,
+        'POST',
+        {}
+      );
+      const changed = result.changed || {};
+      setStatus(
+        `DigitVA overrides applied: ${changed.icd10 || 0} ICD-10 and ${changed.icd11 || 0} ICD-11 rows changed.`,
+        false
+      );
+      if (result.snapshot_id) {
+        const link = document.createElement('a');
+        link.href = `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/snapshots/${encodeURIComponent(result.snapshot_id)}/download`;
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      state.schemes = (await apiJson('/admin/api/cod-bucket-schemes')).schemes || [];
+      renderSchemeCards();
+      if (state.schemeCode) await loadScheme();
+    } catch (error) {
+      setStatus(error.message || 'Failed to apply DigitVA overrides.', true);
+    }
   });
 
   els.schemeCards.addEventListener('click', function (event) {

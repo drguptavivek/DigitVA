@@ -767,6 +767,28 @@ class AdminCodBucketPanelTests(BaseTestCase):
             403,
         )
 
+    def test_apply_overrides_needs_admin_and_csrf_and_an_overrides_scheme(self):
+        url = f"/admin/api/cod-bucket-schemes/{self.scheme_code}/apply-overrides"
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.post(url, json={}, headers=self._csrf_headers()).status_code, 403)
+
+        self._login(self.base_admin_id)
+        self.assertEqual(self.client.post(url, json={}).status_code, 400)
+        before = db.session.scalar(sa.select(sa.func.count()).select_from(VaCodBucketSchemeSnapshot))
+        response = self.client.post(url, json={}, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no DigitVA overrides", response.get_json()["error"])
+        after = db.session.scalar(sa.select(sa.func.count()).select_from(VaCodBucketSchemeSnapshot))
+        self.assertEqual(after, before, "a refused apply takes no snapshot")
+        self.assertEqual(
+            self.client.post(
+                "/admin/api/cod-bucket-schemes/NO_SUCH_SCHEME/apply-overrides",
+                json={},
+                headers=self._csrf_headers(),
+            ).status_code,
+            404,
+        )
+
     def test_cod_bucket_node_mappings_returns_selected_leaf_only(self):
         self._login(self.base_admin_id)
         isolated_mapping = MapIcdCodBucket(

@@ -30,3 +30,22 @@ def test_migration_seed_folders_are_in_the_image():
                 needed.add(folder)
     assert needed, "expected migrations that read seed folders under docs/"
     assert needed <= included, sorted(needed - included)
+
+
+def test_icd11_generator_inputs_are_in_the_image():
+    """A WHO_2022_VA_2026 reset regenerates ICD-11 from these files at runtime."""
+    from app.services.cod_bucket_icd11_generator import (
+        CAUSE_LIST_PATH,
+        CHANGE_LIST_PATH,
+        CROSSWALK_PATH,
+        DECISIONS_PATH,
+    )
+
+    included = {
+        line[1:].strip()
+        for line in (ROOT / ".dockerignore").read_text().splitlines()
+        if line.startswith("!docs/")
+    }
+    for path in (CAUSE_LIST_PATH, CROSSWALK_PATH, CHANGE_LIST_PATH, DECISIONS_PATH):
+        assert (ROOT / path).is_file(), path
+        assert path in included, path

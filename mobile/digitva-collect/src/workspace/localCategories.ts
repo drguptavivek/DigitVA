@@ -290,7 +290,7 @@ function renderCategory(pack: DisplayPackIndex, answers: Answers, code: string):
       if (pack.dates.has(field)) value = standardizeDate(value);
       if (pack.datetimes.has(field)) value = formatDatetime(value);
       const choices = pack.choices.get(field);
-      if (choices) value = labelChoice(choices, value);
+      if (choices && !pack.multiselect.has(field)) value = labelChoice(choices, value);
       if (pack.zeroSkip.has(field) && pyEqualsFlag(value, 1)) value = "True";
       if (pack.multiselect.has(field)) value = mapChoiceValue(pack, field, value);
       // The server resolves the stored file's URL; the phone holds the reference.

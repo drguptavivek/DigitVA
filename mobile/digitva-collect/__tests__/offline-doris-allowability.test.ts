@@ -20,7 +20,7 @@ const index = createAllowabilityIndex(pack as AllowabilityPack);
 const ok = (data: unknown): EngineResult => ({ ok: true, data, status: 200, ms: 1, nativeMs: 1 });
 
 /** codeinfo answers per full expression; anything else is unknown to WHO (a 404, as the engine answers it). */
-function engine(codeinfo: Record<string, unknown> = {}, failure?: EngineResult | Error): OfflineEngine & { calls: string[] } {
+function engine(codeinfo: Record<string, unknown> = {}, failure?: EngineResult | Error, searchReply: unknown = {}): OfflineEngine & { calls: string[] } {
   const init: EngineInit = { ok: true, ms: 0, copyMs: 0, initMs: 0, cached: true };
   const calls: string[] = [];
   return {
@@ -30,7 +30,7 @@ function engine(codeinfo: Record<string, unknown> = {}, failure?: EngineResult |
     warm: async () => init,
     updateWhoFiles: async () => init,
     call: async () => ok({}),
-    search: async () => ok({}),
+    search: async () => ok(searchReply),
     entity: async () => ok({}),
     foundationEntity: async () => ok({}),
     codeinfo: async (code) => {
@@ -162,5 +162,30 @@ describe("offline save applies the allowability rules", () => {
     await expect(save(editor({ ageGroup: null, sex: null }).editor, body("not-a-code"))).rejects.toMatchObject({ kind: "blocked", message: "Select a valid ICD-11 code." });
     const plain = createOfflineDorisEditor(engine(), memoryStore());
     expect(Object.keys(JSON.parse((await save(plain, body("NA07.7"))).provenance!))).toEqual(["packVersions"]);
+  });
+});
+
+describe("offline DORIS terms carry the age marks (digitva-o16a)", () => {
+  const MMS = "http://id.who.int/icd/release/11/2026-01/mms";
+  const found = { destinationEntities: [
+    { theCode: "MH11.Z", id: `${MMS}/1`, title: "Sudden infant death" },
+    { theCode: "1A00", id: `${MMS}/2`, title: "Cholera" },
+  ], resultChopped: false };
+
+  it("marks a term the deceased's age conflicts with, and not one it allows", async () => {
+    const { editor: e } = editor({ ageGroup: "adult", sex: "male" }, engine({}, undefined, found));
+    const items = (await e.onTerms("death")).items;
+    expect(items.map((item) => item.code)).toEqual(["MH11.Z", "1A00"]);
+    expect(items[0]).toMatchObject({ age_restricted: true, restriction_note: "icd10 R95" });
+    expect(items[1]).not.toHaveProperty("age_restricted");
+  });
+
+  it("marks nothing for a matching age or without the pack", async () => {
+    const infant = (await editor({ ageGroup: "infant", sex: null }, engine({}, undefined, found)).editor.onTerms("death")).items;
+    expect(infant[0].code).toBe("MH11.Z");
+    expect(infant[0]).not.toHaveProperty("age_restricted");
+    const plain = (await createOfflineDorisEditor(engine({}, undefined, found), memoryStore()).onTerms("death")).items;
+    expect(plain[0].code).toBe("MH11.Z");
+    expect(plain[0]).not.toHaveProperty("age_restricted");
   });
 });

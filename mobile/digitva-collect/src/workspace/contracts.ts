@@ -261,6 +261,8 @@ export interface WorkspacePayload {
     reset_prefill_provenance?: JsonValue;
     prefill_provenance: JsonValue;
     saved_processing?: JsonObject | null;
+    /** Collect Plus offline only: the remark saved with the local coding, for a revision to reopen with. */
+    saved_remark?: string | null;
     step1_certificate?: JsonObject | null;
     step1_processing?: JsonObject | null;
   };
@@ -643,6 +645,7 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
     ...(dorisSource.reset_prefill_provenance !== undefined ? { reset_prefill_provenance: parseJsonValue(dorisSource.reset_prefill_provenance, "workspace.doris.reset_prefill_provenance") } : {}),
     prefill_provenance: parseJsonValue(dorisSource.prefill_provenance, "workspace.doris.prefill_provenance"),
     ...(dorisSource.saved_processing !== undefined ? { saved_processing: dorisSource.saved_processing === null ? null : object(dorisSource.saved_processing, "workspace.doris.saved_processing") } : {}),
+    ...(typeof dorisSource.saved_remark === "string" ? { saved_remark: dorisSource.saved_remark } : {}),
     ...(dorisSource.step1_certificate !== undefined ? { step1_certificate: dorisSource.step1_certificate === null ? null : object(dorisSource.step1_certificate, "workspace.doris.step1_certificate") } : {}),
     ...(dorisSource.step1_processing !== undefined ? { step1_processing: dorisSource.step1_processing === null ? null : object(dorisSource.step1_processing, "workspace.doris.step1_processing") } : {}),
   };

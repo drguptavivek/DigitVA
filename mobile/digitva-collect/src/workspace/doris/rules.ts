@@ -195,14 +195,14 @@ function lineWarnings(certificate: JsonObject, age: Age | null, out: Warnings): 
     return intervalDays(obj(first).Interval);
   };
   const lines = Array.isArray(certificate.Part1) ? certificate.Part1 : [];
+  // "Above" is the nearest line above that has an interval, as on the web (doris_rules.js), not just lines[index - 1].
+  let above: number | null = null;
   lines.forEach((line, index) => {
     const days = lineInterval(line);
     if (days === null) return;
     if (age !== null && days > age.days) out[`Part1.${index}`] = MSG.intervalLonger;
-    else if (index > 0) {
-      const above = lineInterval(lines[index - 1]);
-      if (above !== null && days < above) out[`Part1.${index}`] = MSG.shorterThanAbove;
-    }
+    else if (above !== null && days < above) out[`Part1.${index}`] = MSG.shorterThanAbove;
+    above = days;
   });
   const part2 = lineInterval(certificate.Part2);
   if (part2 !== null && age !== null && part2 > age.days) out.Part2 = MSG.intervalLonger;

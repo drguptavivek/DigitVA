@@ -54,9 +54,11 @@ import { createDisplayPackIndex, LOCAL_ATTACHMENT_PREFIX, localCaseHeader, local
 import { LocalAttachmentMedia } from "../workspace/media/LocalAttachmentMedia.native";
 import { offlineEngine } from "../offlineEngine";
 import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
-import { DorisPanel } from "../workspace/doris/DorisPanel";
+import { DorisPanel, type CodDraftStore } from "../workspace/doris/DorisPanel";
+import type { CodDraft } from "../workspace/doris/browserDraft";
 import { draftAnswersSha256 } from "../sync";
 import { recordCodingTimeline } from "../draftSync";
+import { runInTransaction } from "../dbTransaction";
 import { acquireLocalCodingEditor } from "../localCodingLeases";
 import { localDateTimeWithOffset } from "../client/localDateTime";
 import { appendWorkflowEvent, workflowTimeline, type WorkflowTimelineEvent } from "../workflowTimeline";
@@ -99,10 +101,27 @@ function datePart(iso: string | null | undefined): string {
   return typeof iso === "string" && iso.length >= 10 ? iso.slice(0, 10) : "";
 }
 
-/** The drafts.ts accessors, seen through the editor's store interface; recheck access at the write boundary. */
+/**
+ * The drafts.ts accessors, seen through the editor's store interface; recheck access at the write boundary.
+ * A save is one transaction (digitva-ad1m): the draft's "initial_saved" milestone, then the coding row whose
+ * provenance carries the draft's timeline, so a crash cannot leave a coded row without its timeline.
+ */
 function offlineCodingStore(db: Db, assertAllowed: () => Promise<void>): OfflineCodingStore {
   return {
-    save: async (row) => { await assertAllowed(); return saveOfflineCoding(db, row); },
+    save: async (row) => {
+      await assertAllowed();
+      await runInTransaction(db, async () => {
+        if (!await recordCodingTimeline(db, row.client_draft_id, "initial_saved", row.updated_at)) {
+          throw new Error("offline_timeline_save_failed");
+        }
+        const local = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [row.client_draft_id]);
+        if (!local) throw new Error("offline_case_missing");
+        const persistedTimeline = codingTimeline((JSON.parse(local.envelope) as Record<string, unknown>).codingTimelineV1);
+        const provenance: unknown = row.provenance ? JSON.parse(row.provenance) : {};
+        if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new Error("offline_save_invalid");
+        await saveOfflineCoding(db, { ...row, provenance: JSON.stringify({ ...provenance, codingTimelineV1: persistedTimeline }) });
+      });
+    },
     get: (clientDraftId) => getOfflineCoding(db, clientDraftId),
   };
 }
@@ -154,6 +173,51 @@ interface LocalCase {
 
 /** The private note of one case: kept in the account's encrypted store beside the draft, never synced. */
 const noteKey = (clientDraftId: string) => `offlineNote:${clientDraftId}`;
+/** The unsaved DORIS certificate of one case (digitva-9cll.15): same store, never synced, cleared on save. */
+const codDraftKey = (clientDraftId: string) => `offlineCodDraft:${clientDraftId}`;
+const COD_DRAFT_MAX_CHARS = 200_000;
+
+/**
+ * A stored unsaved certificate, or undefined when it is not one (a damaged value is dropped, not trusted) or was
+ * written on other answers than the interview has now: its administrative data would be stale.
+ */
+function storedCodDraft(value: unknown, answersHash: string | null): CodDraft | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const kept = value as { answersHash?: unknown; cod?: unknown };
+  if (!answersHash || kept.answersHash !== answersHash || !kept.cod || typeof kept.cod !== "object" || Array.isArray(kept.cod)) return undefined;
+  const cod = kept.cod as Record<string, unknown>;
+  const selected = cod.selectedCause as Record<string, unknown> | null | undefined;
+  const text = (item: unknown, max: number) => typeof item === "string" && item.length <= max;
+  if (!text(cod.step, 20) || !text(cod.remark, 20_000) || !cod.certificate || typeof cod.certificate !== "object" || Array.isArray(cod.certificate)) return undefined;
+  if (selected !== null && (!selected || typeof selected !== "object" || !text(selected.code, 2000) || !text(selected.title, 10_000) || !text(selected.uri, 2000))) return undefined;
+  return {
+    step: cod.step as string, remark: cod.remark as string, certificate: cod.certificate as JsonObject,
+    selectedCause: selected ? { code: selected.code as string, title: selected.title as string, uri: selected.uri as string, ...(selected.causingConditionUnknown === true ? { causingConditionUnknown: true } : {}) } : null,
+  };
+}
+
+/**
+ * DorisPanel's draft store for one case: reads the copy loaded with the case, writes through to the encrypted store
+ * in order (each write after the one before, so a late write never overwrites a newer one), and only while the
+ * case is still allowed. Engine results are not kept: after a restart the certificate is processed again.
+ */
+function offlineCodDraftStore(db: Db, clientDraftId: string, loaded: CodDraft | undefined, answersHash: string | null, assertAllowed: () => Promise<void>): CodDraftStore {
+  let current = loaded;
+  let writes: Promise<void> = Promise.resolve();
+  const write = (value: CodDraft | null) => {
+    writes = writes.then(async () => {
+      await assertAllowed();
+      const stored = value && answersHash ? { answersHash, cod: value } : null;
+      if (stored && JSON.stringify(stored).length > COD_DRAFT_MAX_CHARS) return;
+      await setMeta(db, codDraftKey(clientDraftId), stored);
+    }).catch(() => undefined);
+  };
+  return {
+    read: (step) => (current?.step === step ? current : undefined),
+    save: (cod) => { current = cod; write(cod); },
+    clear: () => { current = undefined; write(null); },
+  };
+}
 const NOTE_MAX_CHARS = 20_000;
 
 /**
@@ -270,30 +334,15 @@ function offlineWorkspaceApi(
       try {
         const answersSha256 = await answersHash(vaSid);
         await assertAllowed();
-        const saved = await editor.current.save({
+        await editor.current.save({
           clientDraftId: vaSid, body, reply: reply.current, deviceUuid, coderProfileUpdatedAt, answersSha256,
           workflowTimelineV1: timeline.current,
           codingTimelineV1: timeline.current,
         });
-        await assertAllowed();
-        if (!await recordCodingTimeline(db, vaSid, "initial_saved", saved.updated_at)) {
-          throw new Error("offline_timeline_save_failed");
-        }
+        // The store wrote the milestone and the row together (offlineCodingStore); show the persisted timeline.
         const local = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [vaSid]);
         if (!local) throw new Error("offline_case_missing");
-        const localEnvelope = JSON.parse(local.envelope) as Record<string, unknown>;
-        const persistedTimeline = codingTimeline(localEnvelope.codingTimelineV1);
-        timeline.current = persistedTimeline;
-        const coding = await getOfflineCoding(db, vaSid);
-        if (coding) {
-          const provenance: unknown = coding.provenance ? JSON.parse(coding.provenance) : {};
-          if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new Error("offline_save_invalid");
-          await assertAllowed();
-          await saveOfflineCoding(db, {
-            ...coding,
-            provenance: JSON.stringify({ ...(provenance as Record<string, unknown>), codingTimelineV1: persistedTimeline }),
-          });
-        }
+        timeline.current = codingTimeline((JSON.parse(local.envelope) as Record<string, unknown>).codingTimelineV1);
       } catch (error) {
         // The shapes DorisPanel handles for the server's 400 invalid_cod and 422 age confirmation.
         if (!(error instanceof OfflineAllowabilityError)) throw error;
@@ -308,13 +357,16 @@ function offlineWorkspaceApi(
 }
 
 /** The saved certificate and engine results of a stored coding, shaped for DorisPanel's pre-fill; null when unreadable. */
-function savedCoding(coding: OfflineCodingRow): { certificate: JsonObject; processing: JsonObject | null } | null {
+function savedCoding(coding: OfflineCodingRow): { certificate: JsonObject; processing: JsonObject | null; remark: string | null } | null {
   try {
+    const provenance: unknown = coding.provenance ? JSON.parse(coding.provenance) : null;
+    const remark = provenance && typeof provenance === "object" && typeof (provenance as { remark?: unknown }).remark === "string"
+      ? (provenance as { remark: string }).remark : null;
     const certificate: unknown = JSON.parse(coding.certificate);
     if (!certificate || typeof certificate !== "object" || Array.isArray(certificate)) return null;
     const doris: unknown = coding.result ? JSON.parse(coding.result) : null;
     const codedit: unknown = coding.codedit_result ? JSON.parse(coding.codedit_result) : null;
-    return { certificate: certificate as JsonObject, processing: doris && codedit ? { doris, codedit } as unknown as JsonObject : null };
+    return { certificate: certificate as JsonObject, processing: doris && codedit ? { doris, codedit } as unknown as JsonObject : null, remark };
   } catch {
     return null;
   }
@@ -336,8 +388,9 @@ interface LoadedCase {
   smartvaOptions: SmartVaOptionsSnapshot | null;
   answers: Record<string, unknown>;
   view: LocalCaseView;
-  narrativeQaEnabled: boolean;
-  socialAutopsyEnabled: boolean;
+  /** The unsaved certificate kept from an earlier session of this case, if any, and the answers it is bound to. */
+  codDraft: CodDraft | undefined;
+  answersHash: string | null;
 }
 
 /** The editor's one case in the coding workspace, with the offline editor in its COD section. */
@@ -354,6 +407,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   const [failed, setFailed] = useState("");
   const [busy, setBusy] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
+  // The engine refused to start by itself after repeated failures (digitva-9cll.16); only the coder's Try again runs it.
+  const [engineBlocked, setEngineBlocked] = useState(false);
   const [enginePercent, setEnginePercent] = useState<number>();
   const [retry, setRetry] = useState(0);
   // Revise on the summary of a coded standalone case: reopens the coding form instead of the read-only view.
@@ -447,20 +502,15 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
           const draftConfig = await getMeta<Record<string, unknown>>(db, configKey);
           const options = isSmartVaOptionsSnapshot(draftConfig?.smartva) ? draftConfig.smartva : null;
           const answersHash = await draftAnswersSha256(db, clientDraftId);
+          const codDraft = storedCodDraft(await getMeta(db, codDraftKey(clientDraftId)), answersHash);
           const cached = await getLocalSmartVa(db, clientDraftId);
           const answers = serverKeptAnswers(envelope, correctedNow());
           const view = localCaseView(await displayPackIndex(), answers);
-          // NQA and Social Autopsy: off for a standalone account, the project's switch for an enrolled one.
-          const project = accountRef.current.standalone ? undefined
-            : (await getCachedReferenceData(db))?.projects.find((item) => item.project.project_id === draft.project_id)?.project as
-              { narrative_qa_enabled?: unknown; social_autopsy_enabled?: unknown } | undefined;
           if (!live) return;
           setSmartvaAnswersHash(answersHash);
           setSmartvaCache(cached);
           setLoaded({
-            row, draft: envelope, coding, projectId: draft.project_id, smartvaOptions: options, answers, view,
-            narrativeQaEnabled: project?.narrative_qa_enabled === true,
-            socialAutopsyEnabled: project?.social_autopsy_enabled === true,
+            row, draft: envelope, coding, projectId: draft.project_id, smartvaOptions: options, answers, view, codDraft, answersHash,
           });
         }
       } catch (error) {
@@ -489,12 +539,16 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
 
   useEffect(() => engine.onProgress((progress) => setEnginePercent(progress.percent)), [engine]);
 
-  // Start only after the selected draft passes its project check and holds the editor lease.
-  useEffect(() => {
-    if (!loaded || !allowed || busy || initStarted.current) return;
+  /**
+   * Starts the engine. `asked` is the coder's Try again after "init_blocked" (digitva-9cll.16): the engine's retry,
+   * which earlier failures do not refuse. Blocked shows that message and Try again; any other failure the error screen.
+   */
+  const startEngine = useCallback((asked: boolean) => {
     initStarted.current = true;
+    setEngineBlocked(false);
     void assertAllowed().then(async () => {
-      const result = await engine.init();
+      const result = await (asked && engine.retry ? engine.retry() : engine.init());
+      if (!result.ok && result.error === "init_blocked") { setEngineBlocked(true); return; }
       if (!result.ok) throw new Error(result.error);
       setEngineReady(true);
     }).catch((error) => {
@@ -503,7 +557,13 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       releaseLease.current = null;
       setFailed(errorText(error));
     });
-  }, [allowed, assertAllowed, busy, engine, loaded]);
+  }, [assertAllowed, engine]);
+
+  // Start only after the selected draft passes its project check and holds the editor lease.
+  useEffect(() => {
+    if (!loaded || !allowed || busy || initStarted.current) return;
+    startEngine(false);
+  }, [allowed, busy, loaded, startEngine]);
 
   const smartvaIsCurrent = smartvaAvailable === true && !!loaded?.smartvaOptions &&
     isLocalSmartVaCurrent(smartvaCache, smartvaAnswersHash, loaded.smartvaOptions.optionsDigest, smartvaVersion);
@@ -527,8 +587,10 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         project_mode: "unmasked_doris",
         icd_classification: "icd11",
         workflow_state: "coding",
-        narrative_qa_enabled: loaded.narrativeQaEnabled,
-        social_autopsy_enabled: loaded.socialAutopsyEnabled,
+        // Offline coding asks neither NQA nor Social Autopsy, standalone or enrolled: the phone cannot save them
+        // and the server imports the final without either gate (coding-workflow-state-machine.md, digitva-9cll.22.4).
+        narrative_qa_enabled: false,
+        social_autopsy_enabled: false,
       },
       categories: loaded.view.categories,
       default_category: loaded.view.defaultCategory,
@@ -546,7 +608,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       smartva_can_run: false,
       other_conditions_options: null,
       // A revision opens pre-filled from the saved certificate and engine results, not from the interview alone.
-      doris: summary ? null : { initial_certificate: saved?.certificate ?? seed.certificate, prefill_provenance: seed.provenance, saved_processing: saved?.processing ?? null },
+      doris: summary ? null : { initial_certificate: saved?.certificate ?? seed.certificate, prefill_provenance: seed.provenance, saved_processing: saved?.processing ?? null, ...(saved?.remark ? { saved_remark: saved.remark } : {}) },
       narrative_qa: null,
       social_autopsy: null,
     };
@@ -575,6 +637,12 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
     [clientDraftId, db, assertAllowed],
   );
   const request = offlineRequester(db, createGuidanceRequester(editor, clientDraftId, assertAllowed));
+  const loadedCodDraft = loaded?.codDraft;
+  const loadedAnswersHash = loaded?.answersHash ?? null;
+  const draftStore = useMemo(
+    () => offlineCodDraftStore(db, clientDraftId, loadedCodDraft, loadedAnswersHash, assertAllowed),
+    [db, clientDraftId, loadedCodDraft, loadedAnswersHash, assertAllowed],
+  );
 
   const repairSmartVaOptions = async () => {
     if (!loaded || smartvaBusy) return;
@@ -705,7 +773,11 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
           {smartvaFailure && smartvaFailure !== t("localSmartVaOptionsNeeded") ? <Notice tone="error">{smartvaFailure}</Notice> : null}
           <Button kind="secondary" label={t("localSmartVaUseCurrentSettings")} onPress={() => { void repairSmartVaOptions(); }} disabled={smartvaBusy || !allowed} />
         </View>}
-        {allowed && !engineReady ? <View accessibilityLiveRegion="polite" style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
+        {allowed && engineBlocked ? <View style={[styles.card, { gap: 8 }]}>
+          <Notice tone="error">{t("offlineDorisInitBlocked")}</Notice>
+          <Button kind="secondary" label={t("retry")} onPress={() => startEngine(true)} />
+        </View> : null}
+        {allowed && !engineReady && !engineBlocked ? <View accessibilityLiveRegion="polite" style={[styles.card, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
           <ActivityIndicator />
           <Text style={[styles.muted, { flex: 1 }]}>
             {t("offlineDorisStarting")}{enginePercent !== undefined ? ` ${enginePercent}%` : ""}
@@ -713,7 +785,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         </View> : null}
         <View style={{ display: allowed && engineReady ? "flex" : "none" }}>
           {/* A saved Step 1 returns to the case list, as before the workspace. */}
-          <DorisPanel workspace={current} identity={identity} api={guardedApi} request={request} onSaved={async () => finish()} onDone={finish} direct={!!account.standalone} />
+          <DorisPanel workspace={current} identity={identity} api={guardedApi} request={request} onSaved={async () => finish()} onDone={finish} direct={!!account.standalone} offline draftStore={draftStore} />
         </View>
         {!allowed && <Notice tone="error">Offline coding access for this project is unavailable.</Notice>}
       </View>

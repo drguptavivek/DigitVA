@@ -92,9 +92,10 @@ describe("piiBoundary: assertNoPii", () => {
     }
   });
 
-  it("refuses Aadhaar-like and phone numbers in any string, with their path", () => {
-    expect(() => assertNoPii({ Text: "TB patient 2345 6789 0123" }, "certificate")).toThrow(/12-digit Aadhaar/);
-    expect(() => assertNoPii({ Text: "id 2345-6789-0123." }, "certificate")).toThrow(PiiBoundaryError);
+  it("refuses phone numbers in any value and Aadhaar-like numbers in queries, with their path", () => {
+    // Certificate text is not checked for Aadhaar-like numbers: the server accepts "TB 2015 2018 2020" (digitva-9cll.21).
+    expect(() => assertNoPii({ Text: "TB 2015 2018 2020" }, "certificate")).not.toThrow();
+    expect(() => assertNoPiiInText("TB 2015 2018 2020", "query")).toThrow(/12-digit Aadhaar/);
     expect(() => assertNoPii({ Text: "call 9876543210 now" }, "certificate")).toThrow(/10-digit phone/);
     expect(() => assertNoPii(["+91 9876543210"], "list")).toThrow(/list\[0\]/);
     expect(() => assertNoPiiInText("diabetes 9876543210", "query")).toThrow(PiiBoundaryError);

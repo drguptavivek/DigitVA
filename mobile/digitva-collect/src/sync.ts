@@ -342,7 +342,8 @@ export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, cl
   if (row.device_uuid !== clientDeviceUuid || !PROCESS_TOKEN.test(row.process_token)) return null;
   // `packVersions` (which engine coded this, src/workspace/offlineDoris.ts) travels as the contract's `pack_versions`,
   // not inside `provenance`, whose keys the server fixes.
-  const { packVersions, ...provenance } = JSON.parse(row.provenance) as { allowability?: { rules?: unknown }; packVersions?: unknown };
+  // `remark` (the coder's remark, kept in provenance on the phone) travels as the contract's own `remark`.
+  const { packVersions, remark, ...provenance } = JSON.parse(row.provenance) as { allowability?: { rules?: unknown }; packVersions?: unknown; remark?: unknown };
   if (!provenance.allowability) return null;
   const rules = provenance.allowability.rules;
   const engineVersions = Object.fromEntries(
@@ -353,7 +354,7 @@ export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, cl
     device_uuid: clientDeviceUuid,
     process_token: row.process_token,
     conclusive_cod: row.ucod_code,
-    remark: null,
+    remark: typeof remark === "string" && remark ? remark : null,
     certificate: parsedObject(row.certificate),
     result: parsedObject(row.result),
     codedit_result: parsedObject(row.codedit_result),
@@ -825,9 +826,9 @@ export async function syncInterviewer(
   // worker's access still has its unsent work tried, and the server's answer
   // (not a local purge) decides what happens to it.
   const uploads = await uploadQueuedWork(userId, db, { onSuperseded, onServerKept, onCanCodeNow });
-  let { sent, failed } = uploads;
   // Device-level, not this interviewer's: deletion reports of profiles already removed from the phone (auth.ts).
   await sendQueuedProfileDeletions().catch(() => undefined);
+  let { sent, failed } = uploads;
   const { supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds, codingOutcomes } = uploads;
   const draftConflictIds: string[] = [];
 

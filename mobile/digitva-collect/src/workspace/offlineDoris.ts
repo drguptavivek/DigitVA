@@ -45,6 +45,9 @@ import { assertNoPii, assertNoPiiInText, PiiBoundaryError } from "./piiBoundary"
 import { createWhoEngineApi, ENGINE_PROVENANCE, WHO_RELEASE, WhoUnavailableError, type WhoEngineApi } from "./whoEngineApi";
 import { codePointLength, isRecord } from "./whoText";
 
+/** The longest remark the server imports with an offline coding (offline_coding_import_service._REMARK_MAX). */
+const REMARK_MAX = 2000;
+
 /** The WHO data bundle the engine ships pins this release (app/services/who_icd_api.py DEFAULT_ICD11_RELEASE). */
 export const OFFLINE_ICD11_RELEASE = WHO_RELEASE;
 const DEFAULT_TERM_LIMIT = 20;
@@ -151,6 +154,16 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
    * The server's final-cause check (validate_icd11_mms_coding_value_for_submission + record_final_cod_flags) before a
    * local final: returns the provenance to store, or throws OfflineAllowabilityError.
    */
+  /**
+   * A term marked as the server's DORIS term search marks it (age_marks_for_codes, digitva-o16a): age_restricted and
+   * its note when the pack says the deceased's age group conflicts. A mark only; sex is not applied to a search.
+   */
+  const ageMarked = <T extends { code: string }>(item: T): T => {
+    if (!allowability) return item;
+    const verdict = checkAllowability(allowability.index, item.code, { ...allowability.context, sex: null });
+    if (verdict.status !== "age_confirm") return item;
+    return { ...item, age_restricted: true, ...(verdict.restriction.restriction_note ? { restriction_note: verdict.restriction.restriction_note } : {}) };
+  };
   const judgeUnderlyingCause = async (value: string, body: JsonObject): Promise<JsonObject> => {
     if (!allowability) throw new Error("offline_save_invalid");
     const expression = extractIcd11CodeExpression(value);
@@ -227,7 +240,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         assertNoPiiInText(query, "query");
         subtreeUris?.forEach((uri, index) => assertNoPiiInText(uri, `subtree_uris[${index}]`));
         const { items, truncated } = await searchTerms(who, query, { limit: wanted, subtreeUris });
-        return { schema_version: 1 as const, items, truncated, next_cursor: null };
+        return { schema_version: 1 as const, items: items.map(ageMarked), truncated, next_cursor: null };
       }, (error) => personalData(error, "The terminology request is invalid."));
     },
 
@@ -300,6 +313,12 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         : reply?.process_token ?? "";
       if (!certificate || !result || !codeditResult || !processToken) throw new Error("offline_save_invalid");
       const ucodCode = typeof body.antecedent_cod === "string" && body.antecedent_cod ? body.antecedent_cod : null;
+      // The coder's remark on this final; the server takes at most REMARK_MAX characters (offline_coding_import_service).
+      const remark = typeof body.remark === "string" ? body.remark.trim() : "";
+      if (codePointLength(remark) > REMARK_MAX) {
+        const message = `The remark must be at most ${REMARK_MAX} characters.`;
+        throw new ApiError(400, "invalid_cod", undefined, undefined, { error: message, messages: [message] });
+      }
       const existing = await store.get(draftId);
       const parsedProvenance: unknown = existing?.provenance ? JSON.parse(existing.provenance) : undefined;
       if (existing?.provenance && !isRecord(parsedProvenance)) throw new Error("offline_save_invalid");
@@ -316,7 +335,8 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         ? { ...codingProvenance, workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline }
         : timeline.length ? { workflowTimelineV1: savedTimeline, codingTimelineV1: savedTimeline } : {};
       // Which engine produced and judged this coding. The server takes it as `pack_versions` (src/sync.ts moves it there).
-      const provenance = { ...judged, packVersions: { ...ENGINE_PROVENANCE } };
+      // The remark rides here too and src/sync.ts sends it as the contract's `remark` (the offline_coding table has no column).
+      const provenance = { ...judged, packVersions: { ...ENGINE_PROVENANCE }, ...(remark ? { remark } : {}) };
       const row: OfflineCodingRow = {
         client_draft_id: draftId,
         certificate,

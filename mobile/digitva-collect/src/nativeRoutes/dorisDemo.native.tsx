@@ -51,7 +51,9 @@ function Demo() {
     setProgress("");
     setEngineReady(false);
     const stop = engine.onProgress((event) => { if (live) setProgress(describeProgress(event)); });
-    engine.init().then((result) => {
+    // After "init_blocked" the button's Try again is the coder's own request: retry, which earlier failures do not refuse.
+    const start = attempt > 0 && engine.retry ? engine.retry() : engine.init();
+    start.then((result) => {
       if (!live) return;
       if (result.ok) setEngineReady(true);
       else setFailed(result.error);
@@ -73,7 +75,7 @@ function Demo() {
       </Card>
       {example ? <Text style={styles.muted}>{example.purpose}</Text> : null}
       {failed ? <>
-        <Notice tone="error">{`${t("dorisDemoEngineFailed")} (${failed})`}</Notice>
+        <Notice tone="error">{failed === "init_blocked" ? t("offlineDorisInitBlocked") : `${t("dorisDemoEngineFailed")} (${failed})`}</Notice>
         <Button kind="secondary" label={t("dorisDemoRetry")} onPress={() => setAttempt((value) => value + 1)} />
       </> : !engineReady ? (
         <View accessibilityRole="progressbar" style={{ gap: 8 }}>

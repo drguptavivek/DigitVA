@@ -588,8 +588,10 @@ def create_app(config_class=None, register_routes=True):
 
     # Imported here, not at module level: app.utils pulls in ODK modules that need `db` from this package.
     from app.utils.number_format import whole_number
+    from app.utils.smartva_gender import smartva_gender
 
     app.add_template_filter(whole_number)
+    app.add_template_filter(smartva_gender)
 
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

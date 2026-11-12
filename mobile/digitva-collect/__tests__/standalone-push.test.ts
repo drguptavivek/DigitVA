@@ -364,6 +364,17 @@ describe("stale coding", () => {
     expect(offlineCodingBody(row, hash, "99999999-9999-4999-8999-999999999999")).toBeNull();
   });
 
+  it("sends the remark kept in provenance as the contract's remark, not inside provenance (digitva-9cll.22.5)", async () => {
+    const db = await standaloneStore();
+    const row = (await getOfflineCoding(db, DRAFT))!;
+    const hash = (await draftAnswersSha256(db, DRAFT))!;
+    expect(offlineCodingBody(row, hash, DEVICE_UUID)).toMatchObject({ remark: null });
+    const withRemark = { ...row, provenance: JSON.stringify({ ...JSON.parse(row.provenance!), remark: "seen by the doctor" }) };
+    const body = offlineCodingBody(withRemark, hash, DEVICE_UUID)!;
+    expect(body.remark).toBe("seen by the doctor");
+    expect(body.provenance).not.toHaveProperty("remark");
+  });
+
   it("sends the engine versions as pack_versions, never inside provenance, and nothing without allowability provenance", async () => {
     const db = await standaloneStore();
     const row = (await getOfflineCoding(db, DRAFT))!;

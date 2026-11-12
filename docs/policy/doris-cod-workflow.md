@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # DORIS COD Workflow Policy
@@ -231,11 +231,15 @@ accept a code the server would refuse.
 - **Same rules from a versioned data pack.** The device applies the server's
   ICD-11 allowability rules from a **versioned data pack** and not from its
   own copy of the logic: chapter 22 and every non-selectable item are
-  refused in search and in save, `KD3B.Z` is allowed, the sex block refuses,
+  refused when the underlying cause is saved, as the server refuses an
+  online DORIS final, `KD3B.Z` is allowed, the sex block refuses,
   the age restriction asks for the same confirmation (who, when, DORIS warning
   stored), the bucket stem of a `/` cluster is its primary stem, and the
-  picker offers "Causing condition not known". Offline search returns the flat
-  MMS list, so the pack filters its results on the device.
+  picker offers "Causing condition not known". Search is not filtered, online
+  or offline: a certificate line may name a chapter 22 injury or another code
+  that is not a selectable underlying cause. Search results carry the age mark
+  (`age_restricted`, from the pack offline) as the server's terms search does
+  (`digitva-2j57`, `digitva-o16a`).
 - **The pack.** Generated server-side from the policy columns of
   `mas_icd11_mms` (`is_coding_selectable`, `age_group_selectable`,
   `sex_selectable`), with a content hash and the migration revision it came
@@ -290,7 +294,10 @@ attachments, then SmartVA, the DORIS certificate and the private note.
   redaction applies offline.
 - **NQA and Social Autopsy** follow the rule of
   [Field Data Collection](field-data-collection.md): disabled in standalone mode;
-  for an enrolled account they follow the project (`digitva-9cll.22.4`).
+  for an enrolled account they follow the project (owner reconfirmed
+  2026-11-13, `digitva-9cll.22.4`). Until the phone can store and send them and
+  the import checks them (`digitva-p8uj`), the phone hides both panels offline
+  rather than showing panels it cannot save.
 - **Private note** is kept in the encrypted account store with the case and
   is never synced.
 

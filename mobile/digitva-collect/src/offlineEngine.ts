@@ -281,6 +281,7 @@ export function offlineEngine(): OfflineEngine {
     shared = {
       ...engine,
       async init() { return await enabled() ? engine.init() : disabledInit; },
+      ...(engine.retry ? { retry: async () => (await enabled() ? engine.retry!() : disabledInit) } : {}),
       async warm() { return await enabled() ? engine.warm() : disabledInit; },
       async updateWhoFiles() { return await enabled() ? engine.updateWhoFiles() : disabledInit; },
       call: gated(engine.call),

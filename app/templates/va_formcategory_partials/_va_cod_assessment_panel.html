@@ -573,7 +573,7 @@
               <tr><td class="align-middle">Age</td><td class="align-middle">{{ smartva.va_smartva_age|whole_number }}</td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_gender and smartva.va_smartva_gender != 'NaN' and smartva.va_smartva_gender is not none %}
-              <tr><td class="align-middle">Gender</td><td class="align-middle">{{ smartva.va_smartva_gender }}</td></tr>
+              <tr><td class="align-middle">Gender</td><td class="align-middle">{{ smartva.va_smartva_gender | smartva_gender }}</td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_keysymptom1 and smartva.va_smartva_keysymptom1 != 'NaN' and smartva.va_smartva_keysymptom1 is not none %}
               <tr><td class="align-middle">Primary Key Symptom</td><td class="align-middle">{{ smartva.va_smartva_keysymptom1 }}</td></tr>

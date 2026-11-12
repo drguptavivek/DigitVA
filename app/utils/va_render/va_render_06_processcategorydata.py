@@ -195,7 +195,9 @@ def va_render_processcategorydata(
                     value = va_render_standardizedate(value)
                 if va_fieldid in va_dealwithdatetimes:
                     value = va_render_formatdatetimeindian(value)
-                if va_fieldid in va_mapping_choice:
+                # A multi-select is labelled once, choice by choice, below; labelling the whole
+                # answer here first made va_render_mapchoicevalue split the label ("Heart, attack").
+                if va_fieldid in va_mapping_choice and va_fieldid not in va_multipleselect:
                     value = _label_choice(va_mapping_choice[va_fieldid], value)
                 if va_fieldid in va_zeroskipfields and (
                     value == 1 or value == "1" or value == "1.0"

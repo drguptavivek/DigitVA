@@ -638,8 +638,8 @@ export async function clearRefusedDraftInTransaction(tx: Db, id: string): Promis
     await tx.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
     await tx.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [id]);
     await tx.runAsync("DELETE FROM local_smartva WHERE draft_id = ?", [id]);
-    // The coder's private offline note (offlineCoding.native.tsx) may quote the refused interview.
-    await tx.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?)", [`consent:resume-who:${id}`, `offlineNote:${id}`, `server-attachments:${id}`]);
+    // The coder's private offline note and unsaved certificate (offlineCoding.native.tsx) may quote the refused interview.
+    await tx.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?, ?)", [`consent:resume-who:${id}`, `offlineNote:${id}`, `offlineCodDraft:${id}`, `server-attachments:${id}`]);
 }
 
 /**
@@ -874,9 +874,9 @@ export async function draftUniqueIds(db: Db, projectId?: string): Promise<string
   return rows.map((row) => row.unique_id);
 }
 
-/** What the phone keeps beside a draft, deleted with it: consent records, files, its offline coding and private note. */
+/** What the phone keeps beside a draft, deleted with it: consent records, files, its offline coding, private note and unsaved certificate. */
 async function deleteDraftCompanions(db: Db, id: string): Promise<void> {
-  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?, ?, ?, ?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`, `standaloneConsent:${id}`, `offlineNote:${id}`, `server-attachments:${id}`, `coding-left:${id}`, `coding-refused:${id}`]);
+  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?, ?, ?, ?, ?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`, `standaloneConsent:${id}`, `offlineNote:${id}`, `offlineCodDraft:${id}`, `server-attachments:${id}`, `coding-left:${id}`, `coding-refused:${id}`]);
   await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
   await db.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [id]);
   await db.runAsync("DELETE FROM local_smartva WHERE draft_id = ?", [id]);

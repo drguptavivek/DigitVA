@@ -4,7 +4,9 @@
  * request); the Python server has no copy of it. The check runs before any engine call and the refusal names the
  * path of the offending field, never its value.
  *
- * One deliberate difference: Rust's `\d` and `\b` are Unicode, and here digits of the Indian scripts the phone is
+ * Deliberate differences: certificate values are not checked for the Aadhaar pattern (assertNoPii below), because
+ * condition text such as "TB 2015 2018 2020" matches it and the Python server, which sends certificates to WHO without
+ * this rule, accepts it (digitva-9cll.21). And Rust's `\d` and `\b` are Unicode, and here digits of the Indian scripts the phone is
  * used in (Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam) and Arabic-Indic digits
  * are turned into ASCII first, instead of relying on a JavaScript engine's `\p{Nd}`.
  */
@@ -42,14 +44,21 @@ function asciiDigits(text: string): string {
   return out;
 }
 
-/** Throws when `text` holds a 12-digit Aadhaar-like or a 10-digit phone number (WHO URIs, whose ids are long numbers, are ignored). */
-export function assertNoPiiInText(text: string, path: string): void {
+/**
+ * Throws when `text` holds a 10-digit phone number or, unless `aadhaar` is false, a 12-digit Aadhaar-like number
+ * (WHO URIs, whose ids are long numbers, are ignored).
+ */
+export function assertNoPiiInText(text: string, path: string, aadhaar = true): void {
   const scrubbed = asciiDigits(text).replace(WHO_URI, "");
-  if (AADHAAR.test(scrubbed)) throw new PiiBoundaryError(path, "Input contains a 12-digit Aadhaar-like identifier pattern.");
+  if (aadhaar && AADHAAR.test(scrubbed)) throw new PiiBoundaryError(path, "Input contains a 12-digit Aadhaar-like identifier pattern.");
   if (PHONE.test(scrubbed)) throw new PiiBoundaryError(path, "Input contains a 10-digit phone number pattern.");
 }
 
-/** Throws on a forbidden key or an Aadhaar/phone pattern anywhere in a JSON value. */
+/**
+ * Throws on a forbidden key or a phone pattern anywhere in a JSON value. The Aadhaar pattern is not applied to these
+ * values: certificate condition text such as "TB 2015 2018 2020" matches it, and the server accepts that text
+ * (digitva-9cll.21). Queries and codes still get it through assertNoPiiInText.
+ */
 export function assertNoPii(value: unknown, path: string): void {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertNoPii(item, `${path}[${index}]`));
@@ -62,6 +71,6 @@ export function assertNoPii(value: unknown, path: string): void {
       assertNoPii(child, childPath);
     }
   } else if (typeof value === "string") {
-    assertNoPiiInText(value, path);
+    assertNoPiiInText(value, path, false);
   }
 }

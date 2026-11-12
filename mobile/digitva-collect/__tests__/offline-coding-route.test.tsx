@@ -619,6 +619,41 @@ describe("the offline coding screen", () => {
     expect(alerts(root)).toEqual([]);
   });
 
+  it("after init_blocked shows the message and a Try again that runs the engine's retry (digitva-9cll.16)", async () => {
+    setOs("android");
+    mockPlus.mockReturnValue(true);
+    mockParams.caseId = "draft-7";
+    mockEngineInit.mockResolvedValueOnce({ ok: false, error: "init_blocked", ms: 1 });
+    const retryInit = jest.fn(async () => ({ ok: true as const, ms: 0, copyMs: 0, initMs: 0, cached: false }));
+    (mockEngine as Record<string, unknown>).retry = retryInit;
+    try {
+      const root = await render(<OfflineCoding />);
+      const text = () => JSON.stringify(root.toJSON());
+      expect(text()).toContain("offlineDorisInitBlocked");
+      expect(text()).not.toContain("offlineDorisStarting");
+      const tryAgain = root.root.find((node) => node.props.accessibilityLabel === "retry");
+      await act(async () => { tryAgain.props.onPress(); });
+      expect(retryInit).toHaveBeenCalledTimes(1);
+      expect(mockEngineInit).toHaveBeenCalledTimes(1);
+      expect(text()).not.toContain("offlineDorisInitBlocked");
+      await act(async () => root.unmount());
+
+      // A Try again that fails for real shows the error screen, whose Retry starts the engine again.
+      mockEngineInit.mockClear();
+      mockEngineInit.mockResolvedValueOnce({ ok: false, error: "init_blocked", ms: 1 });
+      retryInit.mockResolvedValueOnce({ ok: false, error: "init_failed", ms: 1 } as never);
+      const again = await render(<OfflineCoding />);
+      await act(async () => { again.root.find((node) => node.props.accessibilityLabel === "retry").props.onPress(); });
+      expect(alerts(again)).toContain("error");
+      await act(async () => { again.root.find((node) => node.props.accessibilityLabel === "Retry").props.onPress(); });
+      expect(mockEngineInit).toHaveBeenCalledTimes(2);
+      expect(alerts(again)).toEqual([]);
+      await act(async () => again.unmount());
+    } finally {
+      delete (mockEngine as Record<string, unknown>).retry;
+    }
+  });
+
   it("shows a spinner with the engine's progress until DORIS is ready", async () => {
     setOs("android");
     mockPlus.mockReturnValue(true);
@@ -698,6 +733,36 @@ describe("the offline coding workspace's local API", () => {
     expect(mockScreenProps).toBeDefined();
     return { root, api: mockScreenProps!.api as import("../src/workspace/api").WorkspaceApi };
   };
+
+  it("keeps the unsaved certificate in the encrypted store and hands it back after a restart (digitva-9cll.15)", async () => {
+    const kept = { step: "initial", certificate: { ICDVersion: "ICD11", Part1: [{ Conditions: [{ Text: "Fever" }] }] }, selectedCause: null, remark: "r" };
+    metaStore.set("offlineCodDraft:draft-7", { answersHash: "a".repeat(64), cod: kept });
+    const { root } = await openCase();
+    const store = mockPanelProps!.draftStore as import("../src/workspace/doris/DorisPanel").CodDraftStore;
+    expect(store.read("initial")).toEqual(kept);
+    expect(store.read("final")).toBeUndefined();
+    const edited = { ...kept, remark: "newer" };
+    store.save({ ...kept, remark: "older" });
+    store.save(edited);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(metaStore.get("offlineCodDraft:draft-7")).toEqual({ answersHash: "a".repeat(64), cod: edited });
+    store.clear();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(metaStore.get("offlineCodDraft:draft-7")).toBeNull();
+    expect(store.read("initial")).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    ["damaged", { answersHash: "a".repeat(64), cod: { step: "initial", certificate: "not an object", selectedCause: null, remark: "" } }],
+    ["written on other answers", { answersHash: "b".repeat(64), cod: { step: "initial", certificate: {}, selectedCause: null, remark: "" } }],
+  ])("drops a %s stored certificate instead of restoring it", async (_name, value) => {
+    metaStore.set("offlineCodDraft:draft-7", value);
+    const { root } = await openCase();
+    expect(mockPanelProps).toBeDefined();
+    expect((mockPanelProps!.draftStore as { read(step: string): unknown }).read("initial")).toBeUndefined();
+    await act(async () => root.unmount());
+  });
 
   it("serves the workspace and every category from the phone, in shapes the client contract accepts", async () => {
     const { parseCategory, parseWorkspace } = jest.requireActual<typeof import("../src/workspace/contracts")>("../src/workspace/contracts");
@@ -932,6 +997,14 @@ describe("direct coding and the coded-case summary (digitva-9cll.23, .24)", () =
     await act(async () => root.unmount());
   });
 
+  it("Revise reopens with the remark saved in the coding's provenance (digitva-9cll.22.5)", async () => {
+    const root = await open(true, { ...codedRow, provenance: JSON.stringify({ packVersions: {}, remark: "seen by the doctor" }) });
+    await act(async () => { mockScreenProps!.viewAction.props.onPress(); });
+    const workspace = await mockScreenProps!.api.getWorkspace("draft-7", "coding");
+    expect(workspace.doris.saved_remark).toBe("seen by the doctor");
+    await act(async () => root.unmount());
+  });
+
   it("a revision saves through the same upsert, so the case keeps one coding record", async () => {
     const root = await open(true, codedRow);
     await act(async () => { mockScreenProps!.viewAction.props.onPress(); });
@@ -940,6 +1013,36 @@ describe("direct coding and the coded-case summary (digitva-9cll.23, .24)", () =
     await mockPanelProps!.api.saveInitial("draft-7", {});
     expect(mockEditorSave).toHaveBeenCalledTimes(2);
     for (const [call] of mockEditorSave.mock.calls as unknown as Array<[{ clientDraftId: string }]>) expect(call.clientDraftId).toBe("draft-7");
+    await act(async () => root.unmount());
+  });
+
+  it("writes the milestone and the coding row in one transaction, and rolls both back on failure (digitva-ad1m)", async () => {
+    const root = await open(true, null);
+    const editorMock = require("../src/workspace/offlineDoris").createOfflineDorisEditor as jest.Mock;
+    const store = editorMock.mock.calls[editorMock.mock.calls.length - 1][1] as { save: (row: Record<string, unknown>) => Promise<void> };
+    const saveRow = require("../src/drafts").saveOfflineCoding as jest.Mock;
+    saveRow.mockReset().mockResolvedValue(undefined);
+    mockDb.execAsync.mockClear();
+    const row = { client_draft_id: "draft-7", updated_at: "2026-10-27T11:00:00.000+05:30", provenance: JSON.stringify({ packVersions: {} }) };
+    await store.save(row);
+    expect(mockDb.execAsync.mock.calls.map(([sql]) => sql)).toEqual(["BEGIN IMMEDIATE", "COMMIT"]);
+    expect(saveRow).toHaveBeenCalledTimes(1);
+    const saved = JSON.parse(saveRow.mock.calls[0][1].provenance);
+    expect(saved.packVersions).toEqual({});
+    expect(saved.codingTimelineV1.map((event: { event: string }) => event.event)).toContain("initial_saved");
+
+    saveRow.mockReset().mockRejectedValue(new Error("disk full"));
+    mockDb.execAsync.mockClear();
+    await expect(store.save(row)).rejects.toThrow("disk full");
+    expect(mockDb.execAsync.mock.calls.map(([sql]) => sql)).toEqual(["BEGIN IMMEDIATE", "ROLLBACK"]);
+    await act(async () => root.unmount());
+  });
+
+  it("tells DorisPanel it is offline and asks neither NQA nor Social Autopsy, enrolled included (digitva-9cll.22.4/.22.5)", async () => {
+    const root = await open(false, null);
+    expect(mockPanelProps!.offline).toBe(true);
+    const workspace = await mockScreenProps!.api.getWorkspace("draft-7", "coding");
+    expect(workspace.case).toMatchObject({ narrative_qa_enabled: false, social_autopsy_enabled: false });
     await act(async () => root.unmount());
   });
 

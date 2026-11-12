@@ -6,7 +6,7 @@ import { browserSessionStore } from "../viewState";
 export const DORIS_DRAFT_KEY = "digitva:doris:draft:v1";
 export type DraftContext = { fingerprint: string; vaSid: string; mode: string; payloadVersion: string; projectMode: string };
 type Selection = { code: string; title: string; uri: string; causingConditionUnknown?: boolean };
-type CodDraft = { step: string; certificate: JsonObject; selectedCause: Selection | null; remark: string };
+export type CodDraft = { step: string; certificate: JsonObject; selectedCause: Selection | null; remark: string };
 type Draft = { schemaVersion: 1; context: DraftContext; cod?: CodDraft; pendingNote?: string };
 const MAX_BYTES = 200_000;
 let activeFingerprint: string | undefined;

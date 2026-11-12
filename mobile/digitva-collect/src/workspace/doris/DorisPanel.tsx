@@ -22,7 +22,17 @@ import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
 import { UCOD_CLUSTER_EXPLANATION, certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks, ucodClusterLines } from "./resultSummary";
 import { dorisWarningCodes } from "./dorisWarnings";
-import { browserDraftGeneration, clearCaseBrowserDraft, clearCodDraft, draftContext, readCodDraft, saveCodDraft } from "./browserDraft";
+import { browserDraftGeneration, clearCaseBrowserDraft, clearCodDraft, draftContext, readCodDraft, saveCodDraft, type CodDraft } from "./browserDraft";
+
+/**
+ * Where a native client keeps the unsaved certificate across a process kill (digitva-9cll.15): synchronous to the
+ * panel, backed by the caller's encrypted store. The web keeps using its per-tab browser draft.
+ */
+export interface CodDraftStore {
+  read(step: string): CodDraft | undefined;
+  save(cod: CodDraft): void;
+  clear(): void;
+}
 
 type CertificateState = {
   owner: { api: WorkspaceApi; request: JsonRequester; vaSid: string; mode: WorkspaceIdentity["mode"]; step: WorkspacePayload["step"]; projectMode: WorkspacePayload["case"]["project_mode"]; fingerprint?: string | null; recoveryGeneration: number };
@@ -148,17 +158,18 @@ function forgetDraft(owner: CertificateState["owner"]): void {
 
 /** The remark this coder or reviewer last saved with their final COD. */
 function savedRemark(workspace: WorkspacePayload, mode: WorkspaceIdentity["mode"]): string {
-  return (mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final)?.remark ?? "";
+  return (mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final)?.remark ?? workspace.doris?.saved_remark ?? "";
 }
 
 /** The saved draft for this owner, else the server seed. */
-function initialState(owner: CertificateState["owner"], workspace: WorkspacePayload): CertificateState {
+function initialState(owner: CertificateState["owner"], workspace: WorkspacePayload, draftStore?: CodDraftStore): CertificateState {
   const draft = drafts.get(owner.request)?.get(draftKey(owner));
   if (draft) return { ...draft, owner, busy: false, error: "", cleared: false, notice: draft.notice || "Unsaved draft restored." };
   const maskedStepTwo = workspace.case.project_mode === "masked_doris" && workspace.step === "final";
   const seeded = maskedStepTwo ? { certificate: {}, derivedAge: null } : initialCertificate(workspace);
-  const recovered = readCodDraft(draftContext(workspace, { vaSid: owner.vaSid, mode: owner.mode }), workspace.step);
-  const certificate = recovered ? { ...seeded.certificate, ...recovered.certificate } : seeded.certificate;
+  const recovered = draftStore ? draftStore.read(workspace.step) : readCodDraft(draftContext(workspace, { vaSid: owner.vaSid, mode: owner.mode }), workspace.step);
+  // The browser draft keeps only the COD lines over the seed; a native store keeps the whole certificate.
+  const certificate = recovered ? (draftStore ? recovered.certificate : { ...seeded.certificate, ...recovered.certificate }) : seeded.certificate;
   return {
     owner,
     certificate,
@@ -237,6 +248,8 @@ export function DorisPanel({
   onDone,
   demo = false,
   direct = false,
+  offline = false,
+  draftStore,
 }: {
   workspace: WorkspacePayload;
   identity: WorkspaceIdentity;
@@ -248,16 +261,23 @@ export function DorisPanel({
   demo?: boolean;
   /** Standalone Collect Plus: coding is one direct step (the saved record is the final cause), so no "Step 1" wording. */
   direct?: boolean;
+  /**
+   * Collect Plus offline coding: the saved Step 1 is imported as the coder's final, so it carries the remark; a
+   * not-codeable report has no offline path, so an enrolled coder is told to make it online (digitva-9cll.22.5).
+   */
+  offline?: boolean;
+  /** Native offline coding: keeps the unsaved certificate, selected cause and remark in the encrypted store. */
+  draftStore?: CodDraftStore;
 }) {
   const owner = { api, request, vaSid: identity.vaSid, mode: identity.mode, step: workspace.step, projectMode: workspace.case.project_mode, fingerprint: workspace.case.doris_draft_context, recoveryGeneration: browserDraftGeneration() };
-  const [stored, setStored] = useState<CertificateState>(() => initialState(owner, workspace));
+  const [stored, setStored] = useState<CertificateState>(() => initialState(owner, workspace, draftStore));
   const [notCodeableReason, setNotCodeableReason] = useState("");
   const [notCodeableOther, setNotCodeableOther] = useState("");
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   // Set when the server asks the coder to confirm an age-restricted final code; `masked` picks the save path to resend.
   const [ageConfirm, setAgeConfirm] = useState<{ code: string; group: string; note: string; masked: boolean } | null>(null);
   const { mode: colorMode, colors } = useTheme();
-  const state = sameOwner(stored.owner, owner) ? stored : initialState(owner, workspace);
+  const state = sameOwner(stored.owner, owner) ? stored : initialState(owner, workspace, draftStore);
   const stateRef = useRef(state);
   stateRef.current = state;
   const ownerRef = useRef(owner);
@@ -291,7 +311,7 @@ export function DorisPanel({
   const update = useCallback((change: (current: CertificateState) => CertificateState) => {
     setStored((current) => {
       if (!live.current || !sameOwner(ownerRef.current, owner)) return current;
-      const base = sameOwner(current.owner, owner) ? current : initialState(owner, workspace);
+      const base = sameOwner(current.owner, owner) ? current : initialState(owner, workspace, draftStore);
       return change(base);
     });
   }, [api, identity.mode, identity.vaSid, request, workspace]);
@@ -329,12 +349,13 @@ export function DorisPanel({
     if (stored.cleared || stored.busy || !sameOwner(stored.owner, ownerRef.current)) return;
     // Back to the server seed (a masked Step 2 choice cleared): nothing unsaved to keep.
     if (stored.revision === 0 && !stored.selectedCause && stored.remark === savedRemark(workspaceRef.current, stored.owner.mode)) {
+      // The stored draft stays, as the web's browser draft does: a restored certificate starts at revision 0 too.
       forgetDraft(stored.owner);
       return;
     }
-    saveCodDraft(draftContext(workspaceRef.current, { vaSid: stored.owner.vaSid, mode: stored.owner.mode }), {
-      step: stored.owner.step, certificate: stored.certificate, selectedCause: stored.selectedCause, remark: stored.remark,
-    });
+    const cod = { step: stored.owner.step, certificate: stored.certificate, selectedCause: stored.selectedCause, remark: stored.remark };
+    saveCodDraft(draftContext(workspaceRef.current, { vaSid: stored.owner.vaSid, mode: stored.owner.mode }), cod);
+    draftStore?.save(cod);
     const { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark } = stored;
     draftsFor(stored.owner.request).set(draftKey(stored.owner), { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark });
   }, [stored]);
@@ -342,7 +363,7 @@ export function DorisPanel({
   useEffect(() => {
     generation.current += 1;
     live.current = true;
-    setStored(initialState(owner, workspace));
+    setStored(initialState(owner, workspace, draftStore));
     return () => {
       live.current = false;
       generation.current += 1;
@@ -354,7 +375,7 @@ export function DorisPanel({
     workspaceRef.current = workspace;
     if (stateRef.current.cleared) {
       live.current = true;
-      setStored(initialState(owner, workspace));
+      setStored(initialState(owner, workspace, draftStore));
     }
   }, [owner, workspace]);
 
@@ -362,7 +383,7 @@ export function DorisPanel({
     const clear = () => {
       generation.current += 1;
       live.current = false;
-      const blank = initialState(owner, workspace);
+      const blank = initialState(owner, workspace, draftStore);
       blank.certificate = {};
       blank.cleared = true;
       // The picker holds the typed query, which can describe the deceased: it must not come back on return.
@@ -390,6 +411,7 @@ export function DorisPanel({
     if (!live.current || !sameOwner(ownerRef.current, owner) || owner.recoveryGeneration !== browserDraftGeneration()) return;
     forgetDraft(owner);
     clearCaseBrowserDraft(draftContext(workspace, identity));
+    draftStore?.clear();
     generation.current += 1;
     live.current = false;
     setStored((current) => sameOwner(current.owner, owner) ? { ...current, certificate: {}, processing: null, selectedCause: null, busy: false, cleared: true } : current);
@@ -459,12 +481,14 @@ export function DorisPanel({
       if (isInitial) {
         await api.saveInitial(identity.vaSid, {
           antecedent_cod: state.selectedCause.code,
+          ...(offline ? { remark: state.remark } : {}),
           ...(ageConfirmed ? { age_restriction_confirmed: true } : {}),
           ...dorisFields,
         }, identity.mode === "reviewing" ? "reviewing" : "coding");
         if (!currentRequest(requestId, sentRevision)) return;
         forgetDraft(owner);
         clearCodDraft(draftContext(workspace, identity));
+        draftStore?.clear();
         await onSaved();
       } else {
         const body: JsonObject = { conclusive_cod: state.selectedCause.code, remark: state.remark, ...finalFlags(state.selectedCause, ageConfirmed) };
@@ -473,6 +497,7 @@ export function DorisPanel({
         if (!currentRequest(requestId, sentRevision)) return;
         forgetDraft(owner);
         clearCaseBrowserDraft(draftContext(workspace, identity));
+        draftStore?.clear();
         onDone();
       }
     } catch (saveError) {
@@ -508,6 +533,7 @@ export function DorisPanel({
       if (!currentRequest(requestId, sentRevision)) return;
       forgetDraft(owner);
       clearCaseBrowserDraft(draftContext(workspace, identity));
+      draftStore?.clear();
       onDone();
     } catch (reportError) {
       if (!currentRequest(requestId, sentRevision)) return;
@@ -543,7 +569,9 @@ export function DorisPanel({
     const seed = initialCertificate({ ...currentWorkspace, doris: resetDoris ? { ...resetDoris, initial_certificate: resetSeed, prefill_provenance: resetDoris.reset_prefill_provenance ?? resetDoris.prefill_provenance, saved_processing: null } : null });
     update((current) => {
       const next = { ...current, certificate: seed.certificate, derivedAge: seed.derivedAge, revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, busy: false, error: "", notice: demo ? tr("dorisDemoResetNotice") : "DORIS reset to the interview data. Remarks, notes and SmartVA results are retained." };
-      saveCodDraft(draftContext(workspaceRef.current, identity), { step: workspaceRef.current.step, certificate: next.certificate, selectedCause: null, remark: next.remark });
+      const cod = { step: workspaceRef.current.step, certificate: next.certificate, selectedCause: null, remark: next.remark };
+      saveCodDraft(draftContext(workspaceRef.current, identity), cod);
+      draftStore?.save(cod);
       return next;
     });
   };
@@ -679,6 +707,7 @@ export function DorisPanel({
       if (!currentRequest(requestId, sentRevision)) return;
       forgetDraft(owner);
       clearCaseBrowserDraft(draftContext(workspace, identity));
+      draftStore?.clear();
       onDone();
     } catch (saveError) {
       if (!currentRequest(requestId, sentRevision)) return;
@@ -725,14 +754,15 @@ export function DorisPanel({
           quick={processing ? dorisQuickChoices(processing, dorisTitle) : []} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
       ) : null}
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
-      {isInitial ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />}
+      {isInitial && !offline ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
       <Button label={demo ? tr("dorisDemoReset") : "Reset DORIS from interview"} variant="secondary" disabled={state.busy} onPress={resetCertificate} />
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
       {demo ? null : <Button label={direct ? tr("dorisSaveCauseOfDeath") : isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />}
       {ageDialog}
       <Separator testID="doris-actions-separator" />
-      {identity.mode === "coding" && !demo ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
+      {identity.mode === "coding" && !demo && offline && !direct ? <Muted>{tr("dorisNotCodeableOnline")}</Muted> : null}
+      {identity.mode === "coding" && !demo && !offline ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
       {picker(isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? "")}
       {detailSheet}
       <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>

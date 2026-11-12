@@ -3,7 +3,7 @@ title: DORIS Validation Checks
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # DORIS Validation Checks
@@ -125,7 +125,10 @@ offline parity").
   final-code rule.
 - The allowability pack (chapter 22, non-selectable items, sex block, age
   confirmation) is applied when the final is saved (`judgeUnderlyingCause` in
-  `offlineDoris.ts`), not in search or at OK (gap G1).
+  `offlineDoris.ts`), as the server applies it to an online final. Search is
+  not filtered (a certificate line may need such a code); its items carry the
+  pack's age mark (`ageMarked`), as the server's terms search marks them
+  (`age_marks_for_codes`).
 - The server re-applies the rules when the result is imported and flags a
   disagreement; it does not re-run DORIS.
 
@@ -149,10 +152,10 @@ decision: WHO either flags them only after processing or recodes them silently.
 
 | Id | Gap | Bead |
 | --- | --- | --- |
-| G1 | Policy says the offline pack refuses in search and in save; the code applies it only at save. | `digitva-2j57` |
-| G2 | No age or sex policy runs in the DORIS picker before save; the `age_restricted` tag is set only by `search_icd11_mms`, so DORIS terms never carry it. | `digitva-o16a` |
+| G1 | Closed 2026-11-13: the policy now says the pack refuses at save, as the server does online; search is not filtered on either side. | `digitva-2j57` |
+| G2 | Partly closed 2026-11-13: DORIS terms (server `age_marks_for_codes`, phone `ageMarked`) carry `age_restricted` and its note for the case's age group. Sex is still applied only at save. | `digitva-o16a` |
 | G3 | The web `stage()` has no mandatory-stem guard and no OK re-check; only the hidden Use button keeps a bare mandatory stem out. | `digitva-l0ey` |
 | G4 | The server refuses the four value ranges in section 3, which V11 only warns about, with different bounds. | `digitva-e505` |
-| G5 | V9 "line above": the web compares with the nearest line above that has an interval, the phone only with the line directly above. | `digitva-giym` |
+| G5 | Closed 2026-11-13: the phone compares with the nearest Part I line above that has an interval, as the web does. | `digitva-giym` |
 | G6 | The age-confirmation wording differs: the phone adds DORIS's plausibility sentence. | `digitva-37gr` |
 | G7 | Closed 2026-11-12 (owner option A): `/api/v1/icd11/selection-check` refuses a non-leaf category with `422 non_leaf_category` and its `children`; DORIS (web, Collect online and offline) keeps `INVALID_SELECTION` with the same words, "NC72 is a category, not a final code. Choose a more specific code under it." (the refused code named), and opens the category's children with a search box. Coder and reviewer saves that bypass the selection check (Select2 search) do not refuse non-leaf yet. | `digitva-dn15` |

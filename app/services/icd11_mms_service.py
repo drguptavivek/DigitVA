@@ -1265,6 +1265,41 @@ def _age_marks(row: MasIcd11Mms, age_ok: bool) -> dict:
     }
 
 
+def age_marks_for_codes(
+    codes, va_sid: str, release: str = DEFAULT_ICD11_RELEASE
+) -> dict[str, dict]:
+    """``code -> {age_restricted, restriction_note}`` for the codes the
+    submission's age group conflicts with; codes without a conflict, or not
+    in the catalogue, are left out (``digitva-o16a``).
+
+    One query for the whole list, so the DORIS term search can mark its
+    items as ``search_icd11_mms`` does. A mark only: the age rule still
+    asks for confirmation at save, and sex is not applied here (a
+    certificate line may name any condition). An unknown submission or one
+    with no age group marks nothing.
+    """
+    wanted = sorted({code for code in codes if isinstance(code, str) and code})
+    if not wanted:
+        return {}
+    context = coding_context_for_submission(va_sid)
+    if context is None or not context["age_group"]:
+        return {}
+    age_ok, _ = policy_ok_columns(MasIcd11Mms, age_group=context["age_group"], sex=None)
+    rows = db.session.execute(
+        sa.select(MasIcd11Mms.code, MasIcd11Mms.restriction_note)
+        .where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.code.in_(wanted),
+            sa.not_(age_ok),
+        )
+    ).all()
+    return {
+        row.code: {"age_restricted": True, "restriction_note": row.restriction_note}
+        for row in rows
+    }
+
+
 def search_icd11_mms(
     query: str,
     va_sid: str | None = None,

@@ -328,10 +328,16 @@ describe("onProcess (the server's process reply, token local)", () => {
       reason: "pii_boundary", fields: [{ path: "certificate", message: expect.stringContaining("PII boundary violation at certificate.AdministrativeData.informant_phone") }],
     }));
     const withNumber = JSON.parse(JSON.stringify(CERTIFICATE));
-    withNumber.Part1[0].Conditions[0].Text = "patient 2345 6789 0123";
+    withNumber.Part1[0].Conditions[0].Text = "call 9123456780";
     expect((await refusal(editor.onProcess(0, withNumber))).body).toMatchObject({ error: { reason: "pii_boundary" } });
-    expect(JSON.stringify([withKey, calls])).not.toContain("9876543210");
     expect(calls).toEqual([]);
+    // A run of years is condition text the server accepts, not an Aadhaar number (digitva-9cll.21).
+    const withYears = JSON.parse(JSON.stringify(CERTIFICATE));
+    withYears.Part1[0].Conditions[0].Text = "TB 2015 2018 2020";
+    await editor.onProcess(0, withYears);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(JSON.stringify([withKey, calls])).not.toContain("9876543210");
+    expect(JSON.stringify(calls)).not.toContain("9123456780");
   });
 
   it("answers WHO_API_UNAVAILABLE when codeinfo cannot be read, and passes other errors through", async () => {
@@ -392,6 +398,17 @@ describe("save (offline_coding row)", () => {
     expect(row.device_uuid).toBe("device-1");
     expect(row.coder_profile_updated_at).toBe("2026-10-26T09:00:00.000+05:30");
     expect(store.rows.get("draft-1")).toEqual(row);
+  });
+
+  it("keeps the coder's remark in provenance and refuses one longer than the server takes (digitva-9cll.22.5)", async () => {
+    const store = memoryStore();
+    const editor = createOfflineDorisEditor(engineWithKnownCode(), store);
+    const base = { clientDraftId: "draft-m", reply: null, deviceUuid: "device-1", coderProfileUpdatedAt: null };
+    const row = await editor.save({ ...base, body: saveBody({ remark: "  seen by the doctor  " }) });
+    expect(JSON.parse(row.provenance!).remark).toBe("seen by the doctor");
+    const blank = await editor.save({ ...base, body: saveBody({ remark: "   " }) });
+    expect(JSON.parse(blank.provenance!)).not.toHaveProperty("remark");
+    await expect(editor.save({ ...base, body: saveBody({ remark: "x".repeat(2001) }) })).rejects.toMatchObject({ status: 400, code: "invalid_cod" });
   });
 
   it("maps a rejected verdict to rejected and a missing verdict to draft", async () => {

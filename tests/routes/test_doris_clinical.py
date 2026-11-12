@@ -293,6 +293,34 @@ class TestDorisProcessProof(BaseTestCase):
         self.assertTrue(body["truncated"])
         self.assertIsNone(body["next_cursor"])
 
+    def test_terms_carry_the_age_marks_of_the_case(self):
+        payload = {"schema_version": 1, "query": "diabetes", "limit": 2, "cursor": None}
+        upstream = _upstream(
+            b'{"destinationEntities":[{"theCode":"5A11","id":"http://id.who.int/x","title":"a"},'
+            b'{"theCode":"5A10","id":"http://id.who.int/y","title":"b"}]}'
+        )
+        marks = {"5A11": {"age_restricted": True, "restriction_note": "Adults only"}}
+        with self.app.test_request_context(json=payload):
+            with (
+                patch(
+                    "app.routes.api.doris_clinical._require_terminology_context",
+                    return_value=(SimpleNamespace(), None),
+                ),
+                patch(
+                    "app.services.icd11_postcoordination.proxy_who_icd_request",
+                    return_value=upstream,
+                ),
+                patch("app.routes.api.doris_clinical.age_marks_for_codes", return_value=marks) as lookup,
+            ):
+                response = clinical_terms.__wrapped__("SID-1")
+
+        items = {item["code"]: item for item in response.get_json()["items"]}
+        self.assertEqual(set(items), {"5A11", "5A10"})
+        self.assertEqual(items["5A11"]["age_restricted"], True)
+        self.assertEqual(items["5A11"]["restriction_note"], "Adults only")
+        self.assertNotIn("age_restricted", items["5A10"])
+        self.assertEqual(lookup.call_args.args[1], "SID-1")
+
     def test_terms_rejects_malformed_subtree_uris(self):
         payload = {
             "schema_version": 1,

@@ -62,7 +62,7 @@
               <td>
                 {{ smartva.va_smartva_age if smartva.va_smartva_age and smartva.va_smartva_age != "NaN" else "—" }}
                 /
-                {{ smartva.va_smartva_gender if smartva.va_smartva_gender and smartva.va_smartva_gender != "NaN" else "—" }}
+                {{ smartva.va_smartva_gender | smartva_gender if smartva.va_smartva_gender and smartva.va_smartva_gender != "NaN" else "—" }}
               </td>
             </tr>
             <tr>

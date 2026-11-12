@@ -52,7 +52,7 @@ import { activateBrowserDraft, clearBrowserDraft, DORIS_DRAFT_KEY, draftContext,
 import { ApiError } from "../src/api";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
 import type { DorisProcessReply, JsonObject, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
-import { DorisPanel } from "../src/workspace/doris/DorisPanel";
+import { DorisPanel, type CodDraftStore } from "../src/workspace/doris/DorisPanel";
 import { AssociatedVaCodes } from "../src/workspace/doris/CodeDetailsSheet";
 import { dorisGuidance, parseDorisOptions } from "../src/workspace/doris/guidance";
 import { UNKNOWN_UNIT, parseInterval, serializeInterval } from "../src/workspace/doris/interval";
@@ -133,9 +133,9 @@ async function pickViaPicker(code: string, uri = "https://who.int/Y55") {
   return reply;
 }
 
-function renderPanel(workspace: WorkspacePayload, api: WorkspaceApi, onDone = jest.fn(), request: JsonRequester = jest.fn(async () => ({})), demo = false) {
+function renderPanel(workspace: WorkspacePayload, api: WorkspaceApi, onDone = jest.fn(), request: JsonRequester = jest.fn(async () => ({})), demo = false, offline = false, draftStore?: CodDraftStore) {
   let tree!: ReactTestRenderer;
-  act(() => { tree = create(<DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} demo={demo} />); });
+  act(() => { tree = create(<DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} demo={demo} offline={offline} draftStore={draftStore} />); });
   return { tree, onDone, request };
 }
 
@@ -1260,6 +1260,51 @@ describe("unsaved draft across remounts (digitva-yeg3.20)", () => {
     const other = renderPanel(makeWorkspace(), api);
     expect(removePart2(other.tree).length).toBeGreaterThan(0);
     await act(async () => other.tree.unmount());
+  });
+
+  it("offline: Step 1 carries the remark and Report not codeable points online (digitva-9cll.22.5)", async () => {
+    const api = apiFor({ processDoris: jest.fn(async (_sid: string, _role: string, revision: number) => ({ ...processReply, client_revision: revision })) as never });
+    const { tree } = renderPanel(makeWorkspace(), api, jest.fn(), jest.fn(async () => ({})), false, true);
+    expect(tree.root.findAllByProps({ accessibilityLabel: "Process current certificate" }).length).toBeGreaterThan(0);
+    expect(tree.root.findAllByProps({ accessibilityLabel: "Submit not-codeable report" })).toHaveLength(0);
+    expect(JSON.stringify(tree.toJSON())).toContain("To report this case as not codeable, open it online.");
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("seen by the doctor"));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Confirm Step 1 underlying cause open search").props.onPress());
+    await pickViaPicker("Y55");
+    await act(async () => { byLabel(tree, "Save Step 1").props.onPress(); await flushAll(); });
+    expect(api.saveInitial).toHaveBeenCalledWith("sid-1", expect.objectContaining({ remark: "seen by the doctor" }), "coding");
+    await act(async () => tree.unmount());
+  });
+
+  it("offline revision: the remark box opens with the saved remark", async () => {
+    const workspace = makeWorkspace();
+    const { tree } = renderPanel({ ...workspace, doris: { ...workspace.doris!, saved_remark: "seen by the doctor" } }, apiFor(), jest.fn(), jest.fn(async () => ({})), false, true);
+    expect(byLabel(tree, "COD remark").props.value).toBe("seen by the doctor");
+    await act(async () => tree.unmount());
+  });
+
+  it("native draft store: restores the kept certificate and remark, keeps edits, and clears on save (digitva-9cll.15)", async () => {
+    const kept = { step: "initial", certificate: { ...certificate, Part2: undefined } as unknown as JsonObject, selectedCause: null, remark: "kept remark" };
+    delete (kept.certificate as Record<string, unknown>).Part2;
+    const store = { read: jest.fn((step: string) => (step === "initial" ? kept : undefined)), save: jest.fn(), clear: jest.fn() };
+    const api = apiFor({ processDoris: jest.fn(async (_sid: string, _role: string, revision: number) => ({ ...processReply, client_revision: revision })) as never });
+    // A fresh requester: no in-memory draft, as after a process kill.
+    const { tree } = renderPanel(makeWorkspace(), api, jest.fn(), jest.fn(async () => ({})), false, true, store);
+    expect(store.read).toHaveBeenCalledWith("initial");
+    expect(byLabel(tree, "COD remark").props.value).toBe("kept remark");
+    expect(removePart2(tree)).toHaveLength(0);
+    // Engine results are not restored: the certificate must be processed again before saving.
+    expect(byLabel(tree, "Save Step 1").props.disabled).toBe(true);
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("edited remark"));
+    expect(store.save).toHaveBeenLastCalledWith(expect.objectContaining({ step: "initial", remark: "edited remark" }));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Confirm Step 1 underlying cause open search").props.onPress());
+    await pickViaPicker("Y55");
+    await act(async () => { byLabel(tree, "Save Step 1").props.onPress(); await flushAll(); });
+    expect(api.saveInitial).toHaveBeenCalledTimes(1);
+    expect(store.clear).toHaveBeenCalled();
+    await act(async () => tree.unmount());
   });
 
   it("forgets the draft after a successful save", async () => {

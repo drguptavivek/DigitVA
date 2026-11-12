@@ -39,6 +39,7 @@ from app.services.icd11_postcoordination import (
     postcoordination_options as get_postcoordination_options,
 )
 from app.services.icd11_postcoordination import related_terms as get_related_terms
+from app.services.icd11_mms_service import age_marks_for_codes
 from app.services.icd11_titles import cluster_title
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.who_icd_api import (
@@ -284,9 +285,12 @@ def clinical_terms(va_sid: str):
         result = search_terms(query, limit=limit, subtree_uris=subtree_uris)
     except (WhoIcdApiUnavailable, ValueError):
         return _error("WHO_API_UNAVAILABLE", "WHO ICD-11 service unavailable.", 503)
+    # Mark the terms this death's age conflicts with, as the coding search does (digitva-o16a).
+    marks = age_marks_for_codes((item.get("code") for item in result["items"]), va_sid)
+    items = [{**item, **marks.get(item.get("code"), {})} for item in result["items"]]
     return jsonify(
         schema_version=1,
-        items=result["items"],
+        items=items,
         truncated=result["truncated"],
         next_cursor=None,
     )

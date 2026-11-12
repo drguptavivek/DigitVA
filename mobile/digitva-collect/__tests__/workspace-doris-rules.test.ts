@@ -146,6 +146,12 @@ describe("V9 intervals", () => {
     expect(w["Part1.1"]).toBe(MSG.shorterThanAbove);
     expect(w["Part1.2"]).toBeUndefined();
   });
+  it("compares with the nearest line above that has an interval, as the web does (digitva-giym)", () => {
+    const w = warnings(cert("P77Y", { Part1: [
+      { Conditions: [{ Text: "a", Interval: "P5D" }] }, { Conditions: [{ Text: "b" }] }, { Conditions: [{ Text: "c", Interval: "P2D" }] },
+    ] }), TODAY);
+    expect(w["Part1.2"]).toBe(MSG.shorterThanAbove);
+  });
   it("skips lines without an interval", () => {
     expect(warnings(cert("P77Y", { Part1: [{ Conditions: [] }, { Conditions: [{ Text: "x" }] }] }), TODAY)).toEqual({});
   });

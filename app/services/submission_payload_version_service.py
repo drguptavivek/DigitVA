@@ -28,6 +28,9 @@ VOLATILE_PAYLOAD_KEYS = frozenset(
         "Edits",
         "FormVersion",
         "OdkReviewComments",
+        # Review state, not an answer: DigitVA's own hasIssues push would
+        # otherwise read as a changed payload and release coding (digitva-9xn9.2).
+        "ReviewState",
         "SubmitterID",
         "updatedAt",
         "audit",

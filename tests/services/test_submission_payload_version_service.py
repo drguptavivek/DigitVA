@@ -40,6 +40,13 @@ class SubmissionPayloadFingerprintTests(TestCase):
             canonical_payload_fingerprint(incoming),
         )
 
+    def test_fingerprint_ignores_odk_review_state(self):
+        answers = {"Id10120": "10", "ReviewState": None}
+        self.assertEqual(
+            canonical_payload_fingerprint(answers),
+            canonical_payload_fingerprint(dict(answers, ReviewState="hasIssues")),
+        )
+
     def test_fingerprint_keeps_real_interview_answer_changes(self):
         previous = {
             "Id10120": "10",

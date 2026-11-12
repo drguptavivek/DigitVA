@@ -328,6 +328,30 @@ class UpsertWorkflowGuardTests(BaseTestCase):
             self._get_workflow_state(reviewed.va_sid), WORKFLOW_REVIEWER_CODING_IN_PROGRESS
         )
 
+    def test_review_state_change_alone_keeps_coder_session(self):
+        # DigitVA pushes hasIssues to Central when a case is marked not
+        # codeable; the next full fetch carries it back. A review-state flip
+        # is not an answer change and must not release coding (digitva-9xn9.2).
+        sub = self._make_submission("uuid:guard-review-state")
+        stored = self._updated_record("uuid:guard-review-state")
+        ensure_active_payload_version(
+            sub,
+            payload_data=stored,
+            source_updated_at=sub.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+        allocation, initial = self._start_coding(sub.va_sid)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+        incoming = dict(stored, ReviewState="hasIssues")
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        _upsert_form_submissions(va_form, [incoming], set(), {}, enrich_payloads=False)
+        db.session.flush()
+
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+        self.assertEqual(initial.va_iniassess_status, VaStatuses.active)
+        self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_CODING_IN_PROGRESS)
+
     def test_sync_with_payload_change_releases_that_coder_session(self):
         # The per-case release on changed data replaces the global one.
         sub = self._make_submission("uuid:guard-changed-coding")

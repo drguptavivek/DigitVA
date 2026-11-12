@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-11-12
 ---
 
 # ODK Sync Policy
@@ -201,7 +201,10 @@ Practical implication:
   payload JSON
 - volatile metadata and derived helper fields do not count as substantive
   business-payload change; examples include `updatedAt`, attachment counters,
-  ODK review comments, device metadata, and derived age-band helper fields
+  ODK review comments, the ODK review state (`ReviewState`: DigitVA's own
+  `hasIssues` push for a not-codeable case, or a Central reviewer's approval,
+  must not release coding; `digitva-9xn9.2`), device
+  metadata, and derived age-band helper fields
 - numeric and string-equivalent scalar values compare equal after
   normalization; for example `10.0` and `"10"` must not create a new logical
   payload version on their own

@@ -7,187 +7,450 @@ emulator and the Samsung (never CI). Every run: `flask seed e2e-users create`
 Each scenario asserts the Drafts and To do counts on Home before and after, and
 that answers, images and audio are unchanged. P1 = data-loss risk, run every time.
 
+Expected results are grounded in decisions and commits since 2026-10-29 (Source
+column: commit sha, bead id or doc path). "OPEN: ..." = no decided behaviour;
+owner to answer before the flow is written. Doc paths are under `docs/`.
+
+E2E users (`current-state/test-project-tst001.md`, 9ca1b2d46): `all` (coder,
+reviewer, data_manager at project; death_reporter + interviewer at SC01 ANM;
+interview_supervisor at PHC01 MO), `interviewer` (SC01 CHO), `coder` (project).
+Roster being extended by the owner (2026-11-12) with single-role users: death_reporter, interviewer x2, interview_supervisor, coder x2, reviewer, data_manager, and `all`; the User column on sections 1, 6, 7, 7b names the user to run each row with.
+
 ## 0. Setup and identity
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| S01 | Sign in with email + password, set PIN, land on Home with the right project | P1 |
-| S02 | Sign in with a sign-in code | P2 |
-| S03 | Wrong PIN several times -> lockout message; correct PIN after wait works | P2 |
-| S04 | (see K01-K07) | - |
-| S05 | Phone limit reached -> clear message; after revoke, sign in works | P2 |
-| S06 | Device revoked on server while signed in -> next sync refuses cleanly, local unsent work kept and explained | P1 |
-| S07 | Language switch English <-> Hindi on Home, inside a form, and back; answers unchanged | P2 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| S01 | Enrol (QR, or "Log in without a QR code" with email + password), set a PIN of at least 6 digits, land on Home with the right project; a person with several projects is asked to choose the home project | P1 | policy/mobile-sign-in.md (manual enrolment, home project), digitva-kspl, policy/field-data-collection.md |
+| S02 | "I have a sign-in code" opens the server page; email + code shows a new generated password once, the code then stops working; five wrong codes void it; a wrong email and a wrong code give the same answer | P2 | policy/mobile-sign-in.md section 3 |
+| S03 | Wrong PINs: five free (warning from the third); after the fifth the store refuses any PIN for 1 min, after the sixth 5, seventh 15, eighth and later 60; a PIN tried while locked is not counted; the wait survives app kill; nothing is erased; correct PIN after the wait works | P2 | policy/field-data-collection.md "Wrong PINs and PIN reset", digitva-kfi, 2d78e9660 |
+| S04 | (see K01-K08) | - | - |
+| S05 | Fourth phone on one account -> 409 `device_limit`, message "Up to 3 phones can be signed in at once. Manage devices from Profile or another signed-in phone."; no phone is evicted; the refused QR stays usable; after the owner frees a slot on web, sign-in works | P2 | policy/mobile-sign-in.md "Account device limit", digitva-65m5, src/strings deviceLimit |
+| S06 | Device revoked on server while signed in (401 `session_revoked`): with unsent work the tokens are dropped, the store is kept and Home says "Access removed - N items not sent. Contact your supervisor."; sign in again sends it; with nothing unsent the store is wiped | P1 | src/auth.ts header, policy/field-data-collection.md, digitva-tnr6 |
+| S07 | Language switch English <-> Hindi from the 文A menu on Home, and the form's own language menu inside a form, then back; answers unchanged; the switch is refused while the last save failed (draftNotSaved) | P2 | 8ac748ed4, 5f6fe16ff |
+| S08 | Password reset or deactivation on the server (401 `session_ended`), or `refresh_reused` / 409 `refresh_retry_race` / `session_expired`: the account shows "sign in again", local work kept, unsent work sent after sign-in | P1 | src/auth.ts header, current-state/device-collection-api.md |
+| S09 | Account with terms pending: sign-in succeeds with `terms_required`; every call except accept answers 403 `terms_required`; the app shows the terms gate; after accept work continues | P2 | current-state/device-collection-api.md, digitva-9an9 |
+| S10 | Project with collection switched off: sign-in names `project_intake_off` with its own message, not "no access" | P2 | policy/mobile-sign-in.md (digitva-7amd.24), 2d78e9660 |
+| S11 | Screenshots on Android are allowed until the end of 31 December 2026 (India), blocked after; an installed older build keeps its 25 November expiry | P2 | 940b798f8 |
+| S12 | Plain Collect never asks "enable coding" at first launch (missing preference = on); an explicit Off in Settings is kept. Collect Plus still asks | P2 | 157dbf65e, digitva-qfji |
+| S13 | Home loads for an ANM (death reporter + interviewer) and for a CHO; Home and Interviews show no coder links and no zero-count rows | P2 | d024b5ad0, policy/field-data-collection.md "Collect Home and Interviews by role" |
+| S14 | Public demo slot: Demo badge shown, deleting the demo account asks for the password. OPEN: is the public demo in the Maestro scope? | P2 | policy/public-demo.md (OPEN) |
 
 ## 1. Register a death (death reporter)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| R01 | Register a death with all required fields -> appears in My registered deaths | P1 |
-| R02 | Missing required field -> refused with the field named | P2 |
-| R03 | Register offline -> queued -> sync online -> server has it once (no duplicate) | P1 |
-| R04 | Leave registration half done, Home, return -> fields kept | P1 |
+| ID | Scenario and expected result | User | Pri | Source |
+| --- | --- | --- | --- | --- |
+| R01 | Register a death with all required fields -> appears in My registered deaths; Register asks for the project (no silent default); "today" follows the project time zone | death_reporter | P1 | d024b5ad0, 87fff09cd |
+| R02 | Missing or bad required field -> 422 `invalid_registration`, the field named | death_reporter | P2 | current-state/device-collection-api.md |
+| R03 | Register offline -> queued -> sync online -> server has it once (retry with the same `client_death_id` creates no duplicate) | death_reporter | P1 | current-state/device-collection-api.md, policy/field-data-collection.md "Idempotent upload" |
+| R04 | Leave registration half done, Home, return -> OPEN: is a half-filled registration form kept? | death_reporter | P1 | OPEN: no policy found |
+| R05 | Collection gate paused, outside its dates or at the daily limit: online with a gate answer under 15 minutes old, a new registration or unregistered interview is refused with the notice shown on Register; continuing drafts, registered deaths and uploads are never refused; offline or stale gate allows | death_reporter | P1 | b8732d608, edf8b1375, 0e1a5e308, policy/project-clock-and-gates.md |
+| R06 | Registration edited while its send is in flight -> the edit is kept and sent | death_reporter | P1 | 7e7007766 (D14) |
+| R07 | GPS capture when Death Report opens: warm-up, then High, Balanced, High-without-dialog, last-known chain; works indoors without timing out | death_reporter | P2 | d024b5ad0, policy/native-location-capture.md |
 
 ## 2. Interview (interviewer)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| I01 | Start from To do, consent Yes, complete, send -> server receives, To do -1 | P1 |
-| I02 | Consent No -> confirm dialog -> Cancel -> Yes restored, other answers kept | P1 |
-| I03 | Consent No -> Cancel twice, leave, reopen draft -> consent Yes, answers kept | P1 |
-| I04 | Consent No -> Confirm -> refusal recorded and sent (fresh case only) | P1 |
-| I05 | Change an answer that hides later questions, change it back -> later answers handled as the form defines, no crash | P2 |
-| I06 | Validation error on a field -> message shown; fix -> can continue | P2 |
-| I07 | Save draft, leave, reopen from Drafts -> same page and answers | P1 |
-| I08 | Case started by another interviewer -> "As of the last sync (...)" message shown, can still proceed per policy | P2 |
-| I09 | Fill and send fully offline -> queued -> online sync sends once | P1 |
-| I10 | Send fails mid-way (network off during send) -> stays unsent, retry sends once | P1 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| I01 | Start from To do, consent Yes, complete, send -> server receives, To do -1 | P1 | policy/field-data-collection.md |
+| I02 | Consent No -> dialog asks once before wiping -> Cancel -> Yes restored, other answers kept; No is not saved while the dialog is open | P1 | a3e383895, efb539594 (digitva-9xn9.22), b4deba337 |
+| I03 | Consent No -> Cancel twice, leave, reopen draft -> consent Yes, answers kept (the hold ends only on the first change or save without the No, or on Confirm) | P1 | a3e383895 |
+| I04 | Consent No -> Confirm -> covered fields wiped, refusal recorded and sent; re-consent later brings the interview back with its prefill rebuilt from current sources (HIV/malaria presets, interviewer, deceased block); a refused interview does not offer Start | P1 | efb539594, 0ace5b17e (digitva-lgzl), d024b5ad0, current-state/device-collection-api.md |
+| I05 | Change an answer that hides later questions, change it back -> OPEN: should answers to questions hidden meanwhile be restored or dropped? (server keeps only relevant answers) | P2 | OPEN |
+| I06 | Validation refused (422 `invalid_interview`) -> interview reopens as in progress, "Not accepted: <message>" on its card, one problems row per question named with a Go button; fix -> can send | P2 | policy/expo-client.md "Refused uploads", digitva-3nui, digitva-man7 |
+| I07 | Save draft, leave, reopen from Drafts -> same page and answers | P1 | policy/field-data-collection.md "Unsent work is never purged" |
+| I08 | Case started by another interviewer -> case screen shows "As of the last sync ({time}), {name} started this interview on {date}." (no warning box; English and Hindi); you may still start | P2 | 275155702, 0ace5b17e, 176093dd1 |
+| I09 | Fill and send fully offline -> queued -> online sync sends once | P1 | policy/field-data-collection.md "Idempotent upload" |
+| I10 | Network off during send -> stays unsent, retry sends once; a non-JSON 200 (captive portal) is retried, not counted as sent | P1 | 273a4f2e4 |
+| I11 | Finish and press Home -> one upload pass runs inside the 60 s the store stays unlocked | P1 | 40ee1a528 |
+| I12 | Local save fails (access removed, draft conflict, storage error), then Finish -> stays on the form with "Your latest answers could not be saved. They are still on this screen. Try again."; Back shows the unsaved prompt; Save now never says "saved" | P1 | 5f6fe16ff (digitva-9xn9.8) |
+| I13 | Server lost a file the phone marked uploaded (409 `attachments_pending`) -> phone clears the mark and resends; if the file is also gone from the phone, the interview is held as `attachment_missing` until the interviewer replaces or removes it | P1 | 2582c138e (digitva-9xn9.6) |
+| I14 | Interview started outside the collection period, or site off at upload -> phone sends, server accepts and holds it (out of coding, review, KPIs, exports) until a data manager releases or rejects | P1 | b8732d608 |
+| I15 | Complete but unsent interview can be reopened on the phone | P2 | 2d78e9660 |
+| I16 | 422 `consent_*` after upload -> stored decision dropped, form asks consent again; 409 `refusal_stale` -> fresh consent requested, the stale copy not retried | P1 | current-state/device-collection-api.md, current-state/api-v1.md |
+| I17 | 409 `conflict` (already submitted by a teammate, or case closed) -> held as `case_conflict`, message says which, not resent until "Send again", never deleted | P1 | current-state/device-collection-api.md |
+| I18 | Edit a sent interview from Revise -> sent as a correction (reason fixed list); later completion wins, older kept as history; refused once coding is final (`locked`) | P2 | policy/web-intake.md (digitva-xz83), policy/interview-revisions.md |
 
 ## 3. Media (image, audio, other attachments)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| M01 | Attach image (camera) -> thumbnail shown | P1 |
-| M02 | Attach image from gallery/file | P2 |
-| M03 | Record audio -> playable | P1 |
-| M04 | Replace image / audio -> only the new one kept | P2 |
-| M05 | Remove image / audio -> gone, rest of draft kept | P2 |
-| M06 | Media survives Home + return, app kill + relaunch, lock + unlock, profile switch + back, reopen draft | P1 |
-| M07 | Send with media -> server has every file, correct sizes | P1 |
-| M08 | Media attached offline -> sent later | P1 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| M01 | Attach image (camera) -> thumbnail shown | P1 | policy/phone-attachments.md |
+| M02 | Attach image or file from "Choose image" / "Choose file"; PDFs open in the viewer | P2 | 1b2f37d4b, 2d78e9660 |
+| M03 | Record audio -> playable; finished recording stops and rewinds (no loop) | P1 | 1b2f37d4b |
+| M04 | Replace image / audio -> asks first; only the new one kept | P2 | 1b2f37d4b, d024b5ad0 |
+| M05 | Remove image / audio -> asks first; gone, rest of draft kept | P2 | 1b2f37d4b |
+| M06 | Media survives Home + return, app kill + relaunch, lock + unlock, profile switch + back, reopen draft | P1 | policy/phone-attachments.md |
+| M07 | Send with media -> server has every file, correct sizes | P1 | 2582c138e |
+| M08 | Media attached offline -> sent later | P1 | policy/phone-attachments.md |
+| M09 | Draft reopened from server after a store reset: answers whose files the server holds say "Saved on server" (no re-record asked); sent read-only media viewable | P2 | 5c567811c (digitva-n3ec) |
+| M10 | Medical certificate upload offers Camera and previews a saved image | P2 | 1b2f37d4b |
 
 ## 4. Stop and resume (on a draft with answers + media)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| P01 | Home, wait, return | P1 |
-| P02 | Force-stop / swipe away, relaunch, unlock | P1 |
-| P03 | Lock now, unlock with PIN | P1 |
-| P04 | Auto-lock after inactivity, unlock | P2 |
-| P05 | Rotate screen mid-form | P2 |
-| P06 | Incoming interruption (another app on top) mid-form | P2 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| P01 | Home, wait, return: same page, answers, media; no skeleton flash, list shows last count | P1 | 7d238868f, 0e1a5e308 |
+| P02 | Force-stop / swipe away, relaunch, unlock: draft intact | P1 | policy/field-data-collection.md |
+| P03 | Lock now, unlock with PIN: draft intact | P1 | same |
+| P04 | Auto-lock after 5 minutes idle, unlock: draft intact | P2 | src/autoLock.ts (IDLE_LOCK_MS) |
+| P05 | Rotate screen mid-form: answers kept. OPEN: phone rotation allowed in forms? (coding: phones stay portrait, tablets rotate) | P2 | 574545617; app.json orientation "default" |
+| P06 | Another app on top mid-form: returns to the same page, answers kept | P2 | policy/field-data-collection.md |
 
 ## 5. Profiles
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| U01 | Add a second profile on the same phone | P1 |
-| U02 | Switch A -> B -> A: each sees only its own drafts, nothing lost | P1 |
-| U03 | Sign out with nothing unsent -> profile removed, sign back in works | P1 |
-| U04 | Sign out with unsent work -> warned, Cancel keeps everything | P1 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| U01 | Add a second profile on the same phone | P1 | policy/field-data-collection.md "Sign-out keeps the data" |
+| U02 | Switch A -> B -> A (lock, profiles list): each sees only its own drafts, nothing lost | P1 | same |
+| U03 | Sign out with nothing unsent -> confirmation asks once; profile stays listed as "Signed out" with its data; sign in again and PIN shows the data. (Old text "profile removed" was wrong) | P1 | digitva-dxgj (2026-10-27) |
+| U04 | Sign out with unsent work -> confirmation lists unsent items by kind (not shown if the store is locked); Cancel keeps everything | P1 | same |
 
 ## 6. Coding (coder)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| C01 | ICD-11 code online: search, pick leaf, save -> server has it | P1 |
-| C02 | Non-leaf (e.g. BA41) -> "<CODE> is a category, not a final code. Choose a more specific code under it." + child list -> pick BA41.Z -> accepted | P1 |
-| C03 | C02 offline (airplane mode) -> same refusal and child list | P1 |
-| C04 | ICD-10 project coding online (tk7j) | P1 |
-| C05 | Code offline -> sent when online; DORIS unanswered -> saved code still sent | P1 |
-| C06 | Stale coding -> sent marked stale; recode replaces it, history kept | P1 |
-| C07 | Recode after the server received a code -> replaces it with history | P2 |
-| C08 | Coding rejected/incomplete -> interview data still sent | P1 |
-| C09 | Case list: coder sees only cases of forms/sites they are granted; another site's case not listed | P1 |
-| C10 | Open a case: narrative, key answers and attachments readable before coding | P2 |
-| C11 | DORIS suggestion shown -> accept as is -> saved with source "suggestion" | P1 |
-| C12 | DORIS suggestion -> override with own code -> own code saved, suggestion kept for audit | P1 |
-| C13 | DORIS unavailable/slow -> coder can code manually; no hang | P1 |
-| C14 | CODEEDIT check: edit a code the check flags -> warning shown, coder can still save (suggestion only) | P1 |
-| C15 | Full cause chain: immediate, antecedent(s), underlying, contributing, with intervals -> all saved in order | P1 |
-| C16 | Remove or reorder a cause line before saving -> saved chain matches the screen | P2 |
-| C17 | Same code entered twice in the chain -> handled per policy (warn or refuse), message clear | P2 |
-| C18 | Sex- or age-incompatible code (e.g. maternal code for a male) -> warned/refused per policy | P1 |
-| C19 | Ill-defined / "unknown cause" code -> allowed with the right flag | P2 |
-| C20 | Search by English text, by Hindi text, by code prefix -> results; empty search -> clear "no results" | P2 |
-| C21 | Search offline uses the offline index; same leaf results as online for a sample | P1 |
-| C22 | Manner of death / place / other coding fields required by the form -> missing one refused with field named | P2 |
-| C23 | Half-coded case: leave, Home, kill app, reopen -> coding draft restored exactly | P1 |
-| C24 | Lock / profile switch mid-coding -> coding draft restored | P1 |
-| C25 | Save code, then edit before sync -> only the edited version sent | P1 |
-| C26 | "Cannot code" / insufficient information -> reason required, sent; case returns per policy | P2 |
-| C27 | Coding assigned to another coder -> this coder sees it read-only or not listed, per policy | P2 |
-| C28 | Second (independent) coding where the project requires two coders -> both saved, disagreement goes to review | P1 |
-| C29 | Reviewer adjudicates a disagreement -> final code set, both codings in history | P2 |
-| C30 | Coding on web (Select2) for an ICD-11 project -> non-leaf refused on save, leaf accepted (server check) | P2 |
+| ID | Scenario and expected result | User | Pri | Source |
+| --- | --- | --- | --- | --- |
+| C01 | ICD-11 code online: search, pick a leaf, save -> server has it | coder1 | P1 | policy/doris-cod-workflow.md |
+| C02 | Non-leaf (e.g. BA41) refused on every surface: "<CODE> is a category, not a final code. Choose a more specific code under it." (Hindi pending review) + searchable child list; pick a child -> accepted; server answer 422 `non_leaf_category` | coder1 | P1 | digitva-dn15, efb539594, current-state/api-v1.md |
+| C03 | C02 offline (airplane mode) -> same refusal and child list from the phone's data pack | coder1 | P1 | digitva-dn15, policy/doris-cod-workflow.md "Collect Plus offline parity" |
+| C04 | ICD-10 project coding online: Step 1/Step 2 as on the web, Not Codeable its own screen, final save forwards search id and rank | coder1 | P1 | 273a4f2e4, digitva-tk7j (phone check still open) |
+| C05 | Code offline -> sent when online; a code saved while DORIS never answered is still sent as the final (no DORIS result) | coder1 | P1 | digitva-9cll.14, policy/doris-cod-workflow.md |
+| C06 | Interview answers changed after coding (stale) -> the older code is sent marked stale with the new interview data, held unapplied; the phone asks the coder to recode | coder1 | P1 | digitva-9cll.14 |
+| C07 | Recode after the server already holds a code (pending, applied or refused) -> the newer code replaces it; older kept in audit history; an earlier final is superseded, not deleted; recode inside the window as often as needed | coder1 | P1 | digitva-9cll.14, 87fff09cd |
+| C08 | Coding refused or DORIS rejected -> interview is never held for its coding; refused coding kept as a notice and the interview is not resent every sync | coder1 | P1 | digitva-9cll.14, efb539594 |
+| C09 | Case list: coder sees only cases of forms and sites they are granted; another site's case not listed | coder1 | P1 | policy/access-control-model.md, policy/case-list-views.md |
+| C10 | Open a case: the full workspace (category counts, yes/no history, narrative, attachments, SmartVA, DORIS certificate, private note) is readable before coding, offline too | coder1 | P2 | policy/doris-cod-workflow.md "Offline coding workspace" (digitva-9cll.22.8) |
+| C11 | New DORIS certificate has non-cause fields prefilled from the interview as suggestions, each labelled with its source question, editable; causes and intervals not prefilled; whether the coder changed a value is recorded | coder1 | P1 | policy/doris-cod-workflow.md "Prefill" (digitva-hln) |
+| C12 | DORIS rejects the coder's code -> coder may still save; saved code is sent as their final with the DORIS data (DORIS is advisory) | coder1 | P1 | digitva-9cll.14 |
+| C13 | DORIS engine slow or unavailable -> coder can save a code manually; spinner with progress while it starts; no hang; sent with no DORIS result | coder1 | P1 | digitva-9cll.14, 1b2f37d4b |
+| C14 | CODEEDIT warning on a flagged edit -> shown; coder can still save (advisory) | coder1 | P1 | digitva-9cll.14 |
+| C15 | Certificate chain (immediate, antecedent, underlying, contributing, intervals) saved in the order shown; only final ICD-11 codes allowed on the certificate | coder1 | P1 | 159e7402d, policy/doris-cod-workflow.md |
+| C16 | Remove or reorder a cause line before saving -> saved chain matches the screen. OPEN: is reordering offered? | coder1 | P2 | OPEN |
+| C17 | `&` / `/` cluster: selection line shows every part's title (e.g. BD1Z); an expression repeating a part (BD1Z/BA01/BD1Z) is refused; pickers do not append a part already present | coder1 | P1 | 0ace5b17e (digitva-iae8) |
+| C18 | Sex-incompatible code refused; age-restricted code asks the same confirmation as the web (DORIS warning stored) | coder1 | P1 | policy/doris-cod-workflow.md "Collect Plus offline parity" |
+| C19 | ICD-11 chapter 22 / non-selectable refused in search and save; KD3B.Z allowed; picker offers "Causing condition not known" | coder1 | P2 | 210ea326e, policy/who-2022-icd11-coding-allowability.md |
+| C20 | Search by English text and by code prefix -> results; Hindi text search and the empty-result message: OPEN: not decided | coder1 | P2 | OPEN |
+| C21 | Offline search returns the same leaf results as online for a sample (flat MMS list filtered by the pack) | coder1 | P1 | 574545617 (golden sets replay), policy/doris-cod-workflow.md |
+| C22 | Required certificate fields (incl. manner of death) missing -> refused with required markers and hints, as on the web | coder1 | P2 | 273a4f2e4, policy/doris-cod-workflow.md |
+| C23 | Half-coded case: leave, Home, kill app, reopen -> coding draft restored exactly | coder1 | P1 | policy/field-data-collection.md (unsent work), digitva-9cll.5 (still to prove) |
+| C24 | Lock / profile switch mid-coding -> coding draft restored | coder1 | P1 | same |
+| C25 | Save code, edit before sync -> only the latest coding row is sent (it keeps the answers hash from coding time) | coder1 | P1 | current-state/device-collection-api.md (sync.ts sentAnswers) |
+| C26 | Mark a case not codeable -> decision kept in Central's review state round-trip (case does not return to the pool). OPEN: is a reason required? | coder1 | P2 | 8b11109b4 (digitva-9xn9.2); OPEN for reason |
+| C27 | Case allocated to another coder -> OPEN: read-only, or not listed? (one active allocation per coder per side) | coder1 + coder2 | P2 | policy/coding-workflow-state-machine.md; OPEN |
+| C28 | A coder's own collected case is excluded from their pool outside self-coding projects (server blocks coding it) | coder1 | P1 | digitva-9xn9.22, b4deba337, bd memory owner-decision-2026-10-20 |
+| C29 | 200 new cases per coder per project per day cap (project clock); recode, demo, tester allocations not counted | coder1 | P2 | 87fff09cd |
+| C30 | Web (Select2) on an ICD-11 project: Select2 hidden, non-leaf refused on save, leaf accepted; values already saved still re-validate | coder1 | P2 | digitva-dn15, efb539594 |
+| C31 | Phone shows the VA cause bucket while coding, by the analytics rule | coder1 | P2 | 8c270b051 |
+| C32 | Standalone one-step coding: "Save cause of death", View summary, Revise; no Step 1/2 wording | coder1 | P2 | 2d78e9660, policy/doris-cod-workflow.md |
+| C33 | Standalone phone codes a stale case: sent marked stale, draft kept until recode taken (as enrolled) | coder1 | P1 | 7e7007766 |
+| C34 | Changed coding on an old APK path: server returns a receipt, not 409 `coding_conflict`. OPEN: what must the phone show for a receipt? | coder1 | P2 | handoff.md item 4; OPEN |
 
-## 7. Review (reviewer / supervisor)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| V01 | Open review list, open a case, approve | P2 |
-| V02 | Return a case with a note -> interviewer sees it | P2 |
+Dropped from section 6: former C28 (independent second coder) and C29
+(reviewer adjudication): no such workflow (one coder; reviewer samples; see
+Dropped list).
+
+## 7. Review (reviewer)
+| ID | Scenario and expected result | User | Pri | Source |
+| --- | --- | --- | --- | --- |
+| V01 | Review tab opens the online review list; open a case, save review (list-valued other_conditions accepted) | reviewer | P2 | d024b5ad0 |
+| V02 | Send a case back to the interviewer: fixed reason code only (missing_information, inconsistent_answers, wrong_respondent_or_case, needs_clarification), no free note; interviewer sees the case as sent back and can revise | reviewer | P2 | policy/interview-revisions.md |
+| V03 | Reviewer releasing a started review keeps their saved Step 1 | reviewer | P2 | bd memory reviewer-release-keeps-step1 |
 
 ## 7b. Interview supervisor (PHC MO)
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| SV01 | Supervisor sees only the sub-centres under their PHC; another PHC's cases not listed | P1 |
-| SV02 | Team progress: per-interviewer counts (to do, drafts, sent) match what the interviewers' phones show after sync | P2 |
-| SV03 | Assign / reassign a case from interviewer A to B -> B gets it after sync; A's unsent draft for it kept and explained, not deleted | P1 |
-| SV04 | Reassign while A is mid-interview offline -> A's work reaches the server on next sync, duplicate visible to supervisor | P1 |
-| SV05 | Review a sent interview -> approve -> status updates on server and on the interviewer's phone | P2 |
-| SV06 | Return an interview with a note -> interviewer sees the note, edits, resends; history keeps both versions | P1 |
-| SV07 | Return while the interviewer has a newer local draft -> local draft not overwritten | P1 |
-| SV08 | Supervisor sees a refused-consent (No) interview with its reason; cannot edit answers | P2 |
-| SV09 | Overdue / follow-up list: deaths past the follow-up window are flagged | P2 |
-| SV10 | Supervisor cannot code (no coder role) and cannot see coder-only screens | P1 |
-| SV11 | Supervisor also holding interviewer role (test.all) -> both work lists, actions go to the right role | P2 |
-| SV12 | Supervisor offline: lists show last-sync data with the sync time; actions queue and send once | P1 |
-| SV13 | Death reporter's registration with missing contact details -> supervisor sees it flagged | P2 |
+| ID | Scenario and expected result | User | Pri | Source |
+| --- | --- | --- | --- | --- |
+| SV01 | Supervisor sees only cases in the units below their PHC; another PHC's cases not listed | interview_supervisor | P1 | policy/web-intake.md "Supervisors" |
+| SV02 | Tiles (Needs my decision, Overdue revisits, Stuck 30 days, Total in scope) match the lists behind them; overdue on the project clock | interview_supervisor | P2 | src/strings supervision*, edf8b1375 (digitva-at68) |
+| SV03 | Confirm or reject a duplicate/cancel flag; mark duplicate; cancel; reopen; each with a reason (no names, phones or addresses in it); confirmed duplicate leaves every coding queue | interview_supervisor | P1 | policy/web-intake.md, policy/coding-workflow-state-machine.md |
+| SV04 | Two complete interviews on a case: supervisor chooses one with a fixed reason (better_quality, more_complete, original_incorrect, switch_back); both interviewers notified; the loser's later upload is kept as history | interview_supervisor + interviewer1 + interviewer2 | P1 | policy/web-intake.md (digitva-bqzm) |
+| SV05 | "Reopen for revision" with a fixed reason (cod_review_requested, new_information, data_correction) -> interviewer sees it, revises and resends; coding restarts at once; earlier coding kept as inactive history | interview_supervisor | P1 | policy/interview-revisions.md |
+| SV06 | Reopen while the interviewer has a newer local draft -> OPEN: what happens to the local draft? | interview_supervisor | P1 | OPEN |
+| SV07 | Refused-consent case: supervisor can view, not edit. OPEN: is the refusal reason shown? | interview_supervisor | P2 | policy/web-intake.md; OPEN |
+| SV08 | Supervisor names and PII follow per-project rules: unit grants in the org see names; project/site-scope grants and mentoring institutes do not | interview_supervisor + data_manager | P1 | digitva-9xn9.22, b4deba337 |
+| SV09 | Supervisor never assigns or reassigns cases; no Assign action shown | interview_supervisor | P2 | policy/web-intake.md "Supervisors" |
+| SV10 | Interview-supervisor-only user cannot code or see coder screens (Code tab and coder links absent; coding endpoints refused) | interview_supervisor | P1 | policy/web-intake.md "Supervisors", e2e roster extension (owner 2026-11-12; supervisor-only user exists) |
+| SV11 | `all` user (interviewer + supervisor + coder): each tab (Code, Review, supervision) shows only its own role's lists | all | P2 | d024b5ad0 |
+| SV12 | Supervisor offline: OPEN: supervision is an online API; offline behaviour not decided | interview_supervisor | P1 | OPEN |
 
 ## 8. Sync
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| Y01 | Manual sync with nothing to send -> "Nothing to send", time updated | P2 |
-| Y02 | Sync with several queued items -> all sent once, counts update | P1 |
-| Y03 | Server down during sync -> clear error, nothing lost, later sync succeeds | P1 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| Y01 | Nothing to send: "Send now" disabled on Home and in the Sync sheet; refresh updates the sync time | P2 | 1b2f37d4b |
+| Y02 | Several queued items -> all sent once, counts update | P1 | policy/field-data-collection.md |
+| Y03 | Server down or 5xx during sync -> clear error with Ref, everything kept, later sync succeeds | P1 | src/auth.ts header |
+| Y04 | Refresh stores the collection gate even if the answer arrives while the PIN lock is up | P2 | edf8b1375 |
 
 ## 9. Hand-offs and concurrency (two users / two phones)
-Runs with two e2e users on the emulator and the Samsung at once.
+Two e2e users on the emulator and the Samsung at once (`all` as SC01 ANM and `interviewer`).
 
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| H01 | Reporter A registers a death -> interviewer B syncs -> case in B's To do | P1 |
-| H02 | Interviewer A starts the interview, sends nothing; B opens the same case -> B sees "As of the last sync (...), A started this interview" | P1 |
-| H03 | A starts, stops part-way; B resumes the same case -> both drafts reach the server, neither discarded, duplicate flagged for review | P1 |
-| H04 | A starts, B starts on the other phone, both send -> server keeps both, marks the duplicate; no orphaned data | P1 |
-| H05 | A's interview already complete on server; B opens the case -> "already complete" notice, B's draft not lost if started | P1 |
-| H06 | Same user on two phones resumes the same draft -> last send does not silently overwrite the other | P1 |
-| H07 | Two coders code the same case: second sees the first's code after sync; both codes kept with history, final per policy | P1 |
-| H08 | Two coders code the same case offline at once, both sync -> both reach the server, conflict visible, nothing dropped | P1 |
-| H09 | Stale coding: coder codes offline, interview data changes on server, coder syncs -> code sent marked stale; recode replaces it, history kept | P1 |
-| H10 | Stale coding on a case another coder already finalised -> stale code kept in history, does not replace the final | P1 |
-| H11 | Recode after server received a code -> replaces it, history shows both | P1 |
-| H12 | Coder codes while reviewer returns the case -> coder's work kept, return note visible | P2 |
-| H13 | Interviewer edits/resends after coding started -> coding marked stale on the coder's phone after sync | P1 |
-| H14 | Device of A revoked while A has unsent work, B continues the case -> A's unsent work explained and kept locally, B unaffected | P1 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| H01 | Reporter A registers a death -> interviewer B syncs -> case in B's To do | P1 | policy/web-intake.md |
+| H02 | A starts the interview, sends nothing; B opens the same case -> "As of the last sync ({time}), {A} started this interview on {date}." | P1 | 275155702, 0ace5b17e |
+| H03 | A starts and stops; B resumes -> both drafts reach the server; first complete wins, the other is kept as a superseded copy (a candidate if complete) for the supervisor; neither discarded | P1 | policy/web-intake.md (digitva-bqzm) |
+| H04 | A and B both send -> server keeps both, a late sender's files move to the superseded copy (one `draft_files_moved_to_copy` action); no orphaned data, case never waits for attachments forever | P1 | 9abf7afdf (digitva-9xn9.5) |
+| H05 | A's interview already complete on server; B opens the case -> "another complete interview" notice (`other_complete_interview`); B's work is kept as a superseded copy | P1 | current-state/device-collection-api.md |
+| H06 | Same user, two phones, same draft -> later completed version becomes the coder's, older kept as `replaced` history; a draft sync from the other device answers 409 `conflict` | P1 | policy/web-intake.md, current-state/device-collection-api.md |
+| H07 | Two coders on the same case: OPEN: allocation is exclusive online; what do two offline phones show on sync? | P1 | OPEN |
+| H08 | (merged into H07) | - | - |
+| H09 | Stale coding: coder codes offline, interview data changes on server, coder syncs -> code sent marked stale, held unapplied; recode replaces it, history kept | P1 | digitva-9cll.14 |
+| H10 | Stale code on a case another coder already finalised -> OPEN: kept in history only, or does the recode rule replace the final? | P1 | OPEN (9cll.14 says finals are superseded by a recode) |
+| H11 | Recode after server received a code -> replaces it, history shows both | P1 | digitva-9cll.14 |
+| H12 | Coder codes while a reviewer sends the case back -> OPEN: coder's phone result | P2 | OPEN |
+| H13 | Interviewer revises and resends after coding started -> server releases coding; coder's phone code becomes stale after sync | P1 | policy/interview-revisions.md, 87fff09cd |
+| H14 | Device of A revoked with unsent work -> A keeps the work, "Access removed - N items not sent", cannot send until signed in again; B's work and the case are unaffected | P1 | src/auth.ts header, policy/field-data-collection.md |
+| H15 | Web interview first save over a phone-won draft after the interviewer cleared an answer -> the cleared answer stays cleared on reload (browser sends an explicit null, only for loaded keys, once) | P2 | 43ea80c00 (D22), digitva-k00b, 7e7007766 |
+| H16 | Phone sends an interview whose attachment the server lost -> 409 `attachments_pending`, nothing stored (same for device and browser paths) | P1 | 2582c138e |
+| H17 | Teammate wins the case after B's draft was open -> B's draft files are not lost to the 30-day stale-draft purge | P1 | 9abf7afdf |
+| H18 | Interviewer A and B edit their own drafts of one case at once (both online): each edits only their own copy (own draft per interviewer); the first completed submit wins the case, the other becomes a superseded copy (candidate if complete); every saver is recorded; nothing is merged field by field | P1 | policy/web-intake.md "Own draft per interviewer", "Parallel interviews" (digitva-xz83, digitva-xpqm) |
+| H19 | Same, one or both offline: both send on reconnect in any order; first completion wins the case, the later one is kept as a superseded copy with its files; both phones' items clear on the 2xx; case detail on each phone after sync names the other interviewer. Same field vs different fields makes no difference (whole-interview copies) | P1 | policy/web-intake.md, 9abf7afdf, current-state/device-collection-api.md |
+| H20 | One interviewer sends while the other is mid-edit: the mid-edit phone sees "As of the last sync ... {name} started/completed this interview" only after its next sync; its own draft stays editable and sends later as superseded copy; nothing is overwritten or discarded | P1 | 275155702, policy/web-intake.md, current-state/device-collection-api.md (`case_submitted_by_other`) |
+| H21 | Same interviewer, phone and browser edit one draft: phone draft sync with a stale `base_updated_at` -> `conflict: true`, "This interview was also edited on another device; the newer version was kept." (`kept: incoming` or `server`); browser save with a stale `if_updated_at` -> 409 `draft_stale`, nothing written, tab asks to reload; the replaced content stays as history | P1 | current-state/device-collection-api.md (draft sync reply, Browser guard) |
+| H22 | Phone completion while the browser draft has newer saves: the phone completion is submitted, the browser draft's content kept first as `replaced` history; a later browser completion is a correction that wins | P1 | current-state/device-collection-api.md, policy/web-intake.md |
+| H23 | Same field, browser clears an answer the phone filled: the cleared answer wins on the first browser save over a phone-won draft (explicit null for loaded keys only, once); different fields: other phone keys stay. OPEN: is there a field-level merge when both edit different fields, or only draft-level (newer wins)? | P1 | 43ea80c00 (D22), policy/web-intake.md; OPEN |
+| H24 | Interviewer sends a correction while a supervisor reopens or sends the case back: send-back/reopen unlocks revision (state `finalized_upstream_changed`); the correction arrives, coding restarts, nothing overwritten; if coding is final and no send-back is open the later version is kept as history `locked: true` | P1 | policy/interview-revisions.md, current-state/device-collection-api.md |
+| H25 | Supervisor reopen for revision while the interviewer is mid-edit offline on a newer local draft: OPEN: what the phone shows and whether the draft is kept (same as SV06); supervisor never reassigns | P1 | OPEN |
+| H26 | Supervisor chooses between two complete interviews while one interviewer is still editing: choice becomes a new payload version (`supervisor_choice`), coder's copy replaced and coding restarts with earlier coding kept inactive; refused 409 while a reviewer's coding session is live; the loser's later upload kept as history | P1 | policy/web-intake.md (digitva-bqzm) |
+| H27 | Coder A and coder B on one case online: allocation is exclusive (one active allocation per case); B sees "Another coder took this case" / is refused; no double coding | P1 | policy/coding-workflow-state-machine.md "One active allocation", src/strings codeNowHeldByAnother |
+| H28 | Coder A codes offline, coder B finalises online first: A's phone result arrives as a recode-style replace per 9cll.14 or marked stale; history keeps both. OPEN: which wins when two different coders (not the same coder's recode) | P1 | digitva-9cll.14; OPEN (same question as H07, H10) |
+| H29 | Coder finalising while interview data changes (interviewer correction, ODK edit): server releases coding (`release_coding_for_changed_payload`); coder's allocation released; the code already saved stays as inactive history; phone shows stale / recode | P1 | policy/interview-revisions.md, 87fff09cd, digitva-9cll.14 |
+| H30 | Coder and reviewer: reviewer coding opens only after the coder's recode window closes; a coder recode inside the window blocks reviewer start; reviewer release keeps their saved Step 1; reviewer save does not require NQA | P2 | policy/access-control-model.md line 464, bd memory reviewer-release-keeps-step1, policy/narrative-quality-assessment.md |
+| H31 | Reviewer sends back while the coder is still coding or has just finalised: send-back by the coder who finalised it or a reviewer working on it; COD stays active until the revision arrives; coder's work is not discarded. OPEN: coder's open workspace after the send-back | P2 | policy/interview-revisions.md; OPEN (same as H12) |
+| H32 | Data manager changes the case on web while a phone edits: a DM register-field or identifier edit (`PATCH /intake/deaths`, `PUT .../identifiers`) bumps `updated_at`; a PATCH with a stale `if_updated_at` is refused; identifiers can change at any time even after the interview, case state unchanged; the phone sees the change after its next sync. OPEN: which phone-side edit conflicts with a DM web edit (the phone does not edit registrations of server cases except via PATCH) | P1 | current-state/api-v1.md (PATCH /intake/deaths, PUT identifiers); OPEN |
+| H33 | Data manager accepts or rejects an upstream (ODK) change while a phone coder has the case: protected finalised case goes to `finalized_upstream_changed`, held edits are not lost; the phone coding becomes stale. OPEN: exact phone display | P2 | 4fd66b8ba (digitva-9xn9.1), policy/odk-sync-policy.md; OPEN |
+| H34 | Death reporter edits the registration (PATCH, until an interview of it is completed) while an interviewer starts the interview from it: the registration edit goes through while no interview is completed and bumps `updated_at`; the interviewer's draft keeps its prefill and sees the change after sync; after the interview is completed a register-field edit is refused (409 `case_completed`) but identifiers still change. OPEN: does an open interview draft pick up the changed informant name or keep its prefill? | P1 | current-state/api-v1.md (PATCH /intake/deaths), policy/offline-api-contract.md (`case_completed`); OPEN |
+| H35 | Reporter's registration queued offline and edited on web before it syncs: `client_death_id` makes the send idempotent (200 with the current case); the phone's registration edited during its send is kept (D14); a stale `if_updated_at` is refused rather than overwritten | P1 | current-state/device-collection-api.md (death POST), 7e7007766 (D14) |
+| H36 | Two reporters register the same death on different phones: both succeed; possible-duplicate hint shows the earlier registrant; supervisor confirms or rejects the duplicate (excludes it from coding); no data deleted | P1 | policy/web-intake.md (possible duplicates, digitva-umc4), policy/coding-workflow-state-machine.md |
+| H37 | Consent changes while another interviewer has the case open (refusal recorded by A): B's open draft is cleared to the refusal-only answers and paused until B explicitly resumes after a fresh grant; nothing B collected returns | P1 | policy/respondent-consent-notice-draft.md "Later agreement and shared cases" (digitva-hs7e.15.2) |
 
 ## 10. PIN, password and account recovery
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| K01 | Forgot PIN on the lock screen -> sign in with password -> set new PIN -> drafts, media and unsent work still there | P1 |
-| K02 | Forgot PIN offline -> clear message that a connection is needed; nothing wiped | P1 |
-| K03 | Forgot password on sign-in -> reset flow reaches the server (dev mail catcher), new password signs in | P2 |
-| K04 | Change PIN from Settings -> old PIN refused, new PIN works | P2 |
-| K05 | PIN lockout after repeated wrong PINs -> wait/recovery path; data kept | P1 |
-| K06 | Forgot PIN on profile B while profile A has unsent work -> A untouched | P1 |
-| K07 | Password changed on the server -> phone keeps working on PIN until next sign-in; then new password needed; local work kept | P2 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| K01 | After five wrong PINs "Forgot PIN? Sign in with password" -> password sign-in for the same account -> set new PIN -> every interview, media and unsent work kept; fingerprint/screen-lock entries dropped | P1 | policy/field-data-collection.md, digitva-kfi |
+| K02 | Forgot PIN offline -> OPEN: message not decided (a password sign-in needs the server) | P1 | OPEN |
+| K03 | "Forgot password?" opens the server page; people cannot set their own password: a new generated password comes from a sign-in code or "ask for a new one" | P2 | policy/mobile-sign-in.md section 3 |
+| K04 | "Forgot PIN?" is not shown before the fifth wrong PIN in a row | P2 | policy/field-data-collection.md |
+| K05 | A sign-in not started from "Forgot PIN?", or as a different account, never resets a PIN (deep link cannot set one) | P1 | policy/field-data-collection.md, 2d78e9660 |
+| K06 | Forgot PIN on profile B while profile A has unsent work -> A untouched, A's lock counter separate | P1 | policy/field-data-collection.md |
+| K07 | Password changed on the server -> phone keeps working until its session ends (`session_ended`), then the new password is needed; local work kept | P2 | src/auth.ts header |
+| K08 | Standalone phone: forgot PIN -> "Forgot PIN?" (after five wrong) opens an erase confirmation, typed word required, Cancel deletes nothing | P1 | policy/field-data-collection.md |
 
-## 11. Exports and sharing
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| E01 | Export unsent work / backup from the phone (if offered) -> file produced, contains every unsent item with media, no PIN or token inside | P1 |
-| E02 | Export while offline works | P1 |
-| E03 | Restore/import the export on a fresh install or another profile -> items restored, not duplicated on send | P1 |
-| E04 | Share/print the interview PDF (पी.डी.एफ. (PDF) in Hindi) -> opens, right content, language matches | P2 |
-| E05 | Export refused or warned for another profile's data | P1 |
-| E06 | Server-side exports after the run (web, data manager): SmartVA input CSV (apostrophes), raw SmartVA offline CSV (no apostrophes, no BOM), interview export -> include the e2e cases | P2 |
+Dropped from section 10: former K04 "Change PIN from Settings" (no such screen); desktop station scenarios (owner: out of scope).
+
+## 11. Exports and backup
+Collect Plus enrolled: encrypted backup of unsent work only (Settings, passphrase
+of at least 12 characters, share sheet), no CSV export. Standalone: CSV/JSON
+export of own records and full backup.
+
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| E01 | Back up unsent work -> file produced with unsent drafts, attachments, offline coding and consent; no PIN, token, store secret or passphrase inside; read back before sharing; warning shown first | P1 | policy/field-data-collection.md "Export and backup" (digitva-5bzf, digitva-axim), 7e7007766 (D25) |
+| E02 | Backup works offline | P1 | same (nothing goes to a cloud service) |
+| E03 | Restore on a fresh install or the same account: adds only missing ids (an existing id kept); consent restored with each interview, so restored interviews send; a newer local copy needs a confirmed "replace newer" and the picked file is kept for the retry; sent once (server `kept`/`superseded`) | P1 | ffa623a2e, 7e7007766 (D15), policy/field-data-collection.md |
+| E04 | Restore into another account -> OPEN: refusal message not decided (policy: same account only) | P1 | OPEN |
+| E05 | Standalone export: CSV/JSON of own records, "omit identifiers" option, no PIN or keys, file only in private cache and deleted after share | P2 | policy/field-data-collection.md |
+| E06 | Server-side after the run (web, data manager): SmartVA input export for Excel (CSV with apostrophes, no BOM), raw variant for processing (no apostrophes, no BOM); other data-manager CSV cells starting with a formula character get a leading apostrophe | P2 | efb539594, digitva-9xn9 |
+
+Dropped: former E04 (share/print interview PDF): no such feature; only PDF
+attachments open in a viewer (M02).
 
 ## 12. Debug logs and diagnostics
-| ID | Scenario | Pri |
-| --- | --- | --- |
-| D01 | Open diagnostics / debug log screen from Settings or Help | P2 |
-| D02 | Share/send debug logs -> file produced; contains no PIN, password, token, informant name, phone or address | P1 |
-| D03 | Logs captured while offline are kept and sent later | P2 |
-| D04 | After a deliberate failure (network off mid-send) the log shows the error with an error code, not the payload | P2 |
-| D05 | Debug build banner shown; release-only screens absent | P2 |
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| D01 | Settings > Help & support > Export errors; with no entries: "No errors recorded." | P2 | policy/expo-client.md "Local error log", digitva-j6cx |
+| D02 | Export errors -> share sheet with text file `digitva-errors-<date>.txt` (app version, device, entries newest first); holds codes and Ref lines only: no answers, names, phones, tokens, URLs, ids | P1 | same |
+| D03 | Errors while offline are logged locally (encrypted store, newest 500 / 30 days, never uploaded); entries made while locked wait in memory (up to 50) and move in on unlock; kept through sign-out | P2 | same |
+| D04 | After network off mid-send, the log shows status, error code, method and masked route; not the payload; same error on same screen within a minute is one row | P2 | same |
+| D05 | Debug build banner "Debug build: do not collect real interviews." shown | P2 | src/strings debugWarning, policy/field-data-collection.md |
+| D06 | Usage diagnostics setting On/Off (daily totals only); a failed save stays Off with Retry | P2 | src/strings telemetry*, policy/expo-client.md |
+
+## 13. Standalone (Collect Plus, no server)
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| T01 | New interview refused until name, age, sex, country and both mortality levels are set; refused before anything is written; the profile locks Id10010/a/b and Id10002/Id10003 | P1 | 747af76d9 |
+| T02 | Home tabs (In progress, Pending coding, Coded) refresh after save; rows show "Last edited"/"Completed" with local time; buttons Resume, Code, Revise | P2 | 136a949d0, 1b2f37d4b |
+| T03 | Draft started on an older questionnaire version shows read-only; a label-only fix does not strand drafts | P2 | 2d78e9660 |
+
+## 14. Server and script checks around the run (not Maestro)
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| X01 | `manual-db-restore.sh`: a connection opened during the scratch restore no longer breaks the swap; a truncated dump leaves the target untouched; needs typed confirmation, refuses remote/production targets | P1 | 43ea80c00 (digitva-rbj8), 7e7007766, ff0761757 |
+| X02 | Staging backup checker passes on a fresh backup and fails on a stale one | P1 | ff0761757, 43ea80c00 |
+| X03 | UI regression: Interviews "More" chip plain at default filter; chips 44 px; card words follow the UI language; Hindi choice labels not wrapped early; tab labels scale with Large text | P2 | 176093dd1, 0e1a5e308, 1b2f37d4b |
+| X04 | Screens do not flash on return; only the last-used form language loads after first paint | P2 | 7d238868f |
+
+## 15. Project and form settings that change the phone (enabled / disabled pairs)
+Each pair runs on one e2e project by flipping the setting as admin or data manager
+on web, then sync or re-open Home (`/me/access` carries the resolved settings).
+
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| PS01 | Self-coding ON: a `coder` grant also lets the holder interview (derived, no grant row); after a completed interview with valid consent the submit reply offers "Code this case now"; the worklist shows "Code now" on the user's own completed interviews awaiting coding; the submitter sees the deceased's name on their own cases only | P1 | policy/web-intake.md "Self-coding projects", policy/coding-workflow-state-machine.md "Self-coding", digitva-xuxk |
+| PS02 | Self-coding ON, "Code this case now" while the case is still in attachment sync or `smartva_pending` -> server 409 with the workflow state; phone says "This case is still preparing. Checking again shortly..." then "Still preparing. Try again from the worklist."; when ready it allocates to the submitter (scope, language and coding gates still apply; pick mode skipped) | P1 | policy/coding-workflow-state-machine.md, src/strings codeNow* |
+| PS03 | Self-coding ON, another coder already holds the case -> refused; "Another coder took this case. Refresh the worklist." | P2 | same |
+| PS04 | Self-coding ON, coder already holds another coding case -> "You already hold another coding case."; release offers a confirm that unfinished Step 1 work on it is discarded for good; "Keep my case" leaves both untouched | P1 | same, src/strings codeNowRelease* |
+| PS05 | Self-coding OFF: a coder grant gives no interviewing; no "Code this case now" or "Code now"; an interview goes to the normal pool; the interviewer's own collected case is never allocated to them as a coder (random or pick), enforced by the server | P1 | policy/coding-workflow-state-machine.md, digitva-9xn9.22, b4deba337 |
+| PS06 | Self-coding switched OFF while a coder-interviewer has an unsent draft or unsent interview -> OPEN: the implied interviewer grant vanishes; is the unsent work still sent and accepted? (policy: unsent work never purged, but the server grant check) | P1 | policy/access-control-model.md "Implied roles"; OPEN |
+| PS07 | Self-coding cannot be turned on while intake is `off` (server refuses); mentoring institute coders never get the implied interviewer grant | P2 | policy/web-intake.md "Self-coding projects" |
+| PS08 | Intake `direct`: Home offers "Start interview" only, no Register a death; interviews start without a registration | P1 | policy/web-intake.md (web_intake_mode, 1338), digitva-7amd.25 |
+| PS09 | Intake `death_register`: Register only; an interview starts only from a registered death | P1 | same |
+| PS10 | Intake `both`: Register and Start both offered | P2 | same |
+| PS11 | Intake `off`: project interviewers cannot collect in the app; sign-in says `project_intake_off` | P1 | same, policy/mobile-sign-in.md (digitva-7amd.24) |
+| PS12 | Collection gate ON (paused, outside dates, or daily limit) vs OFF at site or unit: see R05 (refusal only for new starts, online, gate answer under 15 minutes old); gate OFF -> new starts allowed; held interviews released when the gate save covers their start date | P1 | b8732d608, edf8b1375, policy/project-clock-and-gates.md |
+| PS13 | Coding gate closed (dates, daily coder cap) vs open: coder cannot take new cases outside the window; recode inside its window still works. OPEN: what exact message does the phone show for a closed coding gate? | P2 | policy/project-clock-and-gates.md, 87fff09cd; OPEN for wording |
+| PS14 | Project ICD-11 (DORIS) vs ICD-10 (simple entry): ICD-11 project shows the DORIS certificate, ICD-10 project the Step 1/Step 2 screens; a code of the other edition is refused with `wrong_classification`. (`selectable` per-death choice is retired) | P1 | policy/doris-cod-workflow.md "Project modes", current-state/api-v1.md, digitva-0n3 |
+| PS15 | Masked vs unmasked coding project: masked shows Step 1 then Step 2 with PII hidden; unmasked has one final assessment (immediate COD, underlying COD, associated conditions) or the one-step DORIS final | P2 | policy/doris-cod-workflow.md "Project modes" |
+| PS16 | Device coding preference ON vs OFF (Collect Plus first launch, off by default; plain Collect missing = on): OFF hides online ICD-11/DORIS and bundled offline coding tools, preserves all work, ICD-10 coding and collection unaffected; ON grants no permission by itself | P1 | policy/field-data-collection.md (digitva-hs7e.7), 157dbf65e |
+| PS17 | Offline coding access: account with the offline-coding permission can code in airplane mode; without it the offline coding route is not offered. OPEN: which project or grant setting grants `offline_coding_access`? | P1 | src/codingCapabilities.ts; OPEN |
+| PS18 | DORIS / CODEEDIT suggestions: advisory in every project; there is no per-project switch to make them blocking (see C12, C14) | P2 | digitva-9cll.14 |
+| PS19 | Equity extension ON: the interview shows "Was the place where the deceased usually lived rural, urban or an urban slum?" after Id10055 (optional, English and Hindi); OFF: absent; older drafts stay valid either way. New projects default ON | P2 | policy/digitva-who-form-overrides.md, digitva-7amd.26 |
+| PS20 | Narration languages and form extensions (narration language, social autopsy, NQA) follow the project's form options: only the enabled ones are offered in the served form; NQA and Social Autopsy follow the project for enrolled accounts and are off standalone | P2 | policy/field-data-collection.md (line 600, 646), policy/doris-cod-workflow.md (digitva-9cll.22.4) |
+| PS21 | UI languages served from admin: the 文A menu lists the languages the admin enabled; a language removed meanwhile falls back without losing answers | P2 | a491cae5e; OPEN for the fallback |
+| PS22 | Media question types (audio, photo, file) per form: OPEN: no per-project switch found for turning media questions off; standalone drafts keep their saved question set | P2 | 1b2f37d4b; OPEN |
+| PS23 | Two-coder requirement per project: none exists (one coder, sampled reviewer); no scenario | - | policy/coding-workflow-state-machine.md |
+| PS24 | Recode window per project (default 24 h, set by the project): recode allowed inside the window from the coder's first final of the round; after it the case is reviewer-eligible | P2 | bd memory owner-decision-2026-10-20-the-coder-recode, 87fff09cd |
+
+## 16. After enrolment (phone and profile lifecycle)
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| L01 | Enrolment code single use: a used, expired (QR emailed 24 h / Devices page 5 min to 7 days; password-reset QR 6 h), revoked or voided code gives one answer, 404 `enrolment_invalid` ("The enrolment code is invalid, used or expired. Ask for a new one."); a new code voids the previous; a pending QR is voided by a password or factor reset | P2 | current-state/device-collection-api.md, app/services/device_auth_service.py enrol_device, policy/mobile-sign-in.md, src/strings errEnrolInvalid |
+| L02 | First sync after enrolment: "Downloading questionnaires and data" modal (keep data on); downloads cases and contacts, settings, form definitions; bundled form is the fallback until the download; offline ICD data. OPEN: does anything beyond cases, settings and form definitions download (offline ICD index, UI translations)? Pack ships with the Plus app | P1 | policy/field-data-collection.md "Form version", src/strings firstDownload*; OPEN |
+| L03 | Re-enrol the same phone (same `client_device_uuid`, e.g. second enrolment code or password): one device row per UUID, no second row; idempotent | P2 | policy/field-data-collection.md (Device identity), digitva-5bzf |
+| L04 | Change server / re-enrol is refused while any signed-in profile has unsent work or a locked store (names each interviewer, says unlock and sync); otherwise asks once, signs everyone out (stores, PINs kept) and opens the enrol screen; a signed-out profile's data stays encrypted and can be sent only to the old server | P1 | policy/mobile-sign-in.md "Changing server is re-enrolling", digitva-dxgj |
+| L05 | Project switch (home project): choose at sign-in; changing the device's home project via the API is a no-op for the current one, audited otherwise, refused 409 `device_project_locked` if station state held. OPEN: is there an in-app screen to switch the home project later? | P2 | policy/mobile-sign-in.md (digitva-kspl); OPEN |
+| L06 | Grant added after enrolment (new site, new role such as coder): next access refresh shows it (new Code/Review tab, new project); no re-enrolment; existing drafts untouched | P1 | policy/field-data-collection.md (multi-project, lines 380-390), d024b5ad0 |
+| L07 | Role removed but other grants remain: refresh drops that role's screens and downloads; unsent work of that role kept and still tried first on every sync | P1 | policy/field-data-collection.md "Unsent work is never purged" (digitva-tnr6) |
+| L08 | One project leaves the access summary (grant paused/revoked, intake turned off, site form deactivated): its server copies (cases, contacts, settings, forms) deleted from the phone; unsent drafts, registrations, queued actions and revisions kept; worklist says "Project paused - N items waiting to send" with the reason; new work there blocked; sync still sends the unsent rows first | P1 | policy/field-data-collection.md (digitva-tnr6, 2026-10-22), current-state/device-collection-api.md line 540 |
+| L09 | Last project/grant removed -> 401 `session_revoked` (same as S06): unsent work keeps the store read-only "Access removed - N items not sent"; none unsent wipes only that profile's store | P1 | src/auth.ts header, policy/field-data-collection.md |
+| L10 | User deactivated, or password/factor reset, or sign-out everywhere on the server (session version bumped) -> 401 `session_ended`: data kept, "sign in again" (same as S08); pending QR voided | P1 | src/auth.ts header, policy/mobile-sign-in.md |
+| L11 | Device revoked by admin or by the user from Profile ("decommission"): sessions on that device end with a keep-data reason; local work kept; other phones and shared-device users untouched; audited | P1 | policy/mobile-sign-in.md "Account device limit and decommissioning", app/services/device_auth_service.py revoke_device |
+| L12 | Device marked compromised (lost/stolen): server refuses the device's signed bundles; no extra phone behaviour beyond revoke. Station-only; no phone scenario | - | app/services/device_auth_service.py; dropped (station out of scope) |
+| L13 | Refresh-token problems: `refresh_reused` (an old token presented), 409 `refresh_retry_race` (lost-response within 60 s), `session_expired`, `refresh_invalid`, `device_invalid` -> tokens dropped, "sign in again", data kept; offline and 5xx keep everything. Refresh slides 30 days but never past 90 days from sign-in | P1 | src/auth.ts header, current-state/device-collection-api.md |
+| L14 | App upgrade over an enrolled install (old APK -> new, same signing key): profiles, PIN, drafts, media, error log kept; stores created before the PIN-reset change move over at the next correct PIN without a rekey; phones that never unlock on the new version have no reset copy | P1 | policy/field-data-collection.md "Wrong PINs and PIN reset", 2d78e9660, handoff.md (in-place upgrade check, digitva-9l5c) |
+| L15 | Old APK against the new server: changed coding gets a receipt, non-leaf gets 422 `non_leaf_category`, `attachments_pending` is already understood; old APK shows the WHO URI text for refusals. Run once with the previous release APK | P1 | handoff.md item 4, 2582c138e, 9a1df01ef |
+| L16 | Form updated on the server mid-draft: an enrolled draft stays on the version it started on (cached until uploaded); new interviews use the new version; an app whose engine cannot run the served definition blocks new interviews with "update the app" but never blocks uploads; a draft with no pin moves to the current form with a visible notice (answers to dropped questions kept in `_other`, not submitted) | P1 | policy/field-data-collection.md "Form version" (digitva-xuf9, digitva-oxvt) |
+| L17 | Standalone draft after an app update changed the questionnaire version: opens read-only (answers listed, no edit, no complete) with a message; an unchanged version stays editable | P2 | policy/field-data-collection.md "Definition pin", 2d78e9660 |
+| L18 | Phone clock 5 minutes to 4 hours off: persistent warning with a button to Date & time; more than 4 hours off: no new registration or interview and no editing of drafts until fixed and re-checked (typed text saved first); view, Send now/Refresh, Settings, Export errors still work; uploads kept with `device_clock_suspect`, never refused; a never-synced phone is not judged | P1 | policy/field-data-collection.md "Phone clock" (digitva-ltqg) |
+| L19 | Time zone change on the phone: dates (date of death, "not in the future", age) are plain dates, not shifted; server uses the project clock for "today" and gates. OPEN: phone local time shown vs project clock in lists after a zone change | P2 | policy/web-intake.md, 87fff09cd; OPEN |
+| L20 | Station signing key / device signing key rotation: station only | - | dropped (station out of scope) |
+| L21 | Offline for days: refresh token lifetime keeps the session (30 days sliding, 90 max); after expiry "sign in again", unsent work waits | P2 | policy/field-data-collection.md (C1), src/auth.ts |
+| L22 | Terms updated after enrolment: next call 403 `terms_required`, terms gate, work resumes after accept (see S09) | P2 | current-state/device-collection-api.md |
+| L23 | Phone stores the access summary offline: with no connection the last known access and gate are used; a gate answer older than 15 minutes does not refuse a new start | P2 | b8732d608, edf8b1375 |
+
+## 17. Failures in the middle of a sync
+Expected for all: nothing lost, nothing duplicated (server idempotent on `client_draft_id`, `client_death_id`, `client_attempt_id` and the attachment id), the item shows as unsent with its Ref line, the next sync completes. Run with the interview + media draft, then compare server rows and Drafts / To do counts.
+
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| N01 | Network drops during the interview POST -> stays unsent; next sync sends it; server has one submission | P1 | policy/field-data-collection.md "Idempotent upload", current-state/device-collection-api.md |
+| N02 | Server stored the interview but the phone never got the 2xx (drop after send, or kill) -> retry returns the first result (`kept`/`superseded`), no second submission; phone then deletes its copy only on that 2xx | P1 | policy/field-data-collection.md, current-state/device-collection-api.md line 675 |
+| N03 | Same for a registration (`client_death_id`) and a contact attempt / visit (`client_attempt_id`) | P1 | current-state/device-collection-api.md (422 invalid_attempt, client_attempt_id) |
+| N04 | Drop mid-file during attachment PUT -> file stays unconfirmed and the whole file is sent again next Send (no resume: one PUT per file); the interview is never submitted until every file is confirmed; a truncated transfer fails `checksum_mismatch` (X-Content-SHA256) and is retried | P1 | policy/phone-attachments.md section 4, digitva-jkvl (chunked upload not built) |
+| N05 | Drop after the server stored a file but before the phone marked it uploaded -> re-PUT with the same id is idempotent, no second file | P1 | policy/phone-attachments.md ("the id makes a retry idempotent") |
+| N06 | Some of several files uploaded, then failure -> confirmed files are skipped on retry; interview still not sent | P1 | policy/phone-attachments.md |
+| N07 | Batch of several queued items, one fails -> others still sent; failing one keeps its own error; counts update | P1 | 40ee1a528; OPEN: confirm a failure never stops the rest of the pass |
+| N08 | Error classes on upload: timeout, connection refused / offline, 5xx, 429 -> keep and retry on next Send; 400 `checksum_mismatch` / `invalid_request`, 413 without `payload_too_large` -> retry; 413 `payload_too_large`, 415, 422, other 400 -> file held as needing attention with Ref line (replace or delete by reopening); 422 `attachment_limit` -> interview held with the reason, next Send tries again; 404/409 on the attachment draft -> held, interview not sent | P1 | policy/phone-attachments.md section 4 |
+| N09 | Error classes on interview: 409 -> held, not retried by Send now, never deleted ("Send again"); 422 -> reopened in progress with "Not accepted" and Go rows; 403 `terms_required` -> terms gate; 401 `session_revoked` / `session_ended` -> S06 / S08 | P1 | policy/expo-client.md "Refused uploads", src/auth.ts header |
+| N10 | Flaky network (airplane mode on and off several times during send) -> no duplicates, no lost file, final state sent once | P1 | same as N01-N06 |
+| N11 | App killed mid-sync -> on relaunch the interview is unsent or sent, never half-deleted; the upload lease means a send already begun wins over a Reopen; retry is idempotent | P1 | policy/expo-client.md "Reopening a ready interview" (upload lease), 2d78e9660 |
+| N12 | Phone locked or screen off mid-sync -> store stays unlocked 60 s after backgrounding, so a send started then finishes; anything left waits for the next sync after unlock | P1 | 40ee1a528 |
+| N13 | Wi-Fi to mobile data (or back) mid-sync -> treated as a network error; retry completes. OPEN: no specific handling documented | P2 | OPEN |
+| N14 | Server restart or maintenance page (503 with HTML, not JSON) mid-sync -> counted as a server error, kept and retried, nothing deleted; OPEN: wording shown for a non-JSON 503 | P1 | policy/phone-attachments.md (5xx retry), src/api.ts malformed_response; OPEN for wording |
+| N15 | Non-JSON 200 (captive portal) on a sync call -> `malformed_response`, not counted as sent | P1 | 273a4f2e4, src/api.ts |
+| N16 | Drop during download of cases, forms, settings or the access summary -> OPEN: is the partial download discarded or kept? Existing local copies and unsent work stay; first-download modal can be retried | P1 | policy/field-data-collection.md (server copies re-downloadable); OPEN |
+| N17 | Drop during the access refresh -> sync sends unsent rows first (before the refresh), then retries the refresh; a refresh failure by offline or 5xx keeps everything | P1 | policy/field-data-collection.md line 130, src/auth.ts header |
+| N18 | Drop during a coding upload (offline coding result) -> kept; resend is a recode-safe replace, not a duplicate (server keeps older code in history) | P1 | digitva-9cll.14 |
+| N19 | Drop during a backup or restore -> restore is one transaction, nothing half-restored; a failed backup leaves existing files | P2 | policy/field-data-collection.md "Encrypted backup", 7e7007766 |
+| N20 | Resumable or chunked media upload: not built; no scenario beyond N04 | - | digitva-jkvl |
+
+## 18. Form layers, NQA and Social Autopsy (enabled / disabled)
+Definition found (not stated as a glossary entry; OPEN Q1): "The WHO base is a subset; everything else is a layer on top. A project records which layers it collects" (`enabled_extensions`; "A project picks layers; it does not pick a whole form") - `policy/va-form-project-configuration.md` section 1. Layers: `digitva_core` and `doris_support_whova_2022` (always on), `social_autopsy`, `narration_language`, `death_summary`, `medical_records`, `equity`, `intake_screen` and `geography` (no questions, server/client context), `abha` (web intake only). The registry says layers may be "project-enabled or host supplied" (`policy/digitva-who-form-overrides.md`). "Layer" is also used for the 4-layer access model (`policy/auth-decorator-rbac.md`), which is a different meaning.
+
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| LY01 | Layer ON vs OFF for each question layer (`social_autopsy`, `narration_language`, `death_summary`, `medical_records`, `equity`): ON -> the served form carries its questions (e.g. death summary `ds_available`..`ds_im5`, medical records `md_im1..30`, narration `narr_language` + `imagenarr`); OFF -> absent in the form and in the submitted answers; core and DORIS-support layers cannot be turned off | P1 | policy/va-form-project-configuration.md section 1, policy/digitva-who-form-overrides.md |
+| LY02 | `abha` layer ON: ABHA number/address asked on the web intake only; the phone form does not show them | P2 | policy/va-form-project-configuration.md (`abha`, "web intake only") |
+| LY03 | `intake_screen` ON: welcome card from the project's intake note on web; `geography` ON: survey state/district/block and site id filled by the server from the death register and unit (not asked on the phone) | P2 | policy/va-form-project-configuration.md |
+| LY04 | Toggle a question layer on the server while an enrolled draft is open: the draft stays on the form version/pin it started with and uploads; new interviews use the new definition after the next sync; answers for a question the new form no longer asks (only for an unpinned older draft) stay in `_other` and are not submitted | P1 | policy/field-data-collection.md "Form version" (digitva-xuf9, digitva-oxvt) |
+| LY05 | Toggle `equity` OFF/ON: `residence_type` disappears/appears after Id10055; older drafts stay valid; when ON the equity questions are asked after consent, and under a refusal only two equity fields are recorded | P2 | policy/digitva-who-form-overrides.md |
+| LY06 | Layer toggle never makes the server refuse an upload for form version; it flags `FormVersion` != current for QA | P1 | policy/field-data-collection.md "Form version" |
+| LY07 | Standalone phone: layers cannot be changed on a server; the bundled questionnaire (with medical-record and death-summary photo questions for new interviews) is used, drafts keep their saved question set | P2 | 1b2f37d4b, policy/field-data-collection.md Path C |
+| LY08 | Product variants as layers (plain Collect vs Collect Plus vs standalone vs demo vs web): plain Collect has no offline engine or bundled coding tools; Plus has them behind the device coding preference; standalone has no server; demo shows the Demo badge. OPEN: confirm "layers" is meant to include these variants | P2 | 157dbf65e, policy/field-data-collection.md, policy/public-demo.md; OPEN |
+| LY09 | Combination matrix on one project: (social_autopsy layer on/off) x (narration_language on/off) x (medical_records on/off) x (death_summary on/off): the form shows exactly the enabled sections, interview completes and sends, coder workspace shows matching categories; run the two extremes (all on, all off) every time. SA coding/reviewing switches are separate (PS32-PS42) | P2 | policy/va-form-project-configuration.md |
+| PS25 | NQA ON (`narrative_qa_enabled`, default OFF): coder's final-assessment form does not open until the coder's NQA for the current payload is saved; notice with a link to Narration / Documents; final-COD save is also blocked server-side; reviewers are not required to save NQA | P1 | policy/narrative-quality-assessment.md "Workflow Rules", app/models/va_project_master.py |
+| PS26 | NQA OFF: no NQA step, final assessment opens straight away; nothing about NQA sent | P1 | same |
+| PS27 | NQA ON, payload changes (upstream edit or interviewer revision): old NQA deactivated on Accept and Recode, rebound on Keep Current; the coder must save NQA again for the new payload; recode timeout keeps NQA, first-pass timeout deactivates it | P1 | policy/narrative-quality-assessment.md, policy/coding-allocation-timeouts.md |
+| PS28 | NQA toggled ON mid-coding on a half-coded case: coder's saved Step 1 work is kept; NQA is then required before the final form. OPEN: what does a coder with an open final form see when NQA is switched on? | P1 | OPEN |
+| PS29 | NQA toggled OFF mid-use: saved NQA rows stay as history (not deleted); coding no longer requires it | P2 | policy/narrative-quality-assessment.md (inactive history); OPEN for export visibility |
+| PS30 | NQA on Collect Plus offline / standalone: disabled in standalone mode; for an enrolled account it follows the project (`digitva-9cll.22.4`). OPEN: is the NQA step offered and required on the phone for enrolled offline coding? | P1 | policy/doris-cod-workflow.md "Offline coding workspace"; OPEN |
+| PS31 | NQA online in Collect Code tab (reuses web screens): same required-before-final rule as web | P2 | d024b5ad0, policy/narrative-quality-assessment.md |
+| PS32 | Social Autopsy is three independent switches: (a) collection = `social_autopsy` layer in `enabled_extensions` (SA questions in the interview), (b) coding = `social_autopsy_enabled` (default ON, coder's analysis form), (c) reviewing = `reviewer_social_autopsy_enabled` (default ON, reviewer's analysis form). Matrix rows PS33-PS40 run the combinations; each also checks what is sent | P1 | policy/va-form-project-configuration.md section 1, policy/social-autopsy-analysis.md (owner 2026-11-12) |
+| PS33 | All ON (a, b, c): interviewer sees and answers SA sections (`sa01`-`sa19`, `sa_tu13`-`sa_tu19`, `sas01`-`sas07`); coder sees the SA answers in the `social_autopsy` category and, after them, the SA analysis form (three delay levels); reviewer sees the analysis form; saves write an audit entry and are stored per payload version | P1 | policy/va-form-project-configuration.md, policy/social-autopsy-analysis.md |
+| PS34 | All OFF: no SA questions in the form or `answers_json`; no `social_autopsy` category content and no analysis form for coder or reviewer; nothing about SA sent | P1 | same |
+| PS35 | Collection OFF + coding ON: the interview has no SA answers; coder sees the `social_autopsy` category without mapped answers and the analysis form. OPEN: is the analysis form shown when there are no SA answers, and can it be saved? | P1 | policy/social-autopsy-analysis.md ("controlled by the project-level flag"); OPEN |
+| PS36 | Collection ON + coding OFF: interviewer answers SA; coder sees the synced SA answers but not the analysis form ("when `social_autopsy_enabled = false` ... must not be shown"); coding is not blocked by SA | P1 | policy/social-autopsy-analysis.md |
+| PS37 | Collection ON + coding OFF + reviewing ON (reviewing only): reviewer sees the analysis form although the coder did not; reviewer saves it | P1 | policy/social-autopsy-analysis.md (coder and reviewer flags are independent) |
+| PS38 | Collection ON + coding ON + reviewing OFF: coder has the form, reviewer does not and review is not blocked | P2 | same |
+| PS39 | Is SA analysis required or optional before the final COD? OPEN: policy says "available"; NQA is the one that blocks the final form | P1 | policy/social-autopsy-analysis.md; policy/narrative-quality-assessment.md; OPEN |
+| PS40 | Toggle each switch mid-use (collection, coding, reviewing) with a draft open and an SA analysis already saved: open drafts stay on their pinned form (collection) and send; a saved SA analysis row is kept as history, not deleted, and bound to its payload version; a coder or reviewer with the form open when it is switched off: OPEN what the open screen does | P1 | policy/field-data-collection.md "Form version", policy/social-autopsy-analysis.md; OPEN |
+| PS41 | SA and recode: SA analysis persists across recode attempts when the payload is unchanged; deactivated on Accept and Recode after an upstream change, rebound on Keep Current; reviewer release keeps Step 1 | P2 | policy/coding-workflow-state-machine.md lines 979, 1051, 1053, policy/coding-allocation-timeouts.md |
+| PS42 | SA on the phone: SA analysis follows the project for enrolled accounts; disabled in standalone mode (SA questions in the questionnaire can still follow the layer) | P2 | policy/doris-cod-workflow.md "Offline coding workspace" (digitva-9cll.22.4) |
+
+## 19. Equity questions (`equity` layer) enabled / disabled
+Equity questions (owner 2026-10-27, 2026-10-29): `residence_type`, `social_group`, `vulnerable_group`, `health_coverage` (country choice sets) plus the refusal profile `refusal_age_group` / `refusal_sex`. New projects default ON (`web_intake_equity_enabled`).
+
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| EQ01 | Equity ON, consent given: the four questions are asked in the additional-demographic block (social_group after Id10053, residence_type after Id10055, vulnerable_group then health_coverage after Id10066), whether or not WHO's `Id10051` gate is yes | P1 | policy/digitva-who-form-overrides.md "Equity extension: placement and gate", digitva-7amd.26 |
+| EQ02 | Equity OFF: none of the four appear in the form, the draft or the submitted answers; WHO's own questions unchanged | P1 | policy/va-form-project-configuration.md, policy/digitva-who-form-overrides.md |
+| EQ03 | Every equity question is optional, with "Don't know" and "Prefer not to say", no free text; an interview completes with them blank; older drafts and revisions stay valid after ON | P1 | policy/digitva-who-form-overrides.md "usual equity rules" |
+| EQ04 | Age and sex filters (neonatal / child / adult, sex Id10019) hide questions that do not apply; choice labels follow the project's country; English and Hindi labels shown (rural / urban / urban slum or informal settlement) | P2 | policy/digitva-who-form-overrides.md |
+| EQ05 | Toggle ON mid-draft: an existing enrolled draft stays on its pinned form (no new questions until a new interview); toggle OFF mid-draft: answers already given stay in the draft's `_other` and are not submitted. OPEN: confirm for a pinned draft that previously saved equity answers are submitted | P1 | policy/field-data-collection.md "Form version" (digitva-xuf9); OPEN |
+| EQ06 | Sent and accepted: equity answers ride in `answers_json` with the interview and the server accepts a blank; `residence_type` feeds reports, falling back to the unit's area type when blank or `dk` | P2 | policy/digitva-who-form-overrides.md |
+| EQ07 | Refusal profile: on WHO consent No or respondent data protection refusal, only `refusal_age_group` and `refusal_sex` are recorded (prefilled from the register when registered; "unknown" allowed, nothing required); no name, identifier, clinical answer, note, attachment or coding | P1 | policy/digitva-who-form-overrides.md "refusal profile", policy/respondent-consent-notice-draft.md "Refusal boundary" |
+| EQ08 | Equity answers in coding: coders see them only as mapped fields (masked); exports include or exclude them. OPEN: are the equity answers part of data-manager export columns, and removed by "Omit names, phone numbers..."? | P2 | OPEN |
+| EQ09 | Reports: equity panels EQ-01 (female share vs peers) and EQ-02 (female-male final cause gap) are aggregate only; cells under 5 shown `<5`; units under 20 cases show a count without share | P2 | policy/kpis.md EQ-01, EQ-02, policy/digitva-who-form-overrides.md |
+| EQ10 | Standalone phone: equity layer follows the bundled questionnaire. OPEN: is `equity` in the bundled standalone form? | P2 | OPEN |
+
+## 20. Respondent consent under DPDP (data protection) vs interview consent
+Not the same as WHO `Id10013` (interview consent): the DPDP flow is the respondent's agreement to named purposes against a versioned notice, recorded per case; `Id10013` is the WHO form question. "The two decisions are independent: a data protection refusal does not invent a WHO answer" (policy/respondent-consent-notice-draft.md "Refusal boundary"). Both refusals stop collection in every mode.
+
+| ID | Scenario and expected result | Pri | Source |
+| --- | --- | --- | --- |
+| CN01 | Project "Require respondent consent" ON: notice shown before informant fields at registration and before an interview that has no decision on file (direct start or registration without one); OFF: no consent screen on the web. On the phone informant details always need a granted consent against a served notice, whatever the switch says | P1 | policy/web-intake.md "Respondent consent (DPDP)", policy/respondent-consent-notice-draft.md "Web flow", "Phone flow" |
+| CN02 | Notice shown in the app language (switchable English / Hindi), one toggle per purpose (required: record and interview, contact, cause-of-death coding, statistics; optional: messages, research sharing, narrative automated processing), mode (spoken, tap, signed), witness present yes/no | P1 | policy/respondent-consent-notice-draft.md (purposes table), "Phone flow" |
+| CN03 | Accept ("Respondent agrees" needs every required purpose on): informant fields open; decision stored on the phone (id, notice version, language, SHA-256, purposes, mode, witness, time, user) and sent as `consent` with the registration or the interview | P1 | policy/respondent-consent-notice-draft.md "Phone flow" |
+| CN04 | Decline ("Respondent refuses"): informant fields stay closed and empty; covered fields (informant register fields, `Id10007`, `Id10055`, `Id10057`, `Id10061`, `Id10062`) locked empty and removed from what is sent, the stored draft and sync; only the broad refusal profile, WHO decision if supplied and consent/audit metadata kept; registration and interview continue | P1 | policy/respondent-consent-notice-draft.md "Phone flow" "Refusal", "Refusal boundary", digitva-wy90 |
+| CN05 | Server gate: 422 `consent_required` (covered data without a granted consent) reopens the consent screen for that item; `consent_conflict` (covered data under a refusal); `consent_invalid` (unknown version, hash, language, purposes, mode); phone shows the server message and never retries unchanged; the interview's own decision is dropped, a registration-inherited decision stays and the form asks for an interview-level decision | P1 | policy/respondent-consent-notice-draft.md "What the server checks", "A refused inherited decision" |
+| CN06 | Change decision during an interview via the consent chip ("Consent: agreed / refused / not recorded") or "Change consent decision": Agreed to refused strips covered answers and files exactly like a first refusal; refused to agreed reopens them empty; only the new record is sent; server keeps the newest | P1 | policy/respondent-consent-notice-draft.md "Changing a decision during an interview" (digitva-wy90) |
+| CN07 | Later agreement: a refused case is not final; any team interviewer may restart it after taking a fresh consent; other interviewers' open drafts cleared to refusal-only and paused until they resume after a fresh grant; prefill rebuilt from current sources, nothing from before the refusal returns | P1 | policy/respondent-consent-notice-draft.md "Refusal boundary", 0ace5b17e (digitva-lgzl) |
+| CN08 | Withdraw consent later: not built on the phone; on web a supervisor or data manager records a `withdrawn` row with erasure and audit; historic lawfully finalised submissions unchanged. OPEN: withdrawal on web is "not built yet" in one place and bead-planned in another; is it in scope? | P2 | policy/respondent-consent-notice-draft.md ("Later: not built yet", "Not on the phone"), policy/offline-bundle-and-transfer.md; OPEN |
+| CN09 | Server records consent append-only with notice version id, language, SHA-256, decision (`granted` / `refused` / `withdrawn`), every purpose's choice, mode, witness, recorded time and recording user, channel (`device`) | P1 | policy/offline-bundle-and-transfer.md consent record fields, policy/respondent-consent-notice-draft.md "What is recorded" |
+| CN10 | Notice version change on the server: saving an edit makes a new version (never in place); new interviews use the latest served version after the next sync; an existing record keeps the text, hash and version it was shown; a pending-legal-review version is still usable. OPEN: is a respondent who consented to an older version asked again for an interview already consented? | P1 | policy/respondent-consent-notice-draft.md "Notice versions"; OPEN |
+| CN11 | Offline: consent screen works from the cached config (`GET /intake/consent-config`, every language, purposes, covered fields); a failed fetch keeps the old copy; consent decided offline is stored with the interview/registration and sent with it on sync | P1 | policy/respondent-consent-notice-draft.md "Cached settings", "Phone flow" |
+| CN12 | Notice whose `text_sha256` does not match, or an unknown `refusal_behaviour`, or no notice: no usable notice, no fallback text; informant fields stay closed with the reason shown | P1 | policy/respondent-consent-notice-draft.md "Cached settings" |
+| CN13 | Consent restored with a backup: consent meta rows restored with the drafts, so the restored interview sends (otherwise `consent_required`) | P1 | ffa623a2e |
+| CN14 | Cancelled consent No never saved (see I02/I03); Confirm wipes after the dialog asks once | P1 | a3e383895, efb539594 |
+| CN15 | Standalone: bundled notice in English and Hindi, editable only in Settings (stored locally, never sent, not applied to enrolled or Demo); each decision records the exact rendered text, language, hash and hash-derived notice id; server push validates hash, bundled notice identity, language and purposes | P2 | policy/standalone-consent-notice-settings.md, policy/field-data-collection.md line 802 |
+| CN16 | Interview consent (`Id10013`) vs respondent data-protection consent: `Id10013` = no stores a server-set `refused`; DPDP refusal does not set `Id10013`; the two can differ and each stops collection; an `interview_outcome` of refused with `Id10013` = yes is refused | P1 | policy/respondent-consent-notice-draft.md "Refusal boundary", policy/web-intake.md (outcome that contradicts consent) |
+| CN17 | Narrative automated processing purpose (`narrative_automated_processing`, optional unless the project says required): declined -> the narrative is not sent to the PII/QA/translation pipeline; withdrawal stops processing and deletes that case's derived data | P2 | policy/respondent-consent-notice-draft.md (digitva-sxg9), policy/narrative-ai-processing.md |
+| CN18 | Consent state in the interview top bar: chip shows "Consent: agreed / refused / not recorded" (text and accessibility label, not colour alone); absent when the project does not require consent | P2 | policy/respondent-consent-notice-draft.md "Changing a decision" |
+| CN19 | Hindi notice and labels: translations are working text pending language and legal review. OPEN: who signs off the Hindi consent notice before field use | P1 | policy/respondent-consent-notice-draft.md; OPEN |
+
+## Dropped (feature does not exist, or contradicts policy)
+- SV03/SV04 (reassign cases): "A supervisor never assigns" (policy/web-intake.md "Supervisors").
+- SV05 (supervisor approve): supervisors confirm or reject flags, reopen, choose between interviews; no approve step.
+- SV13 (flag missing contact details): no such flag.
+- Old SV02 per-interviewer counts: only the four tiles exist.
+- Old C28/C29 (second independent coder, adjudication): one coder per case; reviewer samples.
+- Desktop station scenarios (K09): owner says ignore.
+- L12, L20 (device compromised, signing-key rotation): station-only; no phone behaviour.
+- PS23 (two-coder requirement): no such setting.
+- Old K04 (Change PIN in Settings): no such screen; PIN only changes through reset.
+- Old E04 (interview PDF share): no such feature.
+- Old U03 expectation "profile removed": sign-out keeps the profile.
+- Old D03 "logs sent later": the error log is never uploaded.
+- Old I04 "fresh case only", C11 "source suggestion", C12 "suggestion kept for audit": not in policy.
 
 ## Notes
+- OPEN Q1 (layers): the only definition found is form layers (extensions) in policy/va-form-project-configuration.md; see section 18 and LY08. Confirm whether the owner also means product variants (plain Collect, Plus, standalone, demo, web) or coding tools (DORIS, CODEEDIT, SmartVA, engine).
 - Emulator camera and microphone are virtual; on the Samsung media is real.
   If a capture cannot be driven, the flow reports it rather than skipping.
-- I04, S06 and U03 change server or phone state: run them on the fresh e2e
+- I04, S06, S05 and U03 change server or phone state: run them on the fresh e2e
   users only.
 - PINs and passwords come from `private/e2e-users.json` via `-e`, never in
   flow files.
+- Old APKs show "The selected code does not match its WHO URI." for the
+  non-leaf refusal (same 422 `INVALID_SELECTION`); not tested in Maestro.

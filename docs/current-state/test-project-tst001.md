@@ -137,10 +137,12 @@ accounts instead of the roster above (debug or testing app only; there is no
 staging opt-in):
 
 - `flask seed e2e-users create` needs TST001 (`flask seed test-project`). It
-  creates `e2e.<run>.all`, `e2e.<run>.interviewer` and `e2e.<run>.coder`
-  `@digitva.test`: `all` holds coder, reviewer and data_manager at project
+  creates nine accounts `e2e.<run>.<key>@digitva.test`. Single-role keys:
+  `interviewer` and `interviewer2` (SC01 CHO), `coder` and `coder2` (project),
+  `reporter` (death_reporter, SC01 ANM), `supervisor` (interview_supervisor,
+  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project). `all` holds coder, reviewer and data_manager at project
   scope, death_reporter and interviewer at SC01 (ANM) and interview_supervisor
-  at PHC01 (MO); `interviewer` is SC01 CHO; `coder` is project scope. Grants go
+  at PHC01 (MO). Grants go
   through the project user import and `grants.log`, actor testadmin. One random
   password per run is written only to `private/e2e-users.json` (gitignored,
   mode 0600, `--out` to change); stdout shows the emails and the file path.

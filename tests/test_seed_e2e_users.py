@@ -51,7 +51,8 @@ class SeedE2eUsersTests(BaseTestCase):
     def test_create_writes_users_grants_and_a_private_file_without_echoing_the_password(self):
         result, creds = self._create()
         users = creds["users"]
-        self.assertEqual(set(users), {"all", "interviewer", "coder"})
+        self.assertEqual(set(users), {"all", "interviewer", "interviewer2", "coder",
+                                "coder2", "reporter", "supervisor", "reviewer", "datamgr"})
         self.assertNotIn(creds["password"], result.output)
         self.assertIn(self.out, result.output)
         self.assertEqual(os.stat(self.out).st_mode & 0o777, 0o600)
@@ -68,6 +69,11 @@ class SeedE2eUsersTests(BaseTestCase):
                          [("interviewer", "SC01")])
         self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users["coder"])],
                          [("coder", None)])
+        single = {"interviewer2": ("interviewer", "SC01"), "coder2": ("coder", None),
+                  "reporter": ("death_reporter", "SC01"), "supervisor": ("interview_supervisor", "PHC01"),
+                  "reviewer": ("reviewer", None), "datamgr": ("data_manager", None)}
+        for key, grant in single.items():
+            self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users[key])], [grant], key)
 
         # A second run gets fresh accounts.
         _result, second = self._create()
@@ -102,15 +108,15 @@ class SeedE2eUsersTests(BaseTestCase):
         for email in creds["users"].values():
             u = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
             self.assertEqual(u.user_status, VaStatuses.deactive)
-        self.assertIn("3 deactivated", first.output)
-        self.assertIn("8 revoked", first.output)
+        self.assertIn("9 deactivated", first.output)
+        self.assertIn("14 revoked", first.output)
         for email in creds["users"].values():
             self.assertEqual(self._grants(email), [])
         revoked = db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants)
                                     .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
                                     .where(VaUsers.email.in_(list(creds["users"].values())),
                                            VaUserAccessGrants.grant_status == VaStatuses.deactive))
-        self.assertEqual(revoked, 8)
+        self.assertEqual(revoked, 14)
 
         again = self.runner.invoke(args=["seed", "e2e-users", "teardown"])
         self.assertEqual(again.exit_code, 0, again.output)

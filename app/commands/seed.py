@@ -737,6 +737,13 @@ _E2E_ROSTER = (
     ("all", "coder", "PHC01", "MO", ("interview_supervisor",)),
     ("interviewer", "intake", "SC01", "CHO", ("interviewer",)),
     ("coder", "coder", None, None, ("coder",)),
+    # Single-role users, and a second interviewer and coder for concurrency flows.
+    ("interviewer2", "intake", "SC01", "CHO", ("interviewer",)),
+    ("coder2", "coder", None, None, ("coder",)),
+    ("reporter", "intake", "SC01", "ANM", ("death_reporter",)),
+    ("supervisor", "intake", "PHC01", "MO", ("interview_supervisor",)),
+    ("reviewer", "coder", None, None, ("reviewer",)),
+    ("datamgr", "data_manager", None, None, ("data_manager",)),
 )
 _E2E_DOMAIN = "digitva.test"
 
@@ -825,7 +832,7 @@ def e2e_users_create(out_path):
             org.create_worker(
                 TEST_PROJECT_ID, org_unit_id=unit.org_unit_id, cadre_id=cadre.cadre_id,
                 worker_name=f"E2E {run_id} {key}",
-                worker_code=f"E2E_{run_id}_{key[:3]}_{unit_code}".upper(), user=emails[key],
+                worker_code=f"E2E_{run_id}_{key[:3]}{key[-3:]}_{unit_code}".upper(), user=emails[key],
             )
         rows = [
             {"_line_number": n, "email": emails[key], "name": "", "role": role,

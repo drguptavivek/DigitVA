@@ -200,8 +200,8 @@ describe("web reported death details", () => {
     await act(async () => { tree = create(<CaseDetailScreen />); });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain(`otherDraftActiveAt${formatDisplayTimestamp(startedAt)}`);
-    expect(rendered).not.toContain("otherDraftActiveByAt");
+    expect(rendered).toContain(`otherDraftLiveAt${formatDisplayTimestamp(startedAt)}`);
+    expect(rendered).not.toContain("otherDraftLiveByAt");
     await act(async () => tree!.unmount());
   });
 
@@ -211,7 +211,7 @@ describe("web reported death details", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<CaseDetailScreen />); });
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).toContain(`otherDraftActiveByAtAsha Verma${formatDisplayTimestamp(startedAt)}`);
+    expect(JSON.stringify(tree!.toJSON())).toContain(`otherDraftLiveByAtAsha Verma${formatDisplayTimestamp(startedAt)}`);
     await act(async () => tree!.unmount());
   });
 
@@ -251,8 +251,8 @@ describe("web reported death details", () => {
     await act(async () => { tree = create(<CaseDetailScreen />); });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain('"otherDraftActive"');
-    expect(rendered).not.toContain("otherDraftActiveAt");
+    expect(rendered).toContain("otherDraftLive");
+    expect(rendered).not.toContain("otherDraftLiveAt");
     await act(async () => tree!.unmount());
   });
 

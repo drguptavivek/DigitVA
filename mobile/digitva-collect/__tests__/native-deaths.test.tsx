@@ -162,12 +162,13 @@ jest.mock("../src/ui", () => {
 jest.mock("../src/i18n", () => ({
   uiLanguageTag: () => "en",
   t: (key: string, vars?: Record<string, unknown>) =>
-    `${key}${vars?.date ? ` ${String(vars.date)}` : ""}`,
+    `${key}${vars?.date ? ` ${String(vars.date)}` : ""}${vars?.time ? ` @${String(vars.time)}` : ""}`,
   uiLocale: () => "en",
 }));
 
 import Case from "../src/nativeRoutes/case";
 import { formatDisplayTimestamp } from "../src/ui/CaseCard";
+import { ShellContext } from "../src/nativeShell/shellContext";
 import { Linking } from "react-native";
 
 const settle = async () =>
@@ -214,6 +215,7 @@ describe("native case detail workflow", () => {
 
   it("keeps parallel interview start available and shows the stale warning", async () => {
     const startedAt = "2026-01-02T03:04:05.000Z";
+    const syncedAt = Date.parse("2026-01-03T04:05:00.000Z");
     (
       jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock
     ).mockResolvedValue({
@@ -225,14 +227,18 @@ describe("native case detail workflow", () => {
     });
     let tree: ReturnType<typeof create>;
     await act(async () => {
-      tree = create(<Case />);
+      tree = create(
+        <ShellContext.Provider value={{ sync: { lastAt: syncedAt } } as never}>
+          <Case />
+        </ShellContext.Provider>,
+      );
     });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain(
-      `otherDraftActiveAt ${formatDisplayTimestamp(startedAt)}`,
+      `otherDraftActiveAt ${formatDisplayTimestamp(startedAt)} @${formatDisplayTimestamp(new Date(syncedAt).toISOString())}`,
     );
-    expect(rendered).toContain("otherDraftSyncNotice");
+    expect(rendered).not.toContain("otherDraftSyncNotice");
     const start = tree!.root.findByProps({ "data-label": "startInterview" });
     expect(start.props.disabled).toBe(false);
     await act(async () => start.props.onClick());

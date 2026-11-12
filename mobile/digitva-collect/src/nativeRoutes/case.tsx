@@ -44,6 +44,7 @@ import { reconcileCaseDraft } from "../draftSync";
 import { fetchSubmittedRevisions } from "../revisions";
 import { Button, Card, ChoiceRow, errorText, Notice, Row, Screen, Separator, stateLabel, useUiStyles } from "../ui";
 import { otherDraftWarning } from "../ui/CaseCard";
+import { useShell } from "../nativeShell/shellContext";
 
 function displayDate(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -71,6 +72,7 @@ const TERMINAL_DEATH_STATES = new Set([
 export default function Case() {
   const styles = useUiStyles();
   const router = useRouter();
+  const shell = useShell();
   const params = useLocalSearchParams<{
     userId: string;
     projectId?: string;
@@ -456,12 +458,9 @@ export default function Case() {
             <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
           ) : null}
           {found.other_draft_active === true ? (
-            <>
-              <Text style={styles.muted}>
-                {otherDraftWarning(found.other_draft_started_at, found.other_draft_started_by)}
-              </Text>
-              <Notice tone="warning">{t("otherDraftSyncNotice")}</Notice>
-            </>
+            <Text style={styles.muted}>
+              {otherDraftWarning(found.other_draft_started_at, found.other_draft_started_by, shell.sync)}
+            </Text>
           ) : null}
           {found.other_complete_interview === true ? (
             <Notice tone="warning">{t("otherCompleteInterviewNotice")}</Notice>

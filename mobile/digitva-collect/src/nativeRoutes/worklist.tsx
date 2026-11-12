@@ -659,9 +659,10 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       submitted: visible(submittedRevisions),
       revisions: visible(revisions),
       refusals,
+      sync: shell.sync,
     });
     // uiLocale: the card words (badge, action, time) are translated when built, so a language change rebuilds them.
-  }, [projects, selectedProjectId, drafts, registrations, cases, onlineCases, submittedRevisions, revisions, refusals, uiLocale]);
+  }, [projects, selectedProjectId, drafts, registrations, cases, onlineCases, submittedRevisions, revisions, refusals, shell.sync.lastAt, uiLocale]);
   useEffect(() => {
     if (db && userId && referenceRead) {
       holdWorklist(userId, db, { drafts, refusals, revisions, cases, registrations, actions, pausedProjects, submittedRevisions, onlineCases, referenceData, selectedProjectId });

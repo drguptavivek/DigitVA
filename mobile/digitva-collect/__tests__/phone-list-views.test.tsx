@@ -547,7 +547,7 @@ describe("Another interviewer's open draft", () => {
     const unnamed = lines({ other_draft_started_by: null });
     expect(unnamed).toContain(`Another interviewer started this on 4 Oct. Check with them before you start.`);
     expect(unnamed.join(" ")).not.toContain("null");
-    expect(lines({ other_draft_started_at: "invalid", other_draft_started_by: "Asha Verma" })).toContain("Another interviewer has started this interview.");
+    expect(lines({ other_draft_started_at: "invalid", other_draft_started_by: "Asha Verma" })).toContain("As of the last sync (Not synced yet), another interviewer has started this interview.");
   });
 });
 

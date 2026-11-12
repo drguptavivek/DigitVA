@@ -119,6 +119,27 @@ describe("interview items", () => {
     expect(items.map((item) => item.kind)).toEqual(["drafts", "revisions", "todo", "sent", "sent"]);
   });
 
+  it("keeps the web other-draft wording free of the phone's last-sync phrasing", () => {
+    for (const lang of ["en", "hi"]) {
+      const strings = require(`../src/strings/${lang}.json`);
+      for (const key of ["otherDraftLiveAt", "otherDraftLiveByAt", "otherDraftLive"]) {
+        expect(strings[key]).toBeTruthy();
+        expect(strings[key]).not.toContain("{time}");
+      }
+    }
+    expect(require("../src/strings/en.json").otherDraftLive).not.toMatch(/last sync/i);
+  });
+
+  it("never renders a literal {time} in the undated other-draft line", () => {
+    const line = (sync: InterviewSources["sync"]) => buildInterviewItems(sources({
+      cases: [caseRow("C1", { other_draft_active: true, other_draft_started_at: "invalid" })], sync,
+    }))[0].lines.map((l) => l.text).join(" ");
+    for (const text of [line({ lastAt: Date.parse("2026-10-05T10:00:00Z") }), line({})]) {
+      expect(text).toContain("last sync");
+      expect(text).not.toContain("{time}");
+    }
+  });
+
   it("lists a refused case as Sent only once an interview was submitted for it", () => {
     const submitted = { draft_id: "s1", project_id: "P1", site_id: "S1", death_id: "C1", va_sid: "v", unique_id: "AAM01-C1", deceased_name: "Name C1", updated_at: "2026-10-02T00:00:00Z" };
     const items = buildInterviewItems(sources({

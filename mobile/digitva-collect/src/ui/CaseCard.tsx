@@ -40,12 +40,18 @@ export function formatDisplayTimestamp(value: string | null | undefined): string
  * The "another interviewer started this" warning: names the interviewer when
  * the server sent `other_draft_started_by` (owner, 2026-11-05; older servers
  * and cached cases omit it), and falls back to the unnamed text, or the
- * undated one when the start time is missing or unparseable.
+ * undated one when the start time is missing or unparseable. The phone passes its `sync` status: the flag is
+ * only as fresh as the last sync, so the sentence says when that was ("Not synced yet" if never). The web shows
+ * live server data and passes nothing, so it keeps the plain wording.
  */
-export function otherDraftWarning(startedAt: string | null | undefined, startedBy?: string | null): string {
-  if (!startedAt || Number.isNaN(new Date(startedAt).getTime())) return t("otherDraftActive");
+export function otherDraftWarning(startedAt: string | null | undefined, startedBy?: string | null, sync?: { lastAt?: number }): string {
+  const time = !sync ? "" : sync.lastAt ? formatDisplayTimestamp(new Date(sync.lastAt).toISOString()) : t("syncChipNever");
+  const keys = sync
+    ? (["otherDraftActive", "otherDraftActiveAt", "otherDraftActiveByAt"] as const)
+    : (["otherDraftLive", "otherDraftLiveAt", "otherDraftLiveByAt"] as const);
+  if (!startedAt || Number.isNaN(new Date(startedAt).getTime())) return t(keys[0], { time });
   const date = formatDisplayTimestamp(startedAt);
-  return startedBy ? t("otherDraftActiveByAt", { name: startedBy, date }) : t("otherDraftActiveAt", { date });
+  return startedBy ? t(keys[2], { name: startedBy, date, time }) : t(keys[1], { date, time });
 }
 
 /** The case ID's face; the theme has no monospace token. */

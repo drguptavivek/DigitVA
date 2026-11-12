@@ -10,6 +10,7 @@ import { t, uiLanguageTag, type StringKey } from "../i18n";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
 import type { RevisionRow, SubmittedRevisionSummary } from "../revisions";
+import { otherDraftWarning } from "./CaseCard";
 import { matchesSearch } from "./caseSearch";
 
 export type InterviewKind = "drafts" | "todo" | "sent" | "revisions";
@@ -66,6 +67,8 @@ export interface InterviewSources {
   revisions: RevisionRow[];
   /** The last server refusal of each local item, by draft id or client death id. */
   refusals?: Map<string, SendRefusal>;
+  /** The shell's last sync, so an undated "another interviewer started this" line can say how fresh it is. */
+  sync?: { lastAt?: number };
 }
 
 const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "closed", "duplicate", "not_codeable"]);
@@ -85,16 +88,16 @@ const flatLocal = (row: CaseDetail): FlatCase => ({
 const flatOnline = (row: CaseRow): FlatCase => ({ ...row, name: row.deceased_name, sex: row.deceased_sex, age: row.age_years, died: row.date_of_death });
 
 /** "Asha started this on 5 Nov. Check with them before you start." in the phone's time zone; the undated line when the start time is unusable. */
-function otherDraftLine(startedAt: string | null | undefined, startedBy?: string | null): string {
+function otherDraftLine(startedAt: string | null | undefined, startedBy: string | null | undefined, sync?: { lastAt?: number }): string {
   const when = startedAt ? new Date(startedAt) : undefined;
-  if (!when || Number.isNaN(when.getTime())) return t("otherDraftActive");
+  if (!when || Number.isNaN(when.getTime())) return otherDraftWarning(null, null, sync ?? {});
   const date = when.toLocaleDateString(uiLanguageTag(), { day: "numeric", month: "short" });
   return startedBy ? t("otherDraftCheckBy", { name: startedBy, date }) : t("otherDraftCheck", { date });
 }
 
-function caseLines(row: FlatCase): InterviewItem["lines"] {
+function caseLines(row: FlatCase, sync?: { lastAt?: number }): InterviewItem["lines"] {
   return [
-    ...(row.other_draft_active === true ? [{ text: otherDraftLine(row.other_draft_started_at, row.other_draft_started_by) }] : []),
+    ...(row.other_draft_active === true ? [{ text: otherDraftLine(row.other_draft_started_at, row.other_draft_started_by, sync) }] : []),
     ...(row.other_complete_interview === true ? [{ text: t("otherCompleteInterviewNotice") }] : []),
     ...(row.code_now === true ? [{ text: t("readyForCodeOnWeb") }] : []),
   ];
@@ -185,7 +188,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       timeText: ready
         ? whenText("interviewCompleted", draft.completed_at ?? draft.updated_at)
         : whenText("interviewStarted", draft.started_at) ?? whenText("interviewLastSaved", draft.updated_at),
-      lines: [...(known ? caseLines(known) : []), ...draftIssueLines(draft, src.refusals?.get(draft.id))],
+      lines: [...(known ? caseLines(known, src.sync) : []), ...draftIssueLines(draft, src.refusals?.get(draft.id))],
       retryDemo: draft.upload_issue === "demo_limit" || draft.upload_issue === "case_conflict" ? draft : undefined,
       retryLabel: draft.upload_issue === "case_conflict" ? t("retryHeld") : undefined,
       deletable: !ready && !draft.server_draft_id && !draft.base_updated_at && draft.upload_issue == null && !src.refusals?.get(draft.id) ? draft : undefined,
@@ -233,7 +236,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       action: { type: "case", deathId: row.death_id, projectId: row.project_id, label: startable ? t("actionStart") : t("viewDetails") },
       // Only a finished case has a key time: the server's last change is when it was accepted.
       timeText: terminal ? whenText("interviewSubmittedAt", row.updated_at) : undefined,
-      lines: caseLines(row),
+      lines: caseLines(row, src.sync),
       search: [row.name, row.unique_id, row.unit_name, row.village], updatedAt: row.updated_at,
     });
   }

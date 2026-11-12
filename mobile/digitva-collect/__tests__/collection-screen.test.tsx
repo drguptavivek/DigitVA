@@ -276,13 +276,13 @@ describe("CollectionScreen refresh", () => {
     await act(async () => { tree = create(<CollectionScreen />); });
     await settle();
     const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain(`otherDraftActiveAt:${formatDisplayTimestamp(startedAt)}`);
-    expect(rendered).toContain('"otherDraftActive"');
+    expect(rendered).toContain(`otherDraftLiveAt:${formatDisplayTimestamp(startedAt)}`);
+    expect(rendered).toContain('"otherDraftLive"');
     expect(rendered).toContain("supersededInterviewNotice");
     expect(rendered.match(/otherCompleteInterviewNotice/g)).toHaveLength(1);
-    expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
+    expect(rendered.match(/otherDraftLiveAt/g)).toHaveLength(1);
     // Information, not an error: no alert role on the notice.
-    expect(rendered).not.toContain('"accessibilityRole":"alert"},"children":["otherDraftActiveAt');
+    expect(rendered).not.toContain('"accessibilityRole":"alert"},"children":["otherDraftLiveAt');
     await act(async () => tree!.unmount());
   });
 

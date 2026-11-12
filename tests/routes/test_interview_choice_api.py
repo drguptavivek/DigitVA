@@ -36,8 +36,10 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaSubmissionWorkflowEvent,
     VaUserAccessGrants,
+    VaWebIntakeAttachment,
     VaWebIntakeDraft,
 )
+from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services import notification_service
 from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
@@ -282,6 +284,48 @@ class InterviewChoiceTests(BaseTestCase):
         self.assertTrue(submit.get_json()["superseded"])
         copy = self._draft(self.bela_id, death_id)
         self.assertEqual((copy.status, (copy.meta or {}).get("interviewOutcome")), ("superseded", "completed"))
+
+    def test_files_on_the_late_interviewers_open_draft_move_to_the_superseded_copy(self):
+        """digitva-9xn9.5: Bela's files sit on his open server draft; a teammate wins;
+        his device submit lands as a superseded copy, which takes the files. The old
+        draft is closed (the 30-day purge only reads open drafts) and a supervisor
+        choosing the copy gets its files."""
+        from app.services import web_intake_attachment_service as upload_svc
+
+        death_id = self._case()
+        self._login(self.bela_id)
+        started = self.client.post(f"{API}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "death_id": death_id})
+        self.assertEqual(started.status_code, 201, started.get_json())
+        open_id = uuid.UUID(started.get_json()["draft"]["draft_id"])
+        cid = uuid.uuid4()
+        db.session.add(VaWebIntakeAttachment(
+            draft_id=open_id, client_attachment_id=cid, filename=f"{cid}.pdf", storage_name=f"{cid.hex}-choice",
+            local_path=None, store_state="stored", mime_type="application/pdf", size_bytes=9, sha256="0" * 64,
+            created_at=datetime.now(UTC) - timedelta(days=40),
+        ))
+        db.session.commit()
+        won = self._upload(self.alice_id, death_id, _answers())
+        self.assertEqual(won.status_code, 201, won.get_json())
+        va_sid = won.get_json()["va_sid"]
+        ref = {"id": str(cid), "uri": f"who-va-attachment:{cid}", "mimeType": "application/pdf"}
+        late = self._upload(self.bela_id, death_id, _answers(Id10017="Meena", imagenarr=ref))
+        self.assertEqual(late.status_code, 201, late.get_json())
+        self.assertTrue(late.get_json()["superseded"])
+
+        copy = self._draft(self.bela_id, death_id)
+        db.session.expire_all()
+        self.assertEqual(copy.status, "superseded")
+        self.assertEqual(upload_svc.held_ids(copy.draft_id), [str(cid)])
+        self.assertEqual(upload_svc.held_ids(open_id), [])
+        self.assertNotEqual(db.session.get(VaWebIntakeDraft, open_id).status, "draft")
+        selected = {row.draft_id for row, *_ in db.session.execute(upload_svc._candidates(datetime.now(UTC) - timedelta(days=30)))}
+        self.assertEqual(selected, set())
+
+        chosen = self._choose(self.dm_id, death_id, copy.draft_id)
+        self.assertEqual(chosen.status_code, 200, chosen.get_json())
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionAttachments).where(
+            VaSubmissionAttachments.va_sid == va_sid, VaSubmissionAttachments.filename == f"{cid}.pdf")), 1)
 
     def test_flag_and_queue_show_a_second_interview_to_everyone_and_names_to_supervisors_only(self):
         death_id, _va_sid, _alice, bela_draft = self._pair()

@@ -807,7 +807,11 @@ Owner, 2026-10-04 (`digitva-xz83`).
   interviewer on the case are kept as **superseded copies** on web and device
   alike: answers kept, no submission, no routing. The interviewer is told
   their copy was superseded. A later version by the interviewer whose
-  submission won is a correction (above), not a copy.
+  submission won is a correction (above), not a copy. The uploader's own
+  open draft on the case (or the phone's attachment draft of that upload) is
+  closed as `replaced` and its uploaded files move to the copy (audited as
+  `draft_files_moved_to_copy`), so a supervisor who chooses the copy gets the
+  files and the 30-day purge, which reads open drafts only, never takes them.
 - **A complete superseded copy is a candidate** (owner, 2026-10-05,
   `digitva-bqzm`). A superseded copy whose `interview_outcome` is `completed`
   (a supervisor's quality reinterview, a teammate's second full interview)

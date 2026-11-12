@@ -41,6 +41,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaSubmissionWorkflow,
     VaUsers,
+    VaWebIntakeAttachment,
     VaWebIntakeDraft,
     VaWebIntakeDraftSection,
 )
@@ -3792,9 +3793,27 @@ def _check_attachment_draft_matches(draft: VaWebIntakeDraft, project_id: str, si
 def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draft_id: uuid.UUID, site_id: str, data: dict, answers_sha256: str, meta: dict, completion: dict) -> VaWebIntakeDraft:
     """Keep a device interview for a closed case as a ``superseded`` draft
     linked to the case: answers stored, no submission, no routing, and the
-    case (its identity included) left exactly as it is."""
+    case (its identity included) left exactly as it is.
+
+    The uploader's own open draft (on this case, or the phone's attachment
+    draft of *client_draft_id*) is closed as ``replaced`` and its uploaded
+    files move to the copy: the phone deletes its local copy on the 2xx, so
+    the copy must hold them for a supervisor's choice, and the stale-draft
+    purge reads open drafts only. Stored objects stay where they are (each row
+    carries its own path). Runs under the case lock the submit holds."""
     if death.site_id != site_id:
         raise WebIntakeError("Death entry belongs to another project or site.")
+    open_drafts = db.session.scalars(
+        sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.status == "draft", VaWebIntakeDraft.user_id == user.user_id,
+            sa.or_(VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.client_draft_id == client_draft_id),
+        ).with_for_update()
+    ).all()
+    for old in open_drafts:
+        # The copy takes the phone's id (retries of this upload find the copy).
+        if old.client_draft_id == client_draft_id:
+            old.client_draft_id = None
+    db.session.flush()
     try:
         outcome = _interview_outcome(data, completion)
     except WebIntakeError:
@@ -3823,6 +3842,17 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
     )
     draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=stored_answers(data)))
     db.session.add(draft)
+    db.session.flush()
+    moved = 0
+    for old in open_drafts:
+        moved += db.session.execute(
+            sa.update(VaWebIntakeAttachment).where(VaWebIntakeAttachment.draft_id == old.draft_id)
+            .values(draft_id=draft.draft_id)
+        ).rowcount
+        old.status = "replaced"
+        old.meta = {**(old.meta or {}), "replacedDraftId": str(draft.draft_id)}
+    if moved:
+        cases.record_action(death, actor=user, action="draft_files_moved_to_copy")
     db.session.flush()
     log.info("device interview kept as superseded copy | unique_id=%s | case_status=%s | by=%s", death.unique_id, death.status, user.user_id)
     return draft

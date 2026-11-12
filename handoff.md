@@ -30,13 +30,20 @@ contrast, Large text) and refrozen.
    closed for implementation). On staging check saved web audio after
    leaving and returning (`digitva-oll6`), and the sent read-only media view
    (`digitva-e621`). Hindi attachment and camera strings need owner review.
-4. Run-5 security acceptance (`digitva-ssg7` closed for fixes). Verify active
-   reviewer initial assessments with NULL `payload_version_id` and check a
-   multi-project user's case list and export for per-project PII visibility.
-   The prior report is in `~/security-audit-skill/DigitVA/run-5/`. Keep the
-   old-APK compatibility audit in the deploy checklist.
-   For the offline PHC station, run the packaged macOS security acceptance
-   with dummy data (`digitva-xt9y`).
+4. Run-6 audit fixes (`digitva-9xn9`; reports in
+   `~/security-audit-skill/DigitVA/run-6/`, local only, the repo is public).
+   D1–D5 landed and are not deployed. In progress and uncommitted: D6 (a
+   phone submit naming a file the server lost is refused; new builds hold it,
+   `.6`), and security leads 1–3 (`.15`–`.17`). Next in order: D8 (`.8`), D7
+   (`.7`), lead 4 (`.18`), D9–D13 (`.9`–`.13`), then leads 5–7 and low items
+   (`.14`, `.19`–`.21`). The owner decisions are recorded on `.22`, and their
+   policy baselines landed in `b4deba337`; the code for them is not started
+   (supervision PII, own-case coding block, scoped user search with masking,
+   station key fingerprint, lock-never-erase on the station, consent "No"
+   confirmation). Run-5 acceptance still open: a multi-project user's
+   supervision views for per-project PII. Keep the old-APK compatibility
+   audit in the deploy checklist. For the offline PHC station, run the
+   packaged macOS security acceptance with dummy data (`digitva-xt9y`).
 5. On staging, by hand, refuse then re-consent a direct interview
    (`digitva-lgzl`); a DORIS cluster such as BD1Z shows the whole title
    (`digitva-iae8`); the other-interviewer banner names them.
@@ -83,6 +90,12 @@ contrast, Large text) and refrozen.
 
 ## Caveats
 
+- Full-suite noise: two DM KPI cache tests fail against an uncommitted
+  `dm_kpi_scope.py` edit (`digitva-mx6j`); six tests fail only under `-n 4`
+  (`digitva-6igh`).
+- `docs/current-state/expo-client.md` and `docs/policy/offline-phc-desktop-edition.md`
+  hold uncommitted desktop-station text that belongs with the uncommitted
+  `desktop/` changes; commit them together.
 - The previous staging deployment was `210ea326e`. Use the release runbook
   and owner approval for a rollback (`docs/current-state/release-process.md`).
 - `ios/` and `android/` are Collect Plus prebuilds. Plain Collect prebuilds

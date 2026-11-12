@@ -5,6 +5,19 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-12
 
+- **Run-6 audit fixes** (`digitva-9xn9`, not deployed):
+  - `4fd66b8ba` (D1, `.1`): an ODK edit to a finalised case is re-fetched and
+    held as `finalized_upstream_changed` in every sync path.
+  - `8b11109b4` (D2, `.2`): `ReviewState` no longer counts as a payload
+    change, so a not-codeable decision survives a sync.
+  - `ffa623a2e` (D3, `.3`): a phone backup restore brings consent back.
+  - `4d5df4782` (D4, `.4`): blank workbook cells leave existing workers and
+    units as they are.
+  - `9abf7afdf` (D5, `.5`): a superseded copy keeps the late interviewer's
+    files.
+- **Run-6 owner decisions** (`b4deba337`, `.22`): policy baselines for
+  supervision PII, draft grants, own-case coding, user search, station key
+  pinning, member switch, wrong PIN and consent "No".
 - **Staging deploy `22a9fca67`** (previous `210ea326e`): the COD reset
   dialog says WHO_2022_VA_2026 resets to the WHO baseline.
 

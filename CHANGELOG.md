@@ -15,6 +15,15 @@ What landed, newest first. Details live in the commits and the linked docs;
     units as they are.
   - `9abf7afdf` (D5, `.5`): a superseded copy keeps the late interviewer's
     files.
+  - `2582c138e` (D6, `.6`): a phone interview naming a file the server lost
+    is refused (409 `attachments_pending`); new builds hold it when the file
+    is not on the phone either.
+  - `5841b05c2` (leads 1–3, `.15`–`.17`): dashboard text is escaped, and
+    attachments are served inline only for a safe type list.
+  - `5f6fe16ff` (D8, `.8`): after a failed phone save, Finish no longer
+    completes the older copy.
+  - `b754fbbb5` (D7, `.7`): a failed delta check downloads changes since the
+    watermark instead of running the gap check.
 - **Run-6 owner decisions** (`b4deba337`, `.22`): policy baselines for
   supervision PII, draft grants, own-case coding, user search, station key
   pinning, member switch, wrong PIN and consent "No".

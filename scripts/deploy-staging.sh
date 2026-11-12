@@ -22,7 +22,7 @@ grep -qx 'DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted' .env || { echo "h
 test -d private/android-hosted || { echo "hosted APK directory is missing" >&2; exit 1; }
 find private/android-hosted -maxdepth 1 -type f -name '*.apk' -print -quit | grep -q . || { echo "no hosted APK found" >&2; exit 1; }
 APK_MANIFEST=$(mktemp)
-trap 'result=$?; rm -f "$APK_MANIFEST"; if [ "$result" -ne 0 ]; then printf "Deployment failed; previous commit %s, image %s. Rollback on the host: sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh %s\n" "$PREVIOUS_COMMIT" "$PREVIOUS_TAG" "$PREVIOUS_TAG" >&2; fi' EXIT
+trap 'result=$?; rm -f "$APK_MANIFEST" "$APK_MANIFEST.chk"; if [ "$result" -ne 0 ]; then printf "Deployment failed; previous commit %s, image %s. Rollback on the host: sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh %s\n" "$PREVIOUS_COMMIT" "$PREVIOUS_TAG" "$PREVIOUS_TAG" >&2; fi' EXIT
 find private/android-hosted -maxdepth 1 -type f -name '*.apk' -print0 | sort -z | xargs -0 sha256sum > "$APK_MANIFEST"
 
 git fetch -q origin --tags
@@ -34,7 +34,9 @@ echo "Creating and verifying the database backup"
 docker exec minerva_app flask backups db-dump --no-prune >/dev/null
 BACKUP_LIST=$(docker exec minerva_app flask backups db-list --limit 1 2>&1)
 printf '%s\n' "$BACKUP_LIST"
-printf '%s\n' "$BACKUP_LIST" | grep -qi success || { echo "latest database backup is not successful" >&2; exit 1; }
+# The checkout is still the previous commit here, so the checker travels in CHECKER_B64.
+printf '%s' "$CHECKER_B64" | base64 -d > "$APK_MANIFEST.chk"
+printf '%s\n' "$BACKUP_LIST" | python3 "$APK_MANIFEST.chk" || { echo "latest database backup is not a fresh success" >&2; exit 1; }
 
 echo "Deploying $DEPLOY_SHA (previous commit $PREVIOUS_COMMIT, image tag $PREVIOUS_TAG)"
 if ! DEPLOY_OUTPUT=$(env SKIP_BACKUP=1 bash scripts/deploy-server.sh "$DEPLOY_SHA" 2>&1); then
@@ -53,7 +55,8 @@ REMOTE
 
 # Pass the program as an argument so child commands cannot consume its source from stdin.
 QUOTED_SCRIPT=$(printf '%s' "$REMOTE_SCRIPT" | python3 -c 'import shlex, sys; print(shlex.quote(sys.stdin.read()))')
-REMOTE_COMMAND="sudo -Hu ubuntu env DEPLOY_SHA=$TAG bash -c $QUOTED_SCRIPT"
+CHECKER_B64=$(base64 < "$ROOT/scripts/check_backup_list.py" | tr -d '\n')
+REMOTE_COMMAND="sudo -Hu ubuntu env DEPLOY_SHA=$TAG CHECKER_B64=$CHECKER_B64 bash -c $QUOTED_SCRIPT"
 OUTPUT=$(LT_TARGET=i-0b2caee6465bfcac1 AWS_PROFILE=digitva AWS_REGION=ap-south-1 bash "$ROOT/scripts/ssm.sh" "$REMOTE_COMMAND")
 printf '%s\n' "$OUTPUT"
 grep -q 'DEPLOY_STAGING_OK ' <<<"$OUTPUT" || { echo "SSM command did not report successful deployment" >&2; exit 1; }

@@ -3,7 +3,7 @@ title: Split Production Deploy Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-12
 ---
 
 # Split Production Deploy Runbook
@@ -340,12 +340,18 @@ make prod-rollback TAG=<previous full sha>
 This is the same script without a new backup (`SKIP_BACKUP=1`): detached
 checkout of that commit, pin, pull, start. Never `make prod-build`.
 
-Migrations are additive, so the previous code runs against the newer schema;
-do not run `flask db downgrade` unless the release notes say a migration must
-be reversed. If data was damaged, restore the step 3 dump on the database host
-(`flask backups db-download <object key> <path>` on the app host, copy it
-over, then `pg_restore --no-owner --no-privileges` into a fresh database and
-switch `DATABASE_URL`), never over the live database.
+Redeploying the previous sha is safe only when that sha contains every
+migration revision already applied to the database. If the release added a
+revision, the old image cannot start against it: `boot.sh` stops with "the
+database is at a migration this image does not contain" and the maintenance
+page stays up. Then either roll forward with a fix, or roll back properly:
+run `flask db downgrade <previous head>` with the NEW image first (only if
+the release notes say the migration is reversible), then redeploy the old sha;
+or restore the step 3 dump on the database host (`flask backups db-download
+<object key> <path>` on the app host, copy it over, then
+`pg_restore --no-owner --no-privileges` into a fresh database and switch
+`DATABASE_URL`), never over the live database, and redeploy the old sha.
+Restoring loses writes made since the dump.
 
 The checkout stays detached at the deployed sha; each deploy names its sha, so
 no `git checkout main` is needed.

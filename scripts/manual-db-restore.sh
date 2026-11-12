@@ -208,7 +208,7 @@ set +a
 : "${POSTGRES_DB:?POSTGRES_DB is missing in .env}"
 
 if [ "$ASSUME_YES" != "--yes" ]; then
-  echo "WARNING: This will DROP and RECREATE database '$POSTGRES_DB'."
+  echo "WARNING: This will REPLACE database '$POSTGRES_DB' (the old one is kept renamed)."
   read -r -p "Type YES to continue: " CONFIRM
   if [ "$CONFIRM" != "YES" ]; then
     echo "Aborted."
@@ -260,14 +260,29 @@ fi
 echo "==> Copying dump into container: $CONTAINER_DUMP"
 docker compose cp "$DUMP_PATH" "$DB_SERVICE:$CONTAINER_DUMP"
 
-echo "==> Dropping and recreating database: $POSTGRES_DB"
-docker compose exec -T "$DB_SERVICE" sh -lc \
-  "PGPASSWORD='$POSTGRES_PASSWORD' dropdb -U '$POSTGRES_USER' --if-exists '$POSTGRES_DB' && \
-   PGPASSWORD='$POSTGRES_PASSWORD' createdb -U '$POSTGRES_USER' '$POSTGRES_DB'"
+# Restore into a scratch database first, so a truncated or wrong dump fails
+# here (--exit-on-error) with the live database untouched. Only then are the
+# names swapped; the old database is kept renamed, never dropped by this script.
+SCRATCH_DB="${POSTGRES_DB}_restore_${TS}"
+OLD_DB="${POSTGRES_DB}_pre_restore_${TS}"
+PSQL_ADMIN="PGPASSWORD='$POSTGRES_PASSWORD' psql -U '$POSTGRES_USER' -d postgres -v ON_ERROR_STOP=1"
 
-echo "==> Restoring dump into database: $POSTGRES_DB"
+echo "==> Restoring dump into scratch database: $SCRATCH_DB"
 docker compose exec -T "$DB_SERVICE" sh -lc \
-  "PGPASSWORD='$POSTGRES_PASSWORD' pg_restore -U '$POSTGRES_USER' -d '$POSTGRES_DB' --no-owner --no-privileges '$CONTAINER_DUMP'"
+  "PGPASSWORD='$POSTGRES_PASSWORD' createdb -U '$POSTGRES_USER' '$SCRATCH_DB'"
+if ! docker compose exec -T "$DB_SERVICE" sh -lc \
+  "PGPASSWORD='$POSTGRES_PASSWORD' pg_restore -U '$POSTGRES_USER' -d '$SCRATCH_DB' --no-owner --no-privileges --exit-on-error '$CONTAINER_DUMP'"; then
+  docker compose exec -T "$DB_SERVICE" sh -lc \
+    "PGPASSWORD='$POSTGRES_PASSWORD' dropdb -U '$POSTGRES_USER' --if-exists '$SCRATCH_DB'; rm -f '$CONTAINER_DUMP'" || true
+  echo "ERROR: the dump did not restore cleanly. '$POSTGRES_DB' was not touched."
+  exit 1
+fi
+
+echo "==> Swapping: '$POSTGRES_DB' -> '$OLD_DB', '$SCRATCH_DB' -> '$POSTGRES_DB'"
+docker compose exec -T "$DB_SERVICE" sh -lc \
+  "$PSQL_ADMIN -c 'ALTER DATABASE \"$POSTGRES_DB\" RENAME TO \"$OLD_DB\"' -c 'ALTER DATABASE \"$SCRATCH_DB\" RENAME TO \"$POSTGRES_DB\"'"
+echo "Previous database kept as '$OLD_DB'. Drop it once the restore is confirmed good:"
+echo "  docker compose exec $DB_SERVICE dropdb -U $POSTGRES_USER $OLD_DB"
 
 echo "==> Cleaning container temp file"
 docker compose exec -T "$DB_SERVICE" rm -f "$CONTAINER_DUMP"

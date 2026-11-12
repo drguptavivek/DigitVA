@@ -3,7 +3,7 @@ title: Release Process
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-12
 ---
 
 # Release Process
@@ -342,8 +342,11 @@ What it does, from the scripts:
 
 Rollback, on the host as the checkout owner:
 `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh <previous full sha>`,
-or `make prod-rollback TAG=<previous full sha>`. Do not run `flask db downgrade`
-unless the release notes say so (`split-production-deploy.md`, section 6).
+or `make prod-rollback TAG=<previous full sha>`. This works only if the previous
+sha contains every revision the release applied; otherwise `boot.sh` stops and
+the app stays down. Then downgrade with the new image first (when the release
+notes say the migration is reversible) or restore the pre-deploy backup, then
+redeploy the old sha (`split-production-deploy.md`, section 6).
 
 Production uses `scripts/deploy-server.sh` by the steps in
 [Split Production Deploy Runbook](split-production-deploy.md). There is no

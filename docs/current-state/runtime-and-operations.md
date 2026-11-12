@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Runtime And Operations
@@ -168,7 +168,7 @@ Current behavior:
 - postgres data is persisted in a named docker volume
 - the dev override uses the image-bundled `uv` binary to run `uv sync --frozen` at container start, rather than installing `uv` with `pip`
 - both image build and dev startup run [`scripts/sync_smartva_package_data.py`](../../scripts/sync_smartva_package_data.py) immediately after `uv sync` so SmartVA CSV/JSON/resource assets from the vendored source are copied into the installed package inside `/app/.venv`
-- [`scripts/manual-db-restore.sh`](../../scripts/manual-db-restore.sh) is now operator-guided: it tells the user to stop app-side containers first, verifies the target database has no active sessions before dropping it, restores the dump, performs a post-restore sequence audit that prints exact `setval(...)` fix commands if any sequence lags behind table data, warns that restored ODK credentials require the same `ODK_CREDENTIAL_PEPPER` as the source instance, then prints the exact restart and migration commands to run next
+- [`scripts/manual-db-restore.sh`](../../scripts/manual-db-restore.sh) is now operator-guided: it tells the user to stop app-side containers first, verifies the target database has no active sessions, restores the dump into a scratch database, then renames the live database aside (kept, never dropped) and the scratch one into place, performs a post-restore sequence audit that prints exact `setval(...)` fix commands if any sequence lags behind table data, warns that restored ODK credentials require the same `ODK_CREDENTIAL_PEPPER` as the source instance, then prints the exact restart and migration commands to run next
 - the admin Sync dashboard's attachment counts now distinguish expected attachments from files actually present on local disk; the “Attachments” column is backed by a filesystem check under `APP_DATA/<form_id>/media/<storage_name>` with `local_path` fallback, and the repair coverage table now also shows current-vs-legacy attachment row counts so `storage_name IS NULL` rows are visible separately from current storage rows
 - the admin Sync dashboard now resolves forms from active `map_project_site_odk` site mappings, matching the main sync engine, so stale legacy `va_forms` rows no longer appear just because they are still marked active
 - single-form backfill/repair now also checks for missing local attachment files on disk, excludes shared `audit.csv` artifacts from those file counts, treats legacy attachment rows (`storage_name IS NULL`) as repair gaps, and migrates those rows onto opaque storage names during the same attachment repair run

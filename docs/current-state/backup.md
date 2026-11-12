@@ -3,7 +3,7 @@ title: Backup And Restore
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-11-12
 ---
 
 # Backup And Restore
@@ -156,7 +156,7 @@ docker compose exec minerva_app_service uv run flask backups db-list
 
 What that does, in order:
 
-1. Asks you to type `YES` to drop and recreate `POSTGRES_DB`.
+1. Asks you to type `YES` to replace `POSTGRES_DB` (the old database is kept, renamed).
 2. Runs `flask backups db-download` inside `minerva_app_service`, which streams
    the object to a file and **verifies its sha256 against the value recorded in
    `va_db_backups`**. A mismatch removes the file and exits non-zero; a key with
@@ -164,8 +164,10 @@ What that does, in order:
    DigitVA cannot vouch for.
 3. Copies the verified dump to a temporary directory on the host (removed on
    exit) and continues down the existing path: stop the app containers, confirm
-   zero active connections, `dropdb`/`createdb`, `pg_restore --no-owner
-   --no-privileges`, sequence-alignment check.
+   zero active connections, `pg_restore --no-owner --no-privileges
+   --exit-on-error` into a scratch database (a bad dump aborts here, live
+   database untouched), rename live to `<db>_pre_restore_<ts>` and scratch to
+   live (drop the old one by hand once confirmed), sequence-alignment check.
 4. Prints the ODK credential-pepper notice and the commands to restart the
    containers and run `flask db upgrade`.
 

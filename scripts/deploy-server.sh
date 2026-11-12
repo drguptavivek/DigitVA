@@ -48,8 +48,8 @@ if [ "${SKIP_BACKUP:-0}" = 1 ]; then
   echo "skipped (SKIP_BACKUP=1)"
 else
   $DC exec -T minerva_app_service flask backups db-dump --no-prune
-  $DC exec -T minerva_app_service flask backups db-list --limit 1 | head -n1 | grep -qi success \
-    || { echo "newest backup is not a success; stopping" >&2; exit 1; }
+  $DC exec -T minerva_app_service flask backups db-list --limit 1 | python3 scripts/check_backup_list.py \
+    || { echo "newest backup is not a fresh success; stopping" >&2; exit 1; }
 fi
 
 echo "== 3. checkout $TAG"

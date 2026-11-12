@@ -14,6 +14,13 @@
     return r.json();
   }
 
+  // Escape server-supplied text before it enters an HTML string.
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   function valueOrZero(value) {
     return value === null || value === undefined ? 0 : value;
   }
@@ -93,7 +100,7 @@
     if (allocation) {
       const continueLabel = continuePendingLabel(allocation);
       html += `<a href="/coding/resume" class="btn btn-primary">
-        <i class="fas fa-edit me-2"></i>${continueLabel}
+        <i class="fas fa-edit me-2"></i>${escapeHtml(continueLabel)}
       </a>`;
       html += `<button id="release-btn" class="btn btn-outline-secondary" title="Return this case to the coding pool">
         <i class="fas fa-undo me-2"></i>Release
@@ -145,14 +152,14 @@
     tbody.innerHTML = forms.map(row => {
       const actionCell = hasAllocation
         ? `<button class="btn btn-sm btn-outline-secondary" disabled>Continue current coding first</button>`
-        : `<form method="POST" action="/coding/pick/${row.va_sid}" style="display:inline"><input type="hidden" name="csrf_token" value="${CSRF_TOKEN}"><button type="submit" class="btn btn-sm btn-outline-primary">Start Coding</button></form>`;
+        : `<form method="POST" action="/coding/pick/${encodeURIComponent(row.va_sid)}" style="display:inline"><input type="hidden" name="csrf_token" value="${CSRF_TOKEN}"><button type="submit" class="btn btn-sm btn-outline-primary">Start Coding</button></form>`;
       return `<tr>
-        <td>${row.project_id || ''}</td>
-        <td>${row.site_id || ''}</td>
-        <td>${row.va_submission_date || ''}</td>
-        <td>${row.va_uniqueid_masked || ''}</td>
-        <td>${row.va_data_collector || '-'}</td>
-        <td>${row.va_deceased_age || '-'} / ${row.va_deceased_gender || '-'}</td>
+        <td>${escapeHtml(row.project_id)}</td>
+        <td>${escapeHtml(row.site_id)}</td>
+        <td>${escapeHtml(row.va_submission_date)}</td>
+        <td>${escapeHtml(row.va_uniqueid_masked)}</td>
+        <td>${escapeHtml(row.va_data_collector || '-')}</td>
+        <td>${escapeHtml(row.va_deceased_age || '-')} / ${escapeHtml(row.va_deceased_gender || '-')}</td>
         <td>${actionCell}</td>
       </tr>`;
     }).join('');
@@ -223,15 +230,15 @@
       order: [[0, 'asc']],
       columns: [
         { data: '_priority',          title: '',                visible: false },
-        { data: 'project_id',         title: 'Project Code' },
-        { data: 'site_id',            title: 'Site Code' },
-        { data: 'va_submission_date', title: 'Submission Date', visible: false },
-        { data: 'va_sid',             title: 'SID',             visible: false },
-        { data: 'va_uniqueid_masked', title: 'VA Form ID' },
-        { data: 'va_deceased_age',    title: 'H1',              visible: false },
-        { data: 'va_deceased_gender', title: 'H2',              visible: false },
+        { data: 'project_id',         title: 'Project Code', render: $.fn.dataTable.render.text() },
+        { data: 'site_id',            title: 'Site Code', render: $.fn.dataTable.render.text() },
+        { data: 'va_submission_date', title: 'Submission Date', visible: false, render: $.fn.dataTable.render.text() },
+        { data: 'va_sid',             title: 'SID',             visible: false, render: $.fn.dataTable.render.text() },
+        { data: 'va_uniqueid_masked', title: 'VA Form ID', render: $.fn.dataTable.render.text() },
+        { data: 'va_deceased_age',    title: 'H1',              visible: false, render: $.fn.dataTable.render.text() },
+        { data: 'va_deceased_gender', title: 'H2',              visible: false, render: $.fn.dataTable.render.text() },
         { data: null, title: 'Age / Gender',
-          render: r => `${r.va_deceased_age || '-'} / ${r.va_deceased_gender || '-'}` },
+          render: r => `${escapeHtml(r.va_deceased_age || '-')} / ${escapeHtml(r.va_deceased_gender || '-')}` },
         { data: 'va_code_status', title: 'VA Code Status',
           render: (d, _type, row) => {
             if (d === '__pending__') return '<span class="badge bg-warning text-dark">In Progress</span>';
@@ -248,9 +255,9 @@
             if (row.va_code_status === '__pending__') {
               return `<a href="/coding/resume" class="btn btn-sm btn-primary">Continue</a>`;
             }
-            let html = `<a href="/coding/view/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
+            let html = `<a href="/coding/view/${encodeURIComponent(row.va_sid)}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
             if (row.recodeable) {
-              html += `<form method="POST" action="/coding/recode/${row.va_sid}" style="display:inline"><input type="hidden" name="csrf_token" value="${CSRF_TOKEN}"><button type="submit" class="btn btn-sm btn-outline-danger">Recode</button></form>`;
+              html += `<form method="POST" action="/coding/recode/${encodeURIComponent(row.va_sid)}" style="display:inline"><input type="hidden" name="csrf_token" value="${CSRF_TOKEN}"><button type="submit" class="btn btn-sm btn-outline-danger">Recode</button></form>`;
             }
             return html;
           }
@@ -286,7 +293,7 @@
           const col = api.column(f.idx);
           const $s  = $(f.sel);
           $s.empty();
-          col.data().unique().sort().each(d => { if (d) $s.append(`<option value="${d}">${d}</option>`); });
+          col.data().unique().sort().each(d => { if (d) $s.append($('<option>').val(d).text(d)); });
           $s.on('change', function () {
             const val = $(this).val();
             col.search(val && val.length ? `^(${val.join('|')})$` : '', true, false).draw();

@@ -671,6 +671,37 @@ def safe_mime_type(mime_type: str | None) -> str | None:
     return candidate
 
 
+# Types a browser may render inline. Everything else (HTML, SVG, XML, script,
+# unknown) is delivered as a download so stored or proxied bytes never run in
+# DigitVA's origin.
+_INLINE_RASTER_IMAGES = frozenset(
+    {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+)
+# Plain text is inert under nosniff; ODK's audit.csv opens in the browser.
+_INLINE_TEXT = frozenset({"text/csv", "text/plain"})
+
+
+def inline_mime_type(mime_type: str | None, name: str | None = None) -> str | None:
+    """The type to serve inline, or None when the file must be a download.
+
+    ``name`` is only used to guess when the declared type is unusable.
+    """
+    import mimetypes
+
+    candidate = safe_mime_type(mime_type)
+    if candidate is None and name:
+        candidate, _ = mimetypes.guess_type(name)
+    candidate = (candidate or "").lower()
+    if (
+        candidate in _INLINE_RASTER_IMAGES
+        or candidate in _INLINE_TEXT
+        or candidate == "application/pdf"
+        or candidate.startswith(("audio/", "video/"))
+    ):
+        return candidate
+    return None
+
+
 def apply_no_store_policy(response):
     """PHI attachment bytes must not reach the browser disk cache (Finding 11)."""
     response.cache_control.private = True
@@ -723,8 +754,16 @@ def _store_open(record: AttachmentRecord, path: str):
 
     ``send_file`` keeps ``Range`` support, which is what audio playback uses.
     """
+    inline = inline_mime_type(record.mime_type, record.storage_name)
+    if inline:
+        return apply_no_store_policy(send_file(path, mimetype=inline))
     return apply_no_store_policy(
-        send_file(path, mimetype=safe_mime_type(record.mime_type))
+        send_file(
+            path,
+            mimetype="application/octet-stream",
+            as_attachment=True,
+            download_name=_content_disposition_filename(record.storage_name),
+        )
     )
 
 
@@ -1107,12 +1146,14 @@ def _stream_central_response(record: AttachmentRecord, result):
         record, _iter_central_body(result, max_bytes_for(record.filename))
     )
 
+    inline = inline_mime_type(result.mime_type)
     response = current_app.response_class(
         stream_with_context(_refuse_on_overflow(record, chunks)),
-        mimetype=result.mime_type or "application/octet-stream",
+        mimetype=inline or "application/octet-stream",
     )
+    disposition = "inline" if inline else "attachment"
     response.headers["Content-Disposition"] = (
-        f'inline; filename="{_content_disposition_filename(record.storage_name)}"'
+        f'{disposition}; filename="{_content_disposition_filename(record.storage_name)}"'
     )
     if result.content_length is not None:
         response.headers["Content-Length"] = str(result.content_length)

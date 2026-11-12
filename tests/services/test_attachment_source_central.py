@@ -410,6 +410,49 @@ class AttachmentSourceCentralTests(BaseTestCase):
             self.assertEqual(self._row(record).local_path, target)
             self.assertEqual(self._row(record).local_fallback_state, svc.LOCAL_PRESENT)
 
+    def _central_headers(self, mime):
+        record = self._attachment()
+        result = central.CentralFetch(
+            outcome=central.FETCH_OK,
+            response=_FakeResponse(content=b"x"),
+            mime_type=mime,
+            content_length=1,
+        )
+        with self.app.test_request_context("/"):
+            response = svc._stream_central_response(record, result)
+            response.close()
+            return response.mimetype, response.headers
+
+    def test_central_active_content_types_are_served_as_downloads(self):
+        for mime in ("text/html", "image/svg+xml", "application/xml", None):
+            mimetype, headers = self._central_headers(mime)
+            self.assertEqual(mimetype, "application/octet-stream", mime)
+            self.assertTrue(headers["Content-Disposition"].startswith("attachment"), mime)
+            self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
+
+    def test_central_images_and_pdf_stay_inline(self):
+        for mime in ("image/jpeg", "application/pdf", "audio/mpeg", "text/csv"):
+            mimetype, headers = self._central_headers(mime)
+            self.assertEqual(mimetype, mime)
+            self.assertTrue(headers["Content-Disposition"].startswith("inline"), mime)
+
+    def test_local_store_follows_the_same_inline_rule(self):
+        import tempfile
+        from types import SimpleNamespace
+
+        with tempfile.NamedTemporaryFile(suffix=".bin") as handle:
+            handle.write(b"x")
+            handle.flush()
+            with self.app.test_request_context("/"):
+                for mime, inline in (("image/png", True), ("text/html", False), ("image/svg+xml", False)):
+                    record = SimpleNamespace(mime_type=mime, storage_name="abc123.bin")
+                    response = svc._store_open(record, handle.name)
+                    disposition = response.headers.get("Content-Disposition", "inline")
+                    self.assertEqual(disposition.startswith("inline"), inline, mime)
+                    self.assertEqual(response.mimetype == mime, inline, mime)
+                    self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+                    response.close()
+
     def test_an_abandoned_stream_leaves_no_partial_object(self):
         """A client disconnect must not leave a temp file or a partial object."""
         record = self._attachment()

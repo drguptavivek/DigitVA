@@ -279,7 +279,7 @@
           blocked.breakdown.forEach(item => {
             const row = document.createElement('tr');
             row.innerHTML =
-              '<td>' + (item.label || item.blockage_reason) + '</td>' +
+              '<td>' + escapeHtml(item.label || item.blockage_reason) + '</td>' +
               '<td class="text-end">' + item.count + '</td>';
             tbody.appendChild(row);
           });
@@ -473,7 +473,7 @@
           const pctClass = site.pct_uncoded > 80 ? 'text-danger fw-bold' :
                            site.pct_uncoded > 50 ? 'text-warning' : '';
           row.innerHTML =
-            '<td>' + site.site_id + '</td>' +
+            '<td>' + escapeHtml(site.site_id) + '</td>' +
             '<td class="text-end ' + pctClass + '">' + (site.pct_uncoded || 0).toFixed(1) + '%</td>' +
             '<td class="text-end">' + (site.pending || 0) + '</td>';
           tbody.appendChild(row);
@@ -559,7 +559,7 @@
           const gapBadge = lang.gap ? '<span class="badge bg-danger ms-2">GAP</span>' : '';
 
           row.innerHTML =
-            '<td>' + lang.language + gapBadge + '</td>' +
+            '<td>' + escapeHtml(lang.language) + gapBadge + '</td>' +
             '<td>' + lang.pending_count + '</td>' +
             '<td>' + lang.coders_available + '</td>' +
             '<td>' + (lang.daily_coding_rate || 0).toFixed(1) + '</td>' +
@@ -614,12 +614,12 @@
           const rate = coder.daily_rate || 0;
           const byLang = outputInfo.by_language || {};
           const langList = Object.keys(byLang).length > 0
-            ? Object.entries(byLang).map(([l, c]) => l + '(' + c + ')').join(', ')
+            ? Object.entries(byLang).map(([l, c]) => escapeHtml(l) + '(' + c + ')').join(', ')
             : '—';
 
           const row = document.createElement('tr');
           row.innerHTML =
-            '<td>' + name + '</td>' +
+            '<td>' + escapeHtml(name) + '</td>' +
             '<td>' + coded + '</td>' +
             '<td>' + rate.toFixed(1) + '</td>' +
             '<td><small>' + langList + '</small></td>';

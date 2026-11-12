@@ -56,7 +56,7 @@ export type DeviceTimedDraft = WhoVaDraft & {
  * A persistent upload refusal. `standalone_refused` is a standalone push refused as it stands (403
  * device_mismatch, or a 422 such as consent_invalid): held, never resent or reopened on its own (contract 17).
  */
-export type UploadIssue = "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | "standalone_refused" | "consent_refused" | "refusal_stale";
+export type UploadIssue = "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | "standalone_refused" | "consent_refused" | "refusal_stale" | "attachment_missing";
 
 export interface DraftRow {
   id: string;
@@ -523,8 +523,8 @@ export function createDraftStore(
         const result = existing
           ? await db.runAsync(
             `UPDATE drafts SET envelope = ?, updated_at = ?, draft_sync_dirty = 1,
-               upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
-               upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
+               upload_issue = CASE WHEN upload_issue IN ('answers_hash_invalid', 'attachment_missing') THEN NULL ELSE upload_issue END,
+               upload_issue_unique_id = CASE WHEN upload_issue IN ('answers_hash_invalid', 'attachment_missing') THEN NULL ELSE upload_issue_unique_id END
              WHERE id = ? AND envelope = ? AND updated_at = ?${refused ? "" : ` AND ${consentGuard}`}`,
             [envelope, draft.updatedAt, draft.id, existing.envelope, existing.updated_at, ...(refused ? [] : guardParams)]
           )
@@ -706,8 +706,8 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
   const envelope = JSON.stringify({ ...draft, completedAt: localDateTimeWithOffset() });
   const result = await db.runAsync(`UPDATE drafts SET
     envelope = ?, completed = 1, completion = ?,
-    upload_issue = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue END,
-    upload_issue_unique_id = CASE WHEN upload_issue = 'answers_hash_invalid' THEN NULL ELSE upload_issue_unique_id END
+    upload_issue = CASE WHEN upload_issue IN ('answers_hash_invalid', 'attachment_missing') THEN NULL ELSE upload_issue END,
+    upload_issue_unique_id = CASE WHEN upload_issue IN ('answers_hash_invalid', 'attachment_missing') THEN NULL ELSE upload_issue_unique_id END
     WHERE id = ? AND envelope = ?`, [
     envelope,
     JSON.stringify({ valid: completion.valid, issues: completion.issues }),
@@ -734,7 +734,7 @@ export async function setDraftUploadIssue(
   issue: UploadIssue,
 ): Promise<void> {
   await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
-    completed = CASE WHEN ? = 'answers_hash_invalid' THEN 0 ELSE completed END
+    completed = CASE WHEN ? IN ('answers_hash_invalid', 'attachment_missing') THEN 0 ELSE completed END
     WHERE id = ?`, [issue, null, issue, id]);
 }
 

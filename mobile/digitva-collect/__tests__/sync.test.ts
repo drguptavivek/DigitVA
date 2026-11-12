@@ -725,6 +725,24 @@ describe("attachments are sent before the interview", () => {
     expect((await draftAttachments(db, DRAFT))[0]!.uploaded_at).toBeNull();
     expect((await getDraftRow(db, DRAFT))!.upload_issue).toBeNull();
   });
+
+  it("holds the interview when the server lost a file the phone does not hold, deleting nothing", async () => {
+    const GONE = "66666666-6666-4666-8666-666666666666";
+    const db = await withFile();
+    const row = (await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [DRAFT]))!;
+    const envelope = JSON.parse(row.envelope);
+    envelope.data.Id10477_audio = { id: GONE, uri: `who-va-attachment:${GONE}` };
+    await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [JSON.stringify(envelope), DRAFT]);
+    server((call) => call.url.endsWith("/submissions") ? json(409, { code: "attachments_pending", error: "Files are still being sent." }) : happy(call));
+    await syncInterviewer(USER, db);
+    expect((await getDraftRow(db, DRAFT))!.upload_issue).toBe("attachment_missing");
+    expect((await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [DRAFT]))!.envelope).toBe(JSON.stringify(envelope));
+    expect(await draftAttachments(db, DRAFT)).toHaveLength(1);
+    // A held draft is not sent again until the interviewer edits it.
+    const before = calls.length;
+    await syncInterviewer(USER, db);
+    expect(calls.slice(before).some(({ url }) => url.endsWith("/submissions"))).toBe(false);
+  });
 });
 
 describe("translations", () => {

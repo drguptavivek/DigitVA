@@ -90,7 +90,7 @@ import { acquireDraftUpload } from "./localCodingLeases";
 import { getStandaloneConsent } from "./standaloneConsentStore";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
-import { deleteCoveredAttachments, markDraftUnconfirmed } from "./attachmentStore";
+import { deleteCoveredAttachments, getServerAttachments, markDraftUnconfirmed, sendableAttachments, setServerAttachments } from "./attachmentStore";
 import { uploadDraftAttachments } from "./attachmentUpload";
 import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
 import { consentFor, deleteDraftConsent, getRegistrationConsent, holdServerRefusal, loadConsents, markInheritedConsentRefused, refreshConsentConfig, type ConsentIndex } from "./consentStore";
@@ -749,8 +749,17 @@ export async function uploadQueuedWork(
         }
         await reopenDraft(db, item.id);
       }
-      // The server lost the files (its draft was purged): send them again on the next pass, hold nothing.
-      if (refused.status === 409 && refused.code === "attachments_pending") await markDraftUnconfirmed(db, item.id);
+      // The server lost the files (its draft was purged): send the ones the phone holds again on the next pass. A
+      // referenced file the phone does not hold (kept only on the server, now gone) cannot be resent: hold the
+      // interview until the interviewer replaces or removes it. Nothing is deleted either way.
+      if (refused.status === 409 && refused.code === "attachments_pending") {
+        const { missing } = await sendableAttachments(db, item.id, sentData);
+        if (missing.length) {
+          const gone = new Set(missing);
+          await setServerAttachments(db, item.id, (await getServerAttachments(db, item.id)).filter((id) => !gone.has(id)));
+          await setDraftUploadIssue(db, item.id, "attachment_missing");
+        } else await markDraftUnconfirmed(db, item.id);
+      }
       else if (refused.status === 409 && refused.code !== "refusal_stale") await setDraftUploadIssue(db, item.id, "case_conflict");
       // Final until the interviewer asks again (retryHeldDraft): sync skips it.
       if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");

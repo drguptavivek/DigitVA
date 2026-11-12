@@ -1333,6 +1333,7 @@
   "preVisitNoteMissing": "A refusal with no identity needs a visit note: record the visit address and the visit date.",
   "refusalNotAccepted": "Not accepted: {reason}",
   "refusalNotAcceptedNoReason": "Not accepted by the server.",
+  "draftAttachmentMissing": "A file this interview refers to is missing from the server and not on this phone. Record or attach it again, or remove it, then complete the interview and send it.",
   "refusalCaseConflict": "Held: the server cannot take this interview because its case changed. Send again, or ask your supervisor.",
   "refusalGoToSection": "Go to the question",
   "refusalBannerTitle": "This interview was not accepted",

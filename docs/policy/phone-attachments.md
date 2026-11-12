@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-09
+last_updated: 2026-11-12
 ---
 
 # Phone Attachments
@@ -84,8 +84,14 @@ is the phone's side. Server caps and accepted types are not restated here:
    `Content-Length`, `X-Content-SHA256`; the id makes a retry idempotent);
    (c) only when every file is confirmed, `POST /api/v1/intake/submissions`.
    An interview with a missing file is never submitted (owner decision in
-   `digitva-jkvl`); the server also refuses it (`attachments_pending`), and then
-   the phone marks the files unconfirmed and sends them again.
+   `digitva-jkvl`); the server also refuses it (`attachments_pending`, for a device submit as for a
+   web one, so a purged server draft never leaves a dangling reference), and then
+   the phone marks the files unconfirmed and sends them again. When the interview
+   references a file the phone does not hold (for example one kept only on the
+   server of a draft imported from it, now purged), resending cannot help: the
+   interview is held as `attachment_missing` with a plain message, nothing is
+   deleted, and the interviewer replaces or removes the file by opening the
+   interview; saving it clears the hold and completing it sends it again.
    - A timeout, network error, 5xx or 429 keeps the file and retries on the
      next Send. So does a 400 `checksum_mismatch` or `invalid_request` (a
      truncated transfer) and a 413 without the server's `payload_too_large`

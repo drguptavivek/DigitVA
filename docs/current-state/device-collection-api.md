@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-08
+last_updated: 2026-11-12
 ---
 
 # Device Collection API (Path B server side)
@@ -822,7 +822,10 @@ server draft identified by its `client_draft_id`:
    `death_id`, same project and site: the submit completes that draft instead
    of starting another, so the files are on the submission. Resends are
    idempotent on `client_draft_id` as always. An interview submitted without
-   step 1 still works (no files).
+   step 1 still works (no files). An answer naming a file the draft does not
+   hold (purged, discarded) is 409 `attachments_pending` with nothing stored,
+   as for a browser submit; the phone sends the files again, or holds the
+   interview as `attachment_missing` when it has no copy of one.
 
 The attachment draft is an ordinary open draft of the interviewer: one never
 submitted follows the existing open-draft rules (listed under `GET /drafts`,

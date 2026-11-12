@@ -2921,10 +2921,11 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         payload["interview_outcome"] = "refused"
         references = {}
         validation_err = []
-    if references and intake_source == "web":
+    if references:
         # Every file the answers name must be on the server first (the page
-        # sends them before it submits); a case must not reach coding with a
-        # file missing. A device upload keeps the reference, as before.
+        # and the phone send them before they submit); a case must not reach
+        # coding with a file missing. The phone, told this, marks its files
+        # unconfirmed and sends them again (phone-attachments.md).
         raise WebIntakeError(
             f"{len(references)} attached file(s) have not finished uploading; wait for them to be sent, then submit again.",
             409, "attachments_pending",

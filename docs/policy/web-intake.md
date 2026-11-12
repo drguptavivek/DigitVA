@@ -343,8 +343,8 @@ section 5.
   an answer that names an uploaded file carries its filename, so the case
   renders it like an ODK attachment, and the case still waits for attachments
   only when a referenced file has not reached the server (a web submit is then
-  refused, 409 `attachments_pending`; a device upload keeps such a reference on
-  the draft, as before).
+  refused, 409 `attachments_pending`, for the phone's submit too; the phone sends
+  the file again).
 - Every submission writes a `va_submissions_auditlog` row with role
   `vainterviewer`.
 
@@ -431,7 +431,7 @@ file the server holds becomes the ODK-style filename in the payload and a
 `va_submission_attachments` row (`exists_on_odk = true`, which for a web form
 means live) for the new submission, pointing at the same stored object; the
 reference never leaves the draft. `AttachmentsExpected` counts the references
-and `AttachmentsPresent` the files found. A web submit with a reference whose
+and `AttachmentsPresent` the files found. A web or device submit with a reference whose
 file has not reached the server is refused (`409 attachments_pending`) so that
 no case reaches coding with a missing file: the page finishes its sends first.
 

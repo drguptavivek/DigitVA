@@ -509,6 +509,25 @@ class IntakeAttachmentTests(BaseTestCase):
         ok = self._submit(draft["draft_id"], self._complete_data(Id10476_audio=self._reference(missing)))
         self.assertEqual(ok.status_code, 201, ok.get_json())
 
+    def test_a_device_submit_naming_a_file_the_server_lacks_is_refused_and_stores_nothing(self):
+        self._login(self.interviewer_id)
+        cdid = uuid.uuid4()
+        self.assertEqual(self._direct_start(cdid).status_code, 201)
+        missing = uuid.uuid4()
+        refused = self._device_submit(cdid, self._complete_data(Id10476_audio=self._reference(missing)))
+        self.assertEqual(refused.status_code, 409, refused.get_json())
+        self.assertEqual(refused.get_json()["code"], "attachments_pending")
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaSubmissionAttachments)), 0)
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.client_draft_id == cdid))
+        self.assertEqual(draft.status, "draft")
+        self.assertIsNone(db.session.scalar(sa.select(VaSubmissions).where(VaSubmissions.va_sid.like(f"%{cdid}%"))))
+
+        # Uploaded now, the same submit goes through.
+        self.assertEqual(self._put(str(draft.draft_id), missing, WEBM).status_code, 201)
+        ok = self._device_submit(cdid, self._complete_data(Id10476_audio=self._reference(missing)))
+        self.assertEqual(ok.status_code, 201, ok.get_json())
+        self.assertIsNotNone(db.session.get(VaSubmissionAttachments, (ok.get_json()["va_sid"], f"{missing}.webm")))
+
     def test_another_drafts_file_is_not_linked(self):
         self._login(self.interviewer_id)
         first = self._start_draft()

@@ -124,6 +124,7 @@ const draftIssueLines = (draft: DraftRow, refusal?: SendRefusal): InterviewItem[
   ...(draft.upload_issue === "answers_hash_invalid" ? [{ text: t("draftHashInvalidAttention"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "invalid_definition_pin" ? [{ text: t("draftPinInvalidAttention"), tone: "error" as const }] : []),
   ...(draft.draft_sync_blocked ? [{ text: t("draftSyncBlockedAttention"), tone: "error" as const }] : []),
+  ...(draft.upload_issue === "attachment_missing" ? [{ text: t("draftAttachmentMissing"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "demo_limit" ? [{ text: t("demoDraftLimit"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "case_conflict" ? [...refusalLine(refusal), { text: t("refusalCaseConflict"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "consent_refused" ? [{ text: t("consentRefusedHeld"), tone: "error" as const }] : []),

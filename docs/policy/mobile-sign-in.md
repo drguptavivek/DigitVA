@@ -433,6 +433,11 @@ owner 2026-11-06, `digitva-kfi`).
     sessions on the device. No names, emails or case data are sent. A retry
     records nothing new. The server refuses a known non-zero count and an
     unknown count without the typed confirmation, mirroring the phone.
+  - Offline or an older server (owner 2026-11-13): the phone deletes locally
+    anyway (the same guards apply) and queues the report in device-level
+    storage, outside the deleted profile, sending it with the device
+    credentials on the next sync until it gets 200 or 201. A 404 from an
+    older server drops the report.
 
 
 ## Account device limit and decommissioning (`digitva-65m5`)

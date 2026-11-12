@@ -1,0 +1,26 @@
+# Shared subflow: from Home reopen the newest draft and assert the answers
+# written by new-interview.yaml (consent Yes + respondent Female) are intact.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn: "Resume draft"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- assertVisible:
+    id: "question-Id10013-choice-yes"
+    selected: true
+- scrollUntilVisible:
+    element:
+      id: "question-Id10007a-choice-female"
+    direction: UP
+- assertVisible:
+    id: "question-Id10007a-choice-female"
+    selected: true
+- tapOn:
+    text: "Back"
+    index: 0
+- waitForAnimationToEnd
+- tapOn:
+    text: "Home"
+    optional: true

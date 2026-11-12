@@ -1,0 +1,33 @@
+# Shared subflow: from Home start a new interview and fill the required
+# answers up to section 3 (respondent), with respondent sex Female.
+# Leaves the form on section 3 with the consent question reachable by scroll.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn: "New interview"
+- tapOn: "SC-AAM 1"
+- tapOn: "Start questionnaire"
+- waitForAnimationToEnd
+- tapOn:
+    id: "question-Id10010b-choice-female"
+- scrollUntilVisible:
+    element:
+      id: "question-language-choice-en"
+- tapOn:
+    id: "question-language-choice-en"
+- tapOn: "Next"
+- waitForAnimationToEnd
+- tapOn:
+    id: "question-Id10002-choice-low"
+- tapOn:
+    id: "question-Id10003-choice-low"
+- scrollUntilVisible:
+    element:
+      id: "question-Id10004-choice-dry"
+- tapOn:
+    id: "question-Id10004-choice-dry"
+- tapOn: "Next"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "question-card-Id10007a"
+- tapOn:
+    id: "question-Id10007a-choice-female"

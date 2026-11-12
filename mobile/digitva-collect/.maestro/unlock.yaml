@@ -1,0 +1,29 @@
+# Shared subflow: unlock the phone with the PIN in env PIN (6 digits).
+# The PIN boxes drop fast input, so each digit is typed on its own with a wait.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- assertVisible: "Enter your PIN to unlock this phone."
+- tapOn:
+    id: "pin-box-0"
+- inputText: ${PIN.charAt(0)}
+- waitForAnimationToEnd:
+    timeout: 400
+- inputText: ${PIN.charAt(1)}
+- waitForAnimationToEnd:
+    timeout: 400
+- inputText: ${PIN.charAt(2)}
+- waitForAnimationToEnd:
+    timeout: 400
+- inputText: ${PIN.charAt(3)}
+- waitForAnimationToEnd:
+    timeout: 400
+- inputText: ${PIN.charAt(4)}
+- waitForAnimationToEnd:
+    timeout: 400
+- inputText: ${PIN.charAt(5)}
+- waitForAnimationToEnd
+- tapOn:
+    text: "Unlock"
+    index: 1
+- waitForAnimationToEnd
+- assertNotVisible: "Enter your PIN to unlock this phone."

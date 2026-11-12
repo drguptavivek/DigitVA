@@ -1,0 +1,8 @@
+# Shared subflow: read the Drafts count from Home into output.drafts (number).
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- assertVisible:
+    id: "home-counts"
+- copyTextFrom:
+    text: "\\d+ Drafts\\. View"
+- evalScript: ${output.drafts = parseInt(maestro.copiedText)}

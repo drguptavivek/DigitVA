@@ -1,0 +1,54 @@
+# Consent Yes + Female, change consent to No, Cancel the delete dialog:
+# answers must be kept, also after leaving and reopening the draft.
+# Run: maestro test -e PIN=<pin> .maestro/consent-cancel.yaml
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- runFlow: start.yaml
+- runFlow: drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: new-interview.yaml
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-no"
+- assertVisible: "Delete this interview?"
+- tapOn: "Cancel"
+- assertNotVisible: "Delete this interview?"
+- assertVisible:
+    id: "question-Id10013-choice-yes"
+    selected: true
+- scrollUntilVisible:
+    element:
+      id: "question-Id10007a-choice-female"
+    direction: UP
+- assertVisible:
+    id: "question-Id10007a-choice-female"
+    selected: true
+# Leave the form (Back arrow, top-left) and reopen the new draft.
+- tapOn:
+    text: "Back"
+    index: 0
+- waitForAnimationToEnd
+- tapOn:
+    text: "Home"
+    optional: true
+- runFlow: drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- tapOn: "Resume draft"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- assertVisible:
+    id: "question-Id10013-choice-yes"
+    selected: true
+- scrollUntilVisible:
+    element:
+      id: "question-Id10007a-choice-female"
+    direction: UP
+- assertVisible:
+    id: "question-Id10007a-choice-female"
+    selected: true

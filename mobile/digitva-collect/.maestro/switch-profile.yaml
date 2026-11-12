@@ -1,0 +1,36 @@
+# Switch to the other profile and back; Drafts count and draft content
+# unchanged. Run: maestro test -e PIN=<test.all pin> -e PIN_OTHER=<test.sn.dh01 pin> .maestro/switch-profile.yaml
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- runFlow: start.yaml
+- runFlow: new-interview.yaml
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+- tapOn:
+    text: "Back"
+    index: 0
+- waitForAnimationToEnd
+- tapOn:
+    text: "Home"
+    optional: true
+- runFlow: drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- tapOn: "Account"
+- tapOn: "Switch profile"
+- tapOn: "Test SN DH01, Locked"
+- runFlow:
+    file: unlock.yaml
+    env:
+      PIN: ${PIN_OTHER}
+- assertVisible:
+    id: "home-counts"
+- tapOn: "Account"
+- tapOn: "Switch profile"
+- tapOn: "Test ALL, Locked"
+- runFlow: unlock.yaml
+- runFlow: drafts-count.yaml
+- assertTrue: ${output.drafts == output.before}
+- runFlow: open-draft-check.yaml

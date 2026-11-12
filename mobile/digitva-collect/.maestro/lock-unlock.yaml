@@ -1,0 +1,28 @@
+# Lock now from the Account menu, unlock with the PIN, draft answers intact.
+# Run: maestro test -e PIN=<pin> .maestro/lock-unlock.yaml
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- runFlow: start.yaml
+- runFlow: new-interview.yaml
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+- tapOn:
+    text: "Back"
+    index: 0
+- waitForAnimationToEnd
+- tapOn:
+    text: "Home"
+    optional: true
+- runFlow: drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- tapOn: "Account"
+- tapOn: "Lock now"
+- assertVisible: "Profiles on this phone"
+- tapOn: "Test ALL, Locked"
+- runFlow: unlock.yaml
+- runFlow: drafts-count.yaml
+- assertTrue: ${output.drafts == output.before}
+- runFlow: open-draft-check.yaml

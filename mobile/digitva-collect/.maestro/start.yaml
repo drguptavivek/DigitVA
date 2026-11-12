@@ -1,0 +1,22 @@
+# Shared subflow: bring the app to the foreground (no restart), unlock if
+# locked (needs env PIN), land on the Home tab.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- launchApp:
+    stopApp: false
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Enter your PIN to unlock this phone."
+    file: unlock.yaml
+# A previous flow may have left a form open: leave it (header Back arrow).
+- tapOn:
+    text: "Back"
+    index: 0
+    optional: true
+- waitForAnimationToEnd
+- tapOn:
+    text: "Home"
+    optional: true
+- assertVisible:
+    id: "home-counts"

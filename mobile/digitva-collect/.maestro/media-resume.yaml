@@ -1,0 +1,119 @@
+# Attach an audio recording (section 5) and a camera photo (section 14), send the
+# app to the background, relaunch, unlock, reopen the draft: both still there.
+# Emulator virtual mic and camera are enough. Needs the microphone and camera
+# permissions already granted to the app (first run may show the system prompts).
+# Run: maestro test -e PIN=<pin> .maestro/media-resume.yaml
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- runFlow: start.yaml
+- runFlow: drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: new-interview.yaml
+
+# Consent Yes opens the later sections in the section list.
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+
+# Audio: section 5 "Open narrative".
+- scrollUntilVisible:
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+- scrollUntilVisible:
+    element: "5. Open narrative"
+- tapOn: "5. Open narrative"
+- waitForAnimationToEnd
+- tapOn:
+    id: "question-Id10476_audio"
+- extendedWaitUntil:
+    visible: "Recording time 00:0[2-9].*"
+    timeout: 20000
+- tapOn: "Stop and save recording"
+- assertVisible: "Play"
+- assertVisible:
+    id: "question-Id10476_audio-remove"
+
+# Image: section 14 "Medical and death documents", one death document page by camera.
+- scrollUntilVisible:
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+- scrollUntilVisible:
+    element: "14. Medical and death documents"
+- tapOn: "14. Medical and death documents"
+- waitForAnimationToEnd
+- tapOn:
+    id: "question-ds_available-choice-yes"
+- scrollUntilVisible:
+    element:
+      id: "question-ds_count-increase"
+- tapOn:
+    id: "question-ds_count-increase"
+- waitForAnimationToEnd
+# The first tap on the stepper is sometimes ignored; repeat only if the count is not 1.
+- runFlow:
+    when:
+      notVisible: "1"
+    commands:
+      - tapOn:
+          id: "question-ds_count-increase"
+- scrollUntilVisible:
+    element:
+      id: "question-ds_im1-camera"
+- tapOn:
+    id: "question-ds_im1-camera"
+- waitForAnimationToEnd:
+    timeout: 3000
+# The camera app may open ready to shoot or already in review.
+- tapOn:
+    id: "com.android.camera2:id/shutter_button"
+    optional: true
+- tapOn:
+    text: "Done"
+- extendedWaitUntil:
+    visible:
+      id: "question-ds_im1-preview"
+    timeout: 20000
+
+# Background, relaunch, unlock, reopen.
+- pressKey: home
+- runFlow: start.yaml
+- runFlow: drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- tapOn: "Resume draft"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+- scrollUntilVisible:
+    element: "5. Open narrative"
+- tapOn: "5. Open narrative"
+- waitForAnimationToEnd
+- assertVisible: "Play"
+- assertVisible:
+    id: "question-Id10476_audio-remove"
+- scrollUntilVisible:
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+- scrollUntilVisible:
+    element: "14. Medical and death documents"
+- tapOn: "14. Medical and death documents"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "question-ds_im1-preview"
+- assertVisible:
+    id: "question-ds_im1-preview"

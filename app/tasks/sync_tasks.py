@@ -367,8 +367,13 @@ def _run_canonical_repair_batches(
     log_progress,
     finalize_run_on_completion: bool = True,
     count_total_on_entry: bool = True,
+    revalidate_sids=(),
 ) -> dict[str, int]:
-    """Run the canonical per-submission repair engine across bounded batches."""
+    """Run the canonical per-submission repair engine across bounded batches.
+
+    ``revalidate_sids`` are the sids the sync amended: each is re-fetched from
+    ODK even with no local gaps, so an upstream edit is not lost.
+    """
     from uuid import UUID
     from app import db
     from app.models import VaForms
@@ -378,6 +383,7 @@ def _run_canonical_repair_batches(
         repair_submission_current_payload,
     )
 
+    revalidate_set = set(revalidate_sids or ())
     unique_candidate_sids = list(dict.fromkeys(candidate_sids))
     if not unique_candidate_sids:
         return {
@@ -473,6 +479,7 @@ def _run_canonical_repair_batches(
                     trigger_source=trigger_source,
                     force_attachment_redownload=force_attachment_redownload,
                     run_smartva=False,
+                    revalidate=va_sid in revalidate_set,
                 )
             except Exception as exc:
                 batch_errors += 1
@@ -765,6 +772,7 @@ def run_canonical_repair_batches_task(
     candidate_sids: list[str],
     trigger_source: str,
     force_attachment_redownload: bool = False,
+    revalidate_sids: list[str] | None = None,
 ):
     """Async wrapper around the canonical per-submission repair engine."""
     from app import db
@@ -781,6 +789,7 @@ def run_canonical_repair_batches_task(
         log_progress=log_progress,
         finalize_run_on_completion=False,
         count_total_on_entry=False,
+        revalidate_sids=revalidate_sids or (),
     )
 
 
@@ -1057,6 +1066,7 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
                 candidate_sids=candidate_sids,
                 trigger_source="odk_sync",
                 force_attachment_redownload=False,
+                revalidate_sids=candidate_sids,
             )
 
         result = va_data_sync_odkcentral(
@@ -1239,6 +1249,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
                 candidate_sids=list(repair_map.keys()),
                 trigger_source="single_form_sync",
                 force_attachment_redownload=False,
+                revalidate_sids=list(upserted_map),
             )
             finalize_canonical_repair_run_task.delay(
                 run_id=str(run_id),
@@ -1458,6 +1469,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
                     candidate_sids=list(batch_repair_map.keys()),
                     trigger_source="backfill",
                     force_attachment_redownload=False,
+                    revalidate_sids=list(batch_upserted_map),
                 )
 
         run = db.session.get(VaSyncRun, run_id)
@@ -2201,6 +2213,7 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
                 candidate_sids=list(upserted_map.keys()),
                 trigger_source="single_submission_sync",
                 force_attachment_redownload=False,
+                revalidate_sids=list(upserted_map),
             )
             finalize_canonical_repair_run_task.delay(
                 run_id=str(run_id),

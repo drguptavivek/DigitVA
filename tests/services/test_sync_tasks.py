@@ -149,6 +149,8 @@ class SyncTaskBatchingTests(BaseTestCase):
         self.assertEqual(mocked_delay.call_args.kwargs["form_id"], "FORM01")
         self.assertEqual(mocked_delay.call_args.kwargs["candidate_sids"], ["sid-1", "sid-2"])
         self.assertEqual(mocked_delay.call_args.kwargs["trigger_source"], "odk_sync")
+        # Amended sids are re-fetched even with no local gaps (digitva-9xn9.1).
+        self.assertEqual(mocked_delay.call_args.kwargs["revalidate_sids"], ["sid-1", "sid-2"])
 
     def test_run_single_submission_sync_queues_canonical_repair_batches_task(self):
         from app.tasks.sync_tasks import run_single_submission_sync
@@ -225,6 +227,7 @@ class SyncTaskBatchingTests(BaseTestCase):
         mock_finalize.assert_called_once()
         self.assertEqual(mocked_delay.call_args.kwargs["form_id"], "FORM01")
         self.assertEqual(mocked_delay.call_args.kwargs["candidate_sids"], ["sid-1"])
+        self.assertEqual(mocked_delay.call_args.kwargs["revalidate_sids"], ["sid-1"])
         self.assertEqual(
             mocked_delay.call_args.kwargs["trigger_source"],
             "single_submission_sync",

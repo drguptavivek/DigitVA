@@ -15,6 +15,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    VaSmartvaResults,
     VaAllocation,
     VaAllocations,
     VaFinalAssessments,
@@ -51,6 +52,10 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     va_data_sync_odkcentral,
     _upsert_form_submissions,
 )
+from app.services.open_submission_repair_service import (
+    repair_submission_current_payload,
+)
+from app.services.va_data_sync import va_data_sync_01_odkcentral as odk_sync_module
 from tests.base import BaseTestCase
 
 
@@ -540,3 +545,135 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         self.assertEqual(
             self._get_workflow_state(sub.va_sid), WORKFLOW_CODER_FINALIZED
         )
+
+    # -- protected-case revalidation (digitva-9xn9.1) --
+
+    _ENRICH = {
+        "xml": {"FormVersion": "v1", "DeviceID": "dev-1"},
+        "meta": {"SubmitterID": 7, "instanceID": "uuid:reval", "ReviewState": None, "instanceName": "n"},
+        "att": {"AttachmentsExpected": 0, "AttachmentsPresent": 0, "audit": None},
+    }
+
+    def _complete_protected_case(self, instance_id: str, state=WORKFLOW_CODER_FINALIZED):
+        """Protected case with metadata, attachments (none expected) and SmartVA complete."""
+        record = self._updated_record(instance_id)
+        record["updatedAt"] = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc).isoformat()
+        with self._odk_enrichment_mocks():
+            stored = odk_sync_module._enrich_submission_payload_for_storage(
+                db.session.get(VaForms, self.FORM_ID), record, client=object()
+            )
+        sub = self._make_submission(instance_id)
+        version = ensure_active_payload_version(
+            sub, payload_data=stored, source_updated_at=sub.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+        db.session.add(VaSmartvaResults(
+            va_sid=sub.va_sid,
+            payload_version_id=version.payload_version_id,
+            va_smartva_status=VaStatuses.active,
+        ))
+        set_submission_workflow_state(sub.va_sid, state, reason="test", by_role="test")
+        db.session.flush()
+        return sub, record
+
+    def _odk_enrichment_mocks(self):
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        for name, key in (
+            ("_fetch_submission_xml_enrichment", "xml"),
+            ("_fetch_submission_metadata_enrichment", "meta"),
+            ("_fetch_submission_attachment_enrichment", "att"),
+        ):
+            stack.enter_context(
+                patch.object(odk_sync_module, name, return_value=dict(self._ENRICH[key]))
+            )
+        return stack
+
+    def _repair(self, sid, fetched, **kwargs):
+        """The repair batch for one sid with only the ODK HTTP layer mocked."""
+        base = "app.services.open_submission_repair_service."
+        with self._odk_enrichment_mocks(), \
+            patch(base + "_release_read_transaction"), \
+            patch(base + "_get_single_form_odk_client", return_value=object()), \
+            patch(base + "_attach_all_odk_comments", side_effect=lambda f, subs, client=None: subs), \
+            patch(base + "va_odk_fetch_submissions_by_ids", return_value=[fetched]) as fetch:
+            return repair_submission_current_payload(sid, **kwargs), fetch
+
+    def _versions(self, sid):
+        return db.session.scalars(
+            sa.select(VaSubmissionPayloadVersion).where(VaSubmissionPayloadVersion.va_sid == sid)
+        ).all()
+
+    def test_revalidate_holds_upstream_edit_to_gapless_protected_case(self):
+        sub, _ = self._complete_protected_case("uuid:reval-changed")
+        changed = self._updated_record("uuid:reval-changed")
+        changed["finalAgeInYears"] = "77"
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        upserted_map = {}
+        _upsert_form_submissions(
+            va_form, [changed], set(), upserted_map, enrich_payloads=False,
+            defer_protected_updates=True,
+        )
+        db.session.flush()
+        self.assertEqual(list(upserted_map), [sub.va_sid])
+        # Deferred: nothing stored yet, still finalized.
+        self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_CODER_FINALIZED)
+
+        result, _ = self._repair(sub.va_sid, changed, revalidate=True)
+
+        self.assertTrue(result["upstream_changed_held"])
+        self.assertEqual(
+            self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        )
+        pending = [
+            v for v in self._versions(sub.va_sid)
+            if v.version_status == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM
+        ]
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(pending[0].payload_data["finalAgeInYears"], "77")
+
+    def test_without_revalidate_gapless_protected_case_returns_no_gaps(self):
+        sub, record = self._complete_protected_case("uuid:reval-off")
+
+        result, fetch = self._repair(sub.va_sid, record)
+
+        self.assertEqual(result["reason"], "no-gaps")
+        fetch.assert_not_called()
+
+    def test_revalidate_with_unchanged_upstream_changes_nothing(self):
+        sub, record = self._complete_protected_case("uuid:reval-same")
+        before = {v.payload_version_id for v in self._versions(sub.va_sid)}
+
+        result, fetch = self._repair(sub.va_sid, record, revalidate=True)
+
+        fetch.assert_called_once()
+        self.assertFalse(result["upstream_changed_held"])
+        self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_CODER_FINALIZED)
+        self.assertEqual({v.payload_version_id for v in self._versions(sub.va_sid)}, before)
+
+    def test_repair_batches_pass_revalidate_only_for_listed_sids(self):
+        from app.models.va_sync_runs import VaSyncRun
+        from app.tasks import sync_tasks
+
+        run = VaSyncRun(triggered_by="scheduled", status="running")
+        db.session.add(run)
+        db.session.flush()
+        seen = {}
+
+        def fake_repair(va_sid, **kw):
+            seen[va_sid] = kw["revalidate"]
+            return {}
+
+        with patch(
+            "app.services.open_submission_repair_service.repair_submission_current_payload",
+            side_effect=fake_repair,
+        ), patch.object(sync_tasks, "_repair_batch_attachments", return_value={}), \
+            patch.object(sync_tasks, "_is_run_cancelled", return_value=False):
+            sync_tasks._run_canonical_repair_batches(
+                run_id=run.sync_run_id, label="x", candidate_sids=["a", "b"],
+                trigger_source="odk_sync", force_attachment_redownload=False,
+                log_progress=lambda m: None, revalidate_sids=["a"],
+            )
+
+        self.assertEqual(seen, {"a": True, "b": False})

@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-10-22
+last_updated: 2026-11-12
 ---
 
 # Asynchronous Background Tasks
@@ -235,12 +235,16 @@ run_canonical_repair_batches_task(
     candidate_sids: list[str],
     trigger_source: str,
     force_attachment_redownload: bool = False,
+    revalidate_sids: list[str] | None = None,
 )
 ```
 
 **Behavior:**
 1. Chunks `candidate_sids` into bounded batches of 5
-2. Runs `repair_submission_current_payload(...)` for each submission
+2. Runs `repair_submission_current_payload(...)` for each submission, with
+   `revalidate=True` for sids in `revalidate_sids` (the sync's amended sids), so
+   a protected case with no local gaps is still re-fetched and an upstream edit
+   is held as `finalized_upstream_changed`
 3. Aggregates attachment/audit download counts, SmartVA generation, and errors into `va_sync_runs`
 4. Finalizes the run status when the last queued repair batch for that sync run finishes
 

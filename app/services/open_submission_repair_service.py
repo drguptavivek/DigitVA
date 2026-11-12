@@ -85,8 +85,13 @@ def repair_submission_current_payload(
     trigger_source: str = "single_submission_repair",
     force_attachment_redownload: bool = False,
     run_smartva: bool = True,
+    revalidate: bool = False,
 ) -> dict:
     """Repair the current payload for one submission synchronously.
+
+    ``revalidate`` is for a sid the sync just amended: a submission with no
+    local gaps is still fetched from ODK and compared, so an upstream edit to a
+    protected case is held as finalized_upstream_changed instead of lost.
 
     This is the canonical repair engine for per-submission current-payload
     repair. Callers should prefer reusing this function rather than duplicating
@@ -107,6 +112,13 @@ def repair_submission_current_payload(
         target_sids=[va_sid],
     )
     plan_item = repair_map.get(va_sid)
+    if plan_item is None and revalidate:
+        plan_item = {
+            "instance_id": "",
+            "needs_metadata": False,
+            "needs_attachments": False,
+            "needs_smartva": False,
+        }
     if plan_item is None:
         # Nothing missing: a submission still waiting on its attachments or
         # SmartVA is complete, typically because the sync downloaded both
@@ -127,7 +139,13 @@ def repair_submission_current_payload(
     payload_rows = _load_payload_rows(va_sid)
     payload_by_sid = {sid: dict(payload_data or {}) for sid, payload_data in payload_rows}
     if not batch_plan[va_sid].get("instance_id"):
-        batch_plan[va_sid]["instance_id"] = payload_by_sid.get(va_sid, {}).get("KEY", "")
+        # A legacy payload may lack KEY; the sid is "<instanceID>-<form_id>",
+        # as _build_repair_map_for_form also assumes. Without an id nothing is
+        # fetched and a revalidated upstream edit would be missed.
+        form_suffix = f"-{va_form.form_id.lower()}"
+        batch_plan[va_sid]["instance_id"] = payload_by_sid.get(va_sid, {}).get("KEY") or (
+            va_sid[: -len(form_suffix)] if va_sid.endswith(form_suffix) else ""
+        )
 
     result = {
         "attempted": True,

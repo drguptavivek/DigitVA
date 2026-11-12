@@ -3,7 +3,7 @@ title: ODK Repair Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-11-12
 ---
 
 # ODK Repair Workflow
@@ -311,7 +311,11 @@ When the canonical repair engine processes one submission
 ### Step 1: Build repair map
 
 Calls `_build_repair_map_for_form` scoped to the single submission. If no gaps
-(metadata, attachments, SmartVA), returns early with `{"reason": "no-gaps"}`.
+(metadata, attachments, SmartVA), returns early with `{"reason": "no-gaps"}`,
+unless called with `revalidate=True` (the scheduled sync, force-resync, backfill
+and single-submission sync pass it for every amended sid): then it continues with an empty plan so the fetch and
+upstream-change comparison below still run, and an edit to a protected case is
+held as `finalized_upstream_changed`.
 
 ### Step 2: Metadata enrichment
 

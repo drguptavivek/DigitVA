@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Expo Web Client Boundary
@@ -606,14 +606,15 @@ the form menus label the questionnaire language separately.
 The native app blocks screenshots and screen recording (`FLAG_SECURE`, applied
 at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
 
-- Temporary, owner update 2026-10-28 (`digitva-hs7e.14`): standard and Plus
+- Temporary, owner update 2026-11-12 (`digitva-hs7e.14`): standard and Plus
   Android builds made with
-  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL=2026-11-25T08:12:11Z` allow screenshots for
-  four weeks, until that instant (exclusive, device clock). This supersedes
-  the earlier 30 October expiry and fourteen-day cap. The same installed APK
-  blocks again automatically afterwards. A date more than 28 days past app
-  start, or an invalid or unset value, keeps the block. Remove the setting from
-  builds after expiry.
+  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL=2026-12-31T18:30:00Z` allow screenshots
+  until the end of 31 December 2026 in India (exclusive, device clock). This
+  supersedes the 25 November expiry and the 28-day cap (now 60 days). The same
+  installed APK blocks again automatically afterwards. A date more than 60 days
+  past app start, or an invalid or unset value, keeps the block. Remove the
+  setting from builds after expiry. Builds already installed keep their own
+  date; only new CI builds carry the new one.
 
 ## Offline gate (native; `digitva-5u65`)
 

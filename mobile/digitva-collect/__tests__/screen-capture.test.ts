@@ -38,9 +38,9 @@ it("blocks when unset or invalid", () => {
   expect(load("not-a-date").screenshotsAllowed()).toBe(false);
 });
 
-it("blocks a date more than four weeks away", () => {
-  expect(load(day(27).toISOString()).screenshotsAllowed()).toBe(true);
-  expect(load(day(29).toISOString()).screenshotsAllowed()).toBe(false);
+it("blocks a date more than 60 days away", () => {
+  expect(load(day(59).toISOString()).screenshotsAllowed()).toBe(true);
+  expect(load(day(61).toISOString()).screenshotsAllowed()).toBe(false);
 });
 
 it("applies the block when not allowed and skips it when allowed", () => {

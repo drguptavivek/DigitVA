@@ -1,15 +1,15 @@
 import { allowScreenCaptureAsync, preventScreenCaptureAsync } from "expo-screen-capture";
 import { AppState, Platform } from "react-native";
 
-// Owner update 2026-10-28: screenshots allowed for field testing in builds made
+// Owner update 2026-11-12: screenshots allowed for field testing until 31 Dec 2026 in builds made
 // with EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL=<ISO date>; blocked again from that
 // date by the same APK. Unset or invalid = blocked. See docs/policy/expo-client.md.
-const MAX_ALLOWANCE_MS = 28 * 24 * 60 * 60 * 1000;
+const MAX_ALLOWANCE_MS = 60 * 24 * 60 * 60 * 1000;
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const loadedAt = Date.now();
 let blockApplied = false;
 
-/** True before the build-time expiry; allowances beyond four weeks from app start are invalid. */
+/** True before the build-time expiry; allowances beyond 60 days from app start are invalid. */
 export function screenshotsAllowed(
   now: Date = new Date(),
   // Literal property access so Metro inlines the build-time value.

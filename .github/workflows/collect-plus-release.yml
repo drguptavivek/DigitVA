@@ -21,7 +21,7 @@ env:
   EXPO_PUBLIC_API_BASE_URL: https://digitvav3.causeofdeathindia.com
   DIGITVA_ANDROID_RELEASE_BUILD: "1"
   # Temporary field testing allowance; screenshots block again automatically after this instant.
-  EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL: "2026-11-25T08:12:11Z"
+  EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL: "2026-12-31T18:30:00Z"
   # The offline ICD-11 engine release this build stages. scripts/icd11-engine.env holds the same version; a step
   # checks the two match.
   ICD11_ENGINE_TAG: icd11-engine-v2026.10.29.1

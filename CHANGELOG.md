@@ -5,6 +5,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-12
 
+- `7e7007766` (D14–D26, `digitva-9xn9.14`; `digitva-8z9m`; `digitva-fowp`): run-6 low
+  data-loss items, unit-writer phone for in-reach holders, standalone stale
+  codings kept for recode, dev app memory limit 8g. Run-6 epic closed.
 - **Run-6 audit fixes, second batch, and owner decisions** (not deployed):
   - `ff0761757` (D11–D13, `.11`–`.13`): backup gate reads the newest row;
     restore swaps in a scratch database; boot.sh stops on an unknown

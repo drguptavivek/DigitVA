@@ -30,16 +30,16 @@ contrast, Large text) and refrozen.
    closed for implementation). On staging check saved web audio after
    leaving and returning (`digitva-oll6`), and the sent read-only media view
    (`digitva-e621`). Hindi attachment and camera strings need owner review.
-4. Run-6 audit (`digitva-9xn9`): everything except the low items landed
-   2026-11-12 and is not deployed (CHANGELOG). Before the next staging deploy,
-   run the new restore swap and staging backup checker once under
-   supervision (`digitva-rbj8`), and audit for old APKs: a changed coding now
-   gets a receipt instead of 409 `coding_conflict`, non-leaf ICD-11 codes get
-   422 `non_leaf_category`. Next: low items D14–D26 (`.14`), then unit-writer
-   phone (`digitva-8z9m`), standalone stale codings (`digitva-fowp`), Hindi
-   review of the new strings (`digitva-br3y`). Check on a phone: consent "No"
-   Cancel (verified on web), station key confirm and PIN lockout, offline
-   non-leaf child list. Run-5 acceptance still open: a multi-project user's
+4. Run-6 audit (`digitva-9xn9`) is closed: every item landed 2026-11-12 and
+   none is deployed (CHANGELOG). Before the next staging deploy, run the new
+   restore swap and staging backup checker once under supervision
+   (`digitva-rbj8`), and audit for old APKs: a changed coding now gets a
+   receipt instead of 409 `coding_conflict`; non-leaf ICD-11 codes get 422
+   `non_leaf_category`. Check on a phone: consent "No" Cancel (verified on
+   web), station key confirm and PIN lockout, offline non-leaf child list,
+   ICD-10 coding online (`digitva-tk7j`; web save verified). Open small
+   follow-up: web client sends explicit nulls for cleared answers (D22
+   remainder). Run-5 acceptance still open: a multi-project user's
    supervision views for per-project PII. For the offline PHC station, run
    the packaged macOS security acceptance with dummy data (`digitva-xt9y`).
 5. On staging, by hand, refuse then re-consent a direct interview
@@ -50,8 +50,6 @@ contrast, Large text) and refrozen.
    older APKs and verify icons, Hindi wrapping, certificate camera,
    standalone documents and warm DORIS (`digitva-9l5c`, `digitva-ljx2`,
    `digitva-4j8h`). The iPhone awaits an owner-approved CI/TestFlight build.
-7. Check Expo ICD-10 parity by saving a case (`digitva-tk7j`) and reproduce
-   `digitva-2q7c` in a normal browser.
 8. Standalone engine (`digitva-xw1s`): `v0.1.0` draft release built; the
    owner publishes it, then close. Not run on Linux/Intel Mac; no Windows.
 9. Help chatbot (`digitva-wawz`, `docs/policy/help-chatbot.md`) still needs

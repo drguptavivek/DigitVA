@@ -7,7 +7,7 @@ import en from "../src/strings/en.json";
 import hi from "../src/strings/hi.json";
 
 let mockCanGoBack = true;
-const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn(), back: jest.fn(), canGoBack: () => mockCanGoBack };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false, back: jest.fn(), canGoBack: () => mockCanGoBack };
 /** The root Stack's route names, bottom first, as the tab bar reads them. */
 let mockStack: string[] = ["worklist"];
 const mockNavigation = { isReady: () => true, getRootState: () => ({ routes: mockStack.map((name) => ({ name })) }) };

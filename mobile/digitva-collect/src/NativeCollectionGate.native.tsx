@@ -1,4 +1,5 @@
 import { Redirect, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
+import { goHome } from "./goHome";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
@@ -188,7 +189,7 @@ export default function NativeCollectionGate({
     return (
       <Screen title={t("accountsTitle")}>
         <Text style={styles.text}>{t("standaloneLogoutRequired")}</Text>
-        <Button kind="secondary" label={t("accounts")} onPress={() => router.replace("/")} />
+        <Button kind="secondary" label={t("accounts")} onPress={() => goHome(router)} />
       </Screen>
     );
   }
@@ -228,7 +229,7 @@ export default function NativeCollectionGate({
     <Screen title={t("accountsTitle")}>
       {checking ? <ActivityIndicator /> : <Text style={styles.error}>{accessError ?? t("errGeneric")}</Text>}
       <Button label={t("retryAccess")} loading={checking} onPress={() => void checkAccess()} />
-      <Button kind="secondary" label={t("accounts")} onPress={() => router.replace("/")} />
+      <Button kind="secondary" label={t("accounts")} onPress={() => goHome(router)} />
     </Screen>
   );
 }

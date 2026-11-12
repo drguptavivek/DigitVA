@@ -12,6 +12,7 @@
  * above, then chooses the other slot; nothing is deleted or signed out.
  */
 import { useRouter } from "expo-router";
+import { goHome } from "./goHome";
 import { getLocales } from "expo-localization";
 import * as SecureStore from "expo-secure-store";
 import {
@@ -205,7 +206,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       dropWorklist();
       lastAccess.current.clear();
       setError(undefined);
-      router.replace("/");
+      goHome(router);
       setLockVersion((v) => v + 1);
       return true;
     } catch (lockError) {
@@ -288,7 +289,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     await setActiveSlot(next);
     await reload();
-    router.replace("/");
+    goHome(router);
     setLockVersion((v) => v + 1);
     return true;
   }, [lockNow, reload, router]);

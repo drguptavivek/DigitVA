@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { goHome } from "./goHome";
 import { Text } from "react-native";
 
 import { t } from "./i18n";
@@ -32,7 +33,7 @@ export function CodingOnWeb() {
   const styles = useUiStyles();
   return <Screen title={t("workspaceTitle")}>
     <Text accessibilityRole="alert" style={styles.text}>{t("codingOnWeb")}</Text>
-    <Button kind="secondary" label={t("home")} onPress={() => router.replace("/")} />
+    <Button kind="secondary" label={t("home")} onPress={() => goHome(router)} />
   </Screen>;
 }
 

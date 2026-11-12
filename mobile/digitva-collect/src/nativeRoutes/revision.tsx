@@ -11,6 +11,7 @@ import {
   type WhoVaSession,
 } from "@drguptavivek/who-2022-va/native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { goHome } from "../goHome";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -348,7 +349,7 @@ export default function Revision() {
         if (!active || generation !== generationRef.current) return;
         if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
           await reload();
-          if (active && isCurrentRevision(generation)) router.replace("/");
+          if (active && isCurrentRevision(generation)) goHome(router);
           return;
         }
         setMessage(loadFailureMessage(error));
@@ -390,7 +391,7 @@ export default function Revision() {
         if (!active || !isCurrentRevision(generation)) return;
         if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
           await reload();
-          if (active && isCurrentRevision(generation)) router.replace("/");
+          if (active && isCurrentRevision(generation)) goHome(router);
           return;
         }
         setMessage(loadFailureMessage(error));

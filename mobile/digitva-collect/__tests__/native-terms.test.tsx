@@ -19,7 +19,7 @@ const mockLockNow = jest.fn(async () => true);
 const mockSignOut = jest.fn(async (_userId: string) => undefined);
 jest.mock("expo-router", () => ({
   useGlobalSearchParams: () => ({ userId: mockRouteUser }),
-  useRouter: () => ({ replace: mockReplace }),
+  useRouter: () => ({ replace: mockReplace, dismissAll: jest.fn(), canDismiss: () => false }),
 }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({

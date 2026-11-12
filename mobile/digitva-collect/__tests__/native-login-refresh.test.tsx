@@ -3,7 +3,7 @@ import { act, create } from "react-test-renderer";
 
 const mockAccount: { user_id: string; name: string; standalone?: boolean } = { user_id: "u1", name: "Interviewer" };
 const mockWipeInterviewer = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
-const mockRouter = { replace: jest.fn(), back: jest.fn(), push: jest.fn() };
+const mockRouter = { replace: jest.fn(), back: jest.fn(), push: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 const mockReload = jest.fn(async () => undefined);
 const mockLockNow = jest.fn(async () => true);
 const mockUnlocked = jest.fn();
@@ -202,7 +202,7 @@ describe("native login refresh handoff", () => {
     act(() => input(tree!, "password")!.props.onChangeText("secret"));
     await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
     expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "active", { forPinReset: false });
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
     await act(async () => tree!.unmount());
   });
 
@@ -567,7 +567,7 @@ describe("native login refresh handoff", () => {
       act(() => input(tree!, "email")!.props.onChangeText("worker@example.org"));
       act(() => input(tree!, "password")!.props.onChangeText("secret"));
       await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
-      expect(mockRouter.replace).toHaveBeenCalledWith(target);
+      expect(target.pathname === "/unlock" ? mockRouter.dismissTo : mockRouter.replace).toHaveBeenCalledWith(target);
       await act(async () => tree!.unmount());
     });
 
@@ -829,7 +829,7 @@ describe("native login refresh handoff", () => {
       act(() => input(signIn, "password")!.props.onChangeText("secret"));
       await act(async () => label(signIn, "signIn")[0].props.onClick());
       expect(mockVerifyPasswordForDelete).toHaveBeenCalledWith("u1", "worker@example.org", "secret");
-      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", delete: "1" } });
+      expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", delete: "1" } });
       await act(async () => signIn.unmount());
 
       mockParams = { userId: "u1", delete: "1" };

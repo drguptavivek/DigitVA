@@ -1,4 +1,5 @@
 import { useGlobalSearchParams, useRouter } from "expo-router";
+import { goHome } from "./goHome";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 
@@ -57,7 +58,7 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
           error instanceof SignInRequiredError) &&
         routeUser.current === account.user_id
       ) {
-        router.replace("/");
+        goHome(router);
       }
     } finally {
       setBusy(false);
@@ -121,7 +122,7 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
               kind="secondary"
               label={t("home")}
               disabled={busy}
-              onPress={() => router.replace("/")}
+              onPress={() => goHome(router)}
             />
             <Button
               kind="danger"
@@ -139,7 +140,7 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
                     }
                     await signOut(account.user_id);
                     await reload();
-                    router.replace("/");
+                    goHome(router);
                   })
                   .catch((error) => setMessage(errorText(error)))
                   .finally(() => setBusy(false));

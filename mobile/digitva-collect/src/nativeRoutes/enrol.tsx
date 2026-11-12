@@ -12,6 +12,7 @@
 import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
+import { goHome } from "../goHome";
 import { useEffect, useRef, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
@@ -139,7 +140,7 @@ export default function Enrol() {
       } else {
         await enrolDevice(payload.server, payload.code, deviceName, APP_VERSION);
         await reload();
-        router.replace("/");
+        goHome(router);
       }
     } catch (caught) {
       setPending(undefined);

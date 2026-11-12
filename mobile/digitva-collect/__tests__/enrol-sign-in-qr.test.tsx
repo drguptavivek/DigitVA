@@ -5,7 +5,7 @@ import { TextInput } from "react-native";
 
 const TOKEN = "SignInTokenSignInTokenSignInToken123";
 const SERVER = "https://digitva.causeofdeathindia.com";
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 const mockReload = jest.fn(async () => undefined);
 const mockRedeem = jest.fn<Promise<{ account: { user_id: string; name: string }; projects: Array<{ project_id: string; name: string }> }>, unknown[]>();
 const mockEnrol = jest.fn(async (..._args: unknown[]) => undefined);

@@ -69,7 +69,7 @@ export default function SignIn() {
       }
       if (userId && deleteProfile === "1") {
         await verifyPasswordForDelete(userId, submittedIdentifier, password);
-        router.replace({ pathname: "/unlock", params: { userId, delete: "1" } });
+        router.dismissTo({ pathname: "/unlock", params: { userId, delete: "1" } });
         return;
       }
       const account = await signIn(submittedIdentifier, password, slot, { forPinReset: resetPin === "1" && !!userId });
@@ -80,7 +80,7 @@ export default function SignIn() {
         return;
       }
       // Unlock sends an interviewer without a PIN yet to PIN setup.
-      router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
+      router.dismissTo({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
       // Forgetting the Demo device hands the phone back to Active, a slot change: lock first, or keep it.
       if (caught instanceof ApiError && caught.code === "device_revoked" && slot !== undefined

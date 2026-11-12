@@ -22,7 +22,7 @@ jest.mock("expo-secure-store", () => ({
     mockSecure.delete(key);
   }),
 }));
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
 jest.mock("expo-localization", () => ({ getLocales: () => [{ languageCode: "en" }] }));
 let mockUnlocked = false;

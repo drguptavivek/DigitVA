@@ -13,6 +13,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
+import { goHome } from "../goHome";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, InteractionManager } from "react-native";
 
@@ -359,7 +360,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         dropWorklist();
         clearVisible();
         await reload();
-        router.replace("/");
+        goHome(router);
         return;
       }
       // Tokens dropped, data kept: the home screen now flags this account.
@@ -367,7 +368,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         dropWorklist();
         clearVisible();
         await reload();
-        router.replace("/");
+        goHome(router);
         return;
       }
       setMessage(errorText(error));

@@ -1,5 +1,6 @@
 /** The three shell sheets: Account menu, Help and Sync. Open state lives in the ShellProvider (shell.tsx). */
 import { usePathname, useRouter } from "expo-router";
+import { goHome } from "../goHome";
 import { useState } from "react";
 import { Linking, Text, View } from "react-native";
 
@@ -71,7 +72,7 @@ export function AccountSheet() {
       }
       await signOut(userId);
       await reload();
-      router.replace("/");
+      goHome(router);
     } catch {
       // The sign-out confirmation already told the worker; a failure leaves them signed in.
     }
@@ -93,7 +94,7 @@ export function AccountSheet() {
       <Card grouped style={{ marginTop: spacing.md }}>
         <ListRow testID="account-lock-now" icon={icons.lock} label={t("lockNow")} chevron={false} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
         <Separator icon />
-        <ListRow testID="account-switch-profile" icon={icons.switchUser} label={t("switchInterviewer")} chevron={false} onPress={go(() => void lockNow().then((locked) => (locked ? router.replace("/") : lockFailed())))} />
+        <ListRow testID="account-switch-profile" icon={icons.switchUser} label={t("switchInterviewer")} chevron={false} onPress={go(() => void lockNow().then((locked) => (locked ? goHome(router) : lockFailed())))} />
         <Separator icon />
         <ListRow icon={icons.signOut} label={t("signOut")} chevron={false} disabled={!userId} onPress={go(() => userId && void confirmSignOut(userId, () => void doSignOut()))} />
       </Card>

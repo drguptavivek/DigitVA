@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # ODK Sync And Attachments
@@ -311,13 +311,13 @@ Rules:
 | `mapping.last_synced_at` is NULL | First-ever sync — always download |
 | Delta count = 0 | Run gap check (compare ODK IDs vs local) |
 | Delta count > 0 | Proceed to full OData JSON fetch |
-| ODK error / timeout | Run gap check as safe fallback |
+| ODK error / timeout | Download changes since `last_synced_at`, as for a count above 0 (the gap check fetches only IDs missing locally and would skip an edit; `digitva-9xn9.7`) |
 
 `snapshot_time` is captured before any ODK calls. `last_synced_at` is set to `snapshot_time` (not wall clock) after a successful form sync. This ensures submissions arriving mid-run are caught on the next sync rather than missed.
 
 ## Gap Sync (Phase 1b)
 
-When the delta count is 0 or the delta check fails, the sync runs a gap check instead of skipping the form entirely. This catches submissions that were missed by earlier failed syncs.
+When the delta count is 0, the sync runs a gap check instead of skipping the form entirely. This catches submissions that were missed by earlier failed syncs.
 
 Steps:
 

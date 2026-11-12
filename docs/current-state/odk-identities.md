@@ -3,7 +3,7 @@ title: "ODK Central Submission Identity: __id, instanceID, and deprecatedID"
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-11-12
 ---
 
 # ODK Central Submission Identity: `__id`, `instanceID`, and `deprecatedID`
@@ -395,8 +395,10 @@ most recent `__system/updatedAt` across all synced submissions as the next
 `updatedAt`, so filtering on `submissionDate` alone catches fresh ones. But
 edits only bump `updatedAt`, not `submissionDate`. You need both in the filter.
 
-**Fallback: gap detection.** If the delta check fails or times out, compare
-ODK's ID listing against your local keys:
+**Fallback: gap detection.** If the delta count is 0, compare ODK's ID
+listing against your local keys (a failed or timed-out delta check instead
+downloads every change since the watermark, because the gap check cannot
+see an edit to a submission already held; `digitva-9xn9.7`):
 
 ```
 GET .../submissions                                    # REST listing, IDs only

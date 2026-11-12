@@ -1221,15 +1221,19 @@ def va_data_sync_odkcentral(
                                 f"since {since_str} — downloading…"
                             )
                     except Exception as delta_err:
+                        # Not the gap check: it fetches only sids missing
+                        # locally, so an edit since the watermark would be
+                        # skipped while the watermark moves past it
+                        # (digitva-9xn9.7). The since fetch costs more but
+                        # sees every change.
                         _progress(
                             f"[{va_form.form_id}] delta check failed "
-                            f"({delta_err}) — falling back to gap check"
+                            f"({delta_err}) — downloading changes since {since_str}…"
                         )
                         log.warning(
-                            "DataSync [%s]: delta check failed, using gap sync: %s",
+                            "DataSync [%s]: delta check failed, using the since fetch: %s",
                             va_form.form_id, delta_err,
                         )
-                        use_gap_sync = True
                 else:
                     _progress(f"[{va_form.form_id}] first sync — downloading…")
 

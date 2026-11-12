@@ -263,6 +263,46 @@ class OdkSyncServiceTests(BaseTestCase):
         db.session.commit()
         self.assertEqual(db.session.get(VaSubmissions, sids[0]).va_country_iso3, "BGD")
 
+    def test_failed_delta_check_falls_back_to_the_since_fetch(self):
+        # A $count timeout or 5xx must not switch to the gap check, which
+        # fetches only sids missing locally: an edit in Central since the
+        # watermark would be skipped while the watermark moves past it
+        # (digitva-9xn9.7).
+        now = datetime.now(timezone.utc)
+        mapping = db.session.scalar(
+            db.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.PROJECT_ID,
+                MapProjectSiteOdk.site_id == self.SITE_ID,
+            )
+        )
+        if mapping is None:
+            mapping = MapProjectSiteOdk(
+                project_id=self.PROJECT_ID,
+                site_id=self.SITE_ID,
+                odk_project_id=11,
+                odk_form_id="SYNC_TEST_FORM",
+            )
+            db.session.add(mapping)
+        mapping.last_synced_at = now - timedelta(days=1)
+        db.session.commit()
+        watermark = mapping.last_synced_at
+        fake_form = db.session.get(VaForms, self.FORM_ID)
+        sync = "app.services.va_data_sync.va_data_sync_01_odkcentral"
+
+        with patch(f"{sync}.sync_runtime_forms_from_site_mappings", return_value=[fake_form]), \
+                patch(f"{sync}._resolve_project_connections", return_value={}), \
+                patch(f"{sync}._get_or_create_sync_odk_client", return_value=object()), \
+                patch(f"{sync}.va_odk_fetch_instance_ids", return_value=[]), \
+                patch(f"{sync}._mark_form_sync_issues"), \
+                patch(f"{sync}.va_odk_delta_count", side_effect=TimeoutError("count timed out")), \
+                patch(f"{sync}.va_odk_fetch_submissions_page", return_value=[]) as page_fetch, \
+                patch(f"{sync}.va_odk_fetch_submissions_by_ids") as by_ids:
+            va_data_sync_odkcentral(log_progress=lambda _msg: None, enrichment_sync_dispatcher=lambda *_a: None)
+
+        page_fetch.assert_called()
+        self.assertEqual(page_fetch.call_args.kwargs["since"], watermark)
+        by_ids.assert_not_called()
+
     def test_gap_sync_dispatches_canonical_repair_per_missing_batch(self):
         now = datetime.now(timezone.utc)
         mapping = db.session.scalar(

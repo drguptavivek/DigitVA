@@ -863,14 +863,17 @@ def e2e_users_create(out_path):
 def e2e_users_teardown(run_id, older_than_hours):
     """Revoke the devices, end the sessions and deactivate e2e accounts.
 
-    Devices are revoked through device_auth_service.revoke_device with the
-    seeded admin as actor (audited). Rows are kept, so work the accounts made
+    Devices are revoked through device_auth_service.revoke_device and TST001
+    grants through the users-grid revoke_all path (grants.log), both with the
+    seeded admin as actor. Rows are kept, so work the accounts made
     stays. Idempotent: a rerun finds nothing active and changes nothing.
     """
     from datetime import UTC, datetime, timedelta
 
     from app.models import AuthDevice, AuthDeviceSession, VaStatuses, VaUsers
     from app.services import device_auth_service
+    from app.services import organization_service as org
+    from app.services import project_user_import_service as user_import
 
     _require_dev_app("teardown")
     if run_id is not None and not run_id.isalnum():
@@ -892,6 +895,20 @@ def e2e_users_teardown(run_id, older_than_hours):
         )
     ).all() if user_ids else []
     ended = sum(device_auth_service.revoke_device(d, actor=actor, reason="e2e_teardown") for d in devices)
+    # Grants: the users-grid "revoke_all" path the admin panel uses, audited
+    # after commit by finalize_apply. Its batch cap is 500 users.
+    changed_grants = []
+    for start in range(0, len(user_ids), 500):
+        try:
+            _summary, changed = org.bulk_apply_project_users_grid(
+                TEST_PROJECT_ID,
+                {"user_ids": [str(uid) for uid in user_ids[start:start + 500]], "operation": "revoke_all"},
+                actor=actor,
+            )
+        except org.OrganizationError as exc:
+            db.session.rollback()
+            raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
+        changed_grants += changed
     deactivated = 0
     for user in users:
         if user.user_status != VaStatuses.deactive:
@@ -899,8 +916,14 @@ def e2e_users_teardown(run_id, older_than_hours):
             user.bump_session_version()  # ends web sessions and remember cookies
             deactivated += 1
     db.session.commit()
+    if changed_grants:
+        user_import.finalize_apply(
+            TEST_PROJECT_ID, actor_user_id=actor.user_id, actor_role="admin",
+            changed_grants=changed_grants, invitations=[],
+        )
     click.echo(f"  matched    {len(users)} e2e account(s)")
     click.echo(f"  devices    {len(devices)} revoked, {ended} session(s) ended")
+    click.echo(f"  grants     {len(changed_grants)} revoked")
     click.echo(f"  users      {deactivated} deactivated")
 
 

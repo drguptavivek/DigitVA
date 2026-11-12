@@ -147,7 +147,7 @@ staging opt-in):
 - `flask seed e2e-users teardown [--run <id>] [--older-than-hours N]` revokes
   every unrevoked device any matched account has a session on
   (`device_auth_service.revoke_device`, actor testadmin, reason
-  `e2e_teardown`), bumps the session version (ends web and device sessions)
+  `e2e_teardown`), revokes their TST001 grants (admin users-grid revoke, logged in grants.log), bumps the session version (ends web and device sessions)
   and deactivates the accounts. Rows and their work stay. Idempotent.
   Revoking a device ends every session on it, including a non-e2e account
   signed in on the same phone.

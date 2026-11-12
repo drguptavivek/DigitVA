@@ -103,11 +103,20 @@ class SeedE2eUsersTests(BaseTestCase):
             u = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
             self.assertEqual(u.user_status, VaStatuses.deactive)
         self.assertIn("3 deactivated", first.output)
+        self.assertIn("8 revoked", first.output)
+        for email in creds["users"].values():
+            self.assertEqual(self._grants(email), [])
+        revoked = db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants)
+                                    .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
+                                    .where(VaUsers.email.in_(list(creds["users"].values())),
+                                           VaUserAccessGrants.grant_status == VaStatuses.deactive))
+        self.assertEqual(revoked, 8)
 
         again = self.runner.invoke(args=["seed", "e2e-users", "teardown"])
         self.assertEqual(again.exit_code, 0, again.output)
         self.assertIn("0 revoked", again.output)
         self.assertIn("0 deactivated", again.output)
+        self.assertIn("grants     0 revoked", again.output)
 
     def test_older_than_hours_spares_a_fresh_run(self):
         _result, creds = self._create()
